@@ -3,7 +3,7 @@
 Status: active product route; stable batch capture/processing, live transport evidence, Live Order
 and Role Reconciliation v1, Live Local Recall and Remote Leakage Hardening v1 and Causal
 Local-Island Micro-ASR v2, Causal Remote-Active Me Separation v1 and Recording-Time Causal Me
-Recovery Integration v1 complete
+Recovery Integration v1 complete; incremental runtime implemented, real-session proof pending
 Date: 2026-07-15
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
@@ -21,9 +21,11 @@ Remote-active separation then classified all `19` primary and `16` mixed/double-
 rows, accepted `9` primary rows and reduced missing `Me` to `1657.89s` with the same remote, order,
 token-F1 and review-burden gates. Their recording-time integration now runs as a bounded latest-only
 child after the base live chunk is durable. Paced replay reproduces candidate sets and profile
-metrics across all seven sessions; failures and lag affect only the explicit diagnostic shadow.
-The next bounded question is runtime efficiency and fresh real-session pre-stop evidence before any
-publication path is considered.
+metrics across all seven sessions; failures and lag affect only the explicit diagnostic shadow. The
+runtime now reuses a content-addressed stable prefix and processes only new/invalidated suffix
+evidence. Warm equivalence passes `7/7`, and a stride-1 source-time run gives `p95=13.61s` and
+maximum `19.16s`. The remaining bounded question is fresh real-session pre-stop evidence and zero
+final lag before any publication path is considered.
 Near-realtime output remains shadow-only.
 
 ## Why This Exists

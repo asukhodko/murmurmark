@@ -52,11 +52,16 @@ Authoritative operating point, 2026-07-15:
   committed-PCM worker as a bounded latest-only child. The fixed seven-session paced replay matches
   the replay candidate sets and profile metrics `7/7`; `31` runtime invocations cover the corpus,
   five sessions produce pre-stop candidates and raw/batch inputs remain unchanged;
-- an isolated `870.16s` source-time soak yields seven pre-stop diagnostic candidates / `48.40s`;
-  its slowest cutoff finishes in `32.28s`, inside the `90s` runtime lag budget;
+- the recovery child now keeps per-stage high-watermarks and immutable content-addressed DSP,
+  candidate and micro-ASR caches. New cutoffs process only newly closed evidence; model/ASR changes
+  invalidate candidate outcomes without discarding reusable remote-separation DSP;
+- the refreshed fixed corpus keeps candidate and profile agreement `7/7`, and exact warm-cache
+  equivalence passes `7/7`. A `2460s` stride-1 source-time replay finishes `41` cutoffs with
+  `p50=2.80s`, `p95=13.61s`, maximum `19.16s` and a `2.52s` zero-new-work warm final run;
 - the runtime result stays in an explicit diagnostic namespace and cannot affect normal live watch,
-  transcript, notes, export or promotion. The next bounded step is runtime-efficiency hardening plus
-  fresh real-session evidence before considering any publication path.
+  transcript, notes, export or promotion. The remaining goal evidence is three fresh meaningful
+  real sessions proving complete raw tracks, successful batch, bounded pre-stop recovery and zero
+  final lag before considering any publication path.
 
 The system deliberately keeps unresolved uncertainty visible. Suggested review decisions may close
 only rows supported by local audio and audit evidence. `finish` and guarded `export` remain blocked
@@ -98,7 +103,8 @@ shadow-only until a broader corpus passes explicit promotion gates.
 - Export Bundle Quality v1: `finish` writes a readable handoff with "Can I use this?", review
   burden, evidence-backed notes, transcript IDs and retention/privacy next steps.
 - Bounded recording-time causal `Me` recovery behind committed PCM, with latest-only scheduling,
-  child timeout/lag budgets and a fail-open explicit diagnostic shadow.
+  child timeout/lag budgets, persistent incremental watermarks, content-addressed caches and a
+  fail-open explicit diagnostic shadow.
 - Local release bundle, self-test, acceptance gate and open-source readiness check.
 - Recording reliability: duration/SIGINT complete normally, SIGTERM/SIGHUP/unrecovered capture stops
   become explicit partial sessions, severe wall-clock/audio-duration gaps are blocked as partial
@@ -566,7 +572,9 @@ source for notes and export.
 The same two layers now also run automatically inside the recording-time worker after each base
 chunk is durable. The worker keeps only one active child and one latest pending cutoff, uses a
 `120s` child timeout and a `90s` lag budget, and falls back to the already written base draft on any
-error. Its output is deliberately separate:
+error. At stop, a bounded `30s` final drain supersedes an older active cutoff when a newer one is
+waiting; successful completion therefore targets zero recovery lag without extending capture or
+making recovery authoritative. Its output is deliberately separate:
 
 ```text
 derived/live/causal-me-recovery-runtime-v1/
@@ -576,6 +584,10 @@ derived/live/causal-me-recovery-runtime-v1/
   runtime_runs.jsonl
   draft.json
   transcript.shadow.md
+  incremental-cache-v1/
+    file-digests-v1/
+    local-island-v2/
+    remote-active-v1/
   local-island-v2/
   remote-active-v1/
 ```
@@ -589,13 +601,40 @@ jq '.' "$SESSION/derived/live/causal-me-recovery-runtime-v1/worker_state.json"
 ```
 
 The runtime profile consumes only closed current/past chunks, past-only enrollment and live audio
-guards. It does not use batch text or timing for selection. Reproduce the fixed-corpus proof with:
+guards. It does not use batch text or timing for selection. Each stage records its watermark,
+new/reused chunk and group counts, cache hits/misses, invalidation reason and elapsed time. Reproduce
+the fixed-corpus agreement and warm-cache proof with:
 
 ```bash
 .venv/bin/python scripts/report-recording-time-causal-me-recovery-runtime-v1.py \
   --run-paced-replay \
-  --run-compare
+  --run-compare \
+  --verify-warm-final
 ```
+
+Measure the live-latency gate with one cutoff per live chunk, not with a batched replay stride:
+
+```bash
+.venv/bin/python scripts/replay-live-causal-me-recovery-runtime.py "$SESSION" \
+  --stride-chunks 1 \
+  --refresh \
+  --verify-warm-final
+```
+
+For each fresh real proof, run the strict recovery-aware session gate after authoritative batch
+processing and comparison:
+
+```bash
+murmurmark live evidence "$SESSION" \
+  --refresh \
+  --strict \
+  --require-causal-recovery \
+  --max-recovery-final-lag-sec 0
+```
+
+This verifies healthy raw/batch transport, no experiment backpressure, a terminal incremental
+recovery worker, recording-time candidates when the final recovery result contains accepted
+candidates, and exact zero final recovery lag.
 
 The report is written under
 `sessions/_reports/live-pipeline/recording_time_causal_me_recovery_runtime_v1.*`. This profile is
@@ -1522,9 +1561,10 @@ state is:
 7. **Completed recording-time integration:** the proven recovery now runs behind the base live
    chunk through a bounded latest-only child. Candidate and metric agreement pass `7/7`; failures
    preserve normal preview, raw capture and batch authority.
-8. **Recommended next goal:** Live Recovery Runtime Efficiency and Real Evidence v1. Make the
-   runtime incremental, bound p95 latency to one segment, and collect three fresh meaningful
-   pre-stop proofs before any publication discussion. UI remains optional and late.
+8. **Current goal:** Live Recovery Runtime Efficiency and Real Evidence v1. Incremental runtime,
+   bounded invalidation, fixed-corpus `7/7` agreement and the `p95 <= 30s` source-time gate are
+   implemented. Collect three fresh meaningful pre-stop proofs with zero final lag before closing
+   the goal or discussing publication. UI remains optional and late.
 
 <details>
 <summary>Historical implementation log (non-authoritative)</summary>

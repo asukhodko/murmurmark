@@ -52,9 +52,11 @@ nodes:
       завершён: 9/19 primary rows приняты, aggregate missing Me уменьшился ещё на 252.90s, а все 16
       mixed/double-talk cross-check rows безопасно отклонены. Recording-Time Causal Me Recovery
       Integration v1 завершён: replay-proven recovery перенесён в committed-PCM worker с bounded
-      lag и fail-open fallback. Ближайшая рекомендуемая цель — Live Recovery Runtime Efficiency and
-      Real Evidence v1: убрать повторную обработку всей закрытой истории и доказать bounded pre-stop
-      recovery на свежих реальных сессиях.
+      lag и fail-open fallback. Live Recovery Runtime Efficiency and Real Evidence v1 выполняется:
+      persistent watermarks и content-addressed DSP/candidate/micro-ASR caches уже убрали повторную
+      обработку стабильного префикса. Candidate/metric agreement и warm equivalence проходят 7/7;
+      stride-1 source-time p95 равен 13.61s. До завершения нужны три fresh real-session proof с
+      pre-stop candidates и zero final lag.
 
       Historical operational snapshot, 2026-07-02:
 
@@ -1078,7 +1080,7 @@ nodes:
     notes: |
       Завершено 2026-07-15. Replay-proven local-island v2 и remote-active v1 выполняются после
       durable base chunk через latest-only child. Runtime использует closed current/past chunks,
-      past-only enrollment, timeout 120s, lag budget 90s, stop wait 5s и proven remote-active ASR
+      past-only enrollment, timeout 120s, lag budget 90s и proven remote-active ASR
       budget 24. Fixed corpus воспроизводит candidate sets и profile metrics 7/7; missing Me
       1657.89s, remote-like Me 108.42s, blockers 0, review burden 490.38s. Timeout/lag/coalescing
       fail open, raw и batch hashes неизменны. Isolated source-time soak 870.16s публикует 7
@@ -1090,14 +1092,37 @@ nodes:
     kind: task
     parent: near-realtime-pipeline
     deps: [live-recording-time-causal-me-recovery-integration-v1]
+    status: current
+    effort: 8
+    notes: |
+      В работе 2026-07-15. Реализованы persistent per-stage watermarks, immutable content-addressed
+      DSP/candidate/micro-ASR caches, changed-suffix processing и bounded model/config invalidation.
+      Fixed corpus сохраняет candidate agreement и profile metrics 7/7; warm-final equivalence 7/7.
+      Stride-1 replay на 2460s/41 cutoffs даёт p50 2.80s, p95 13.61s, max 19.16s и warm final 2.52s
+      без новой работы. Stop path теперь имеет bounded 30s latest-cutoff drain вместо потери pending
+      cutoff; focused tests подтверждают zero-lag completion и fail-open timeout. Команда `live
+      evidence --require-causal-recovery` автоматически проверяет experiment backpressure,
+      incremental state, pre-stop candidates и zero final lag. Осталось получить минимум три свежих
+      meaningful real-session proofs с полными raw tracks и successful batch. Normal preview,
+      transcript, notes, export и promotion не менять.
+
+  live-causal-double-talk-me-recovery-v1:
+    title: "Causal Double-Talk Me Recovery v1"
+    kind: task
+    parent: near-realtime-pipeline
+    deps: [live-recovery-runtime-efficiency-real-evidence-v1]
     status: next
     effort: 8
     notes: |
-      Сделать causal recovery инкрементальным: persistent watermark, immutable per-candidate cache,
-      обработка только нового closed evidence и bounded cache invalidation. Добиться p95 enrichment
-      latency не больше одного live segment и zero final lag. Затем получить минимум три свежих
-      meaningful real-session proofs с pre-stop diagnostic candidates, без capture/batch regression.
-      Normal preview, transcript, notes, export и promotion не менять.
+      Следующая bounded quality-цель после трёх real-session proofs. Зафиксированный вход — 16
+      mixed/double-talk cross-check rows / 65.07s, которые текущий hard-guarded recovery корректно
+      отклоняет. Требуется получить новое причинное evidence, а не ослаблять remote guards:
+      несколько causal residual views, past-only Target-Me verification, multi-view micro-ASR
+      consensus и remote-forbidden text/audio checks. Каждый row должен получить explainable stable
+      outcome. Публикация допустима только при материальном снижении missing Me без роста remote-like
+      Me, effective order blockers, token-F1 regression или review burden. Raw capture, normal
+      preview, batch transcript и promotion остаются неизменными; отсутствие safe gain фиксируется
+      как доказанный отрицательный результат, а не компенсируется снижением порогов.
 
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"
@@ -1974,8 +1999,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Live Recovery Runtime Efficiency and Real Evidence v1: убрать повторный whole-history runtime и доказать bounded pre-stop recovery на свежих реальных сессиях."
-      success_by_next_sync: "Runtime обрабатывает только новое closed evidence; p95 enrichment latency не больше одного live segment; три meaningful sessions дают pre-stop candidates и zero final lag; raw capture, normal preview и batch не регрессируют; promotion blocked."
+      nearest_goal: "Live Recovery Runtime Efficiency and Real Evidence v1: подтвердить уже реализованный incremental runtime на трёх свежих meaningful real sessions."
+      success_by_next_sync: "Три meaningful sessions дают полные raw tracks, successful batch, bounded pre-stop candidates и zero final lag; raw capture, normal preview и batch не регрессируют; promotion blocked."
     defaults:
       status_progress:
         done: 1.0
@@ -2001,8 +2026,8 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "CLI MVP и committed-PCM transport закрыты. Local-recall hardening уменьшил aggregate missing Me 2844.88s -> 1657.89s. Recording-time runtime воспроизводит replay candidates и metrics 7/7, fail open и не подключён к normal preview; production output остаётся batch."
-          next_sync_goal: "Сделать recovery incremental и собрать три fresh real-session pre-stop proofs с bounded latency, не меняя normal preview или batch authority."
+          sync_note: "CLI MVP и committed-PCM transport закрыты. Local-recall hardening уменьшил aggregate missing Me 2844.88s -> 1657.89s. Recording-time runtime теперь incremental, сохраняет replay candidates/metrics 7/7 и warm equivalence 7/7; stride-1 p95 13.61s. Production output остаётся batch."
+          next_sync_goal: "Собрать три fresh real-session pre-stop proofs с zero final lag, не меняя normal preview или batch authority."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening, reliable-transcription-route]

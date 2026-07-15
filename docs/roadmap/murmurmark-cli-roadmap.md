@@ -49,6 +49,11 @@ aggregate missing `Me` by another `252.90s` with all seven no-regression gates p
 Recording-Time Causal Me Recovery Integration v1 is complete: a latest-only bounded child now runs
 both proven layers after the base chunk is durable. Fixed-corpus paced replay reproduces candidate
 sets and profile metrics `7/7`; timeout, lag and overload preserve the normal preview and batch.
+Live Recovery Runtime Efficiency and Real Evidence v1 is in progress: persistent stage watermarks,
+content-addressed DSP/candidate/micro-ASR caches and bounded model/config invalidation are implemented.
+A refreshed fixed corpus keeps candidate and metric agreement `7/7`, warm-final equivalence passes
+`7/7`, and a 41-cutoff stride-1 source-time replay gives `p95=13.61s` and maximum `19.16s`. Three
+fresh meaningful real sessions remain the completion gate.
 Near-Realtime Live Parity Coverage v1 already proved complete raw capture, pre-stop preview,
 terminal workers, zero final lag and successful batch output on three fresh real sessions. Live
 promotion remains blocked.
@@ -104,8 +109,9 @@ roadmap point it means:
   `Me` further to `1657.89s` without increasing remote-like `Me`, order risk or review burden;
 - recording-time integration reproduces both replay candidate sets and profile metrics across all
   seven sessions; it remains an explicit-only `_runtime_v1` shadow;
-- the next bounded work unit is incremental runtime efficiency plus three fresh meaningful
-  real-session proofs with pre-stop candidates and zero final lag;
+- incremental runtime efficiency is implemented and passes the `p95 <= 30s` source-time gate; the
+  remaining bounded work is three fresh meaningful real-session proofs with pre-stop candidates and
+  zero final lag;
 - `status`, `next`, `finish`, session report and corpus report agree;
 - safe review suggestions are applied before asking for manual listening;
 - remaining review is short, explicit and backed by audio/transcript evidence;
@@ -352,11 +358,12 @@ flowchart LR
 ### Next
 
 - Live Recovery Runtime Efficiency and Real Evidence v1:
-  - persist an incremental watermark and immutable candidate cache instead of rescanning the full
-    closed history on every cutoff;
-  - process only new evidence while keeping the proven `24`-group remote-active budget and all hard
-    guards;
-  - keep p95 enrichment latency within one live segment and finish with zero lag;
+  - implemented: persistent per-stage watermarks and immutable content-addressed DSP,
+    candidate and micro-ASR caches replace whole-history recomputation;
+  - implemented: only changed suffix evidence is processed while the proven `24`-group
+    remote-active budget and all hard guards remain unchanged;
+  - implemented in source-time replay: `p95=13.61s`, maximum `19.16s`, warm final `2.52s` with zero
+    new chunks; real recording still must prove zero final lag;
   - collect three fresh meaningful sessions with pre-stop diagnostic candidates and no raw/batch
     regression;
   - keep the integrated profile diagnostic-only, batch authoritative and live promotion blocked;
@@ -507,12 +514,15 @@ Recently completed:
 ## Goal Sequence
 
 Recommended nearest goal: **Live Recovery Runtime Efficiency and Real Evidence v1**. Transport,
-causal selection and recording-time integration are proven; the remaining operational gap is
-repeated whole-history work and the absence of fresh real-session evidence for this exact runtime.
+causal selection, recording-time integration and incremental runtime efficiency are proven. The
+stop path now drains the newest pending cutoff for up to `30s` instead of discarding it, and the
+strict recovery-aware session report checks the resulting zero-lag contract. The remaining
+operational gap is fresh real-session evidence for this exact implementation.
 
-1. **Live Recovery Runtime Efficiency and Real Evidence v1.** Make recovery incremental, keep p95
-   latency within one segment, and prove pre-stop candidates plus zero final lag on three fresh
-   meaningful sessions without raw/batch regression.
+1. **Live Recovery Runtime Efficiency and Real Evidence v1.** Preserve the implemented incremental
+   runtime and prove pre-stop candidates plus zero final lag on three fresh meaningful sessions
+   without raw/batch regression. Each proof must pass `murmurmark live evidence SESSION --refresh
+   --strict --require-causal-recovery --max-recovery-final-lag-sec 0`.
 2. **Causal double-talk recovery follow-up.** Use the `16/16` safely rejected mixed/double-talk rows
    as a bounded future scope only after runtime integration is stable; do not weaken remote guards
    merely to raise recall.

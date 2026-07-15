@@ -28,6 +28,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--strict", action="store_true", help="Exit 2 unless all parity gates pass.")
     parser.add_argument("--max-final-lag-sec", type=float, default=60.0)
     parser.add_argument("--max-first-chunk-latency-sec", type=float, default=120.0)
+    parser.add_argument(
+        "--require-causal-recovery",
+        action="store_true",
+        help="Also require healthy incremental causal-Me recovery and zero final recovery lag.",
+    )
+    parser.add_argument("--max-recovery-final-lag-sec", type=float, default=0.05)
     return parser.parse_args()
 
 
@@ -145,6 +151,11 @@ def main() -> int:
     session_manifest = read_json(session / "session.json")
     worker_state = read_json(live_dir / "live_pipeline_state.json")
     worker_report = read_json(live_dir / "live_pipeline_report.json")
+    experiment_state = read_json(session / "derived/experiments/live-shadow-v1/state.json")
+    recovery_dir = live_dir / "causal-me-recovery-runtime-v1"
+    recovery_worker = read_json(recovery_dir / "worker_state.json")
+    recovery_state = read_json(recovery_dir / "state.json")
+    recovery_runs = read_jsonl(recovery_dir / "runtime_runs.jsonl")
     chunks = read_jsonl(live_dir / "chunks.jsonl")
     segments = read_jsonl(live_dir / "segments.jsonl")
     preview_snapshots = [
@@ -275,6 +286,103 @@ def main() -> int:
             {"meaningful_live_comparison": meaningful},
         ),
     ]
+    recovery_metrics: dict[str, Any] = {}
+    if args.require_causal_recovery:
+        recovery_status = str(recovery_worker.get("status") or "missing")
+        recovery_failed = int(recovery_worker.get("failed_invocations") or 0)
+        recovery_timed_out = int(recovery_worker.get("timed_out_invocations") or 0)
+        recovery_final_lag = optional_float(recovery_worker.get("final_live_lag_sec"))
+        incremental_runtime = (
+            recovery_worker.get("last_incremental_runtime")
+            if isinstance(recovery_worker.get("last_incremental_runtime"), dict)
+            else {}
+        )
+        final_candidate_count = int(recovery_state.get("accepted_candidate_count") or 0)
+        pre_stop_candidate_runs = [
+            row
+            for row in recovery_runs
+            if row.get("completed_before_stop") is True
+            and row.get("pre_stop_provenance") == "recording_time_worker"
+            and int(row.get("accepted_candidate_count") or 0) > 0
+        ]
+        experiment_status = str(experiment_state.get("status") or "missing")
+        experiment_fail_open = experiment_status in {
+            "disabled_backpressure",
+            "disabled_pcm_copy",
+            "failed",
+        }
+        recovery_health_ok = (
+            recovery_status == "completed"
+            and recovery_failed == 0
+            and recovery_timed_out == 0
+        )
+        recovery_lag_ok = (
+            recovery_final_lag is not None
+            and recovery_final_lag <= max(0.0, args.max_recovery_final_lag_sec)
+        )
+        incremental_ok = (
+            incremental_runtime.get("schema") == "murmurmark.live_recovery_incremental_runtime/v1"
+        )
+        pre_stop_candidate_ok = final_candidate_count == 0 or bool(pre_stop_candidate_runs)
+        checks.extend(
+            [
+                check(
+                    "experiment_no_backpressure",
+                    bool(experiment_state) and not experiment_fail_open,
+                    "live experiment must not disable itself because of backpressure or PCM-copy failure",
+                    {"status": experiment_status, "reason": experiment_state.get("reason")},
+                ),
+                check(
+                    "causal_recovery_healthy",
+                    recovery_health_ok,
+                    "incremental causal recovery must finish without child failures or timeouts",
+                    {
+                        "status": recovery_status,
+                        "failed_invocations": recovery_failed,
+                        "timed_out_invocations": recovery_timed_out,
+                        "last_error": recovery_worker.get("last_error"),
+                    },
+                ),
+                check(
+                    "causal_recovery_incremental_runtime",
+                    incremental_ok,
+                    "the final worker state must expose the persistent incremental runtime",
+                    {"schema": incremental_runtime.get("schema")},
+                ),
+                check(
+                    "causal_recovery_pre_stop_candidates",
+                    pre_stop_candidate_ok,
+                    "accepted recovery candidates must appear before stop when the final run has candidates",
+                    {
+                        "final_candidate_count": final_candidate_count,
+                        "pre_stop_candidate_run_count": len(pre_stop_candidate_runs),
+                    },
+                ),
+                check(
+                    "causal_recovery_zero_final_lag",
+                    recovery_lag_ok,
+                    f"final recovery lag must be <= {args.max_recovery_final_lag_sec:.3f}s",
+                    {
+                        "final_live_lag_sec": recovery_final_lag,
+                        "last_completed_chunk": recovery_worker.get("last_completed_chunk"),
+                        "last_completed_chunk_end_sec": recovery_worker.get("last_completed_chunk_end_sec"),
+                        "final_drain_invocations": recovery_worker.get("final_drain_invocations"),
+                        "final_drain_completed_invocations": recovery_worker.get("final_drain_completed_invocations"),
+                    },
+                ),
+            ]
+        )
+        recovery_metrics = {
+            "required": True,
+            "experiment_status": experiment_status,
+            "worker_status": recovery_status,
+            "failed_invocations": recovery_failed,
+            "timed_out_invocations": recovery_timed_out,
+            "final_live_lag_sec": recovery_final_lag,
+            "final_candidate_count": final_candidate_count,
+            "pre_stop_candidate_run_count": len(pre_stop_candidate_runs),
+            "incremental_runtime_schema": incremental_runtime.get("schema"),
+        }
     transport_passed = all(row["status"] == "passed" for row in checks)
     if transport_passed and all_parity_passed:
         status = "parity_passed"
@@ -318,12 +426,21 @@ def main() -> int:
             "live_remote_in_me_seconds": metrics.get("live_suspected_remote_leak_in_me_seconds"),
             "live_order_mismatch_count": metrics.get("live_blocking_contentful_role_constrained_order_mismatch_count"),
             "adjacent_duplicate_chunk_count": metrics.get("adjacent_duplicate_chunk_count"),
+            "causal_recovery": recovery_metrics,
         },
         "inputs": {
             "session_manifest": "session.json" if session_manifest else None,
             "worker_state": "derived/live/live_pipeline_state.json" if worker_state else None,
             "worker_report": "derived/live/live_pipeline_report.json" if worker_report else None,
             "comparison": "derived/live/live_batch_comparison.json" if comparison else None,
+            "experiment_state": (
+                "derived/experiments/live-shadow-v1/state.json" if experiment_state else None
+            ),
+            "causal_recovery_worker_state": (
+                "derived/live/causal-me-recovery-runtime-v1/worker_state.json"
+                if recovery_worker
+                else None
+            ),
         },
         "recommended_next": recommended_next,
     }
@@ -341,9 +458,13 @@ def main() -> int:
     print(f"live_pre_stop_preview_snapshot_count: {pre_stop_preview_snapshots}")
     print(f"first_live_chunk_latency_sec: {first_chunk_latency}")
     print(f"final_live_lag_sec: {final_lag}")
+    if args.require_causal_recovery:
+        print(f"causal_recovery_status: {recovery_metrics.get('worker_status')}")
+        print(f"causal_recovery_final_live_lag_sec: {recovery_metrics.get('final_live_lag_sec')}")
+        print(f"causal_recovery_pre_stop_candidate_run_count: {recovery_metrics.get('pre_stop_candidate_run_count')}")
     print(f"remaining_parity_gates: {len(remaining)}")
     print(f"next: {recommended_next}")
-    if args.strict and not all_parity_passed:
+    if args.strict and (not all_parity_passed or not transport_passed):
         return 2
     return 0
 

@@ -93,8 +93,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--causal-me-recovery-stop-wait-sec",
         type=float,
-        default=5.0,
-        help="Bound shutdown waiting for the optional causal recovery child.",
+        default=30.0,
+        help="Bound the optional latest-cutoff recovery drain after capture stops.",
     )
     parser.add_argument("--max-segments", type=int, default=0, help="Debug limit. 0 means no limit.")
     parser.add_argument(

@@ -104,17 +104,21 @@ bounded experiment, local-island micro-ASR v2, has also completed: it reduces ag
 remote-like `Me` stays at `108.42s`, effective order blockers stay at `0`, and every per-session
 gate passes. Recording-Time Causal Me Recovery Integration v1 now executes both layers behind the
 committed-PCM worker. Fixed-corpus paced replay reproduces their candidates and profile metrics
-`7/7`. An isolated `870.16s` source-time soak publishes seven pre-stop candidates / `48.40s`; the
-slowest cutoff is `32.28s`, inside the `90s` lag budget. The runtime shadow remains disconnected
-from normal preview and promotion.
+`7/7`. The worker now persists per-stage watermarks and content-addressed DSP, candidate and
+micro-ASR objects, so a stable prefix is reused and only a changed suffix is processed. A refreshed
+fixed corpus preserves candidate/metric agreement `7/7` and warm-final equivalence `7/7`; a
+`2460s`, 41-cutoff stride-1 source-time replay gives `p95=13.61s` and maximum `19.16s`. The runtime
+shadow remains disconnected from normal preview and promotion. Three fresh meaningful real sessions
+are still required to close the current efficiency/evidence goal.
 
 The worker path is:
 
 ```text
 closed base chunk + normal preview already durable
   -> latest-only nonblocking recovery manager
-  -> bounded local-island v2 child
-  -> bounded remote-active v1 child (24-group proven ASR budget)
+  -> persistent per-stage watermark + content-addressed input chain
+  -> bounded local-island v2 child (new/invalidated suffix only)
+  -> bounded remote-active DSP cache + candidate cache (24-group proven ASR budget)
   -> explicit diagnostic shadow
 ```
 
@@ -243,8 +247,11 @@ under the fallback namespace cannot satisfy the recording-time gate.
 The causal recovery branch starts only after the base chunk and both normal Markdown views have
 been written. It reads closed current/past chunks, uses past-only speaker enrollment, records
 `used_batch_fields_for_selection: false`, and may rewrite only its own runtime namespace. The
-manager defaults are `120s` per child, `90s` maximum live lag and `5s` stop wait. Newer submissions
-replace the single pending cutoff instead of growing an unbounded queue.
+manager defaults are `120s` per child, `90s` maximum live lag and a bounded `30s` latest-cutoff
+drain after capture stops. Newer submissions replace the single pending cutoff instead of growing
+an unbounded queue. If stop finds an older active child plus a newer pending cutoff, the manager
+terminates only that optional stale child and spends the final-drain budget on the newest durable
+evidence. The outer live worker has `45s` headroom to persist the resulting state and report.
 
 ## Known Failure Modes
 

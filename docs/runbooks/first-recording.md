@@ -240,15 +240,17 @@ jq '{status, summary, completion_checks, corpus_agreement}' \
 ```
 
 The replay remains useful for reproducibility. Recording-Time Causal Me Recovery Integration v1
-also runs the same layers automatically after each base live chunk is durable. It is bounded,
-fail-open and diagnostic-only; `murmurmark live watch` deliberately continues to show the normal
-conservative preview.
+also runs the same layers automatically after each base live chunk is durable. The child persists
+stage watermarks and content-addressed DSP/candidate/micro-ASR objects, so each cutoff processes only
+new or invalidated suffix evidence. It is bounded, fail-open and diagnostic-only; `murmurmark live
+watch` deliberately continues to show the normal conservative preview.
 
 Inspect the recording-time shadow explicitly:
 
 ```bash
 jq '.' "$SESSION/derived/live/causal-me-recovery-runtime-v1/worker_state.json"
 jq '.' "$SESSION/derived/live/causal-me-recovery-runtime-v1/state.json"
+jq '.incremental_runtime' "$SESSION/derived/live/causal-me-recovery-runtime-v1/state.json"
 less "$SESSION/derived/live/causal-me-recovery-runtime-v1/transcript.shadow.md"
 ```
 
@@ -258,8 +260,28 @@ capture or the base live draft. Reproduce the seven-session replay/runtime proof
 ```bash
 .venv/bin/python scripts/report-recording-time-causal-me-recovery-runtime-v1.py \
   --run-paced-replay \
-  --run-compare
+  --run-compare \
+  --verify-warm-final
 ```
+
+Use `--stride-chunks 1` when measuring the live `p95 <= 30s` latency gate. Larger strides validate
+batched corpus throughput and must not be interpreted as per-cutoff live latency.
+
+After `murmurmark process` and `murmurmark experiment compare`, validate each fresh real-session
+proof with the strict recovery gate:
+
+```bash
+murmurmark live evidence "$SESSION" \
+  --refresh \
+  --strict \
+  --require-causal-recovery \
+  --max-recovery-final-lag-sec 0
+```
+
+The command fails unless capture and batch are healthy, the experiment avoided backpressure, the
+incremental recovery worker completed without timeout, accepted final candidates have recording-time
+evidence, and `final_live_lag_sec` is exactly zero. Recovery gets a bounded `30s` latest-cutoff drain
+after capture stops; failure remains isolated from raw CAF and the authoritative batch transcript.
 
 Do not use the runtime profile as transcript, notes or export input. Batch remains authoritative.
 

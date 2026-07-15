@@ -14,7 +14,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.recording_time_causal_me_recovery_runtime_report/v1"
-SCRIPT_VERSION = "1.0.0"
+SCRIPT_VERSION = "1.1.0"
 REPLAY_PROFILE = (
     "online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_"
     "local_island_micro_asr_v2_causal_remote_active_me_separation_v1"
@@ -65,6 +65,17 @@ def same_number(left: Any, right: Any, tolerance: float = 0.001) -> bool:
         return left == right
 
 
+def percentile(values: list[float], fraction: float) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    position = max(0.0, min(1.0, fraction)) * (len(ordered) - 1)
+    lower = int(position)
+    upper = min(len(ordered) - 1, lower + 1)
+    weight = position - lower
+    return ordered[lower] * (1.0 - weight) + ordered[upper] * weight
+
+
 def profile_metrics(comparison: dict[str, Any], profile: str) -> dict[str, Any]:
     row = (((comparison.get("shadow_profiles") or {}).get("target_me") or {}).get(profile) or {})
     metrics = row.get("metrics")
@@ -102,7 +113,8 @@ def render_markdown(report: dict[str, Any]) -> str:
         f"Remote-like Me: `{summary['remote_like_me_seconds']}s`",
         f"Effective order blockers: `{summary['effective_order_blocker_count']}`",
         f"Review burden: `{summary['review_burden_seconds']}s`",
-        f"Runtime invocations: `{summary['runtime_invocation_count']}`; max elapsed: `{summary['max_runtime_invocation_sec']}s`",
+        f"Runtime invocations: `{summary['runtime_invocation_count']}`; p95/max elapsed: "
+        f"`{summary['p95_runtime_invocation_sec']}s` / `{summary['max_runtime_invocation_sec']}s`",
         f"Sessions with pre-stop candidates: `{summary['pre_stop_candidate_session_count']}`",
         "Batch authoritative: `true`",
         "Promotion allowed: `false`",
@@ -132,6 +144,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--run-compare", action="store_true")
     parser.add_argument("--refresh-runtime", action="store_true")
     parser.add_argument("--stride-chunks", type=int, default=12)
+    parser.add_argument("--verify-warm-final", action="store_true")
+    parser.add_argument(
+        "--max-p95-sec",
+        type=float,
+        default=0.0,
+        help="Optional efficiency gate. Use with stride 1 for recording-time evidence.",
+    )
     return parser.parse_args()
 
 
@@ -156,6 +175,8 @@ def main() -> int:
             ]
             if args.refresh_runtime:
                 command.append("--refresh")
+            if args.verify_warm_final:
+                command.append("--verify-warm-final")
             run(command)
         if args.run_compare:
             run(
@@ -179,6 +200,12 @@ def main() -> int:
             safe_number(row.get("elapsed_sec"), 0.0) for row in paced_invocations
         ]
         runtime_state = paced.get("runtime_state") if isinstance(paced.get("runtime_state"), dict) else {}
+        efficiency = paced.get("efficiency") if isinstance(paced.get("efficiency"), dict) else {}
+        warm_verification = (
+            paced.get("warm_cache_verification")
+            if isinstance(paced.get("warm_cache_verification"), dict)
+            else {}
+        )
         comparison = read_json(session / "derived/live/live_batch_comparison.json")
         replay_metrics = profile_metrics(comparison, REPLAY_PROFILE)
         runtime_metrics = profile_metrics(comparison, RUNTIME_PROFILE)
@@ -202,6 +229,14 @@ def main() -> int:
             "runtime_pre_stop_provenance": runtime_state.get("completed_before_stop") is True,
             "runtime_invocations_within_timeout": bool(paced_invocations)
             and max(invocation_latencies, default=0.0) <= 120.0,
+            "runtime_p95_within_goal": args.max_p95_sec <= 0.0
+            or (
+                safe_int(paced.get("stride_chunks"), 0) == 1
+                and safe_number(efficiency.get("latency_p95_sec"), 1.0e12)
+                <= args.max_p95_sec
+            ),
+            "warm_cache_equivalence": not args.verify_warm_final
+            or warm_verification.get("status") == "passed",
             "runtime_selection_batch_free": paced.get("used_batch_fields_for_selection") is False,
             "profile_metrics_agree": metrics_agree,
             "focused_no_regression_gates_pass": all(
@@ -233,6 +268,12 @@ def main() -> int:
                 "runtime_evidence": {
                     "invocation_count": len(paced_invocations),
                     "max_invocation_elapsed_sec": round(max(invocation_latencies, default=0.0), 3),
+                    "p50_invocation_elapsed_sec": efficiency.get("latency_p50_sec"),
+                    "p95_invocation_elapsed_sec": efficiency.get("latency_p95_sec"),
+                    "latency_stride_chunks": paced.get("stride_chunks"),
+                    "invocation_latencies_sec": invocation_latencies,
+                    "incremental_efficiency": efficiency,
+                    "warm_cache_verification": warm_verification,
                     "accepted_candidate_count": runtime_state.get("accepted_candidate_count"),
                     "accepted_candidate_seconds": runtime_state.get("accepted_candidate_seconds"),
                     "completed_before_stop": runtime_state.get("completed_before_stop"),
@@ -245,7 +286,7 @@ def main() -> int:
     all_invocation_latencies = [
         safe_number(value, 0.0)
         for row in rows
-        for value in [((row.get("runtime_evidence") or {}).get("max_invocation_elapsed_sec"))]
+        for value in ((row.get("runtime_evidence") or {}).get("invocation_latencies_sec") or [])
     ]
     summary = {
         "session_count": len(rows),
@@ -260,6 +301,13 @@ def main() -> int:
             for row in rows
         ),
         "max_runtime_invocation_sec": round(max(all_invocation_latencies, default=0.0), 3),
+        "p50_runtime_invocation_sec": round(percentile(all_invocation_latencies, 0.50), 3),
+        "p95_runtime_invocation_sec": round(percentile(all_invocation_latencies, 0.95), 3),
+        "warm_cache_verified_session_count": sum(
+            ((row.get("runtime_evidence") or {}).get("warm_cache_verification") or {}).get("status")
+            == "passed"
+            for row in rows
+        ),
         "pre_stop_candidate_session_count": sum(
             safe_int((row.get("runtime_evidence") or {}).get("accepted_candidate_count"), 0) > 0
             for row in rows
@@ -271,6 +319,15 @@ def main() -> int:
         "remote_like_me_within_baseline": safe_number(summary["remote_like_me_seconds"]) <= EXPECTED_REMOTE_LIKE_ME_SECONDS + 0.001,
         "effective_order_blockers_zero": safe_int(summary["effective_order_blocker_count"]) == EXPECTED_ORDER_BLOCKERS,
         "review_burden_not_worse": safe_number(summary["review_burden_seconds"]) <= EXPECTED_REVIEW_BURDEN_SECONDS + 0.001,
+        "runtime_latency_stride_one": args.max_p95_sec <= 0.0
+        or all(
+            safe_int((row.get("runtime_evidence") or {}).get("latency_stride_chunks"), 0) == 1
+            for row in rows
+        ),
+        "runtime_p95_within_goal": args.max_p95_sec <= 0.0
+        or summary["p95_runtime_invocation_sec"] <= args.max_p95_sec,
+        "warm_cache_equivalence": not args.verify_warm_final
+        or summary["warm_cache_verified_session_count"] == len(rows),
         "batch_authoritative": True,
         "promotion_blocked": True,
     }

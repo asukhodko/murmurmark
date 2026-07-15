@@ -4,17 +4,39 @@ This file keeps the latest goal context and the most relevant completed goals. T
 path remains non-live `record -> process`. Live output stays shadow-only and batch transcript remains
 authoritative.
 
-## Recommended Next Goal: Live Recovery Runtime Efficiency and Real Evidence v1
+## Current Goal: Live Recovery Runtime Efficiency and Real Evidence v1
 
-Status, 2026-07-15: ready after the completed recording-time integration.
+Status, 2026-07-15: implementation and automated evidence complete; fresh real-session evidence
+still required.
 
-The causal recovery logic now runs safely during recording, but each invocation still scans the
-closed history and may spend a substantial part of the lag budget in repeated DSP/micro-ASR work.
-The next useful step is to make this runtime incremental and then collect fresh real-session proof:
-persist per-cutoff watermarks and immutable candidate caches, process only newly closed evidence,
-keep p95 enrichment latency below one live segment, and prove pre-stop diagnostic candidates plus
-zero final lag on at least three meaningful sessions. Raw capture, base preview and batch remain
-authoritative; this goal still does not promote the diagnostic shadow.
+The runtime now persists separate stage watermarks and immutable content-addressed DSP, candidate
+and micro-ASR objects. It fingerprints committed audio, model, executable, configuration, schemas and
+algorithm code; a new cutoff reuses the valid prefix and processes only its changed suffix. Remote
+DSP preparation and ASR candidate contexts are separate, so an ASR/model change does not discard
+valid separation work. Every invocation records new/reused chunks and groups, cache hits/misses,
+changed input components, elapsed stages and the manager's lag/coalescing state.
+
+Automated evidence:
+
+- actual stage tests cover cold/warm equivalence, append-only processing, resume after an interrupted
+  watermark write, corrupt-object repair, old-input suffix invalidation and model/config isolation;
+- `scripts/check.sh` passes, including fail-open manager, capture and sidecar regressions;
+- refreshed fixed-corpus candidate agreement and runtime-profile metric agreement pass `7/7`;
+- warm-final equivalence passes `7/7` with zero newly processed chunks;
+- aggregate quality remains missing `Me=1657.89s`, remote-like `Me=108.42s`, effective order
+  blockers `0`, review burden `490.38s`;
+- a `2460s`, 41-cutoff stride-1 source-time replay gives `p50=2.80s`, `p95=13.61s`, maximum
+  `19.16s`; its final warm invocation takes `2.52s` and performs no new chunk work.
+- stop handling now supersedes a stale active cutoff with the newest pending cutoff and gives that
+  final drain a bounded `30s`; focused checks prove both zero-lag completion and fail-open timeout;
+- `murmurmark live evidence ... --require-causal-recovery` turns each fresh-session proof into a
+  strict machine gate for backpressure, incremental state, pre-stop candidates and zero final lag.
+
+Remaining Definition of Done: collect at least three fresh meaningful Live Evidence sessions. Each
+must prove complete mic/remote raw tracks, successful authoritative batch, no capture or sidecar
+backpressure regression, pre-stop recovery candidates when suitable `Me` evidence exists, bounded
+lag and `final_live_lag_sec=0`. Raw capture, base preview and batch remain authoritative; this goal
+still does not promote the diagnostic shadow.
 
 ## Completed Goal: Recording-Time Causal Me Recovery Integration v1
 
@@ -26,7 +48,7 @@ Results:
 
 - the normal live worker writes its base chunk and normal preview before scheduling recovery;
 - a latest-only manager keeps one bounded child and one pending cutoff, with `120s` timeout, `90s`
-  lag budget and `5s` stop wait;
+  lag budget; the current runtime adds a bounded `30s` latest-cutoff final drain;
 - recovery consumes only closed current/past chunks, past-only enrollment and committed-PCM audio;
   batch text/timing are excluded from selection;
 - the proven remote-active micro-ASR budget is fixed at `24`, preventing unvalidated extra

@@ -6,12 +6,28 @@ import hashlib
 import importlib.util
 import json
 import os
+import shutil
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
 import numpy as np
+
+from live_recovery_incremental_cache import (
+    FileDigestMemo,
+    algorithm_fingerprint,
+    chunk_plan,
+    content_hash,
+    context_fingerprint,
+    object_directory,
+    payload_file_fingerprints,
+    read_json as read_cache_json,
+    relative_or_absolute,
+    resolve_cached_path,
+    write_json as write_cache_json,
+)
 
 
 SCHEMA = "murmurmark.live_causal_local_island_micro_asr/v2"
@@ -261,13 +277,14 @@ def select_strict_evaluations(
     existing_me: list[dict[str, Any]],
     progressive: Any,
     causal_existing_cutoff: bool = False,
+    source_index_offset: int = 0,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     session_meta = read_json(session / "session.json")
     ended_at = parse_datetime(session_meta.get("ended_at"))
     selected: list[dict[str, Any]] = []
     decisions: list[dict[str, Any]] = []
     remote_cache: dict[int, list[dict[str, Any]]] = {}
-    for source_index, row in enumerate(evaluations, start=1):
+    for source_index, row in enumerate(evaluations, start=1 + source_index_offset):
         chunk_index = safe_int(row.get("chunk_index"))
         chunk = chunks.get(chunk_index) or {}
         start = safe_float(row.get("start"))
@@ -722,6 +739,296 @@ def render_markdown(state: dict[str, Any], candidates: list[dict[str, Any]]) -> 
     return "\n".join(lines)
 
 
+def resolve_executable(value: str) -> Path | None:
+    candidate = Path(value).expanduser()
+    if candidate.is_absolute() and candidate.exists():
+        return candidate.resolve()
+    resolved = shutil.which(value)
+    return Path(resolved).resolve() if resolved else None
+
+
+def run_incremental(
+    *,
+    args: argparse.Namespace,
+    session: Path,
+    progressive: Any,
+    evaluations: list[dict[str, Any]],
+    chunks: dict[int, dict[str, Any]],
+    chunk_paths: dict[int, Path],
+    segment_rows: list[dict[str, Any]],
+    segments_by_key: dict[tuple[str, int], dict[str, Any]],
+    existing_me: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+    started = time.monotonic()
+    cache_root = args.incremental_cache_dir.expanduser().resolve()
+    if args.force:
+        shutil.rmtree(cache_root, ignore_errors=True)
+    cache_root.mkdir(parents=True, exist_ok=True)
+    digest_memo = FileDigestMemo(cache_root.parent / "file-digests-v1", session=session)
+    scripts = Path(__file__).resolve().parent
+    algorithm = algorithm_fingerprint(
+        [
+            Path(__file__),
+            scripts / "live-progressive-target-me.py",
+            scripts / "live_recovery_incremental_cache.py",
+        ],
+        digest_memo,
+    )
+    model = digest_memo.fingerprint(Path(args.model))
+    whisper_cli_path = resolve_executable(args.whisper_cli)
+    configuration = {
+        "schema": SCHEMA,
+        "script_version": SCRIPT_VERSION,
+        "language": args.language,
+        "whisper_cli": (
+            digest_memo.fingerprint(whisper_cli_path)
+            if whisper_cli_path
+            else {"path": args.whisper_cli, "status": "missing"}
+        ),
+        "max_groups": args.max_groups,
+        "runtime_shadow": args.runtime_shadow,
+        "thresholds": {
+            "remote_guard_sec": REMOTE_GUARD_SEC,
+            "group_gap_sec": GROUP_GAP_SEC,
+            "min_island_sec": MIN_ISLAND_SEC,
+            "max_island_sec": MAX_ISLAND_SEC,
+            "min_micro_asr_score": MIN_MICRO_ASR_SCORE,
+            "min_source_alignment": MIN_SOURCE_ALIGNMENT,
+            "max_remote_similarity": MAX_REMOTE_SIMILARITY,
+            "min_source_token_count": MIN_SOURCE_TOKEN_COUNT,
+            "strict_remote_quiet_max_db": progressive.REMOTE_AUDIO_QUIET_MAX_DB,
+        },
+    }
+    context = context_fingerprint(
+        stage="causal_local_island_micro_asr_v2",
+        algorithm=algorithm,
+        model=model,
+        configuration=configuration,
+    )
+    evaluations_by_chunk: dict[int, list[dict[str, Any]]] = {}
+    for row in evaluations:
+        evaluations_by_chunk.setdefault(safe_int(row.get("chunk_index")), []).append(row)
+    segments_by_chunk: dict[int, list[dict[str, Any]]] = {}
+    for row in segment_rows:
+        segments_by_chunk.setdefault(safe_int(row.get("index")), []).append(row)
+
+    current_inputs: dict[int, str] = {}
+    current_components: dict[int, dict[str, str]] = {}
+    chain_sha256 = context["sha256"]
+    for chunk_index in sorted(chunks):
+        chunk = chunks[chunk_index]
+        chunk_path = chunk_paths.get(chunk_index)
+        descriptor = {
+            "session": session.name,
+            "chunk_index": chunk_index,
+            "chunk_json": digest_memo.fingerprint(chunk_path) if chunk_path else None,
+            "chunk_files": payload_file_fingerprints(
+                session,
+                [chunk, *(segments_by_chunk.get(chunk_index) or [])],
+                digest_memo,
+            ),
+            "evaluations": evaluations_by_chunk.get(chunk_index) or [],
+            "segments": segments_by_chunk.get(chunk_index) or [],
+            "baseline_me_through_chunk": [
+                {
+                    key: row.get(key)
+                    for key in ("id", "chunk_index", "source", "start", "end", "text")
+                }
+                for row in existing_me_through_chunk(existing_me, chunk_index)
+            ],
+        }
+        components = {
+            "chunk_json": content_hash(descriptor["chunk_json"]),
+            "chunk_files": content_hash(descriptor["chunk_files"]),
+            "evaluations": content_hash(descriptor["evaluations"]),
+            "segments": content_hash(descriptor["segments"]),
+            "baseline_me": content_hash(descriptor["baseline_me_through_chunk"]),
+            "previous_chain": chain_sha256,
+        }
+        chain_sha256 = content_hash(
+            {
+                "previous_chain_sha256": chain_sha256,
+                "input_components": components,
+            }
+        )
+        current_inputs[chunk_index] = chain_sha256
+        current_components[chunk_index] = components
+
+    state_path = cache_root / "state.json"
+    previous_state = read_cache_json(state_path)
+    plan = chunk_plan(
+        previous_state=previous_state,
+        context_sha256=context["sha256"],
+        current_inputs=current_inputs,
+        current_components=current_components,
+    )
+    if args.force and current_inputs:
+        plan = {
+            "reused_indexes": [],
+            "process_indexes": sorted(current_inputs),
+            "earliest_invalidated_chunk": min(current_inputs),
+            "invalidation_reason": "forced_refresh",
+        }
+    reused_indexes = set(plan["reused_indexes"])
+    process_indexes = set(plan["process_indexes"])
+    entries = previous_state.get("entries") if isinstance(previous_state.get("entries"), dict) else {}
+    entries = dict(entries)
+    earliest_invalidated = plan.get("earliest_invalidated_chunk")
+    if earliest_invalidated is not None:
+        entries = {
+            key: value
+            for key, value in entries.items()
+            if safe_int(key) < safe_int(earliest_invalidated)
+        }
+
+    all_decisions: list[dict[str, Any]] = []
+    all_candidates: list[dict[str, Any]] = []
+    accepted_prefix: list[dict[str, Any]] = []
+    source_index_offset = 0
+    group_index_offset = 0
+    reused_group_count = 0
+    processed_group_count = 0
+    processed_chunk_count = 0
+    recovered_object_count = 0
+
+    for chunk_index in sorted(chunks):
+        input_sha256 = current_inputs[chunk_index]
+        entry = entries.get(str(chunk_index)) if chunk_index in reused_indexes else None
+        manifest_path = (
+            resolve_cached_path(entry.get("object_path"), cache_root)
+            if isinstance(entry, dict)
+            else object_directory(cache_root, input_sha256) / "object.json"
+        )
+        manifest = read_cache_json(manifest_path)
+        cache_object_valid = bool(
+            manifest.get("status") == "complete"
+            and manifest.get("input_sha256") == input_sha256
+            and (manifest_path.parent / "selection.jsonl").exists()
+            and (manifest_path.parent / "candidates.jsonl").exists()
+        )
+        if chunk_index in reused_indexes and not cache_object_valid:
+            process_indexes.update(index for index in chunks if index >= chunk_index)
+            reused_indexes.difference_update(index for index in chunks if index >= chunk_index)
+            plan["earliest_invalidated_chunk"] = chunk_index
+            plan["invalidation_reason"] = "cache_object_corrupt"
+            entries = {
+                key: value for key, value in entries.items() if safe_int(key) < chunk_index
+            }
+        if chunk_index in process_indexes and cache_object_valid:
+            recovered_object_count += 1
+
+        if chunk_index in reused_indexes or (chunk_index in process_indexes and cache_object_valid):
+            object_dir = manifest_path.parent
+            decisions = read_jsonl(object_dir / "selection.jsonl")
+            candidates = read_jsonl(object_dir / "candidates.jsonl")
+            reused_group_count += len(candidates)
+        else:
+            processed_chunk_count += 1
+            object_dir = object_directory(cache_root, input_sha256)
+            if object_dir.exists():
+                shutil.rmtree(object_dir)
+            object_dir.mkdir(parents=True, exist_ok=True)
+            chunk_evaluations = evaluations_by_chunk.get(chunk_index) or []
+            selected, decisions = select_strict_evaluations(
+                session=session,
+                evaluations=chunk_evaluations,
+                chunks=chunks,
+                segments_by_key=segments_by_key,
+                existing_me=existing_me,
+                progressive=progressive,
+                causal_existing_cutoff=args.runtime_shadow,
+                source_index_offset=source_index_offset,
+            )
+            groups = group_selected_evaluations(selected)
+            if args.max_groups > 0:
+                remaining = max(0, args.max_groups - group_index_offset)
+                groups = groups[:remaining]
+            materializer = MicroASRMaterializer(
+                session=session,
+                chunks=chunks,
+                existing_me=existing_me,
+                progressive=progressive,
+                model=args.model,
+                language=args.language,
+                whisper_cli=args.whisper_cli,
+                force=False,
+                causal_existing_cutoff=args.runtime_shadow,
+            )
+            materializer.output = object_dir
+            materializer.accepted = list(accepted_prefix)
+            candidates = [
+                materializer.materialize(group, group_index_offset + index)
+                for index, group in enumerate(groups, start=1)
+            ]
+            write_jsonl(object_dir / "selection.jsonl", decisions)
+            write_jsonl(object_dir / "candidates.jsonl", candidates)
+            write_cache_json(
+                object_dir / "object.json",
+                {
+                    "schema": "murmurmark.live_recovery_incremental_object/v1",
+                    "stage": "causal_local_island_micro_asr_v2",
+                    "status": "complete",
+                    "input_sha256": input_sha256,
+                    "input_components": current_components[chunk_index],
+                    "chunk_index": chunk_index,
+                    "selection_count": len(decisions),
+                    "candidate_count": len(candidates),
+                    "accepted_candidate_count": sum(
+                        row.get("status") == "accepted" for row in candidates
+                    ),
+                },
+            )
+            processed_group_count += len(candidates)
+        entries[str(chunk_index)] = {
+            "input_sha256": input_sha256,
+            "input_components": current_components[chunk_index],
+            "object_path": relative_or_absolute(manifest_path, cache_root),
+            "selection_count": len(decisions),
+            "candidate_count": len(candidates),
+        }
+        all_decisions.extend(decisions)
+        all_candidates.extend(candidates)
+        accepted_prefix.extend(row for row in candidates if row.get("status") == "accepted")
+        source_index_offset += len(evaluations_by_chunk.get(chunk_index) or [])
+        group_index_offset += len(candidates)
+
+    watermark = max(current_inputs, default=0)
+    telemetry = {
+        "schema": "murmurmark.live_recovery_incremental_stage/v1",
+        "stage": "causal_local_island_micro_asr_v2",
+        "context_sha256": context["sha256"],
+        "watermark_chunk_index": watermark,
+        "input_chunk_count": len(current_inputs),
+        "new_chunk_count": processed_chunk_count,
+        "reused_chunk_count": len(reused_indexes) + recovered_object_count,
+        "processed_group_count": processed_group_count,
+        "reused_group_count": reused_group_count,
+        "candidate_cache_hits": reused_group_count,
+        "candidate_cache_misses": processed_group_count,
+        "recovered_object_count": recovered_object_count,
+        "earliest_invalidated_chunk": plan.get("earliest_invalidated_chunk"),
+        "invalidation_reason": plan.get("invalidation_reason"),
+        "changed_input_components": plan.get("changed_components") or [],
+        "elapsed_sec": round(time.monotonic() - started, 3),
+        **digest_memo.telemetry(),
+    }
+    write_cache_json(
+        state_path,
+        {
+            "schema": "murmurmark.live_recovery_incremental_stage_state/v1",
+            "stage": telemetry["stage"],
+            "cache_root": str(cache_root),
+            "context_sha256": context["sha256"],
+            "context": context,
+            "watermark_chunk_index": watermark,
+            "entries": entries,
+            "last_run": telemetry,
+        },
+    )
+    digest_memo.save()
+    return all_candidates, all_decisions, telemetry
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Materialize bounded causal micro-ASR only for recording-time remote-free local islands."
@@ -757,6 +1064,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Mark this materialization as explicit-only recording-time runtime evidence.",
     )
+    parser.add_argument(
+        "--incremental-cache-dir",
+        type=Path,
+        help="Optional persistent content-addressed cache for recording-time invocations.",
+    )
     return parser.parse_args()
 
 
@@ -772,6 +1084,12 @@ def main() -> int:
             if safe_int(row.get("chunk_index")) <= args.through_chunk_index
         ]
     chunk_paths = sorted((session / "derived/live/chunks").glob("*/chunk.json"))
+    chunk_path_by_index = {
+        safe_int(row.get("index")): path
+        for path in chunk_paths
+        for row in [read_json(path)]
+        if row
+    }
     chunks = {
         safe_int(row.get("index")): row
         for row in (read_json(path) for path in chunk_paths)
@@ -804,39 +1122,55 @@ def main() -> int:
         for row in baseline.get("turns") or []
         if isinstance(row, dict) and row.get("role") == "Me"
     ]
-    selected, decisions = select_strict_evaluations(
-        session=session,
-        evaluations=evaluations,
-        chunks=chunks,
-        segments_by_key=segments_by_key,
-        existing_me=existing_me,
-        progressive=progressive,
-        causal_existing_cutoff=args.runtime_shadow,
-    )
-    groups = group_selected_evaluations(selected)
-    if args.max_groups > 0:
-        groups = groups[: args.max_groups]
-    materializer = MicroASRMaterializer(
-        session=session,
-        chunks=chunks,
-        existing_me=existing_me,
-        progressive=progressive,
-        model=args.model,
-        language=args.language,
-        whisper_cli=args.whisper_cli,
-        force=args.force,
-        causal_existing_cutoff=args.runtime_shadow,
-    )
     output = (
         args.output_dir.expanduser().resolve()
         if args.output_dir
         else session / OUTPUT_RELATIVE
     )
-    materializer.output = output
-    candidates = [
-        materializer.materialize(group, index)
-        for index, group in enumerate(groups, start=1)
-    ]
+    incremental: dict[str, Any] | None = None
+    if args.incremental_cache_dir:
+        candidates, decisions, incremental = run_incremental(
+            args=args,
+            session=session,
+            progressive=progressive,
+            evaluations=evaluations,
+            chunks=chunks,
+            chunk_paths=chunk_path_by_index,
+            segment_rows=segment_rows,
+            segments_by_key=segments_by_key,
+            existing_me=existing_me,
+        )
+        selected_island_count = sum(row.get("status") == "selected" for row in decisions)
+    else:
+        selected, decisions = select_strict_evaluations(
+            session=session,
+            evaluations=evaluations,
+            chunks=chunks,
+            segments_by_key=segments_by_key,
+            existing_me=existing_me,
+            progressive=progressive,
+            causal_existing_cutoff=args.runtime_shadow,
+        )
+        groups = group_selected_evaluations(selected)
+        if args.max_groups > 0:
+            groups = groups[: args.max_groups]
+        materializer = MicroASRMaterializer(
+            session=session,
+            chunks=chunks,
+            existing_me=existing_me,
+            progressive=progressive,
+            model=args.model,
+            language=args.language,
+            whisper_cli=args.whisper_cli,
+            force=args.force,
+            causal_existing_cutoff=args.runtime_shadow,
+        )
+        materializer.output = output
+        candidates = [
+            materializer.materialize(group, index)
+            for index, group in enumerate(groups, start=1)
+        ]
+        selected_island_count = len(selected)
     accepted = [row for row in candidates if row.get("status") == "accepted"]
     try:
         output_relative = output.relative_to(session)
@@ -853,7 +1187,7 @@ def main() -> int:
         "runtime_shadow": args.runtime_shadow,
         "through_chunk_index": args.through_chunk_index or None,
         "evaluated_segment_count": len(evaluations),
-        "selected_island_count": len(selected),
+        "selected_island_count": selected_island_count,
         "candidate_count": len(candidates),
         "accepted_candidate_count": len(accepted),
         "accepted_candidate_seconds": round(sum(safe_float(row.get("duration_sec")) for row in accepted), 3),
@@ -862,6 +1196,7 @@ def main() -> int:
         "timeline_causal": True,
         "batch_authoritative": True,
         "promotion_allowed": False,
+        "incremental_cache": incremental,
         "thresholds": {
             "remote_guard_sec": REMOTE_GUARD_SEC,
             "group_gap_sec": GROUP_GAP_SEC,

@@ -238,7 +238,8 @@ struct MurmurMark {
           murmurmark corpus live [all|latest|./session...] [--refresh] [--target-live-sessions 3] [--sessions-root ./sessions]
           murmurmark live status [all|latest|./session...] [--refresh] [--sessions-root ./sessions]
           murmurmark live watch SESSION|latest [--poll-sec SEC] [--diagnostic-draft] [--sessions-root ./sessions]
-          murmurmark live evidence SESSION|latest [--refresh] [--strict] [--sessions-root ./sessions]
+          murmurmark live evidence SESSION|latest [--refresh] [--strict] [--require-causal-recovery]
+                                                   [--sessions-root ./sessions]
           murmurmark live replay SESSION|latest [--refresh] [--with-labs] [--lab-policy POLICY]
           murmurmark live gate [--sessions-root ./sessions]
           murmurmark live pilot [SESSION] [--controlled-real] [--preflight-only] [--skip-safety-gate]
@@ -5263,7 +5264,9 @@ enum LiveCommands {
           murmurmark live gate [--sessions-root ./sessions]
           murmurmark live watch SESSION|latest [--poll-sec SEC] [--diagnostic-draft]
                                               [--sessions-root ./sessions]
-          murmurmark live evidence SESSION|latest [--refresh] [--strict] [--sessions-root ./sessions]
+          murmurmark live evidence SESSION|latest [--refresh] [--strict] [--require-causal-recovery]
+                                                   [--max-recovery-final-lag-sec SEC]
+                                                   [--sessions-root ./sessions]
           murmurmark live replay SESSION|latest [--refresh] [--with-labs] [--lab-policy POLICY]
                                             [--sessions-root ./sessions]
           murmurmark live pilot [SESSION] [--duration SEC] [--segment-sec SEC] [--overlap-sec SEC]
@@ -8525,7 +8528,9 @@ extension SessionRecorder {
         guard liveWorkerEnabled else { return 0 }
         let segmentCount = max(1.0, ceil(max(capturedDuration, liveSegmentSeconds) / max(liveSegmentSeconds, 1.0)))
         let estimatedTailWork = segmentCount
-        return min(30.0, max(10.0, estimatedTailWork))
+        // The optional recovery worker gets up to 30s for its newest-cutoff drain.
+        // Leave enough outer-process headroom to persist its final state and report.
+        return min(45.0, max(35.0, estimatedTailWork))
     }
 
     private func printHandoff() {

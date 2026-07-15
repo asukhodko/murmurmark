@@ -20,7 +20,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_causal_me_recovery_runtime/v1"
-SCRIPT_VERSION = "1.0.0"
+SCRIPT_VERSION = "1.1.0"
 PROFILE = (
     "online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_"
     "local_island_micro_asr_v2_causal_remote_active_me_separation_v1_runtime_v1"
@@ -321,6 +321,7 @@ def main() -> int:
         "paced_replay": args.paced_replay,
         "closed_current_and_past_chunks_only": True,
         "past_only_enrollment": True,
+        "incremental_runtime": True,
         "used_batch_fields_for_selection": False,
         "normal_preview_connected": False,
         "batch_authoritative": True,
@@ -337,6 +338,7 @@ def main() -> int:
     write_json(baseline_path, {"schema": SCHEMA, "profile": "runtime_live_only_baseline", "turns": baseline_turns})
 
     local_output = output / "local-island-v2"
+    incremental_root = output / "incremental-cache-v1"
     local_command = [
         sys.executable,
         str(scripts / "live-causal-local-island-micro-asr.py"),
@@ -354,6 +356,8 @@ def main() -> int:
         args.language,
         "--whisper-cli",
         args.whisper_cli,
+        "--incremental-cache-dir",
+        str(incremental_root / "local-island-v2"),
     ]
     if args.force:
         local_command.append("--force")
@@ -414,6 +418,8 @@ def main() -> int:
         args.language,
         "--whisper-cli",
         args.whisper_cli,
+        "--incremental-cache-dir",
+        str(incremental_root / "remote-active-v1"),
     ]
     if args.force:
         remote_command.append("--force")
@@ -507,6 +513,17 @@ def main() -> int:
         "stages": {
             "local_island_v2": local_stage,
             "remote_active_v1": remote_stage,
+        },
+        "incremental_runtime": {
+            "schema": "murmurmark.live_recovery_incremental_runtime/v1",
+            "mode": "persistent_watermark_content_addressed_cache",
+            "local_island_v2": (
+                read_json(local_output / "state.json").get("incremental_cache") or {}
+            ),
+            "remote_active_v1": (
+                read_json(remote_output / "state.json").get("incremental_cache") or {}
+            ),
+            "cache_root": str(incremental_root.relative_to(session)),
         },
         "outputs": {
             "draft_json": str(output_relative / "draft.json"),

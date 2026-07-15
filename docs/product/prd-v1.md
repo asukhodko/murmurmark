@@ -49,8 +49,10 @@ Current operating point, 2026-07-15:
   another `252.90s` without gate regressions;
 - Recording-Time Causal Me Recovery Integration v1 is complete: the bounded runtime reproduces
   replay candidate sets and profile metrics `7/7`, while normal preview and batch stay unchanged;
-- the recommended next goal is Live Recovery Runtime Efficiency and Real Evidence v1: process only
-  new closed evidence and prove bounded pre-stop recovery on three fresh meaningful sessions.
+- Live Recovery Runtime Efficiency and Real Evidence v1 is in progress: per-stage watermarks,
+  content-addressed DSP/candidate/micro-ASR caches, bounded invalidation and the `p95 <= 30s`
+  source-time gate are implemented; three fresh meaningful sessions must still prove bounded
+  pre-stop recovery and zero final lag.
 
 Still future:
 

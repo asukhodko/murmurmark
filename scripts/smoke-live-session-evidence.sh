@@ -16,7 +16,9 @@ workdir="$(mktemp -d "${TMPDIR:-/tmp}/murmurmark-live-session-evidence.XXXXXX")"
 trap 'rm -rf "$workdir"' EXIT
 session="$workdir/session"
 live="$session/derived/live"
-mkdir -p "$live"
+experiment="$session/derived/experiments/live-shadow-v1"
+recovery="$live/causal-me-recovery-runtime-v1"
+mkdir -p "$live" "$experiment" "$recovery"
 
 cat >"$session/session.json" <<'JSON'
 {
@@ -38,6 +40,29 @@ cat >"$live/live_pipeline_report.json" <<'JSON'
   "progress":{"captured_sec":120.0,"processed_sec":120.0,"live_lag_sec":0.0,"chunks_processed":1}
 }
 JSON
+cat >"$experiment/state.json" <<'JSON'
+{"schema":"murmurmark.experiment_state/v1","status":"completed","batch_authoritative":true,"promotion_allowed":false}
+JSON
+cat >"$recovery/worker_state.json" <<'JSON'
+{
+  "schema":"murmurmark.live_causal_me_recovery_worker/v1",
+  "status":"completed",
+  "failed_invocations":0,
+  "timed_out_invocations":0,
+  "final_live_lag_sec":0.0,
+  "last_completed_chunk":4,
+  "last_completed_chunk_end_sec":120.0,
+  "final_drain_invocations":1,
+  "final_drain_completed_invocations":1,
+  "last_incremental_runtime":{"schema":"murmurmark.live_recovery_incremental_runtime/v1"}
+}
+JSON
+cat >"$recovery/state.json" <<'JSON'
+{"schema":"murmurmark.live_causal_me_recovery_runtime/v1","status":"completed","accepted_candidate_count":1}
+JSON
+cat >"$recovery/runtime_runs.jsonl" <<'JSONL'
+{"schema":"murmurmark.live_causal_me_recovery_runtime/v1","status":"completed","accepted_candidate_count":1,"completed_before_stop":true,"pre_stop_provenance":"recording_time_worker"}
+JSONL
 cat >"$live/chunks.jsonl" <<'JSONL'
 {"schema":"murmurmark.live_chunk/v1","index":1,"start_sec":0.0,"end_sec":30.0,"created_at":"2026-07-10T10:00:35Z","provenance":"recording_time_committed_pcm"}
 JSONL
@@ -110,6 +135,39 @@ jq -e '
   and .promotion_allowed == false
 ' "$live/live_session_evidence.json" >/dev/null \
   || fail "passing fixture did not produce parity evidence"
+
+"$python_bin" scripts/report-live-session-evidence.py \
+  "$session" \
+  --strict \
+  --require-causal-recovery \
+  --max-recovery-final-lag-sec 0 >/dev/null
+jq -e '
+  .transport_evidence_passed == true
+  and .metrics.causal_recovery.worker_status == "completed"
+  and .metrics.causal_recovery.final_live_lag_sec == 0
+  and .metrics.causal_recovery.pre_stop_candidate_run_count == 1
+  and all(.checks[] | select(.id | startswith("causal_recovery")); .status == "passed")
+' "$live/live_session_evidence.json" >/dev/null \
+  || fail "passing fixture did not produce strict causal recovery evidence"
+
+jq '.final_live_lag_sec = 30.0' \
+  "$recovery/worker_state.json" >"$recovery/worker_state.json.tmp"
+mv "$recovery/worker_state.json.tmp" "$recovery/worker_state.json"
+if "$python_bin" scripts/report-live-session-evidence.py \
+  "$session" \
+  --strict \
+  --require-causal-recovery \
+  --max-recovery-final-lag-sec 0 >/dev/null 2>&1; then
+  fail "strict causal recovery evidence accepted non-zero final lag"
+fi
+jq -e '
+  .transport_evidence_passed == false
+  and any(.checks[]; .id == "causal_recovery_zero_final_lag" and .status == "failed")
+' "$live/live_session_evidence.json" >/dev/null \
+  || fail "non-zero recovery lag was not exposed"
+jq '.final_live_lag_sec = 0.0' \
+  "$recovery/worker_state.json" >"$recovery/worker_state.json.tmp"
+mv "$recovery/worker_state.json.tmp" "$recovery/worker_state.json"
 
 jq '. + {termination_reason:"finalization_wait_timeout"}' \
   "$live/live_pipeline_state.json" >"$live/live_pipeline_state.json.tmp"

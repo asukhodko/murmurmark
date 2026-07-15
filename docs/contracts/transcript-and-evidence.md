@@ -5316,6 +5316,69 @@ sessions/_reports/live-pipeline/recording_time_causal_me_recovery_runtime_v1.jso
 sessions/_reports/live-pipeline/recording_time_causal_me_recovery_runtime_v1.md
 ```
 
+#### Incremental recovery cache v1
+
+The recording-time child keeps its resumable state under:
+
+```text
+derived/live/causal-me-recovery-runtime-v1/incremental-cache-v1/
+  file-digests-v1/file_digests.json
+  local-island-v2/state.json
+  local-island-v2/objects/<sha256-prefix>/<sha256>/
+  remote-active-v1/state.json
+  remote-active-v1/objects/<sha256-prefix>/<sha256>/
+  remote-active-v1/candidate-outcomes/<sha256-prefix>/<sha256>/
+```
+
+Cache metadata uses `murmurmark.live_recovery_incremental_cache/v1`; complete chunk objects use
+`murmurmark.live_recovery_incremental_object/v1`; stage state and telemetry use
+`murmurmark.live_recovery_incremental_stage_state/v1` and
+`murmurmark.live_recovery_incremental_stage/v1`. The runtime state embeds both stage telemetry
+blocks as `murmurmark.live_recovery_incremental_runtime/v1`.
+
+An input chain includes the session, committed chunk JSON and referenced audio/ASR files, causal
+selection/evaluation rows, already published `Me` prefix, algorithm files and relevant
+configuration. File content is addressed by SHA-256; a stat-keyed digest memo avoids hashing an
+unchanged model or audio file on every cutoff. A changed old chunk invalidates that chunk and its
+causal suffix. A complete object whose watermark write was interrupted is recovered by content
+address. A missing or incomplete object is recomputed; it must never affect raw capture or the base
+preview.
+
+Remote-active preparation and candidate contexts are separate. Model, whisper executable, language
+or ASR-budget changes invalidate candidate outcomes while retaining valid DSP preparation objects.
+Algorithm or DSP-threshold changes invalidate the affected preparation suffix. Every run reports
+`new_chunk_count`, `reused_chunk_count`, processed/reused groups, cache hits/misses,
+`earliest_invalidated_chunk`, changed input components and stage elapsed time. The latest-only manager
+also persists coalescing, timeout, lag and final-lag evidence. At capture stop it may supersede one
+older active child with the newest pending cutoff. `stop_superseded_active_invocations`,
+`final_drain_invocations` and `final_drain_completed_invocations` explain that transition. The drain
+is bounded to `30s`; exceeding it increments the normal optional-child failure counters and leaves
+raw capture, base preview and batch untouched.
+
+Cold/warm equivalence is tested by repeating the same final cutoff and requiring identical candidate
+sets with zero new chunk work. The `p95 <= 30s` latency gate is measured with
+`--stride-chunks 1`; a batched replay stride is a corpus-throughput test and is not valid live-latency
+evidence.
+
+Fresh-session acceptance can opt into causal-recovery checks through:
+
+```bash
+murmurmark live evidence SESSION \
+  --refresh \
+  --strict \
+  --require-causal-recovery \
+  --max-recovery-final-lag-sec 0
+```
+
+The existing `murmurmark.live_session_evidence/v1` payload then adds five checks:
+`experiment_no_backpressure`, `causal_recovery_healthy`,
+`causal_recovery_incremental_runtime`, `causal_recovery_pre_stop_candidates` and
+`causal_recovery_zero_final_lag`. Its `metrics.causal_recovery` block records experiment/worker
+status, child failure and timeout counts, final recovery lag, final candidate count, recording-time
+candidate-run count and the incremental runtime schema. The pre-stop candidate gate is required only
+when the final recovery state contains accepted candidates; a no-candidate meeting is not failed for
+lacking candidate provenance. These checks are evidence-only and never authorize publication.
+
 ### Live Corpus Gates
 
 `scripts/report-live-corpus-gates.py` aggregates live comparisons:

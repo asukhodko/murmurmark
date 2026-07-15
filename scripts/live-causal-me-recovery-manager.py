@@ -15,7 +15,7 @@ from typing import Any, Callable
 
 
 SCHEMA = "murmurmark.live_causal_me_recovery_worker/v1"
-SCRIPT_VERSION = "1.0.0"
+SCRIPT_VERSION = "1.1.0"
 
 
 def now_iso() -> str:
@@ -27,6 +27,14 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     temporary.replace(path)
+
+
+def read_json(path: Path) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return value if isinstance(value, dict) else {}
 
 
 def append_jsonl(path: Path, payload: dict[str, Any]) -> None:
@@ -71,11 +79,15 @@ class CausalMeRecoveryManager:
         self.timed_out_invocations = 0
         self.coalesced_submissions = 0
         self.pending_skipped_at_stop_count = 0
+        self.stop_superseded_active_invocations = 0
+        self.final_drain_invocations = 0
+        self.final_drain_completed_invocations = 0
         self.last_completed_chunk = 0
         self.last_completed_chunk_end_sec = 0.0
         self.last_observed_live_lag_sec = 0.0
         self.max_observed_live_lag_sec = 0.0
         self.final_live_lag_sec: float | None = None
+        self.last_incremental_runtime: dict[str, Any] = {}
         self.last_error: str | None = None
         self._persist("idle")
 
@@ -108,6 +120,9 @@ class CausalMeRecoveryManager:
                 "timed_out_invocations": self.timed_out_invocations,
                 "coalesced_submissions": self.coalesced_submissions,
                 "pending_skipped_at_stop_count": self.pending_skipped_at_stop_count,
+                "stop_superseded_active_invocations": self.stop_superseded_active_invocations,
+                "final_drain_invocations": self.final_drain_invocations,
+                "final_drain_completed_invocations": self.final_drain_completed_invocations,
                 "last_completed_chunk": self.last_completed_chunk,
                 "last_completed_chunk_end_sec": round(self.last_completed_chunk_end_sec, 3),
                 "last_observed_live_lag_sec": round(self.last_observed_live_lag_sec, 3),
@@ -117,6 +132,7 @@ class CausalMeRecoveryManager:
                     if self.final_live_lag_sec is not None
                     else None
                 ),
+                "last_incremental_runtime": self.last_incremental_runtime,
                 "within_live_lag_budget": (
                     self.final_live_lag_sec is None
                     or self.max_live_lag_sec <= 0.0
@@ -162,8 +178,8 @@ class CausalMeRecoveryManager:
         self.pending = item
         self._launch_pending(captured_sec=captured_sec)
 
-    def _launch_pending(self, *, captured_sec: float) -> None:
-        if self.pending is None or self.stopping:
+    def _launch_pending(self, *, captured_sec: float, allow_stopping: bool = False) -> None:
+        if self.pending is None or (self.stopping and not allow_stopping):
             return
         item = self.pending
         self.pending = None
@@ -274,6 +290,8 @@ class CausalMeRecoveryManager:
             status = "base_draft_fallback_timeout"
         elif returncode == 0:
             self.completed_invocations += 1
+            if active.get("final_drain"):
+                self.final_drain_completed_invocations += 1
             self.last_completed_chunk = max(
                 self.last_completed_chunk,
                 int(active.get("chunk_index") or 0),
@@ -283,6 +301,12 @@ class CausalMeRecoveryManager:
                 float(active.get("chunk_end_sec") or 0.0),
             )
             self.last_error = None
+            runtime_state = read_json(self.output / "state.json")
+            self.last_incremental_runtime = (
+                runtime_state.get("incremental_runtime")
+                if isinstance(runtime_state.get("incremental_runtime"), dict)
+                else {}
+            )
             status = "completed_one"
         else:
             self.failed_invocations += 1
@@ -306,15 +330,45 @@ class CausalMeRecoveryManager:
             self._launch_pending(captured_sec=captured_sec)
 
     def finish(self, *, captured_sec: float, wait_sec: float) -> None:
+        """Finish the newest closed cutoff within a bounded post-stop drain.
+
+        During recording, latest-only coalescing keeps capture isolated from recovery.
+        Once capture has stopped, a pending cutoff is more valuable than the older
+        active child: supersede the stale child and spend the bounded shutdown budget
+        on the latest durable evidence. Failure still affects only this optional layer.
+        """
         self.stopping = True
-        if self.pending is not None:
-            self.pending_skipped_at_stop_count += 1
+        if self.pending is not None and self.process is not None:
+            superseded = self.active or {}
+            replacement = self.pending
+            self._terminate()
+            stdout, stderr = self.process.communicate()
+            if self.unregister_child:
+                self.unregister_child(self.process)
+            self.stop_superseded_active_invocations += 1
             self._event(
-                "pending_skipped_at_stop",
-                chunk_index=self.pending.get("chunk_index"),
-                reason="base_draft_already_durable",
+                "active_superseded_at_stop",
+                invocation_id=superseded.get("invocation_id"),
+                chunk_index=superseded.get("chunk_index"),
+                replacement_chunk_index=replacement.get("chunk_index"),
+                stdout_tail=stdout[-1000:],
+                stderr_tail=stderr[-1000:],
             )
-            self.pending = None
+            self.process = None
+            self.active = None
+        if self.pending is not None:
+            self.final_drain_invocations += 1
+            self.pending = {
+                **self.pending,
+                "recording_active": False,
+                "final_drain": True,
+            }
+            self._event(
+                "final_drain_started",
+                chunk_index=self.pending.get("chunk_index"),
+                wait_sec=round(max(0.0, wait_sec), 3),
+            )
+            self._launch_pending(captured_sec=captured_sec, allow_stopping=True)
         deadline = time.monotonic() + max(0.0, wait_sec)
         while self.process is not None and time.monotonic() < deadline:
             self.poll(captured_sec=captured_sec)
