@@ -43,6 +43,43 @@ EOF
   chmod +x "$path"
 }
 
+make_fake_causal_recovery() {
+  local path="$1"
+  cat >"$path" <<'PY'
+#!/usr/bin/env python3
+import argparse
+import json
+import time
+from pathlib import Path
+
+parser = argparse.ArgumentParser()
+parser.add_argument("session", type=Path)
+parser.add_argument("--through-chunk-index", type=int, required=True)
+args, _ = parser.parse_known_args()
+time.sleep(0.5)
+output = args.session / "derived/live/causal-me-recovery-runtime-v1"
+output.mkdir(parents=True, exist_ok=True)
+(output / "state.json").write_text(
+    json.dumps(
+        {
+            "schema": "murmurmark.live_causal_me_recovery_runtime/v1",
+            "status": "completed",
+            "through_chunk_index": args.through_chunk_index,
+            "accepted_candidate_count": 1,
+            "completed_before_stop": True,
+            "normal_preview_connected": False,
+            "batch_authoritative": True,
+            "promotion_allowed": False,
+        }
+    )
+    + "\n",
+    encoding="utf-8",
+)
+(output / "transcript.shadow.md").write_text("# diagnostic recovery\n", encoding="utf-8")
+PY
+  chmod +x "$path"
+}
+
 append_segment_pair() {
   local session="$1"
   local created_at="$2"
@@ -99,7 +136,9 @@ wait_for_process_exit() {
 session="$workdir/session"
 make_session "$session"
 make_fake_whisper "$workdir/fake-whisper"
+make_fake_causal_recovery "$workdir/fake-causal-recovery.py"
 
+MURMURMARK_CAUSAL_ME_RECOVERY_RUNTIME_SCRIPT="$workdir/fake-causal-recovery.py" \
 "$python_bin" -u scripts/live-pipeline-shadow.py "$session" \
   --model "$session/fake-model.bin" \
   --whisper-cli "$workdir/fake-whisper" \
@@ -120,6 +159,15 @@ wait_for 10 grep -q "удаленная тестовая реплика" "$sessi
   || { cat "$workdir/worker.log" >&2; fail "draft did not appear before session stop"; }
 wait_for 10 grep -q "удаленная тестовая реплика" "$session/derived/live/transcript.preview.md" \
   || { cat "$workdir/worker.log" >&2; fail "conservative preview did not appear before session stop"; }
+preview_hash_before="$(shasum -a 256 "$session/derived/live/transcript.preview.md" | awk '{print $1}')"
+wait_for 10 jq -e '.completed_invocations >= 1 and .last_completed_chunk == 1' \
+  "$session/derived/live/causal-me-recovery-runtime-v1/worker_state.json" >/dev/null 2>&1 \
+  || { cat "$workdir/worker.log" >&2; fail "causal Me recovery child did not complete before stop"; }
+[[ -s "$session/derived/live/causal-me-recovery-runtime-v1/transcript.shadow.md" ]] \
+  || fail "causal Me recovery diagnostic draft is missing"
+preview_hash_after="$(shasum -a 256 "$session/derived/live/transcript.preview.md" | awk '{print $1}')"
+[[ "$preview_hash_before" == "$preview_hash_after" ]] \
+  || fail "causal Me recovery changed the normal preview"
 jq -s -e 'any(.[]; .chunk_count > 0 and .provenance == "recording_time_committed_pcm")' \
   "$session/derived/live/preview_snapshots.jsonl" >/dev/null \
   || fail "pre-stop preview snapshot provenance is missing"
@@ -173,7 +221,8 @@ JSON
   --ffmpeg-timeout-sec 5 \
   --whisper-timeout-sec 0.5 \
   --asr-parallelism 2 \
-  --no-causal-target-me >"$workdir/worker-timeout.log" 2>&1
+  --no-causal-target-me \
+  --no-causal-me-recovery-runtime >"$workdir/worker-timeout.log" 2>&1
 
 jq -e '
   (.mic.asr.status == "timed_out")
@@ -228,7 +277,8 @@ append_segment_pair "$shutdown_session" "2026-07-10T10:02:02Z"
   --ffmpeg-timeout-sec 5 \
   --whisper-timeout-sec 30 \
   --asr-parallelism 2 \
-  --no-causal-target-me >"$workdir/worker-shutdown.log" 2>&1 &
+  --no-causal-target-me \
+  --no-causal-me-recovery-runtime >"$workdir/worker-shutdown.log" 2>&1 &
 shutdown_worker_pid=$!
 wait_for 10 jq -e '
   (.current_stage == "asr_mic" or .current_stage == "asr_remote")

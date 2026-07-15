@@ -239,9 +239,29 @@ jq '{status, summary, completion_checks, corpus_agreement}' \
   sessions/_reports/live-pipeline/causal_remote_active_me_separation_v1.json
 ```
 
-This is still post-recording causal replay. It does not prove that the enrichment ran before stop.
-Recording-time integration is a separate next goal and must remain bounded, fail-open and
-diagnostic-only.
+The replay remains useful for reproducibility. Recording-Time Causal Me Recovery Integration v1
+also runs the same layers automatically after each base live chunk is durable. It is bounded,
+fail-open and diagnostic-only; `murmurmark live watch` deliberately continues to show the normal
+conservative preview.
+
+Inspect the recording-time shadow explicitly:
+
+```bash
+jq '.' "$SESSION/derived/live/causal-me-recovery-runtime-v1/worker_state.json"
+jq '.' "$SESSION/derived/live/causal-me-recovery-runtime-v1/state.json"
+less "$SESSION/derived/live/causal-me-recovery-runtime-v1/transcript.shadow.md"
+```
+
+Missing files mean that the optional enrichment did not complete; they do not invalidate raw
+capture or the base live draft. Reproduce the seven-session replay/runtime proof with:
+
+```bash
+.venv/bin/python scripts/report-recording-time-causal-me-recovery-runtime-v1.py \
+  --run-paced-replay \
+  --run-compare
+```
+
+Do not use the runtime profile as transcript, notes or export input. Batch remains authoritative.
 
 Normal `process` keeps the stronger-audio-judge queue broad but bounded: cheap cleanup runs first,
 the review pack is rebuilt from the residual transcript, and the judge decodes `mic_clean + remote`.

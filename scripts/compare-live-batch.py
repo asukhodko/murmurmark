@@ -18,7 +18,7 @@ from live_order_role_reconciliation import build_reconciliation, legacy_order_ri
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.45.0"
+SCRIPT_VERSION = "0.46.0"
 EPSILON = 1.0e-12
 REMOTE_AUDIO_QUIET_MAX_DB = -65.0
 MIC_REMOTE_DOMINANCE_MIN_DB = 20.0
@@ -191,6 +191,10 @@ CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_"
     "local_island_micro_asr_v2_causal_remote_active_me_separation_v1"
 )
+RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_"
+    "local_island_micro_asr_v2_causal_remote_active_me_separation_v1_runtime_v1"
+)
 PROFILE_SELECTION_IGNORED_GATES = {"pre_stop_runtime_causal_target_me"}
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
@@ -234,6 +238,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
     CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
     CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
+    RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY,
     "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_audio_safe_union_v1",
@@ -434,6 +439,7 @@ LIVE_ME_REMOTE_OVERLAP_FILTER_SHADOW_PROFILE_POLICIES = {
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
     CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
     CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
+    RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY,
     "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_audio_safe_union_v1",
@@ -471,6 +477,7 @@ LIVE_ME_REMOTE_OVERLAP_FILTER_NO_TARGET_PROFILE_POLICIES = {
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
     CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
     CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
+    RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY,
     "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
     RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY,
@@ -509,6 +516,7 @@ LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICIES = {
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
     CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
     CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
+    RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY,
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICY,
     VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY,
@@ -575,13 +583,16 @@ RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICIES = {
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
     CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
     CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
+    RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY,
 }
 CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICIES = {
     CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
     CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
+    RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY,
 }
 CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICIES = {
     CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
+    RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY,
 }
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICIES = {
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
@@ -6536,9 +6547,11 @@ def runtime_causal_target_me_shadow_turns(
 
 def causal_local_island_micro_asr_v2_shadow_turns(
     session: Path,
+    candidates_path: Path | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     rows = read_jsonl(
-        session / "derived/live/causal-local-island-micro-asr-v2/candidates.jsonl"
+        candidates_path
+        or session / "derived/live/causal-local-island-micro-asr-v2/candidates.jsonl"
     )
     turns: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
@@ -6565,6 +6578,8 @@ def causal_local_island_micro_asr_v2_shadow_turns(
         )
         checks = {
             "accepted": row.get("status") == "accepted",
+            "runtime_effective": row.get("runtime_publication_status")
+            in {None, "effective_candidate"},
             "role_text_present": bool(clean_text(str(row.get("text") or ""))),
             "timeline_causal": row.get("timeline_causal") is True,
             "selection_does_not_use_batch": row.get("used_batch_fields_for_selection") is False,
@@ -6647,9 +6662,11 @@ def causal_local_island_micro_asr_v2_shadow_turns(
 
 def causal_remote_active_me_separation_v1_shadow_turns(
     session: Path,
+    candidates_path: Path | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     rows = read_jsonl(
-        session / "derived/live/causal-remote-active-me-separation-v1/candidates.jsonl"
+        candidates_path
+        or session / "derived/live/causal-remote-active-me-separation-v1/candidates.jsonl"
     )
     turns: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
@@ -6686,6 +6703,8 @@ def causal_remote_active_me_separation_v1_shadow_turns(
         )
         checks = {
             "accepted": row.get("status") == "accepted",
+            "runtime_effective": row.get("runtime_publication_status")
+            in {None, "effective_candidate"},
             "role_text_present": bool(clean_text(str(row.get("text") or ""))),
             "timeline_causal": row.get("timeline_causal") is True,
             "selection_does_not_use_batch": row.get("used_batch_fields_for_selection") is False,
@@ -6958,6 +6977,7 @@ def target_me_shadow_profile_components(
                 BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
                 CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
                 CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
+                RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY,
             }
         )
         or policy in SOFT_LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICIES
@@ -7142,6 +7162,7 @@ def target_me_shadow_profile_components(
                     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
                     CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
                     CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
+                    RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY,
                 }
             ),
         )
@@ -7170,7 +7191,15 @@ def target_me_shadow_profile_components(
         rejected_supplemental_turns.extend(rejected_covered_runtime_turns)
     if policy in CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICIES:
         local_island_turns, rejected_local_island_turns = (
-            causal_local_island_micro_asr_v2_shadow_turns(session)
+            causal_local_island_micro_asr_v2_shadow_turns(
+                session,
+                (
+                    session
+                    / "derived/live/causal-me-recovery-runtime-v1/local-island-v2/candidates.jsonl"
+                    if policy == RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY
+                    else None
+                ),
+            )
         )
         local_island_turns, rejected_covered_local_island_turns = (
             filter_micro_asr_turns_covered_by_base(
@@ -7185,7 +7214,15 @@ def target_me_shadow_profile_components(
         rejected_supplemental_turns.extend(rejected_covered_local_island_turns)
     if policy in CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICIES:
         remote_active_turns, rejected_remote_active_turns = (
-            causal_remote_active_me_separation_v1_shadow_turns(session)
+            causal_remote_active_me_separation_v1_shadow_turns(
+                session,
+                (
+                    session
+                    / "derived/live/causal-me-recovery-runtime-v1/remote-active-v1/candidates.jsonl"
+                    if policy == RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY
+                    else None
+                ),
+            )
         )
         remote_active_turns, rejected_covered_remote_active_turns = (
             filter_micro_asr_turns_covered_by_base(
@@ -7911,6 +7948,7 @@ def build_target_me_shadow_profiles(
                     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
                     CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
                     CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
+                    RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY,
                 }
             ),
             runtime_causal_profile_scope=(
@@ -7924,6 +7962,7 @@ def build_target_me_shadow_profiles(
                         BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
                         CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
                         CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
+                        RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY,
                     }
                     else "direct"
                 )

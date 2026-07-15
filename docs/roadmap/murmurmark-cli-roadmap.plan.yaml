@@ -553,45 +553,16 @@ nodes:
     status: current
     effort: 16
     notes: |
-      Потоковая ветка CLI: не ждать окончания встречи, а обрабатывать уже закрытые audio segments
-      во время записи. Первый shadow-контур существует, но он quarantined: тесты показали, что
-      inline live segment writer может starve ScreenCaptureKit audio delivery и оставить raw tracks
-      почти пустыми. Production route остаётся batch-first: raw CAF/session package и обычный
-      `murmurmark process` остаются source of truth. Старый `--live-pipeline` quarantined. Новый
-      путь — `record --experiment live-shadow-v1`: callback сначала пишет raw CAF, затем bounded
-      committed-PCM queue пишет закрытые experiment segments, а `raw_segment_commits.jsonl`
-      остаётся audit/fallback. Committed-PCM transport и live draft уже работают. Reliability unit
-      закрывает heartbeat, bounded child timeouts, immutable realtime provenance, read-only compare,
-      explicit isolated fallback и pre-stop worker integration smoke. Три свежих meaningful
-      real-session transport proofs уже получены. Order/role reconciliation завершён с 0 effective
-      blockers. Текущая работа — bounded local-recall/remote-leak hardening по 118 corpus rows /
-      451.03s через progressive past-only Target-Me, focused micro-ASR и corpus gates. Promotion
-      остаётся blocked, batch transcript
-      authoritative. Первый длинный recording-time прогон показал отдельный
-      latency-долг: последовательный Target-Me добавлял 6-25 секунд после основного ASR чанка.
-      Базовый чанк теперь публикуется до enrichment, Target-Me child bounded, а lag budget `60s`
-      переводит enrichment в явный `skipped_lag_budget`, не задерживая draft бесконечно. Реальная
-      сессия `2026-07-10_16-00-29-live` дала первый end-to-end pre-stop causal proof (`131` chunks,
-      `56` accepted candidates) и полный authoritative batch, но завершилась с `82.752s` live tail.
-      Она также показала remote/order regression direct Target-Me относительно базового live filter,
-      поэтому aggregate best live-implementable policy снова baseline. Нужны свежие прогоны уже на
-      lag-aware worker и дальнейшее quality hardening без ослабления parity gates.
-      Fresh session `2026-07-13_11-16-02-live` закрывает transport uncertainty: полный raw capture,
-      46 pre-stop chunks, 90 pre-stop snapshots, first chunk latency 36.243s, zero final lag и no
-      backpressure. Текущий blocker — quality parity: baseline теряет около 200s batch Me, а
-      runtime candidates обменивают local recall на blocking order regression. Новые записи для
-      этой развилки не нужны; следующий цикл выполняется offline replay по сохранённым evidence.
-      Более поздняя сессия `2026-07-13_16-32-37-live` сохранила полные raw tracks и batch, но
-      sidecar отключился на `32.3s`: лимит `512` пакетов означал лишь около трёх секунд при новом
-      размере ScreenCaptureKit packets. Исправление заменило packet-count на duration bound, один drain task
-      и throttled JSON state writes. Сессия `2026-07-14_11-14-29-live` подтвердила fix на полных
-      `2089.1s`: raw/sidecar coverage совпадает, `70` chunks завершены, final lag `0`, drops/backpressure
-      нет. Peak pending PCM достиг `12.88s`, поэтому default поднят до `30s` per source. Transport
-      для этого failure mode закрыт. Corpus refresh теперь содержит `7` capture-safe
-      candidate sessions и `12` meaningful real comparisons, но ни одного parity pass. Новые
-      записи для текущего blocker не нужны; next focus — `15` blocking order-triage rows: `6`
-      boundary-retime candidates, `4` cross-source risks, `4` unresolved rows и `1` same-source
-      timeline candidate, с сохранением remote-leak/local-recall gates.
+      Потоковая ветка CLI обрабатывает закрытые committed-PCM segments во время записи, не читает
+      открытый raw CAF и не влияет на authoritative batch. Старый inline `--live-pipeline`
+      quarantined; безопасный путь — `record --experiment live-shadow-v1`. Transport, order/role
+      reconciliation, local-recall hardening, local-island v2 и remote-active separation завершены.
+      Recording-Time Causal Me Recovery Integration v1 перенёс два последних replay-proven слоя за
+      базовый live chunk: latest-only child, bounded timeout/lag, past-only evidence и fail-open
+      fallback. Fixed seven-session paced replay воспроизводит candidate sets и profile metrics
+      7/7; missing Me 1657.89s, remote-like Me 108.42s, blockers 0, review burden 490.38s. Runtime
+      shadow не подключён к normal preview/export/promotion. Следующий фокус — incremental runtime
+      efficiency и три свежих meaningful real-session proofs до любого обсуждения публикации.
 
   realtime-segment-writer:
     title: "Durable committed PCM sidecar"
@@ -1100,15 +1071,31 @@ nodes:
     kind: task
     parent: near-realtime-pipeline
     deps: [live-causal-remote-active-me-separation-v1]
+    status: done
+    effort: 8
+    notes: |
+      Завершено 2026-07-15. Replay-proven local-island v2 и remote-active v1 выполняются после
+      durable base chunk через latest-only child. Runtime использует closed current/past chunks,
+      past-only enrollment, timeout 120s, lag budget 90s, stop wait 5s и proven remote-active ASR
+      budget 24. Fixed corpus воспроизводит candidate sets и profile metrics 7/7; missing Me
+      1657.89s, remote-like Me 108.42s, blockers 0, review burden 490.38s. Timeout/lag/coalescing
+      fail open, raw и batch hashes неизменны. Isolated source-time soak 870.16s публикует 7
+      pre-stop candidates / 48.40s; max invocation 32.28s внутри lag budget 90s. Runtime shadow
+      изолирован от normal preview/export, promotion blocked.
+
+  live-recovery-runtime-efficiency-real-evidence-v1:
+    title: "Live Recovery Runtime Efficiency and Real Evidence v1"
+    kind: task
+    parent: near-realtime-pipeline
+    deps: [live-recording-time-causal-me-recovery-integration-v1]
     status: next
     effort: 8
     notes: |
-      Перенести replay-proven local-island v2 и remote-active v1 recovery за committed-PCM live
-      worker. Использовать только закрытый текущий chunk, более ранние chunks и past-only enrollment.
-      Ограничить child runtime и lag; при задержке или ошибке оставлять base draft и не влиять на raw
-      capture. Сначала воспроизвести accepted replay outcomes, затем доказать pre-stop diagnostic
-      output на локальном soak. Batch остаётся authoritative, normal preview/export не меняются,
-      promotion blocked.
+      Сделать causal recovery инкрементальным: persistent watermark, immutable per-candidate cache,
+      обработка только нового closed evidence и bounded cache invalidation. Добиться p95 enrichment
+      latency не больше одного live segment и zero final lag. Затем получить минимум три свежих
+      meaningful real-session proofs с pre-stop diagnostic candidates, без capture/batch regression.
+      Normal preview, transcript, notes, export и promotion не менять.
 
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"
@@ -1985,8 +1972,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Recording-Time Causal Me Recovery Integration v1: перенести replay-proven local-island и remote-active recovery за committed-PCM worker с bounded lag и fail-open fallback."
-      success_by_next_sync: "Replay outcomes воспроизводятся без batch selection; локальный soak создаёт causal diagnostic candidates до stop; raw capture и batch не регрессируют; timeout/lag отключают только enrichment; normal preview остаётся неизменным, batch authoritative и promotion blocked."
+      nearest_goal: "Live Recovery Runtime Efficiency and Real Evidence v1: убрать повторный whole-history runtime и доказать bounded pre-stop recovery на свежих реальных сессиях."
+      success_by_next_sync: "Runtime обрабатывает только новое closed evidence; p95 enrichment latency не больше одного live segment; три meaningful sessions дают pre-stop candidates и zero final lag; raw capture, normal preview и batch не регрессируют; promotion blocked."
     defaults:
       status_progress:
         done: 1.0
@@ -2012,8 +1999,8 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "CLI MVP, batch reliability и committed-PCM transport закрыты. Local-recall hardening, local-island v2 и remote-active separation v1 суммарно уменьшили aggregate missing Me 2844.88s -> 1657.89s при 7/7 no-regression gates. Эти два последних слоя пока replay-only; production output остаётся batch."
-          next_sync_goal: "Интегрировать proven causal recovery в recording-time worker с bounded lag, fail-open fallback и pre-stop evidence, не меняя normal preview или batch authority."
+          sync_note: "CLI MVP и committed-PCM transport закрыты. Local-recall hardening уменьшил aggregate missing Me 2844.88s -> 1657.89s. Recording-time runtime воспроизводит replay candidates и metrics 7/7, fail open и не подключён к normal preview; production output остаётся batch."
+          next_sync_goal: "Сделать recovery incremental и собрать три fresh real-session pre-stop proofs с bounded latency, не меняя normal preview или batch authority."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening, reliable-transcription-route]

@@ -254,6 +254,57 @@ requires `chunk_count > 0`, `provenance == recording_time_committed_pcm` and
 `created_at < session.ended_at`. Snapshot rows are append-only; comparison and evidence commands
 must not create them.
 
+## Recording-Time Causal Me Recovery
+
+The explicit runtime shadow is stored under:
+
+```text
+derived/live/causal-me-recovery-runtime-v1/
+  worker_state.json
+  worker_events.jsonl
+  state.json
+  runtime_runs.jsonl
+  draft.json
+  transcript.shadow.md
+  local-island-v2/{selection.jsonl,candidates.jsonl,state.json}
+  remote-active-v1/{selection.jsonl,candidates.jsonl,state.json}
+```
+
+`worker_state.json` has schema `murmurmark.live_causal_me_recovery_worker/v1`. Required fields:
+
+- `status`: `idle`, `running`, `running_with_pending`, `completed_one`,
+  `base_draft_fallback_lag`, `base_draft_fallback_timeout`, `base_draft_fallback_error`,
+  `disabled_fail_open`, `completed` or `completed_with_fallback`;
+- `active` and `pending`: at most one row each;
+- invocation counters, last completed chunk, last/max/final live lag and last error;
+- timeout and lag budgets;
+- `normal_preview_connected: false`;
+- `base_draft_fallback: true`;
+- `batch_authoritative: true` and `promotion_allowed: false`.
+
+`state.json` has schema `murmurmark.live_causal_me_recovery_runtime/v1`. Every successful
+invocation records its closed-chunk cutoff, submission/start/completion timestamps, stage latency,
+candidate counts, `completed_before_stop`, `closed_current_and_past_chunks_only: true`,
+`past_only_enrollment: true` and `used_batch_fields_for_selection: false`.
+
+Candidate rows retain the underlying local-island or remote-active schema and add:
+
+- `runtime_evidence` with invocation and stage timing;
+- `runtime_publication_status`: `effective_candidate`, `superseded_by_later_base_turn` or
+  `rejected_by_algorithm`;
+- optional `runtime_supersession_evidence` explaining the later base `Me` overlap.
+
+The runtime profile is explicit-only:
+
+```text
+online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_
+local_island_micro_asr_v2_causal_remote_active_me_separation_v1_runtime_v1
+```
+
+It is excluded from default comparison policies and cannot feed `transcript.preview.md`, batch
+transcript, notes, export or promotion. A timeout, overload, lag skip or nonzero child exit must
+leave the normal base draft byte-identical.
+
 `raw_segment_commits.jsonl` remains a fallback and audit trail. If committed-PCM preview is missing
 or partial, explicit `experiment recover-draft` may run the raw sidecar worker after recording stops.
 Fallback outputs are isolated under:

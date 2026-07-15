@@ -5281,6 +5281,41 @@ only in `evaluation_reference`. The profile is excluded from default comparison 
 transcript selection; materialization requires an explicit `--only-lab-policy` and
 `--write-shadow-policy` request.
 
+### Recording-Time Causal Me Recovery Integration v1
+
+The recording-time worker runs the two proven layers through a bounded latest-only child after the
+base chunk is durable. Its explicit-only outputs are:
+
+```text
+derived/live/causal-me-recovery-runtime-v1/
+  worker_state.json
+  worker_events.jsonl
+  state.json
+  runtime_runs.jsonl
+  draft.json
+  transcript.shadow.md
+  local-island-v2/
+  remote-active-v1/
+```
+
+The worker and invocation schemas are `murmurmark.live_causal_me_recovery_worker/v1` and
+`murmurmark.live_causal_me_recovery_runtime/v1`. Candidate rows preserve the underlying algorithm
+schema and add `runtime_evidence` plus `runtime_publication_status`. Selection must prove closed
+current/past chunks only, past-only enrollment, no batch fields, hard remote guards and
+recording-time committed-PCM provenance. The remote-active micro-ASR budget is fixed at the proven
+`24` groups.
+
+The runtime profile ends in `_runtime_v1` and is excluded from default policy selection. It may be
+evaluated only through explicit `--only-lab-policy`; it cannot feed normal preview, transcript,
+notes, export or promotion. Fixed-corpus reports use
+`murmurmark.recording_time_causal_me_recovery_runtime_report/v1` and live under:
+
+```text
+sessions/_reports/live-pipeline/recording_time_causal_me_recovery_runtime_v1.json
+sessions/_reports/live-pipeline/recording_time_causal_me_recovery_runtime_v1.jsonl
+sessions/_reports/live-pipeline/recording_time_causal_me_recovery_runtime_v1.md
+```
+
 ### Live Corpus Gates
 
 `scripts/report-live-corpus-gates.py` aggregates live comparisons:

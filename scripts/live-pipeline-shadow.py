@@ -24,7 +24,7 @@ from scipy.io import wavfile
 
 
 SCHEMA = "murmurmark.live_pipeline_report/v1"
-SCRIPT_VERSION = "0.7.1"
+SCRIPT_VERSION = "0.8.0"
 EPSILON = 1.0e-12
 LIVE_ROLE_DUPLICATE_THRESHOLD = 0.55
 LIVE_RESCUE_SHADOW_POLICY = "audio_safe_union_v1"
@@ -78,11 +78,34 @@ def parse_args() -> argparse.Namespace:
             "Use 0 only in diagnostics to disable the lag budget."
         ),
     )
+    parser.add_argument(
+        "--causal-me-recovery-timeout-sec",
+        type=float,
+        default=120.0,
+        help="Kill only the explicit causal recovery child when one invocation exceeds this budget.",
+    )
+    parser.add_argument(
+        "--causal-me-recovery-max-live-lag-sec",
+        type=float,
+        default=90.0,
+        help="Skip explicit causal recovery when its newest closed chunk is too far behind capture.",
+    )
+    parser.add_argument(
+        "--causal-me-recovery-stop-wait-sec",
+        type=float,
+        default=5.0,
+        help="Bound shutdown waiting for the optional causal recovery child.",
+    )
     parser.add_argument("--max-segments", type=int, default=0, help="Debug limit. 0 means no limit.")
     parser.add_argument(
         "--no-causal-target-me",
         action="store_true",
         help="Disable the optional past-only Target-Me speaker shadow. Raw/live base processing is unchanged.",
+    )
+    parser.add_argument(
+        "--no-causal-me-recovery-runtime",
+        action="store_true",
+        help="Disable the explicit-only local-island v2 + remote-active v1 runtime child.",
     )
     args = parser.parse_args()
     if args.asr_parallelism == 0:
@@ -96,6 +119,17 @@ def load_progressive_target_me() -> Any:
     spec = importlib.util.spec_from_file_location("murmurmark_live_progressive_target_me", path)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"cannot import progressive Target-Me worker: {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_causal_me_recovery_manager() -> Any:
+    path = Path(__file__).with_name("live-causal-me-recovery-manager.py")
+    spec = importlib.util.spec_from_file_location("murmurmark_live_causal_me_recovery_manager", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot import causal Me recovery manager: {path}")
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
@@ -215,6 +249,34 @@ def request_worker_shutdown(_signum: int, _frame: Any) -> None:
 def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def disable_causal_me_recovery(
+    session: Path,
+    manager: Any,
+    error: Exception,
+) -> None:
+    reason = f"manager_error: {error}"
+    try:
+        manager.disable(reason)
+        return
+    except Exception:
+        pass
+    try:
+        write_json(
+            session / "derived/live/causal-me-recovery-runtime-v1/worker_state.json",
+            {
+                "schema": "murmurmark.live_causal_me_recovery_worker/v1",
+                "status": "disabled_fail_open",
+                "reason": reason,
+                "normal_preview_connected": False,
+                "base_draft_fallback": True,
+                "batch_authoritative": True,
+                "promotion_allowed": False,
+            },
+        )
+    except OSError:
+        pass
 
 
 def append_jsonl(path: Path, payload: dict[str, Any]) -> None:
@@ -1583,6 +1645,15 @@ def write_report(
     rescue_shadow = live_rescue_shadow_summary(chunks)
     causal_shadow = causal_target_me_summary(chunks)
     runtime_cost = runtime_cost_summary(chunks)
+    recovery_worker_path = session / "derived/live/causal-me-recovery-runtime-v1/worker_state.json"
+    recovery_worker: dict[str, Any] = {}
+    if recovery_worker_path.exists():
+        try:
+            value = json.loads(recovery_worker_path.read_text(encoding="utf-8"))
+            if isinstance(value, dict):
+                recovery_worker = value
+        except (OSError, json.JSONDecodeError):
+            recovery_worker = {"status": "state_unreadable"}
     report = {
         "schema": SCHEMA,
         "generator": {"name": "live-pipeline-shadow", "version": SCRIPT_VERSION},
@@ -1604,9 +1675,13 @@ def write_report(
             "logical_cpu_count": os.cpu_count(),
             "causal_target_me_timeout_sec": args.causal_target_me_timeout_sec,
             "causal_target_me_max_live_lag_sec": args.causal_target_me_max_live_lag_sec,
+            "causal_me_recovery_timeout_sec": args.causal_me_recovery_timeout_sec,
+            "causal_me_recovery_max_live_lag_sec": args.causal_me_recovery_max_live_lag_sec,
+            "causal_me_recovery_stop_wait_sec": args.causal_me_recovery_stop_wait_sec,
         },
         "live_rescue_shadow": rescue_shadow,
         "causal_target_me_shadow": causal_shadow,
+        "causal_me_recovery_runtime": recovery_worker,
         "runtime_cost": runtime_cost,
         "progress": {
             "captured_sec": round(captured, 3),
@@ -1624,6 +1699,10 @@ def write_report(
             "preview_snapshots": rel(output_dir / "preview_snapshots.jsonl", session),
             "chunks_jsonl": rel(output_dir / "chunks.jsonl", session),
             "segments_jsonl": rel(resolve_output_path(session, args.segments_path), session),
+            "causal_me_recovery_runtime": rel(
+                session / "derived/live/causal-me-recovery-runtime-v1",
+                session,
+            ),
         },
         "recommended_next": "murmurmark process " + str(session),
     }
@@ -1652,6 +1731,7 @@ def main() -> int:
     write_live_views(output_dir, chunks, args.commit_delay_sec, args.provenance)
     write_report(session, output_dir, "running", chunks, [], args)
     progressive_target_me: Any | None = None
+    causal_me_recovery: Any | None = None
     if not args.no_causal_target_me:
         try:
             progressive_module = load_progressive_target_me()
@@ -1677,12 +1757,49 @@ def main() -> int:
                     "promotion_allowed": False,
                 },
             )
+    if not args.no_causal_me_recovery_runtime:
+        try:
+            recovery_module = load_causal_me_recovery_manager()
+            runtime_script_value = os.environ.get("MURMURMARK_CAUSAL_ME_RECOVERY_RUNTIME_SCRIPT")
+            causal_me_recovery = recovery_module.CausalMeRecoveryManager(
+                session=session,
+                model=args.model,
+                language=args.language,
+                whisper_cli=args.whisper_cli,
+                timeout_sec=args.causal_me_recovery_timeout_sec,
+                max_live_lag_sec=args.causal_me_recovery_max_live_lag_sec,
+                runtime_script=(Path(runtime_script_value) if runtime_script_value else None),
+                register_child=register_active_child,
+                unregister_child=unregister_active_child,
+            )
+        except Exception as error:
+            try:
+                write_json(
+                    session / "derived/live/causal-me-recovery-runtime-v1/worker_state.json",
+                    {
+                        "schema": "murmurmark.live_causal_me_recovery_worker/v1",
+                        "status": "failed_open",
+                        "reason": str(error),
+                        "normal_preview_connected": False,
+                        "base_draft_fallback": True,
+                        "batch_authoritative": True,
+                        "promotion_allowed": False,
+                    },
+                )
+            except OSError:
+                pass
 
     while True:
         rows = read_jsonl(segments_path)
         grouped = grouped_segments(rows)
         ready_indexes = sorted(index for index, pair in grouped.items() if {"mic", "remote"} <= set(pair))
         captured = max((float(row.get("end_sec") or 0.0) for row in rows), default=0.0)
+        if causal_me_recovery is not None:
+            try:
+                causal_me_recovery.poll(captured_sec=captured)
+            except Exception as error:
+                disable_causal_me_recovery(session, causal_me_recovery, error)
+                causal_me_recovery = None
         completed = max((float(row.get("end_sec") or 0.0) for row in chunks), default=0.0)
         heartbeat.update(
             status="running",
@@ -1794,9 +1911,31 @@ def main() -> int:
                 write_live_views(output_dir, chunks, args.commit_delay_sec, args.provenance)
                 write_report(session, output_dir, "running", chunks, latest_rows, args)
 
+            if causal_me_recovery is not None:
+                try:
+                    causal_me_recovery.submit(
+                        chunk_index=index,
+                        chunk_end_sec=safe_float(chunk.get("end_sec")),
+                        captured_sec=captured,
+                        recording_active=not (session / "session.json").exists(),
+                    )
+                except Exception as error:
+                    disable_causal_me_recovery(session, causal_me_recovery, error)
+                    causal_me_recovery = None
+                write_report(session, output_dir, "running", chunks, latest_rows, args)
+
         if SHUTDOWN_REQUESTED:
             status = "completed_partial_draft"
             completed = max((float(row.get("end_sec") or 0.0) for row in chunks), default=0.0)
+            if causal_me_recovery is not None:
+                try:
+                    causal_me_recovery.finish(
+                        captured_sec=captured,
+                        wait_sec=args.causal_me_recovery_stop_wait_sec,
+                    )
+                except Exception as error:
+                    disable_causal_me_recovery(session, causal_me_recovery, error)
+                    causal_me_recovery = None
             write_live_views(output_dir, chunks, args.commit_delay_sec, args.provenance)
             write_report(session, output_dir, status, chunks, rows, args)
             heartbeat.update(
@@ -1818,6 +1957,15 @@ def main() -> int:
         idle_after_finish = session_finished and all_ready_done and (time.monotonic() - last_new_work >= args.idle_after_session_json_sec)
         if idle_after_finish or (args.max_segments and len(processed) >= args.max_segments):
             status = "completed" if session_finished else "stopped_by_limit"
+            if causal_me_recovery is not None:
+                try:
+                    causal_me_recovery.finish(
+                        captured_sec=captured,
+                        wait_sec=args.causal_me_recovery_stop_wait_sec,
+                    )
+                except Exception as error:
+                    disable_causal_me_recovery(session, causal_me_recovery, error)
+                    causal_me_recovery = None
             write_live_views(output_dir, chunks, args.commit_delay_sec, args.provenance)
             write_report(session, output_dir, status, chunks, rows, args)
             if progressive_target_me is not None:

@@ -47,9 +47,10 @@ Current operating point, 2026-07-15:
 - Causal Remote-Active Me Separation v1 is complete: `9/19` primary rows are accepted, all `16`
   mixed/double-talk cross-check rows are safely rejected, and aggregate missing `Me` falls by
   another `252.90s` without gate regressions;
-- the recommended next goal is Recording-Time Causal Me Recovery Integration v1: execute the
-  replay-proven layers behind the committed-PCM worker with bounded lag and fail-open fallback,
-  while keeping the normal preview and batch result unchanged.
+- Recording-Time Causal Me Recovery Integration v1 is complete: the bounded runtime reproduces
+  replay candidate sets and profile metrics `7/7`, while normal preview and batch stay unchanged;
+- the recommended next goal is Live Recovery Runtime Efficiency and Real Evidence v1: process only
+  new closed evidence and prove bounded pre-stop recovery on three fresh meaningful sessions.
 
 Still future:
 

@@ -46,6 +46,9 @@ regressing remote-like `Me`, effective order, token F1 or review burden.
 Causal Remote-Active Me Separation v1 is also complete: all `19` primary rows and `16`
 mixed/double-talk cross-check rows have stable outcomes. It accepts `9` primary rows and reduces
 aggregate missing `Me` by another `252.90s` with all seven no-regression gates passing.
+Recording-Time Causal Me Recovery Integration v1 is complete: a latest-only bounded child now runs
+both proven layers after the base chunk is durable. Fixed-corpus paced replay reproduces candidate
+sets and profile metrics `7/7`; timeout, lag and overload preserve the normal preview and batch.
 Near-Realtime Live Parity Coverage v1 already proved complete raw capture, pre-stop preview,
 terminal workers, zero final lag and successful batch output on three fresh real sessions. Live
 promotion remains blocked.
@@ -99,8 +102,10 @@ roadmap point it means:
 - remote-active separation gives all `19` primary rows / `88.39s` and `16` mixed/double-talk
   cross-check rows / `65.07s` stable outcomes, adds `42` turns / `289.46s`, and reduces missing
   `Me` further to `1657.89s` without increasing remote-like `Me`, order risk or review burden;
-- the next bounded work unit is recording-time integration of the two replay-proven causal recovery
-  layers behind the committed-PCM worker, with bounded lag and fail-open fallback;
+- recording-time integration reproduces both replay candidate sets and profile metrics across all
+  seven sessions; it remains an explicit-only `_runtime_v1` shadow;
+- the next bounded work unit is incremental runtime efficiency plus three fresh meaningful
+  real-session proofs with pre-stop candidates and zero final lag;
 - `status`, `next`, `finish`, session report and corpus report agree;
 - safe review suggestions are applied before asking for manual listening;
 - remaining review is short, explicit and backed by audio/transcript evidence;
@@ -124,8 +129,9 @@ capture-safe sidecar boundary are implemented; current quality work stays inside
 8. improve live local recall without publishing remote speech, using only causal runtime evidence
    and no per-session parity regression;
 9. reproduce replay-proven causal recovery inside the recording-time worker without weakening
-   capture isolation or the lag budget;
-10. reuse or promote live output only after every required corpus gate passes.
+   capture isolation or the lag budget; completed with fixed-corpus agreement `7/7`;
+10. make recovery incremental and collect fresh bounded-latency recording-time evidence;
+11. reuse or promote live output only after every required corpus gate passes.
 
 The explicit non-goal for this phase is changing the default ASR, default `local_fir`, UI, cloud
 services or broad repair heuristics before the outcome contract can measure the effect.
@@ -345,14 +351,14 @@ flowchart LR
 
 ### Next
 
-- Recording-Time Causal Me Recovery Integration v1:
-  - move the completed local-island v2 and remote-active v1 recovery behind the committed-PCM live
-    worker without changing the normal batch path;
-  - consume only closed current and earlier chunks, past-only enrollment and recording-time guards;
-  - bound child runtime and final lag, and fall back to the base draft when enrichment is late or
-    fails;
-  - reproduce the accepted replay candidates on the fixed corpus, then prove pre-stop candidate
-    output on a local soak without raw-capture or batch regressions;
+- Live Recovery Runtime Efficiency and Real Evidence v1:
+  - persist an incremental watermark and immutable candidate cache instead of rescanning the full
+    closed history on every cutoff;
+  - process only new evidence while keeping the proven `24`-group remote-active budget and all hard
+    guards;
+  - keep p95 enrichment latency within one live segment and finish with zero lag;
+  - collect three fresh meaningful sessions with pre-stop diagnostic candidates and no raw/batch
+    regression;
   - keep the integrated profile diagnostic-only, batch authoritative and live promotion blocked;
 - keep `--live-pipeline` disabled by default; all new evidence should go through
   `record --experiment live-shadow-v1`.
@@ -500,14 +506,13 @@ Recently completed:
 
 ## Goal Sequence
 
-Recommended nearest goal: **Recording-Time Causal Me Recovery Integration v1**. Transport,
-provenance, comparison immutability, effective order gates, local-island v2 and remote-active
-separation v1 are proven in replay. The remaining gap is operational: the accepted recovery must run
-inside the bounded recording-time sidecar and appear before stop without endangering raw capture.
+Recommended nearest goal: **Live Recovery Runtime Efficiency and Real Evidence v1**. Transport,
+causal selection and recording-time integration are proven; the remaining operational gap is
+repeated whole-history work and the absence of fresh real-session evidence for this exact runtime.
 
-1. **Recording-Time Causal Me Recovery Integration v1.** Integrate the replay-proven recovery into
-   the committed-PCM worker, preserve past-only selection and hard remote guards, enforce child and
-   lag budgets, and prove pre-stop diagnostic output plus raw/batch no-regression.
+1. **Live Recovery Runtime Efficiency and Real Evidence v1.** Make recovery incremental, keep p95
+   latency within one segment, and prove pre-stop candidates plus zero final lag on three fresh
+   meaningful sessions without raw/batch regression.
 2. **Causal double-talk recovery follow-up.** Use the `16/16` safely rejected mixed/double-talk rows
    as a bounded future scope only after runtime integration is stable; do not weaken remote guards
    merely to raise recall.

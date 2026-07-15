@@ -48,9 +48,15 @@ Authoritative operating point, 2026-07-15:
 - the selected remote-active shadow reduces missing `Me` from `1910.79s` to `1657.89s`, while
   remote-like `Me` remains `108.42s`, effective order blockers remain `0`, review burden remains
   `490.38s`, and all seven per-session gates pass;
-- the next bounded step is recording-time integration of the proven causal recovery behind the
-  committed-PCM worker. It remains diagnostic and fail-open until replay parity and a local soak
-  prove pre-stop output without capture or batch regressions.
+- Recording-Time Causal Me Recovery Integration v1 now runs both proven recovery layers behind the
+  committed-PCM worker as a bounded latest-only child. The fixed seven-session paced replay matches
+  the replay candidate sets and profile metrics `7/7`; `31` runtime invocations cover the corpus,
+  five sessions produce pre-stop candidates and raw/batch inputs remain unchanged;
+- an isolated `870.16s` source-time soak yields seven pre-stop diagnostic candidates / `48.40s`;
+  its slowest cutoff finishes in `32.28s`, inside the `90s` runtime lag budget;
+- the runtime result stays in an explicit diagnostic namespace and cannot affect normal live watch,
+  transcript, notes, export or promotion. The next bounded step is runtime-efficiency hardening plus
+  fresh real-session evidence before considering any publication path.
 
 The system deliberately keeps unresolved uncertainty visible. Suggested review decisions may close
 only rows supported by local audio and audit evidence. `finish` and guarded `export` remain blocked
@@ -59,13 +65,13 @@ when transcript-only blockers survive.
 Current reliability route:
 [Reliable Transcription Route](docs/project/reliable-transcription-route.md). Outcome, resumable ASR,
 review and final handoff are implemented. Live Local Recall and Remote Leakage Hardening v1 and
-Causal Local-Island Micro-ASR v2 and Causal Remote-Active Me Separation v1 are complete. The selected
-capture-safe shadow is
+Causal Local-Island Micro-ASR v2, Causal Remote-Active Me Separation v1 and their bounded
+recording-time integration are complete. The replay-proven capture-safe shadow is
 `online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_local_island_micro_asr_v2_causal_remote_active_me_separation_v1`.
-The [current goal context](docs/project/current-goal.md) recommends recording-time integration of
-the proven causal recovery as the next bounded experiment. Every live change remains shadow-only
-and must preserve effective order, remote leakage, token F1 and review burden independently for
-every session.
+Its runtime-only counterpart ends in `_runtime_v1` and remains disconnected from normal preview.
+The [current goal context](docs/project/current-goal.md) tracks the next bounded hardening step.
+Every live change remains shadow-only and must preserve effective order, remote leakage, token F1
+and review burden independently for every session.
 
 The live branch remains quarantined as a source of truth. It consumes copied PCM only after durable
 raw writes, produces advisory preview during recording and fails open without affecting raw capture.
@@ -91,6 +97,8 @@ shadow-only until a broader corpus passes explicit promotion gates.
 - Markdown/Obsidian-style export bundles and retention planning.
 - Export Bundle Quality v1: `finish` writes a readable handoff with "Can I use this?", review
   burden, evidence-backed notes, transcript IDs and retention/privacy next steps.
+- Bounded recording-time causal `Me` recovery behind committed PCM, with latest-only scheduling,
+  child timeout/lag budgets and a fail-open explicit diagnostic shadow.
 - Local release bundle, self-test, acceptance gate and open-source readiness check.
 - Recording reliability: duration/SIGINT complete normally, SIGTERM/SIGHUP/unrecovered capture stops
   become explicit partial sessions, severe wall-clock/audio-duration gaps are blocked as partial
@@ -554,6 +562,44 @@ CAND=${BASE}_causal_remote_active_me_separation_v1
 This command is a post-recording causal replay, not the recording-time worker and not a normal
 transcript source. The focused corpus report is the authority for acceptance; batch remains the
 source for notes and export.
+
+The same two layers now also run automatically inside the recording-time worker after each base
+chunk is durable. The worker keeps only one active child and one latest pending cutoff, uses a
+`120s` child timeout and a `90s` lag budget, and falls back to the already written base draft on any
+error. Its output is deliberately separate:
+
+```text
+derived/live/causal-me-recovery-runtime-v1/
+  worker_state.json
+  worker_events.jsonl
+  state.json
+  runtime_runs.jsonl
+  draft.json
+  transcript.shadow.md
+  local-island-v2/
+  remote-active-v1/
+```
+
+`murmurmark live watch` continues to show the conservative normal preview. To inspect this
+diagnostic shadow explicitly during or after a controlled Live Evidence run:
+
+```bash
+cat "$SESSION/derived/live/causal-me-recovery-runtime-v1/transcript.shadow.md"
+jq '.' "$SESSION/derived/live/causal-me-recovery-runtime-v1/worker_state.json"
+```
+
+The runtime profile consumes only closed current/past chunks, past-only enrollment and live audio
+guards. It does not use batch text or timing for selection. Reproduce the fixed-corpus proof with:
+
+```bash
+.venv/bin/python scripts/report-recording-time-causal-me-recovery-runtime-v1.py \
+  --run-paced-replay \
+  --run-compare
+```
+
+The report is written under
+`sessions/_reports/live-pipeline/recording_time_causal_me_recovery_runtime_v1.*`. This profile is
+not connected to normal transcript, notes, export or promotion.
 
 ### Historical Live-Quality Lab Notes
 
@@ -1473,10 +1519,12 @@ state is:
 6. **Completed remote-active recovery:** Causal Remote-Active Me Separation v1 accepts `9/19`
    primary rows, rejects all `16` mixed/double-talk cross-check rows under the safety contract and
    reduces aggregate missing `Me` by another `252.90s` without gate regressions.
-7. **Recommended next goal:** Recording-Time Causal Me Recovery Integration v1. Move the proven
-   replay-only recovery behind the bounded committed-PCM worker, preserve fail-open capture and
-   batch authority, and prove pre-stop diagnostic output. Review/notes readiness follows; UI remains
-   optional and late.
+7. **Completed recording-time integration:** the proven recovery now runs behind the base live
+   chunk through a bounded latest-only child. Candidate and metric agreement pass `7/7`; failures
+   preserve normal preview, raw capture and batch authority.
+8. **Recommended next goal:** Live Recovery Runtime Efficiency and Real Evidence v1. Make the
+   runtime incremental, bound p95 latency to one segment, and collect three fresh meaningful
+   pre-stop proofs before any publication discussion. UI remains optional and late.
 
 <details>
 <summary>Historical implementation log (non-authoritative)</summary>

@@ -15,7 +15,7 @@ import numpy as np
 
 
 SCHEMA = "murmurmark.live_causal_local_island_micro_asr/v2"
-SCRIPT_VERSION = "2.0.0"
+SCRIPT_VERSION = "2.1.0"
 BASELINE_PROFILE = (
     "online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_v1"
 )
@@ -240,6 +240,18 @@ def covered_by_existing_me(
     return None
 
 
+def existing_me_through_chunk(
+    rows: list[dict[str, Any]],
+    chunk_index: int,
+) -> list[dict[str, Any]]:
+    """Keep runtime deduplication causal when a worker sees several closed chunks."""
+    return [
+        row
+        for row in rows
+        if safe_int(row.get("chunk_index"), chunk_index) <= chunk_index
+    ]
+
+
 def select_strict_evaluations(
     *,
     session: Path,
@@ -248,6 +260,7 @@ def select_strict_evaluations(
     segments_by_key: dict[tuple[str, int], dict[str, Any]],
     existing_me: list[dict[str, Any]],
     progressive: Any,
+    causal_existing_cutoff: bool = False,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     session_meta = read_json(session / "session.json")
     ended_at = parse_datetime(session_meta.get("ended_at"))
@@ -271,7 +284,15 @@ def select_strict_evaluations(
             remote_cache[chunk_index] = progressive.read_asr_segments(remote_source, session)
         remote_overlap = overlaps_remote(start, end, remote_cache[chunk_index])
         audio_guard = audio_guard_from_evaluation(row, progressive)
-        existing = covered_by_existing_me(row, existing_me, progressive)
+        existing = covered_by_existing_me(
+            row,
+            (
+                existing_me_through_chunk(existing_me, chunk_index)
+                if causal_existing_cutoff
+                else existing_me
+            ),
+            progressive,
+        )
         checks = {
             "speaker_supported": row.get("classification") == "causal_target_me_supported",
             "timeline_causal": row.get("timeline_causal") is True,
@@ -392,6 +413,7 @@ class MicroASRMaterializer:
         language: str,
         whisper_cli: str,
         force: bool,
+        causal_existing_cutoff: bool = False,
         runner: Callable[[Path, Path, str, str, str], dict[str, Any]] | None = None,
     ) -> None:
         self.session = session
@@ -402,6 +424,7 @@ class MicroASRMaterializer:
         self.language = language
         self.whisper_cli = whisper_cli
         self.force = force
+        self.causal_existing_cutoff = causal_existing_cutoff
         self.runner = runner or progressive.default_micro_runner
         self.output = session / OUTPUT_RELATIVE
         self.audio_cache: dict[str, tuple[int, np.ndarray]] = {}
@@ -576,7 +599,12 @@ class MicroASRMaterializer:
         }
         existing = covered_by_existing_me(
             {"start": source_start, "end": source_end, "text": text},
-            self.existing_me + self.accepted,
+            (
+                existing_me_through_chunk(self.existing_me, chunk_index)
+                if self.causal_existing_cutoff
+                else self.existing_me
+            )
+            + self.accepted,
             self.progressive,
         )
         reasons: list[str] = []
@@ -708,6 +736,27 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--whisper-cli", default=os.environ.get("WHISPER_CLI", "whisper-cli"))
     parser.add_argument("--max-groups", type=int, default=120)
     parser.add_argument("--force", action="store_true")
+    parser.add_argument(
+        "--through-chunk-index",
+        type=int,
+        default=0,
+        help="Recording-time cutoff. Zero keeps the historical full replay behavior.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        help="Optional isolated output directory used by the recording-time runtime profile.",
+    )
+    parser.add_argument(
+        "--existing-me-json",
+        type=Path,
+        help="Optional {turns:[...]} live-only baseline used for causal duplicate checks.",
+    )
+    parser.add_argument(
+        "--runtime-shadow",
+        action="store_true",
+        help="Mark this materialization as explicit-only recording-time runtime evidence.",
+    )
     return parser.parse_args()
 
 
@@ -716,20 +765,40 @@ def main() -> int:
     session = args.session.expanduser().resolve()
     progressive = load_progressive_module()
     evaluations = read_jsonl(session / "derived/live/causal-target-me/evaluations.jsonl")
+    if args.through_chunk_index > 0:
+        evaluations = [
+            row
+            for row in evaluations
+            if safe_int(row.get("chunk_index")) <= args.through_chunk_index
+        ]
     chunk_paths = sorted((session / "derived/live/chunks").glob("*/chunk.json"))
     chunks = {
         safe_int(row.get("index")): row
         for row in (read_json(path) for path in chunk_paths)
         if row
+        and (
+            args.through_chunk_index <= 0
+            or safe_int(row.get("index")) <= args.through_chunk_index
+        )
     }
     segment_rows = read_jsonl(session / "derived/live/segments.jsonl")
+    if args.through_chunk_index > 0:
+        segment_rows = [
+            row
+            for row in segment_rows
+            if safe_int(row.get("index")) <= args.through_chunk_index
+        ]
     segments_by_key = {
         (str(row.get("source") or ""), safe_int(row.get("index"))): row
         for row in segment_rows
         if row.get("source") in {"mic", "remote"}
     }
     baseline_path = session / "derived/live/target-me-shadow" / args.baseline_profile / "draft.json"
-    baseline = read_json(baseline_path)
+    baseline = (
+        read_json(args.existing_me_json.expanduser().resolve())
+        if args.existing_me_json
+        else read_json(baseline_path)
+    )
     existing_me = [
         row
         for row in baseline.get("turns") or []
@@ -742,6 +811,7 @@ def main() -> int:
         segments_by_key=segments_by_key,
         existing_me=existing_me,
         progressive=progressive,
+        causal_existing_cutoff=args.runtime_shadow,
     )
     groups = group_selected_evaluations(selected)
     if args.max_groups > 0:
@@ -755,13 +825,23 @@ def main() -> int:
         language=args.language,
         whisper_cli=args.whisper_cli,
         force=args.force,
+        causal_existing_cutoff=args.runtime_shadow,
     )
+    output = (
+        args.output_dir.expanduser().resolve()
+        if args.output_dir
+        else session / OUTPUT_RELATIVE
+    )
+    materializer.output = output
     candidates = [
         materializer.materialize(group, index)
         for index, group in enumerate(groups, start=1)
     ]
     accepted = [row for row in candidates if row.get("status") == "accepted"]
-    output = session / OUTPUT_RELATIVE
+    try:
+        output_relative = output.relative_to(session)
+    except ValueError:
+        output_relative = output
     state = {
         "schema": SCHEMA,
         "generator": {"name": "live-causal-local-island-micro-asr", "version": SCRIPT_VERSION},
@@ -770,6 +850,8 @@ def main() -> int:
         "session": session.name,
         "baseline_profile": args.baseline_profile,
         "selection_mode": "recording_time_causal_local_island_v2",
+        "runtime_shadow": args.runtime_shadow,
+        "through_chunk_index": args.through_chunk_index or None,
         "evaluated_segment_count": len(evaluations),
         "selected_island_count": len(selected),
         "candidate_count": len(candidates),
@@ -792,9 +874,9 @@ def main() -> int:
             "strict_remote_quiet_max_db": progressive.REMOTE_AUDIO_QUIET_MAX_DB,
         },
         "outputs": {
-            "selection": str(OUTPUT_RELATIVE / "selection.jsonl"),
-            "candidates": str(OUTPUT_RELATIVE / "candidates.jsonl"),
-            "report": str(OUTPUT_RELATIVE / "report.md"),
+            "selection": str(output_relative / "selection.jsonl"),
+            "candidates": str(output_relative / "candidates.jsonl"),
+            "report": str(output_relative / "report.md"),
         },
     }
     write_jsonl(output / "selection.jsonl", decisions)

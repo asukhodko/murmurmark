@@ -102,9 +102,25 @@ the `15` previous effective blockers without mutating turns. Local-recall harden
 bounded experiment, local-island micro-ASR v2, has also completed: it reduces aggregate missing
 `Me` to `1910.79s`. Causal Remote-Active Me Separation v1 then reduces it to `1657.89s`, while
 remote-like `Me` stays at `108.42s`, effective order blockers stay at `0`, and every per-session
-gate passes. Both layers are explicit post-recording causal replay today. The next architecture step
-is bounded recording-time integration behind the existing committed-PCM worker; neither layer is a
-normal preview or promotion source yet.
+gate passes. Recording-Time Causal Me Recovery Integration v1 now executes both layers behind the
+committed-PCM worker. Fixed-corpus paced replay reproduces their candidates and profile metrics
+`7/7`. An isolated `870.16s` source-time soak publishes seven pre-stop candidates / `48.40s`; the
+slowest cutoff is `32.28s`, inside the `90s` lag budget. The runtime shadow remains disconnected
+from normal preview and promotion.
+
+The worker path is:
+
+```text
+closed base chunk + normal preview already durable
+  -> latest-only nonblocking recovery manager
+  -> bounded local-island v2 child
+  -> bounded remote-active v1 child (24-group proven ASR budget)
+  -> explicit diagnostic shadow
+```
+
+Only one child and one latest pending cutoff are retained. A child timeout, lag-budget violation,
+coalesced cutoff or stop-wait timeout affects only the diagnostic shadow. Base live output, raw CAF
+and authoritative batch processing do not wait for recovery.
 
 Implemented v1 contract:
 
@@ -116,6 +132,16 @@ derived/experiments/live-shadow-v1/
   raw_segment_commits.jsonl
   report.json
   report.md
+
+derived/live/causal-me-recovery-runtime-v1/
+  worker_state.json
+  worker_events.jsonl
+  state.json
+  runtime_runs.jsonl
+  draft.json
+  transcript.shadow.md
+  local-island-v2/
+  remote-active-v1/
 ```
 
 `derived/live/` remains the compatibility location for the current live draft, chunks, worker log,
@@ -199,6 +225,8 @@ Realtime and recovery are separate branches:
 ```text
 committed PCM -> derived/live/segments.jsonl -> live worker -> derived/live/transcript.preview.md
                                                    +-------> derived/live/transcript.draft.md
+                                                   +-------> bounded causal recovery manager
+                                                              -> causal-me-recovery-runtime-v1/
 raw commit log -> explicit recover-draft -> derived/experiments/live-shadow-v1/fallback/
 ```
 
@@ -211,6 +239,12 @@ guard evidence is retained in the diagnostic draft, not shown in the normal prev
 Each rewrite appends `murmurmark.live_preview_snapshot/v1` evidence with a content hash and creation
 time. Comparison uses snapshots with `chunk_count > 0` and `created_at < session.ended_at`; replay
 under the fallback namespace cannot satisfy the recording-time gate.
+
+The causal recovery branch starts only after the base chunk and both normal Markdown views have
+been written. It reads closed current/past chunks, uses past-only speaker enrollment, records
+`used_batch_fields_for_selection: false`, and may rewrite only its own runtime namespace. The
+manager defaults are `120s` per child, `90s` maximum live lag and `5s` stop wait. Newer submissions
+replace the single pending cutoff instead of growing an unbounded queue.
 
 ## Known Failure Modes
 

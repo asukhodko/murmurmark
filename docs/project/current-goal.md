@@ -4,18 +4,55 @@ This file keeps the latest goal context and the most relevant completed goals. T
 path remains non-live `record -> process`. Live output stays shadow-only and batch transcript remains
 authoritative.
 
-## Recommended Next Goal: Recording-Time Causal Me Recovery Integration v1
+## Recommended Next Goal: Live Recovery Runtime Efficiency and Real Evidence v1
 
-Status, 2026-07-15: ready after the completed remote-active separation shadow.
+Status, 2026-07-15: ready after the completed recording-time integration.
 
-The two causal recovery layers now improve the fixed seven-session corpus without weakening the
-remote, order, token-F1 or review-burden gates. They still run as explicit post-recording replay.
-The next useful step is to execute the same bounded recovery behind the committed-PCM live worker:
-only closed current and earlier chunks, past-only enrollment, bounded child time and lag, and
-fail-open fallback to the base draft. First reproduce the existing replay outcomes, then prove on a
-local soak that accepted candidates appear before stop while raw capture and the authoritative batch
-result remain unchanged. The recovered profile stays diagnostic and cannot become the normal
-preview, transcript or export source in this goal.
+The causal recovery logic now runs safely during recording, but each invocation still scans the
+closed history and may spend a substantial part of the lag budget in repeated DSP/micro-ASR work.
+The next useful step is to make this runtime incremental and then collect fresh real-session proof:
+persist per-cutoff watermarks and immutable candidate caches, process only newly closed evidence,
+keep p95 enrichment latency below one live segment, and prove pre-stop diagnostic candidates plus
+zero final lag on at least three meaningful sessions. Raw capture, base preview and batch remain
+authoritative; this goal still does not promote the diagnostic shadow.
+
+## Completed Goal: Recording-Time Causal Me Recovery Integration v1
+
+Completed, 2026-07-15. The explicit runtime profile is:
+
+`online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_local_island_micro_asr_v2_causal_remote_active_me_separation_v1_runtime_v1`
+
+Results:
+
+- the normal live worker writes its base chunk and normal preview before scheduling recovery;
+- a latest-only manager keeps one bounded child and one pending cutoff, with `120s` timeout, `90s`
+  lag budget and `5s` stop wait;
+- recovery consumes only closed current/past chunks, past-only enrollment and committed-PCM audio;
+  batch text/timing are excluded from selection;
+- the proven remote-active micro-ASR budget is fixed at `24`, preventing unvalidated extra
+  candidates from appearing at runtime;
+- fixed-corpus paced replay reproduces local-island and remote-active candidate sets `7/7`, and the
+  explicit runtime profile matches replay metrics `7/7`;
+- the corpus proof covers `31` ordered runtime invocations; five sessions produce pre-stop
+  candidates and the slowest cached corpus invocation is `29.64s`;
+- an isolated `870.16s` source-time soak completes five ordered cutoffs, publishes seven diagnostic
+  candidates / `48.40s` with pre-stop provenance, and keeps the slowest invocation at `32.28s`,
+  inside the `90s` lag budget;
+- aggregate missing `Me` remains `1657.89s`, remote-like `Me` `108.42s`, effective order blockers
+  `0`, and review burden `490.38s`; token F1 does not regress per session;
+- timeout, lag, coalescing and worker-stop checks preserve the byte-identical normal preview and
+  disable only the optional enrichment;
+- raw CAF and authoritative batch input hashes remain unchanged;
+- runtime artifacts are isolated under `derived/live/causal-me-recovery-runtime-v1/` and cannot
+  feed normal preview, transcript, notes, export or promotion.
+
+Authoritative outputs:
+
+```text
+sessions/_reports/live-pipeline/recording_time_causal_me_recovery_runtime_v1.json
+sessions/_reports/live-pipeline/recording_time_causal_me_recovery_runtime_v1.jsonl
+sessions/_reports/live-pipeline/recording_time_causal_me_recovery_runtime_v1.md
+```
 
 ## Completed Goal: Causal Remote-Active Me Separation v1
 

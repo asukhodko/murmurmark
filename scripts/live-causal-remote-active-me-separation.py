@@ -27,7 +27,7 @@ from scipy import linalg, signal
 
 
 SCHEMA = "murmurmark.live_causal_remote_active_me_separation/v1"
-SCRIPT_VERSION = "1.0.0"
+SCRIPT_VERSION = "1.1.0"
 OUTPUT_RELATIVE = Path("derived/live/causal-remote-active-me-separation-v1")
 BASELINE_PROFILE = (
     "online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_"
@@ -761,6 +761,32 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-asr-groups", type=int, default=80)
     parser.add_argument("--skip-asr", action="store_true")
     parser.add_argument("--force", action="store_true")
+    parser.add_argument(
+        "--through-chunk-index",
+        type=int,
+        default=0,
+        help="Recording-time cutoff. Zero keeps the historical full replay behavior.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        help="Optional isolated output directory used by the recording-time runtime profile.",
+    )
+    parser.add_argument(
+        "--source-selection",
+        type=Path,
+        help="Optional local-island selection JSONL from an isolated runtime profile.",
+    )
+    parser.add_argument(
+        "--existing-me-json",
+        type=Path,
+        help="Optional {turns:[...]} live-only baseline used for causal duplicate checks.",
+    )
+    parser.add_argument(
+        "--runtime-shadow",
+        action="store_true",
+        help="Mark this materialization as explicit-only recording-time runtime evidence.",
+    )
     return parser.parse_args()
 
 
@@ -772,20 +798,47 @@ def main() -> int:
         "murmurmark_remote_active_local_island_helper",
     )
     progressive = local_island.load_progressive_module()
-    output = session / OUTPUT_RELATIVE
+    output = (
+        args.output_dir.expanduser().resolve()
+        if args.output_dir
+        else session / OUTPUT_RELATIVE
+    )
     output.mkdir(parents=True, exist_ok=True)
     evaluations = read_jsonl(session / "derived/live/causal-target-me/evaluations.jsonl")
-    source_rows = read_jsonl(
-        session / "derived/live/causal-local-island-micro-asr-v2/selection.jsonl"
+    if args.through_chunk_index > 0:
+        evaluations = [
+            row
+            for row in evaluations
+            if safe_int(row.get("chunk_index")) <= args.through_chunk_index
+        ]
+    source_selection = (
+        args.source_selection.expanduser().resolve()
+        if args.source_selection
+        else session / "derived/live/causal-local-island-micro-asr-v2/selection.jsonl"
     )
+    source_rows = read_jsonl(source_selection)
+    if args.through_chunk_index > 0:
+        source_rows = [
+            row
+            for row in source_rows
+            if safe_int(row.get("chunk_index")) <= args.through_chunk_index
+        ]
     chunk_paths = sorted((session / "derived/live/chunks").glob("*/chunk.json"))
     chunks = {
         safe_int(row.get("index")): row
         for row in (read_json(path) for path in chunk_paths)
         if row
+        and (
+            args.through_chunk_index <= 0
+            or safe_int(row.get("index")) <= args.through_chunk_index
+        )
     }
-    baseline = read_json(
-        session / "derived/live/target-me-shadow" / args.baseline_profile / "draft.json"
+    baseline = (
+        read_json(args.existing_me_json.expanduser().resolve())
+        if args.existing_me_json
+        else read_json(
+            session / "derived/live/target-me-shadow" / args.baseline_profile / "draft.json"
+        )
     )
     existing_me = [
         row
@@ -968,10 +1021,18 @@ def main() -> int:
         )
         scores = [safe_float(item.get("score")) for item in selected_rows if safe_float(item.get("score")) > 0.0]
         score = float(np.mean(scores)) if scores else safe_float(result.get("score"))
+        causal_existing_me = (
+            local_island.existing_me_through_chunk(
+                existing_me + accepted_so_far,
+                safe_int(row.get("chunk_index")),
+            )
+            if args.runtime_shadow
+            else existing_me + accepted_so_far
+        )
         existing = (
             local_island.covered_by_existing_me(
                 {"start": row.get("start"), "end": row.get("end"), "text": text},
-                existing_me + accepted_so_far,
+                causal_existing_me,
                 progressive,
             )
             if text
@@ -1060,6 +1121,10 @@ def main() -> int:
             accepted_so_far.append(candidate)
 
     accepted = [row for row in candidates if row.get("status") == "accepted"]
+    try:
+        output_relative = output.relative_to(session)
+    except ValueError:
+        output_relative = output
     state = {
         "schema": SCHEMA,
         "generator": {"name": "live-causal-remote-active-me-separation", "version": SCRIPT_VERSION},
@@ -1068,6 +1133,8 @@ def main() -> int:
         "session": session.name,
         "baseline_profile": args.baseline_profile,
         "selection_mode": "recording_time_causal_remote_active_separation_v1",
+        "runtime_shadow": args.runtime_shadow,
+        "through_chunk_index": args.through_chunk_index or None,
         "source_selection_count": len(source_rows),
         "selected_segment_count": len(selected),
         "selected_group_count": len(groups),
@@ -1095,10 +1162,10 @@ def main() -> int:
             "max_asr_groups": args.max_asr_groups,
         },
         "outputs": {
-            "selection": str(OUTPUT_RELATIVE / "selection.jsonl"),
-            "residual_candidates": str(OUTPUT_RELATIVE / "residual_candidates.jsonl"),
-            "candidates": str(OUTPUT_RELATIVE / "candidates.jsonl"),
-            "report": str(OUTPUT_RELATIVE / "report.md"),
+            "selection": str(output_relative / "selection.jsonl"),
+            "residual_candidates": str(output_relative / "residual_candidates.jsonl"),
+            "candidates": str(output_relative / "candidates.jsonl"),
+            "report": str(output_relative / "report.md"),
         },
     }
     write_jsonl(output / "selection.jsonl", decisions)
