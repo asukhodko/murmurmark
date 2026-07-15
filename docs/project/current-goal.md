@@ -4,18 +4,48 @@ This file keeps the latest goal context and the most relevant completed goals. T
 path remains non-live `record -> process`. Live output stays shadow-only and batch transcript remains
 authoritative.
 
-## Recommended Next Goal: Causal Remote-Active Me Separation v1
+## Recommended Next Goal: Recording-Time Causal Me Recovery Integration v1
 
-Status, 2026-07-15: ready for a separate goal after the completed v2 shadow. No new recording is
-required initially.
+Status, 2026-07-15: ready after the completed remote-active separation shadow.
 
-Causal Local-Island Micro-ASR v2 proves that strict remote-free publication is useful but bounded.
-The next primary scope is the `19` speaker-supported remote-active rejected rows / `88.39s`; the
-original `16` mixed/double-talk rows / `65.07s` are the cross-check scope and may overlap. Build a
-causal remote-conditioned residual or separation candidate from committed mic/remote PCM, verify it
-with past-only Target-Me evidence, and run bounded micro-ASR only inside the supported interval.
-Remote text/audio similarity remains a hard rejection gate. Batch text and timing remain
-evaluation-only. Duplicate-context, unsupported and no-enrollment opening rows stay separate.
+The two causal recovery layers now improve the fixed seven-session corpus without weakening the
+remote, order, token-F1 or review-burden gates. They still run as explicit post-recording replay.
+The next useful step is to execute the same bounded recovery behind the committed-PCM live worker:
+only closed current and earlier chunks, past-only enrollment, bounded child time and lag, and
+fail-open fallback to the base draft. First reproduce the existing replay outcomes, then prove on a
+local soak that accepted candidates appear before stop while raw capture and the authoritative batch
+result remain unchanged. The recovered profile stays diagnostic and cannot become the normal
+preview, transcript or export source in this goal.
+
+## Completed Goal: Causal Remote-Active Me Separation v1
+
+Completed, 2026-07-15. The explicit-only shadow profile is:
+
+`online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_local_island_micro_asr_v2_causal_remote_active_me_separation_v1`
+
+Results:
+
+- all `19` primary remote-active rows / `88.39s` have stable outcomes: `9 accepted`, `10 rejected`;
+- all `16` mixed/double-talk cross-check rows / `65.07s` were evaluated and rejected by the safety
+  contract rather than published speculatively;
+- the candidate adds `42` deduplicated turns / `289.46s` across the fixed corpus;
+- aggregate missing `Me` falls from `1910.79s` to `1657.89s`, a `252.90s` improvement;
+- the largest per-session improvement is `82.43s`;
+- remote-like `Me` stays at `108.42s`, effective order blockers stay at `0`, and authoritative
+  review burden stays at `490.38s`;
+- token F1 does not regress and all seven per-session gates pass;
+- selection uses committed mic/remote PCM, causal past-only training, Target-Me evidence and hard
+  remote text/audio guards; batch fields are evaluation-only;
+- the standard corpus report and focused report agree, raw CAF and authoritative batch inputs are
+  unchanged, and live promotion remains blocked.
+
+Authoritative outputs:
+
+```text
+sessions/_reports/live-pipeline/causal_remote_active_me_separation_v1.json
+sessions/_reports/live-pipeline/causal_remote_active_me_separation_v1.jsonl
+sessions/_reports/live-pipeline/causal_remote_active_me_separation_v1.md
+```
 
 ## Completed Goal: Causal Local-Island Micro-ASR v2
 

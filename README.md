@@ -42,12 +42,15 @@ Authoritative operating point, 2026-07-15:
   and selected a causal remote-energy shadow profile with per-session no-regression `7/7`;
 - Causal Local-Island Micro-ASR v2 gives all `40` unresolved rows / `210.41s` stable outcomes
   (`2 accepted`, `38 rejected`) and adds only causally selected remote-free `Me` turns;
-- the selected v2 shadow reduces missing `Me` from `2166.56s` to `1910.79s` while remote-like `Me`
-  remains `108.42s`, effective order blockers remain `0`, review burden remains `490.38s`, and all
-  seven per-session gates pass;
-- the next bounded class is remote-active speech: `19` speaker-supported rejected rows / `88.39s`,
-  cross-checked against the original `16` mixed/double-talk rows / `65.07s`. No new recording is
-  required initially.
+- Causal Remote-Active Me Separation v1 gives stable outcomes to all `19` primary rows / `88.39s`
+  and all `16` mixed/double-talk cross-check rows / `65.07s`; `9` primary rows are accepted and the
+  unsafe remainder stays rejected;
+- the selected remote-active shadow reduces missing `Me` from `1910.79s` to `1657.89s`, while
+  remote-like `Me` remains `108.42s`, effective order blockers remain `0`, review burden remains
+  `490.38s`, and all seven per-session gates pass;
+- the next bounded step is recording-time integration of the proven causal recovery behind the
+  committed-PCM worker. It remains diagnostic and fail-open until replay parity and a local soak
+  prove pre-stop output without capture or batch regressions.
 
 The system deliberately keeps unresolved uncertainty visible. Suggested review decisions may close
 only rows supported by local audio and audit evidence. `finish` and guarded `export` remain blocked
@@ -56,11 +59,13 @@ when transcript-only blockers survive.
 Current reliability route:
 [Reliable Transcription Route](docs/project/reliable-transcription-route.md). Outcome, resumable ASR,
 review and final handoff are implemented. Live Local Recall and Remote Leakage Hardening v1 and
-Causal Local-Island Micro-ASR v2 are complete. The selected capture-safe shadow is
-`online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_local_island_micro_asr_v2`.
-The [current goal context](docs/project/current-goal.md) recommends causal remote-active `Me`
-separation as the next bounded experiment. Every live change remains shadow-only and must preserve
-effective order, remote leakage, token F1 and review burden independently for every session.
+Causal Local-Island Micro-ASR v2 and Causal Remote-Active Me Separation v1 are complete. The selected
+capture-safe shadow is
+`online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_local_island_micro_asr_v2_causal_remote_active_me_separation_v1`.
+The [current goal context](docs/project/current-goal.md) recommends recording-time integration of
+the proven causal recovery as the next bounded experiment. Every live change remains shadow-only
+and must preserve effective order, remote leakage, token F1 and review burden independently for
+every session.
 
 The live branch remains quarantined as a source of truth. It consumes copied PCM only after durable
 raw writes, produces advisory preview during recording and fails open without affecting raw capture.
@@ -500,6 +505,9 @@ jq '.summary' sessions/_reports/live-pipeline/live_local_recall_remote_leakage_h
 less sessions/_reports/live-pipeline/live_causal_local_island_micro_asr_v2.md
 jq '{status, summary, completion_checks, corpus_agreement}' \
   sessions/_reports/live-pipeline/live_causal_local_island_micro_asr_v2.json
+less sessions/_reports/live-pipeline/causal_remote_active_me_separation_v1.md
+jq '{status, summary, completion_checks, corpus_agreement}' \
+  sessions/_reports/live-pipeline/causal_remote_active_me_separation_v1.json
 ```
 
 For the seven-session capture-safe scope, `murmurmark corpus live` also writes the bounded
@@ -523,6 +531,25 @@ CAND=online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remo
 `--write-shadow-policy` protects previous shadow drafts from timestamp-only rewrites. Batch fields
 are evaluation-only; accepted candidates require committed-PCM provenance, past-only speaker
 enrollment, strictly quiet remote audio, a clear guarded remote-ASR interval and bounded micro-ASR.
+
+Remote-active separation is the next explicit-only layer on top of v2. It evaluates causal FIR,
+spectral projection and a hybrid residual using only earlier training audio, then requires
+Target-Me support plus hard remote text/audio guards before admitting bounded micro-ASR text:
+
+```bash
+BASE=online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_local_island_micro_asr_v2
+CAND=${BASE}_causal_remote_active_me_separation_v1
+
+.venv/bin/python scripts/live-causal-remote-active-me-separation.py "$SESSION"
+.venv/bin/python scripts/compare-live-batch.py "$SESSION" \
+  --only-lab-policy "$BASE" \
+  --only-lab-policy "$CAND" \
+  --write-shadow-policy "$CAND"
+```
+
+This command is a post-recording causal replay, not the recording-time worker and not a normal
+transcript source. The focused corpus report is the authority for acceptance; batch remains the
+source for notes and export.
 
 ### Historical Live-Quality Lab Notes
 
@@ -1439,9 +1466,13 @@ state is:
 5. **Completed bounded recovery:** Causal Local-Island Micro-ASR v2 gave all `40` unresolved rows
    stable outcomes and reduced aggregate missing `Me` by `255.77s` with all seven no-regression
    gates passing. More recordings were not required.
-6. **Recommended next goal:** Causal Remote-Active Me Separation v1 for `19`
-   speaker-supported rejected rows / `88.39s`, cross-checked against `16` mixed/double-talk rows /
-   `65.07s`. Review/notes/boundary readiness follows; UI remains optional and late.
+6. **Completed remote-active recovery:** Causal Remote-Active Me Separation v1 accepts `9/19`
+   primary rows, rejects all `16` mixed/double-talk cross-check rows under the safety contract and
+   reduces aggregate missing `Me` by another `252.90s` without gate regressions.
+7. **Recommended next goal:** Recording-Time Causal Me Recovery Integration v1. Move the proven
+   replay-only recovery behind the bounded committed-PCM worker, preserve fail-open capture and
+   batch authority, and prove pre-stop diagnostic output. Review/notes readiness follows; UI remains
+   optional and late.
 
 <details>
 <summary>Historical implementation log (non-authoritative)</summary>

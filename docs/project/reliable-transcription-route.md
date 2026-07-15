@@ -2,7 +2,7 @@
 
 Status: active product route; stable batch capture/processing, live transport evidence, Live Order
 and Role Reconciliation v1, Live Local Recall and Remote Leakage Hardening v1 and Causal
-Local-Island Micro-ASR v2 complete
+Local-Island Micro-ASR v2 and Causal Remote-Active Me Separation v1 complete
 Date: 2026-07-15
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
@@ -16,8 +16,11 @@ profile. It reduces aggregate missing `Me` from `2844.88s` to `2166.56s` without
 remote-like `Me`, effective order blockers, review burden or per-session token-F1 regressions. The
 v2 local-island pass then classified all `40` unresolved rows and reduced missing `Me` to
 `1910.79s`, while remote-like `Me` stayed at `108.42s` and effective order blockers stayed at `0`.
-The next bounded question is Causal Remote-Active Me Separation v1 over `19` speaker-supported
-rejected rows / `88.39s`, cross-checked against `16` mixed/double-talk rows / `65.07s`.
+Remote-active separation then classified all `19` primary and `16` mixed/double-talk cross-check
+rows, accepted `9` primary rows and reduced missing `Me` to `1657.89s` with the same remote, order,
+token-F1 and review-burden gates. The next bounded question is recording-time integration of these
+replay-proven recovery layers behind the committed-PCM worker with bounded lag and fail-open
+fallback.
 Near-realtime output remains shadow-only.
 
 ## Why This Exists

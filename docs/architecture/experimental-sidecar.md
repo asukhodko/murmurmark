@@ -99,7 +99,12 @@ batch transcripts. This closes transport uncertainty for v1. Order/role reconcil
 the `15` previous effective blockers without mutating turns. Local-recall hardening classified all
 `118` localized rows and materialized a causal shadow that recovers `678.32s` aggregate missing
 `Me` with no measured gate regression. Quality promotion remains blocked. The recommended next
-bounded experiment is causal micro-ASR over `40` unresolved rows / `210.41s`.
+bounded experiment, local-island micro-ASR v2, has also completed: it reduces aggregate missing
+`Me` to `1910.79s`. Causal Remote-Active Me Separation v1 then reduces it to `1657.89s`, while
+remote-like `Me` stays at `108.42s`, effective order blockers stay at `0`, and every per-session
+gate passes. Both layers are explicit post-recording causal replay today. The next architecture step
+is bounded recording-time integration behind the existing committed-PCM worker; neither layer is a
+normal preview or promotion source yet.
 
 Implemented v1 contract:
 

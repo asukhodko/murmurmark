@@ -48,9 +48,11 @@ nodes:
       aggregate missing Me, а 7/7 per-session no-regression gates прошли. Live promotion остаётся
       blocked. Causal Local-Island Micro-ASR v2 завершён: все 40 unresolved rows получили outcomes,
       aggregate missing Me уменьшился ещё на 255.77s, а remote-like Me, effective order, token F1 и
-      review burden не регрессировали ни в одной сессии. Ближайшая рекомендуемая цель — Causal
-      Remote-Active Me Separation v1 для 19 speaker-supported rows / 88.39s с cross-check на 16
-      mixed/double-talk rows / 65.07s.
+      review burden не регрессировали ни в одной сессии. Causal Remote-Active Me Separation v1
+      завершён: 9/19 primary rows приняты, aggregate missing Me уменьшился ещё на 252.90s, а все 16
+      mixed/double-talk cross-check rows безопасно отклонены. Ближайшая рекомендуемая цель —
+      Recording-Time Causal Me Recovery Integration v1: перенести proven replay recovery в
+      committed-PCM worker с bounded lag и fail-open fallback.
 
       Historical operational snapshot, 2026-07-02:
 
@@ -329,8 +331,9 @@ nodes:
       mutation. Live Local Recall and Remote Leakage Hardening v1 классифицировал 118 rows и
       безопасно восстановил 678.32s aggregate missing Me. Causal Local-Island Micro-ASR v2 дал
       outcomes всем 40 unresolved rows и восстановил ещё 255.77s без per-session регрессий.
-      Ближайший bounded quality-шаг — Causal Remote-Active Me Separation v1: обработать 19
-      speaker-supported rows / 88.39s без регрессий batch и live gates.
+      Causal Remote-Active Me Separation v1 обработал 19 speaker-supported rows и восстановил ещё
+      252.90s без per-session регрессий. Ближайший bounded quality-шаг — перенести replay-proven
+      causal recovery в recording-time committed-PCM worker с bounded lag и fail-open fallback.
 
   current-pipeline-stabilization-v1:
     title: "Current Pipeline Stabilization v1"
@@ -1081,16 +1084,31 @@ nodes:
     kind: task
     parent: near-realtime-pipeline
     deps: [live-causal-local-island-micro-asr-v2]
+    status: done
+    effort: 8
+    notes: |
+      Завершено 2026-07-15. Все 19 primary remote-active rows / 88.39s получили стабильные outcomes:
+      9 accepted, 10 rejected. Все 16 mixed/double-talk cross-check rows / 65.07s безопасно
+      отклонены. Explicit-only profile добавляет 42 turns / 289.46s и уменьшает aggregate missing
+      Me 1910.79s -> 1657.89s. Remote-like Me остаётся 108.42s, effective order blockers 0, review
+      burden 490.38s; token F1 не регрессирует, все 7 per-session gates проходят. Selection использует
+      committed PCM, past-only training, Target-Me и hard remote text/audio guards; batch поля только
+      для оценки, promotion blocked.
+
+  live-recording-time-causal-me-recovery-integration-v1:
+    title: "Recording-Time Causal Me Recovery Integration v1"
+    kind: task
+    parent: near-realtime-pipeline
+    deps: [live-causal-remote-active-me-separation-v1]
     status: next
     effort: 8
     notes: |
-      Следующий bounded algorithmic step: 19 speaker-supported remote-active rejected rows / 88.39s
-      из v2 outcomes; исходные 16 mixed/double-talk rows / 65.07s служат cross-check scope и могут
-      пересекаться. Построить causal remote-conditioned residual или separation candidate из
-      committed mic/remote PCM, подтвердить local speech только past-only Target-Me evidence и
-      запускать bounded micro-ASR внутри поддержанного интервала. Remote text/audio similarity —
-      hard rejection. Batch text/timing evaluation-only. Duplicate-context, unsupported и opening
-      rows без enrollment не входят в scope. Новые записи сначала не нужны; promotion blocked.
+      Перенести replay-proven local-island v2 и remote-active v1 recovery за committed-PCM live
+      worker. Использовать только закрытый текущий chunk, более ранние chunks и past-only enrollment.
+      Ограничить child runtime и lag; при задержке или ошибке оставлять base draft и не влиять на raw
+      capture. Сначала воспроизвести accepted replay outcomes, затем доказать pre-stop diagnostic
+      output на локальном soak. Batch остаётся authoritative, normal preview/export не меняются,
+      promotion blocked.
 
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"
@@ -1967,8 +1985,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Causal Remote-Active Me Separation v1: обработать 19 speaker-supported remote-active rows / 88.39s через causal remote-conditioned residual и bounded micro-ASR, не публикуя remote speech как Me."
-      success_by_next_sync: "Все 19 rows имеют устойчивый outcome; хотя бы одна затронутая сессия материально улучшает missing Me; remote-like Me не выше 108.42s, effective order blockers равны 0, token F1 и review burden не регрессируют во всех 7 sessions; batch authoritative и promotion blocked."
+      nearest_goal: "Recording-Time Causal Me Recovery Integration v1: перенести replay-proven local-island и remote-active recovery за committed-PCM worker с bounded lag и fail-open fallback."
+      success_by_next_sync: "Replay outcomes воспроизводятся без batch selection; локальный soak создаёт causal diagnostic candidates до stop; raw capture и batch не регрессируют; timeout/lag отключают только enrichment; normal preview остаётся неизменным, batch authoritative и promotion blocked."
     defaults:
       status_progress:
         done: 1.0
@@ -1994,8 +2012,8 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "CLI MVP, batch reliability и committed-PCM transport закрыты. Local-recall hardening v1 и local-island micro-ASR v2 суммарно уменьшили aggregate missing Me 2844.88s -> 1910.79s при 7/7 no-regression gates, но live promotion всё ещё blocked; production output остаётся batch."
-          next_sync_goal: "Проверить causal remote-active Me separation на 19 speaker-supported rows / 88.39s, не ослабляя remote-forbidden, order, token-F1 и review-burden gates."
+          sync_note: "CLI MVP, batch reliability и committed-PCM transport закрыты. Local-recall hardening, local-island v2 и remote-active separation v1 суммарно уменьшили aggregate missing Me 2844.88s -> 1657.89s при 7/7 no-regression gates. Эти два последних слоя пока replay-only; production output остаётся batch."
+          next_sync_goal: "Интегрировать proven causal recovery в recording-time worker с bounded lag, fail-open fallback и pre-stop evidence, не меняя normal preview или batch authority."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening, reliable-transcription-route]

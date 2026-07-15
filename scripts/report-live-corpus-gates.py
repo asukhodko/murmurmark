@@ -146,6 +146,10 @@ CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_"
     "local_island_micro_asr_v2"
 )
+CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_"
+    "local_island_micro_asr_v2_causal_remote_active_me_separation_v1"
+)
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_live_boundary_split_retime_remote_guarded_voice_boundary_v1"
@@ -183,6 +187,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_SPEAKER_ONLY_PROFILE_POLICY,
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
     CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
+    CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
     "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_audio_safe_union_v1",
@@ -329,6 +334,9 @@ TARGET_ME_SHADOW_PROFILE_METRICS = (
     "causal_local_island_micro_asr_v2_added_turn_count",
     "causal_local_island_micro_asr_v2_added_turn_seconds",
     "causal_local_island_micro_asr_v2_rejected_turn_count",
+    "causal_remote_active_me_separation_v1_added_turn_count",
+    "causal_remote_active_me_separation_v1_added_turn_seconds",
+    "causal_remote_active_me_separation_v1_rejected_turn_count",
 )
 LIVE_QUARANTINE_REASON = (
     "live pipeline is quarantined because the async live path has not yet passed capture-safety "
@@ -1973,6 +1981,18 @@ def add_target_me_shadow_profile_summary(summary: dict[str, Any], rows: list[dic
             evaluated_rows,
             f"{base}_causal_local_island_micro_asr_v2_rejected_turn_count",
         )
+        summary[f"{out}_causal_remote_active_me_separation_v1_added_turn_count"] = sum_int_metric(
+            evaluated_rows,
+            f"{base}_causal_remote_active_me_separation_v1_added_turn_count",
+        )
+        summary[f"{out}_causal_remote_active_me_separation_v1_added_turn_seconds"] = sum_metric(
+            evaluated_rows,
+            f"{base}_causal_remote_active_me_separation_v1_added_turn_seconds",
+        )
+        summary[f"{out}_causal_remote_active_me_separation_v1_rejected_turn_count"] = sum_int_metric(
+            evaluated_rows,
+            f"{base}_causal_remote_active_me_separation_v1_rejected_turn_count",
+        )
         summary[f"{out}_visible_suppressed_mic_added_turn_count"] = sum_int_metric(
             evaluated_rows,
             f"{base}_visible_suppressed_mic_added_turn_count",
@@ -2251,6 +2271,15 @@ def target_me_shadow_profile_diagnostics(summary: dict[str, Any], prefix: str) -
             ),
             "causal_local_island_micro_asr_v2_rejected_turn_count": safe_int(
                 summary.get(f"{base}_causal_local_island_micro_asr_v2_rejected_turn_count")
+            ),
+            "causal_remote_active_me_separation_v1_added_turn_count": safe_int(
+                summary.get(f"{base}_causal_remote_active_me_separation_v1_added_turn_count")
+            ),
+            "causal_remote_active_me_separation_v1_added_turn_seconds": safe_float(
+                summary.get(f"{base}_causal_remote_active_me_separation_v1_added_turn_seconds")
+            ),
+            "causal_remote_active_me_separation_v1_rejected_turn_count": safe_int(
+                summary.get(f"{base}_causal_remote_active_me_separation_v1_rejected_turn_count")
             ),
         }
         rows.append(row)

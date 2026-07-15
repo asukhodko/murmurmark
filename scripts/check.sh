@@ -18,6 +18,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-live-order-role-reconciliation.py
 "$python_bin" scripts/check-live-local-recall-hardening.py
 "$python_bin" scripts/check-live-causal-local-island-micro-asr-v2.py
+"$python_bin" scripts/check-live-causal-remote-active-me-separation-v1.py
 "$python_bin" scripts/check-independent-me-evidence.py
 "$python_bin" scripts/check-experiment-compare-timeout.py
 scripts/check-open-source-readiness.sh

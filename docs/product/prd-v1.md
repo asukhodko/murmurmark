@@ -44,9 +44,12 @@ Current operating point, 2026-07-15:
 - Causal Local-Island Micro-ASR v2 is complete: all `40` unresolved rows have stable outcomes, its
   explicit-only shadow reduces aggregate missing `Me` by another `255.77s`, remote-like `Me` stays
   at `108.42s`, effective order blockers stay at `0`, and all seven per-session gates pass;
-- the recommended next goal is Causal Remote-Active Me Separation v1 over `19`
-  speaker-supported rejected rows / `88.39s`, cross-checked against `16` mixed/double-talk rows /
-  `65.07s`; more recordings are not required for the initial bounded experiment.
+- Causal Remote-Active Me Separation v1 is complete: `9/19` primary rows are accepted, all `16`
+  mixed/double-talk cross-check rows are safely rejected, and aggregate missing `Me` falls by
+  another `252.90s` without gate regressions;
+- the recommended next goal is Recording-Time Causal Me Recovery Integration v1: execute the
+  replay-proven layers behind the committed-PCM worker with bounded lag and fail-open fallback,
+  while keeping the normal preview and batch result unchanged.
 
 Still future:
 

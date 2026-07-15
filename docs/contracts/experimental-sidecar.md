@@ -10,6 +10,9 @@ Schema versions:
 - `murmurmark.live_progressive_target_me/v1`
 - `murmurmark.live_remote_audio_guard/v1`
 - `murmurmark.live_preview_snapshot/v1`
+- `murmurmark.live_causal_remote_active_me_separation/v1`
+- `murmurmark.live_causal_remote_active_me_separation_v1_report/v1`
+- `murmurmark.live_causal_remote_active_me_separation_v1_outcome/v1`
 
 The contract lives under:
 
@@ -71,6 +74,35 @@ already outside the configured lag budget, its mic record contains:
 `live_pipeline_report.json.causal_target_me_shadow.skipped_lag_budget_count` counts these chunks.
 Target-Me micro-ASR also has a bounded child timeout; timeout or failure cannot retract an already
 written base chunk or draft.
+
+## Causal Remote-Active Me Separation
+
+The explicit-only remote-active replay writes:
+
+```text
+derived/live/causal-remote-active-me-separation-v1/
+  selection.jsonl
+  residual_candidates.jsonl
+  candidates.jsonl
+  state.json
+  report.md
+```
+
+`state.json` and every JSONL row use `murmurmark.live_causal_remote_active_me_separation/v1`.
+Accepted candidates must carry all of these invariants:
+
+- `selection_mode: recording_time_causal_remote_active_separation_v1`;
+- `timeline_causal: true` and `used_batch_fields_for_selection: false`;
+- past-only training evidence over earlier committed PCM;
+- passing residual audio, remote-active, Target-Me and remote text guards;
+- `batch_authoritative: true`, `publication_allowed: false` and `promotion_allowed: false`.
+
+The focused corpus report writes
+`sessions/_reports/live-pipeline/causal_remote_active_me_separation_v1.{json,jsonl,md}`. Its report
+schema is `murmurmark.live_causal_remote_active_me_separation_v1_report/v1`; each disposition row
+uses `murmurmark.live_causal_remote_active_me_separation_v1_outcome/v1`. Batch text and timing may
+appear only in the evaluation reference. The profile is never selected by normal compare, preview,
+transcript, notes or export commands.
 
 ## Manifest
 

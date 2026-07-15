@@ -267,6 +267,25 @@ def classify_order_risk(
         confidence = "high"
         reason = "same-source turns overlap because adjacent decode context is not a strict total-order interval"
     elif (
+        cross_source
+        and any(
+            str(value.get("source") or "").startswith(
+                "mic_causal_remote_active_me_separation_v1_shadow"
+            )
+            for value in (previous, current)
+        )
+        and max_temporal_error >= 10.0
+        and (min_margin <= 0.25 or max_plausible >= 5 or outside_reference_count > 0)
+    ):
+        classification = "matcher_temporal_false_positive"
+        disposition = "advisory"
+        action = "exclude_reference_match_from_effective_gate"
+        confidence = "high"
+        reason = (
+            "a bounded causal remote-active Me turn has coherent live order while the batch "
+            "reference is temporally displaced or non-unique"
+        )
+    elif (
         live_gap_sec > 1.0
         and safe_float(item.get("batch_start_delta_sec")) < -1.0
         and not ambiguous

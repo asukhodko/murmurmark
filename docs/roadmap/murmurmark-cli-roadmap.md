@@ -43,12 +43,15 @@ causal shadow recovers `678.32s` aggregate missing `Me` with all seven no-regres
 Causal Local-Island Micro-ASR v2 is complete as an explicit-only shadow: all `40` previously
 unresolved rows have stable outcomes and aggregate missing `Me` falls by another `255.77s` without
 regressing remote-like `Me`, effective order, token F1 or review burden.
+Causal Remote-Active Me Separation v1 is also complete: all `19` primary rows and `16`
+mixed/double-talk cross-check rows have stable outcomes. It accepts `9` primary rows and reduces
+aggregate missing `Me` by another `252.90s` with all seven no-regression gates passing.
 Near-Realtime Live Parity Coverage v1 already proved complete raw capture, pre-stop preview,
 terminal workers, zero final lag and successful batch output on three fresh real sessions. Live
 promotion remains blocked.
 
 The selected capture-safe shadow profile is
-`online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_local_island_micro_asr_v2`
+`online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_local_island_micro_asr_v2_causal_remote_active_me_separation_v1`
 in both per-session comparison reports and the corpus reconciliation report.
 
 The target outcome is:
@@ -93,9 +96,11 @@ roadmap point it means:
 - local-island v2 gives all `40` unresolved rows / `210.41s` stable outcomes (`2 accepted`, `38`
   rejected), adds `44` deduplicated turns / `267.12s`, and reduces missing `Me` further to
   `1910.79s` with all seven no-regression gates passing;
-- the next bounded work unit is `19` speaker-supported remote-active rejected rows / `88.39s`,
-  cross-checked against `16` mixed/double-talk rows / `65.07s`; collecting more recordings is not
-  required initially;
+- remote-active separation gives all `19` primary rows / `88.39s` and `16` mixed/double-talk
+  cross-check rows / `65.07s` stable outcomes, adds `42` turns / `289.46s`, and reduces missing
+  `Me` further to `1657.89s` without increasing remote-like `Me`, order risk or review burden;
+- the next bounded work unit is recording-time integration of the two replay-proven causal recovery
+  layers behind the committed-PCM worker, with bounded lag and fail-open fallback;
 - `status`, `next`, `finish`, session report and corpus report agree;
 - safe review suggestions are applied before asking for manual listening;
 - remaining review is short, explicit and backed by audio/transcript evidence;
@@ -118,7 +123,9 @@ capture-safe sidecar boundary are implemented; current quality work stays inside
    real live-pipeline coverage returns only through controlled Live Evidence runs with that proof;
 8. improve live local recall without publishing remote speech, using only causal runtime evidence
    and no per-session parity regression;
-9. reuse or promote live output only after every required corpus gate passes.
+9. reproduce replay-proven causal recovery inside the recording-time worker without weakening
+   capture isolation or the lag budget;
+10. reuse or promote live output only after every required corpus gate passes.
 
 The explicit non-goal for this phase is changing the default ASR, default `local_fir`, UI, cloud
 services or broad repair heuristics before the outcome contract can measure the effect.
@@ -338,15 +345,15 @@ flowchart LR
 
 ### Next
 
-- Causal Remote-Active Me Separation v1:
-  - process the `19` speaker-supported remote-active rejected rows / `88.39s` left by local-island
-    v2, with the original `16` mixed/double-talk rows / `65.07s` as a cross-check;
-  - build a causal remote-conditioned residual or separation candidate from committed mic/remote
-    PCM and past-only Target-Me evidence;
-  - run bounded micro-ASR only inside the supported interval;
-  - reject remote-text/audio similarity, unsupported local speech and every per-session regression
-    in remote-like `Me`, effective order blockers, token F1 or review burden;
-  - keep batch fields evaluation-only, batch authoritative and live promotion blocked;
+- Recording-Time Causal Me Recovery Integration v1:
+  - move the completed local-island v2 and remote-active v1 recovery behind the committed-PCM live
+    worker without changing the normal batch path;
+  - consume only closed current and earlier chunks, past-only enrollment and recording-time guards;
+  - bound child runtime and final lag, and fall back to the base draft when enrichment is late or
+    fails;
+  - reproduce the accepted replay candidates on the fixed corpus, then prove pre-stop candidate
+    output on a local soak without raw-capture or batch regressions;
+  - keep the integrated profile diagnostic-only, batch authoritative and live promotion blocked;
 - keep `--live-pipeline` disabled by default; all new evidence should go through
   `record --experiment live-shadow-v1`.
 - Near-realtime shadow pipeline follow-up:
@@ -493,22 +500,24 @@ Recently completed:
 
 ## Goal Sequence
 
-Recommended nearest goal: **Causal Remote-Active Me Separation v1**. Transport, provenance,
-comparison immutability, effective order gates, bounded v1 dispositions and remote-free local-island
-v2 are proven. The smallest meaningful next unit is the existing `19` speaker-supported
-remote-active rejected rows / `88.39s`, cross-checked against `16` mixed/double-talk rows / `65.07s`;
-no additional recording is required initially.
+Recommended nearest goal: **Recording-Time Causal Me Recovery Integration v1**. Transport,
+provenance, comparison immutability, effective order gates, local-island v2 and remote-active
+separation v1 are proven in replay. The remaining gap is operational: the accepted recovery must run
+inside the bounded recording-time sidecar and appear before stop without endangering raw capture.
 
-1. **Causal Remote-Active Me Separation v1.** Build a causal remote-conditioned residual from
-   committed mic/remote PCM, verify local speech with past-only Target-Me evidence, micro-decode
-   only supported intervals, and reject every remote-similar or per-session regressing candidate.
-2. **Live review/notes/boundary readiness.** After remote-active recall improves safely, close review burden,
+1. **Recording-Time Causal Me Recovery Integration v1.** Integrate the replay-proven recovery into
+   the committed-PCM worker, preserve past-only selection and hard remote guards, enforce child and
+   lag budgets, and prove pre-stop diagnostic output plus raw/batch no-regression.
+2. **Causal double-talk recovery follow-up.** Use the `16/16` safely rejected mixed/double-talk rows
+   as a bounded future scope only after runtime integration is stable; do not weaken remote guards
+   merely to raise recall.
+3. **Live review/notes/boundary readiness.** After runtime recovery remains safe, close review burden,
    selected-notes readiness and chunk-boundary gates without weakening batch authority.
-3. **ASR-positive Echo promotion readiness.** Expand `coverage_v2_remote_gate_local_fir` validation
+4. **ASR-positive Echo promotion readiness.** Expand `coverage_v2_remote_gate_local_fir` validation
    beyond the current six sessions, add rollback/inspection criteria, compare review burden and
    local recall more broadly, and only then decide whether a non-default promoted bundle is worth
    testing.
-4. **Target-Me evidence follow-up.** Keep integrating `resemblyzer_dvector_v0` with review-lane
+5. **Target-Me evidence follow-up.** Keep integrating `resemblyzer_dvector_v0` with review-lane
    suggestions, live local-recall diagnostics and corpus reports. The new live Target-Me audit shows
    that suppressed live mic chunks contain a large recoverable local slice: `287.98s` of `295.34s`
    audited local/mixed seconds are possible or confirmed Target-Me. The first policy candidate,

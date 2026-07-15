@@ -5247,6 +5247,38 @@ promotion; it must be requested with `--only-lab-policy`, and only its own draft
 the standard corpus report and SHA-256 manifests proving raw CAF and authoritative batch inputs are
 unchanged. `promotion_allowed` remains `false`.
 
+### Causal Remote-Active Me Separation v1
+
+The next explicit-only layer writes:
+
+```text
+derived/live/causal-remote-active-me-separation-v1/
+  selection.jsonl
+  residual_candidates.jsonl
+  candidates.jsonl
+  state.json
+  report.md
+```
+
+These files use `murmurmark.live_causal_remote_active_me_separation/v1`. A candidate is admitted
+only when causal past-only training, residual audio, remote-active, Target-Me and remote text guards
+all pass. Its selection must state `used_batch_fields_for_selection: false`, while
+`batch_authoritative`, `publication_allowed: false` and `promotion_allowed: false` remain explicit.
+
+The focused corpus outputs are:
+
+```text
+sessions/_reports/live-pipeline/causal_remote_active_me_separation_v1.json
+sessions/_reports/live-pipeline/causal_remote_active_me_separation_v1.jsonl
+sessions/_reports/live-pipeline/causal_remote_active_me_separation_v1.md
+```
+
+The report uses `murmurmark.live_causal_remote_active_me_separation_v1_report/v1`; outcome rows use
+`murmurmark.live_causal_remote_active_me_separation_v1_outcome/v1`. Batch text/timing are permitted
+only in `evaluation_reference`. The profile is excluded from default comparison and user-facing
+transcript selection; materialization requires an explicit `--only-lab-policy` and
+`--write-shadow-policy` request.
+
 ### Live Corpus Gates
 
 `scripts/report-live-corpus-gates.py` aggregates live comparisons:

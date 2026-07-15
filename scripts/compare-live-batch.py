@@ -187,6 +187,10 @@ CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_"
     "local_island_micro_asr_v2"
 )
+CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_"
+    "local_island_micro_asr_v2_causal_remote_active_me_separation_v1"
+)
 PROFILE_SELECTION_IGNORED_GATES = {"pre_stop_runtime_causal_target_me"}
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
@@ -229,6 +233,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_SPEAKER_ONLY_PROFILE_POLICY,
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
     CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
+    CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
     "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_audio_safe_union_v1",
@@ -428,6 +433,7 @@ LIVE_ME_REMOTE_OVERLAP_FILTER_SHADOW_PROFILE_POLICIES = {
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_SPEAKER_ONLY_PROFILE_POLICY,
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
     CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
+    CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
     "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_audio_safe_union_v1",
@@ -464,6 +470,7 @@ LIVE_ME_REMOTE_OVERLAP_FILTER_NO_TARGET_PROFILE_POLICIES = {
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_SPEAKER_ONLY_PROFILE_POLICY,
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
     CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
+    CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
     "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
     RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY,
@@ -501,6 +508,7 @@ LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICIES = {
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_SPEAKER_ONLY_PROFILE_POLICY,
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
     CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
+    CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICY,
     VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY,
@@ -566,9 +574,14 @@ RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICIES = {
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_SPEAKER_ONLY_PROFILE_POLICY,
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
     CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
+    CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
 }
 CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICIES = {
     CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
+    CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
+}
+CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICIES = {
+    CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
 }
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICIES = {
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
@@ -6164,6 +6177,13 @@ def shadow_turn_payload(turn: dict[str, Any], added_by_policy: str | None) -> di
         "runtime_causal_target_me_micro_asr_shadow",
         "runtime_causal_target_me_speaker_overlap_shadow",
         "causal_local_island_micro_asr_v2_shadow",
+        "causal_remote_active_me_separation_v1_shadow",
+        "residual_method",
+        "residual_audio_guard",
+        "past_training_evidence",
+        "remote_active_guard",
+        "remote_text_guard",
+        "target_me_evidence",
         "remote_audio_guard",
         "strict_remote_free_guard",
         "remote_asr_guard",
@@ -6625,6 +6645,134 @@ def causal_local_island_micro_asr_v2_shadow_turns(
     )
 
 
+def causal_remote_active_me_separation_v1_shadow_turns(
+    session: Path,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    rows = read_jsonl(
+        session / "derived/live/causal-remote-active-me-separation-v1/candidates.jsonl"
+    )
+    turns: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    for index, row in enumerate(rows, start=1):
+        recording_time = (
+            row.get("recording_time_evidence")
+            if isinstance(row.get("recording_time_evidence"), dict)
+            else {}
+        )
+        residual_guard = (
+            row.get("residual_audio_guard")
+            if isinstance(row.get("residual_audio_guard"), dict)
+            else {}
+        )
+        training = (
+            row.get("past_training_evidence")
+            if isinstance(row.get("past_training_evidence"), dict)
+            else {}
+        )
+        remote_active = (
+            row.get("remote_active_guard")
+            if isinstance(row.get("remote_active_guard"), dict)
+            else {}
+        )
+        remote_text = (
+            row.get("remote_text_guard")
+            if isinstance(row.get("remote_text_guard"), dict)
+            else {}
+        )
+        target_me = (
+            row.get("target_me_evidence")
+            if isinstance(row.get("target_me_evidence"), dict)
+            else {}
+        )
+        checks = {
+            "accepted": row.get("status") == "accepted",
+            "role_text_present": bool(clean_text(str(row.get("text") or ""))),
+            "timeline_causal": row.get("timeline_causal") is True,
+            "selection_does_not_use_batch": row.get("used_batch_fields_for_selection") is False,
+            "selection_mode": row.get("selection_mode")
+            == "recording_time_causal_remote_active_separation_v1",
+            "recording_time_evidence": recording_time.get("status") == "passed",
+            "residual_audio_guard": residual_guard.get("status") == "passed",
+            "past_training_evidence": training.get("status") == "passed"
+            and training.get("past_only") is True,
+            "remote_active_guard": remote_active.get("status") == "passed",
+            "remote_text_guard": remote_text.get("status") == "passed",
+            "target_me_evidence": target_me.get("status") == "passed",
+            "remote_forbidden_tokens_clear": not (row.get("remote_forbidden_matches") or []),
+            "publication_blocked": row.get("publication_allowed") is False,
+            "promotion_blocked": row.get("promotion_allowed") is False,
+            "batch_authoritative": row.get("batch_authoritative") is True,
+        }
+        context = {
+            "id": row.get("id") or f"causal_remote_active_me_separation_v1_rejected_{index:06d}",
+            "chunk_index": row.get("chunk_index"),
+            "start": row.get("start"),
+            "end": row.get("end"),
+            "text": row.get("text"),
+            "candidate_source": "causal-remote-active-me-separation-v1",
+            "contract_checks": checks,
+        }
+        if not all(checks.values()):
+            rejected.append(
+                {
+                    **context,
+                    "reason": "causal_remote_active_me_separation_v1_contract_failed",
+                    "failed_checks": [name for name, passed in checks.items() if not passed],
+                }
+            )
+            continue
+        start = safe_float(row.get("start"))
+        end = safe_float(row.get("end"), start)
+        if end <= start:
+            rejected.append({**context, "reason": "invalid_interval"})
+            continue
+        text = clean_text(str(row.get("text") or ""))
+        turns.append(
+            {
+                "id": str(row.get("id") or f"causal_remote_active_me_separation_v1_{index:06d}"),
+                "chunk_index": row.get("chunk_index"),
+                "source": "mic_causal_remote_active_me_separation_v1_shadow",
+                "role": "Me",
+                "start": start,
+                "end": end,
+                "text": text,
+                "tokens": tokens(text),
+                "live_island_start": start,
+                "live_island_end": end,
+                "local_island_seconds": round(end - start, 3),
+                "local_island_count": 1,
+                "causal_remote_active_me_separation_v1_shadow": True,
+                "candidate_source": "causal-remote-active-me-separation-v1",
+                "used_batch_fields_for_selection": False,
+                "timeline_causal": True,
+                "live_group_classifier": "recording_time_causal_remote_active_separation_v1",
+                "micro_asr_score": row.get("score"),
+                "micro_asr_remote_similarity": row.get("remote_similarity"),
+                "micro_asr_remote_text_recall": row.get("remote_text_recall_in_micro"),
+                "micro_asr_source_text_token_recall": row.get("source_alignment"),
+                "micro_asr_json": row.get("asr_json"),
+                "micro_asr_wav": row.get("wav"),
+                "residual_method": row.get("residual_method"),
+                "residual_audio_guard": residual_guard,
+                "past_training_evidence": training,
+                "remote_active_guard": remote_active,
+                "remote_text_guard": remote_text,
+                "target_me_evidence": target_me,
+                "recording_time_evidence": recording_time,
+                "selection_features": {
+                    "speaker_evidence": row.get("speaker_evidence") or [],
+                    "source_text": row.get("source_text"),
+                    "selection_mode": row.get("selection_mode"),
+                    "remote_forbidden_matches": row.get("remote_forbidden_matches") or [],
+                },
+            }
+        )
+    return (
+        sorted(turns, key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")))),
+        rejected,
+    )
+
+
 def boundary_order_retime_metrics(turns: list[dict[str, Any]]) -> dict[str, Any]:
     retimed = [turn for turn in turns if turn.get("boundary_order_retime_oracle")]
     split = [turn for turn in turns if turn.get("boundary_order_split_retime_oracle")]
@@ -6809,6 +6957,7 @@ def target_me_shadow_profile_components(
                 BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_SPEAKER_ONLY_PROFILE_POLICY,
                 BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
                 CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
+                CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
             }
         )
         or policy in SOFT_LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICIES
@@ -6992,6 +7141,7 @@ def target_me_shadow_profile_components(
                     RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY,
                     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
                     CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
+                    CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
                 }
             ),
         )
@@ -7033,6 +7183,21 @@ def target_me_shadow_profile_components(
         )
         rejected_supplemental_turns.extend(rejected_local_island_turns)
         rejected_supplemental_turns.extend(rejected_covered_local_island_turns)
+    if policy in CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICIES:
+        remote_active_turns, rejected_remote_active_turns = (
+            causal_remote_active_me_separation_v1_shadow_turns(session)
+        )
+        remote_active_turns, rejected_covered_remote_active_turns = (
+            filter_micro_asr_turns_covered_by_base(
+                remote_active_turns,
+                live_turns + target_turns + supplemental_turns,
+            )
+        )
+        supplemental_turns = dedupe_supplemental_turns_by_interval(
+            supplemental_turns + remote_active_turns,
+        )
+        rejected_supplemental_turns.extend(rejected_remote_active_turns)
+        rejected_supplemental_turns.extend(rejected_covered_remote_active_turns)
     if (
         policy in LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICIES
         or policy in LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICIES
@@ -7167,6 +7332,11 @@ def write_target_me_shadow_drafts(
             for turn in supplemental_turns
             if turn.get("causal_local_island_micro_asr_v2_shadow")
         ]
+        causal_remote_active_v1_turns = [
+            turn
+            for turn in supplemental_turns
+            if turn.get("causal_remote_active_me_separation_v1_shadow")
+        ]
         micro_asr_turns = (
             micro_asr_lab_turns
             + micro_asr_live_only_turns
@@ -7202,6 +7372,13 @@ def write_target_me_shadow_drafts(
             if "causal_local_island" in str(turn.get("id") or "")
             or str(turn.get("candidate_source") or "")
             == "causal-local-island-micro-asr-v2"
+        ]
+        causal_remote_active_v1_rejected_turns = [
+            turn
+            for turn in rejected_supplemental_turns
+            if "causal_remote_active_me_separation" in str(turn.get("id") or "")
+            or str(turn.get("candidate_source") or "")
+            == "causal-remote-active-me-separation-v1"
         ]
         micro_asr_lab_rejected_turns = [
             turn
@@ -7248,6 +7425,13 @@ def write_target_me_shadow_drafts(
             sum(
                 safe_float(turn.get("end")) - safe_float(turn.get("start"))
                 for turn in causal_local_island_v2_turns
+            ),
+            3,
+        )
+        causal_remote_active_v1_seconds = round(
+            sum(
+                safe_float(turn.get("end")) - safe_float(turn.get("start"))
+                for turn in causal_remote_active_v1_turns
             ),
             3,
         )
@@ -7310,6 +7494,15 @@ def write_target_me_shadow_drafts(
                 "causal_local_island_micro_asr_v2_rejected_turn_count": len(
                     causal_local_island_v2_rejected_turns
                 ),
+                "causal_remote_active_me_separation_v1_added_turn_count": len(
+                    causal_remote_active_v1_turns
+                ),
+                "causal_remote_active_me_separation_v1_added_turn_seconds": (
+                    causal_remote_active_v1_seconds
+                ),
+                "causal_remote_active_me_separation_v1_rejected_turn_count": len(
+                    causal_remote_active_v1_rejected_turns
+                ),
                 "remote_guarded_voice_boundary_added_turn_count": len(remote_guarded_voice_boundary_turns),
                 "remote_guarded_voice_boundary_added_turn_seconds": remote_guarded_voice_boundary_seconds,
                 "remote_guarded_voice_boundary_rejected_turn_count": len(remote_guarded_voice_boundary_rejected_turns),
@@ -7354,6 +7547,10 @@ def write_target_me_shadow_drafts(
             f"`{len(causal_local_island_v2_turns)}` / `{causal_local_island_v2_seconds}s`",
             f"- causal local-island micro-ASR v2 rejected turns: "
             f"`{len(causal_local_island_v2_rejected_turns)}`",
+            f"- causal remote-active Me separation v1 added turns: "
+            f"`{len(causal_remote_active_v1_turns)}` / `{causal_remote_active_v1_seconds}s`",
+            f"- causal remote-active Me separation v1 rejected turns: "
+            f"`{len(causal_remote_active_v1_rejected_turns)}`",
             f"- remote-guarded voice boundary added turns: `{len(remote_guarded_voice_boundary_turns)}` / "
             f"`{remote_guarded_voice_boundary_seconds}s`",
             f"- visible suppressed mic rejected turns: `{len(rejected_supplemental_turns)}`",
@@ -7449,6 +7646,11 @@ def build_target_me_shadow_profiles(
             for turn in supplemental_turns
             if turn.get("causal_local_island_micro_asr_v2_shadow")
         ]
+        causal_remote_active_v1_turns = [
+            turn
+            for turn in supplemental_turns
+            if turn.get("causal_remote_active_me_separation_v1_shadow")
+        ]
         micro_asr_turns = (
             micro_asr_lab_turns
             + micro_asr_live_only_turns
@@ -7484,6 +7686,13 @@ def build_target_me_shadow_profiles(
             if "causal_local_island" in str(turn.get("id") or "")
             or str(turn.get("candidate_source") or "")
             == "causal-local-island-micro-asr-v2"
+        ]
+        causal_remote_active_v1_rejected_turns = [
+            turn
+            for turn in rejected_supplemental_turns
+            if "causal_remote_active_me_separation" in str(turn.get("id") or "")
+            or str(turn.get("candidate_source") or "")
+            == "causal-remote-active-me-separation-v1"
         ]
         micro_asr_lab_rejected_turns = [
             turn
@@ -7530,6 +7739,13 @@ def build_target_me_shadow_profiles(
             sum(
                 safe_float(turn.get("end")) - safe_float(turn.get("start"))
                 for turn in causal_local_island_v2_turns
+            ),
+            3,
+        )
+        causal_remote_active_v1_seconds = round(
+            sum(
+                safe_float(turn.get("end")) - safe_float(turn.get("start"))
+                for turn in causal_remote_active_v1_turns
             ),
             3,
         )
@@ -7694,6 +7910,7 @@ def build_target_me_shadow_profiles(
                     RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY,
                     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
                     CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
+                    CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
                 }
             ),
             runtime_causal_profile_scope=(
@@ -7706,6 +7923,7 @@ def build_target_me_shadow_profiles(
                         RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY,
                         BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
                         CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
+                        CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
                     }
                     else "direct"
                 )
@@ -7813,6 +8031,15 @@ def build_target_me_shadow_profiles(
         )
         top_level_metrics[f"{base}_causal_local_island_micro_asr_v2_rejected_turn_count"] = len(
             causal_local_island_v2_rejected_turns
+        )
+        top_level_metrics[f"{base}_causal_remote_active_me_separation_v1_added_turn_count"] = len(
+            causal_remote_active_v1_turns
+        )
+        top_level_metrics[f"{base}_causal_remote_active_me_separation_v1_added_turn_seconds"] = (
+            causal_remote_active_v1_seconds
+        )
+        top_level_metrics[f"{base}_causal_remote_active_me_separation_v1_rejected_turn_count"] = len(
+            causal_remote_active_v1_rejected_turns
         )
         top_level_metrics[f"{base}_remote_guarded_voice_boundary_added_turn_count"] = len(
             remote_guarded_voice_boundary_turns
@@ -7924,6 +8151,15 @@ def build_target_me_shadow_profiles(
                 ),
                 "causal_local_island_micro_asr_v2_rejected_turn_count": len(
                     causal_local_island_v2_rejected_turns
+                ),
+                "causal_remote_active_me_separation_v1_added_turn_count": len(
+                    causal_remote_active_v1_turns
+                ),
+                "causal_remote_active_me_separation_v1_added_turn_seconds": (
+                    causal_remote_active_v1_seconds
+                ),
+                "causal_remote_active_me_separation_v1_rejected_turn_count": len(
+                    causal_remote_active_v1_rejected_turns
                 ),
                 "remote_guarded_voice_boundary_added_turn_count": len(remote_guarded_voice_boundary_turns),
                 "remote_guarded_voice_boundary_added_turn_seconds": remote_guarded_voice_boundary_seconds,

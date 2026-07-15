@@ -214,6 +214,33 @@ Do not use this profile as the normal watch, transcript or export source. It is 
 focused corpus report only after every session passes missing-`Me`, remote-like-`Me`, order, token-F1
 and review-burden gates. Batch transcript remains authoritative.
 
+The completed remote-active v1 experiment is another explicit-only layer. Rebuild it only for a
+bounded corpus session:
+
+```bash
+BASE=online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_local_island_micro_asr_v2
+CAND=${BASE}_causal_remote_active_me_separation_v1
+
+.venv/bin/python scripts/live-causal-remote-active-me-separation.py "$SESSION"
+.venv/bin/python scripts/compare-live-batch.py "$SESSION" \
+  --only-lab-policy "$BASE" \
+  --only-lab-policy "$CAND" \
+  --write-shadow-policy "$CAND"
+```
+
+Inspect the causal evidence and focused corpus decision with:
+
+```bash
+jq '.' "$SESSION/derived/live/causal-remote-active-me-separation-v1/state.json"
+less "$SESSION/derived/live/causal-remote-active-me-separation-v1/report.md"
+jq '{status, summary, completion_checks, corpus_agreement}' \
+  sessions/_reports/live-pipeline/causal_remote_active_me_separation_v1.json
+```
+
+This is still post-recording causal replay. It does not prove that the enrichment ran before stop.
+Recording-time integration is a separate next goal and must remain bounded, fail-open and
+diagnostic-only.
+
 Normal `process` keeps the stronger-audio-judge queue broad but bounded: cheap cleanup runs first,
 the review pack is rebuilt from the residual transcript, and the judge decodes `mic_clean + remote`.
 Use `--stronger-audio-judge-exhaustive` only when all four clip sources are needed for diagnosis.
