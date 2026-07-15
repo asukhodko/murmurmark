@@ -33,7 +33,7 @@ nodes:
     title: "MurmurMark CLI"
     kind: summary
     status: current
-    effort: 297
+    effort: 305
     notes: |
       Roadmap CLI-версии MurmurMark.
 
@@ -41,11 +41,13 @@ nodes:
       export bundle и retention plan уже доказали, что pipeline можно использовать как
       локальный инструмент, а не как набор лабораторных скриптов.
 
-      Authoritative status, 2026-07-14: stable batch route и committed-PCM live transport работают.
+      Authoritative status, 2026-07-15: stable batch route и committed-PCM live transport работают.
       Live Order and Role Reconciliation v1 завершён: 23 audit rows классифицированы, 15 прежних
-      effective blockers сведены к 0 без transcript mutation. Live promotion остаётся blocked.
-      Активная цель — Live Local Recall and Remote Leakage Hardening v1: безопасно обработать
-      конечную очередь 118 rows / 451.03s в 7 capture-safe sessions.
+      effective blockers сведены к 0 без transcript mutation. Live Local Recall and Remote Leakage
+      Hardening v1 также завершён: все 118 rows классифицированы, causal shadow восстановил 678.32s
+      aggregate missing Me, а 7/7 per-session no-regression gates прошли. Live promotion остаётся
+      blocked. Ближайшая рекомендуемая цель — Causal Local-Island Micro-ASR v2 для 40 unresolved
+      rows / 210.41s.
 
       Historical operational snapshot, 2026-07-02:
 
@@ -321,8 +323,10 @@ nodes:
       Stabilization v1 доказал один поддерживаемый non-live production path, а Process
       Observability & Run Monitor v1 сделал долгие прогоны наблюдаемыми и возобновляемыми.
       Live Order and Role Reconciliation v1 уже закрыл 15 effective blockers без transcript
-      mutation. Ближайший конечный quality-шаг — Live Local Recall and Remote Leakage Hardening
-      v1: обработать 118 локализованных rows / 451.03s без регрессий batch и live gates.
+      mutation. Live Local Recall and Remote Leakage Hardening v1 классифицировал 118 rows и
+      безопасно восстановил 678.32s aggregate missing Me. Ближайший bounded quality-шаг — Causal
+      Local-Island Micro-ASR v2: обработать 40 unresolved rows / 210.41s без регрессий batch и live
+      gates.
 
   current-pipeline-stabilization-v1:
     title: "Current Pipeline Stabilization v1"
@@ -1041,15 +1045,33 @@ nodes:
     kind: task
     parent: near-realtime-pipeline
     deps: [live-order-role-reconciliation-v1]
-    status: current
+    status: done
     effort: 8
     notes: |
-      Ближайший bounded quality step. Scope — 7 capture-safe sessions, 118 local-recall blocker
-      rows / 451.03s. Начать с partial safe tails и remote-free local islands; mixed/double-talk и
-      unsupported rows оставить явными. Любой опубликованный Me-фрагмент требует causal
-      local-speaker и remote-forbidden evidence. Каждый shadow candidate отклоняется при росте
-      remote-like Me, effective order blockers, review burden или per-session token-F1 regressions.
-      Raw CAF, batch transcript и realtime provenance не меняются; новые записи сначала не нужны.
+      Завершено 2026-07-15. Все 118 local-recall blocker rows / 451.03s в 7 capture-safe sessions
+      получили стабильные dispositions: 5 partial_safe_tail, 4 remote_free_local_island, 16
+      mixed_double_talk, 25 duplicate_context, 28 unsupported и 40 unresolved. Selected profile
+      online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_v1
+      уменьшает aggregate missing Me 2844.88s -> 2166.56s, сохраняя remote-like Me 108.42s,
+      effective order blockers 0 и review burden 490.38s. Все 7 per-session token-F1 и safety gates
+      проходят. Batch использован только для оценки, raw CAF и authoritative transcript не менялись,
+      promotion остаётся blocked.
+
+  live-causal-local-island-micro-asr-v2:
+    title: "Causal Local-Island Micro-ASR v2"
+    kind: task
+    parent: near-realtime-pipeline
+    deps: [live-local-recall-remote-leakage-hardening-v1]
+    status: next
+    effort: 8
+    notes: |
+      Ближайший bounded algorithmic step: 40 unresolved rows / 210.41s из завершённого v1 report.
+      Micro-ASR разрешён только внутри recording-time remote-free islands с committed-PCM timing,
+      local-speaker evidence и passing remote guard. Batch text/timing используются только после
+      materialization для оценки. Любая per-session регрессия remote-like Me, effective order,
+      token F1 или review burden отклоняет shadow candidate. Mixed/double-talk, duplicate-context и
+      unsupported rows не входят в автоматический scope. Новые записи сначала не нужны; promotion
+      остаётся blocked.
 
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"
@@ -1926,8 +1948,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Live Local Recall and Remote Leakage Hardening v1: обработать 118 local-recall blocker rows / 451.03s в 7 capture-safe sessions и восстановить только causally supported Me без роста remote-like Me, effective order blockers, review burden или per-session token-F1 regressions."
-      success_by_next_sync: "Очередь 118 rows имеет машинные dispositions; отдельный shadow profile материально уменьшает missing Me хотя бы в одной затронутой сессии; все 7 per-session no-regression gates проходят; batch authoritative и promotion остаётся blocked до полного green."
+      nearest_goal: "Causal Local-Island Micro-ASR v2: обработать 40 unresolved rows / 210.41s только внутри recording-time remote-free islands и принять shadow candidate лишь при отсутствии per-session регрессий remote-like Me, effective order, token F1 и review burden."
+      success_by_next_sync: "Все 40 unresolved rows имеют causal micro-ASR outcome; хотя бы одна затронутая сессия материально улучшает missing Me; все 7 per-session no-regression gates проходят; batch authoritative и promotion остаётся blocked."
     defaults:
       status_progress:
         done: 1.0
@@ -1953,8 +1975,8 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "CLI MVP, batch reliability и committed-PCM transport закрыты. Effective order gate теперь проходит 7/7 без transcript mutation, но 0 live comparisons проходят все quality gates; production output остаётся batch."
-          next_sync_goal: "Безопасно уменьшить bounded local-recall queue 118 rows / 451.03s, не ослабляя remote-forbidden, order, token-F1 и review-burden gates."
+          sync_note: "CLI MVP, batch reliability и committed-PCM transport закрыты. Order reconciliation и local-recall hardening v1 завершены: causal shadow восстановил 678.32s aggregate missing Me при 7/7 no-regression gates, но 0 live comparisons проходят все quality gates; production output остаётся batch."
+          next_sync_goal: "Проверить causal local-island micro-ASR на 40 unresolved rows / 210.41s, не ослабляя remote-forbidden, order, token-F1 и review-burden gates."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening, reliable-transcription-route]

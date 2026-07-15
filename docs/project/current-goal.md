@@ -1,53 +1,51 @@
 # Current Goal Context
 
-This file keeps the latest goal context and the most relevant completed goals. The stable
-production path remains non-live `record -> process`. The current live work is bounded local-recall
-and remote-leakage hardening: live output stays shadow-only and batch transcript remains
+This file keeps the latest goal context and the most relevant completed goals. The stable production
+path remains non-live `record -> process`. Live output stays shadow-only and batch transcript remains
 authoritative.
 
-## Active Goal: Live Local Recall and Remote Leakage Hardening v1
+## Recommended Next Goal: Causal Local-Island Micro-ASR v2
 
-Status, 2026-07-14: ready to start. Live Order and Role Reconciliation v1 is complete. The same
-seven-session capture-safe corpus is sufficient for the next bounded quality step; no new recording
-is required initially.
+Status, 2026-07-15: ready for a separate goal. No new recording is required initially.
 
-Goal:
+The completed v1 hardening leaves `109` blocked rows. The next bounded algorithmic slice is the `40`
+`unresolved` rows / `210.41s`: they contain local-looking suppressed mic evidence but do not yet have
+a complete causal publication contract. Build micro-ASR only inside recording-time remote-free
+islands with committed-PCM timing, local-speaker evidence and a passing remote guard. Evaluate batch
+text and timing only after materialization. Reject the candidate if any session gains remote-like
+`Me`, effective order blockers, review burden or a token-F1 regression. The `16` mixed/double-talk,
+`25` duplicate-context and `28` unsupported rows remain separate problems unless new causal evidence
+changes their disposition.
+
+## Completed Goal: Live Local Recall and Remote Leakage Hardening v1
+
+Completed, 2026-07-15. The seven-session capture-safe corpus produced a separate live-only shadow
+profile:
+
+`online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_v1`
+
+Results:
+
+- all `118` blocker rows / `451.03s` have stable machine-readable dispositions;
+- dispositions: `5` partial safe tails, `4` remote-free local islands, `16` mixed/double-talk,
+  `25` duplicate context, `28` unsupported and `40` unresolved;
+- causal candidates cover `23.60s` inside the bounded queue, including `13.38s` in one session;
+- aggregate missing `Me` fell from `2844.88s` to `2166.56s`, a `678.32s` improvement;
+- remote-like `Me` stayed at `108.42s`;
+- effective order blockers stayed at `0` in every session;
+- token F1 did not regress and authoritative review burden stayed at `490.38s`;
+- every per-session no-regression gate passed `7/7`;
+- batch fields were used only for evaluation, never for live candidate selection;
+- raw CAF, batch output and realtime provenance remained authoritative and unmodified;
+- live promotion remains blocked by the remaining parity dimensions.
+
+Authoritative outputs:
 
 ```text
-Recover a material, causally supported subset of the 118 local-recall blocker rows / 451.03s in the
-seven capture-safe sessions while preventing new remote-like Me, effective order blockers,
-per-session token-F1 regressions or review burden. Batch remains authoritative and every candidate
-stays shadow-only until corpus gates pass.
+sessions/_reports/live-pipeline/live_local_recall_remote_leakage_hardening_v1.json
+sessions/_reports/live-pipeline/live_local_recall_remote_leakage_hardening_v1.jsonl
+sessions/_reports/live-pipeline/live_local_recall_remote_leakage_hardening_v1.md
 ```
-
-The starting profile is
-`online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_speaker_only_v1`. Across
-the seven sessions it still has 2844.88s missing `Me`, 108.42s remote-like `Me` and 490.38s of
-authoritative review burden. The first actionable slice is the existing blocker analysis, not the
-entire missing-speech total.
-
-Implementation order:
-
-1. split the 118-row queue into partial safe tails, remote-free local islands, mixed/double-talk
-   speech, duplicate context and unsupported rows;
-2. materialize the strongest partial-safe-tail/local-island rule as a separate shadow profile using
-   only evidence available during recording;
-3. require remote-forbidden and causal local-speaker evidence before publishing any `Me` fragment;
-4. compare every session against the current selected profile;
-5. reject any profile that increases remote-like `Me`, effective order blockers, review burden or
-   per-session token-F1 regressions, even if aggregate missing `Me` improves.
-
-Definition of done:
-
-- every candidate row has a machine-readable disposition and source evidence;
-- the selected shadow recovers a material amount of `Me` in at least one affected session;
-- every affected session passes the remote-like-Me, effective-order, token-F1 and review-burden
-  no-regression checks independently;
-- unsupported or ambiguous rows remain explicit blockers;
-- capture, committed-PCM transport, batch output and realtime provenance remain unchanged;
-- corpus and comparison reports agree on the selected shadow profile and blocker counts;
-- `scripts/check.sh`, focused profile tests and opskarta validation pass;
-- live promotion remains blocked unless every required parity gate actually passes.
 
 ## Completed Goal: Live Order and Role Reconciliation v1
 

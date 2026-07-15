@@ -25,7 +25,7 @@ The stable CLI path is usable for working transcripts and evidence-backed notes.
 can be processed unattended and ends as `ready_for_notes`, `review_first` or `blocked`. Full export
 still requires explicit review when order, local recall or remote leakage cannot be resolved safely.
 
-Authoritative operating point, 2026-07-14:
+Authoritative operating point, 2026-07-15:
 
 - stable production remains `record -> process -> next -> finish` against one explicit `SESSION`;
 - raw `mic` and `remote` CAF files and the normal batch transcript remain the source of truth;
@@ -38,9 +38,12 @@ Authoritative operating point, 2026-07-14:
   not a replacement for the batch result;
 - Live Order and Role Reconciliation v1 classified all `23` auditable order rows and reduced the
   `15` previous effective order blockers to `0` without changing rendered live turns;
-- the active quality unit is finite: `118` local-recall blocker rows / `451.03s` in those seven
-  sessions, with remote leakage as a parallel hard gate;
-- no additional recording is required for the current algorithmic step.
+- Live Local Recall and Remote Leakage Hardening v1 classified all `118` local-recall blocker rows
+  and selected a causal remote-energy shadow profile with per-session no-regression `7/7`;
+- the selected shadow reduces missing `Me` from `2844.88s` to `2166.56s` while remote-like `Me`
+  remains `108.42s` and effective order blockers remain `0`;
+- the next bounded slice is `40` unresolved local-island rows / `210.41s`; no additional recording
+  is required initially.
 
 The system deliberately keeps unresolved uncertainty visible. Suggested review decisions may close
 only rows supported by local audio and audit evidence. `finish` and guarded `export` remain blocked
@@ -48,10 +51,11 @@ when transcript-only blockers survive.
 
 Current reliability route:
 [Reliable Transcription Route](docs/project/reliable-transcription-route.md). Outcome, resumable ASR,
-review and final handoff are implemented. The active development goal is
-[Live Local Recall and Remote Leakage Hardening v1](docs/project/current-goal.md): recover a
-material, causally supported subset of the `118` isolated local-recall rows without publishing
-remote speech as `Me`. Every change is evaluated as a shadow profile and must preserve effective
+review and final handoff are implemented. Live Local Recall and Remote Leakage Hardening v1 is
+complete; the selected shadow is
+`online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_v1`.
+The [current goal context](docs/project/current-goal.md) recommends causal local-island micro-ASR as
+the next bounded experiment. Every live change remains shadow-only and must preserve effective
 order, remote-leakage, token-F1 and review-burden gates independently for every session.
 
 The live branch remains quarantined as a source of truth. It consumes copied PCM only after durable
@@ -487,7 +491,13 @@ To inspect live parity over a local corpus:
 murmurmark corpus live all --refresh
 less sessions/_reports/live-pipeline/live_corpus_gates_report.md
 jq '.real_blocker_triage_summary' sessions/_reports/live-pipeline/live_corpus_gates_report.json
+less sessions/_reports/live-pipeline/live_local_recall_remote_leakage_hardening_v1.md
+jq '.summary' sessions/_reports/live-pipeline/live_local_recall_remote_leakage_hardening_v1.json
 ```
+
+For the seven-session capture-safe scope, `murmurmark corpus live` also writes the bounded
+local-recall hardening report and its `118` disposition rows. Partial corpora skip this extra report
+without failing the normal corpus command.
 
 To test whether simple live-accessible suppressed-mic thresholds can recover lost `Me` speech:
 
@@ -1390,16 +1400,16 @@ state is:
 2. **Completed quality gate:** Live Order and Role Reconciliation v1 classified all `23` auditable
    rows and turned the `15` previous effective blockers into advisory evidence. No transcript repair
    was required; candidate order risk passes `7/7`.
-3. **Active goal:** Live Local Recall and Remote Leakage Hardening v1. Work through the finite
-   `118`-row / `451.03s` local-recall queue and recover only fragments supported by causal local
-   evidence and remote-forbidden checks.
+3. **Completed quality gate:** Live Local Recall and Remote Leakage Hardening v1 classified all
+   `118` rows and safely recovered `678.32s` aggregate missing `Me`; all seven per-session gates
+   passed and promotion stayed blocked.
 4. **Safety boundary:** live output remains advisory and shadow-only; raw CAF plus batch output are
    authoritative.
 5. **Evidence already closed:** three fresh real live sessions have complete raw capture, pre-stop
    preview, terminal workers, zero final lag and successful batch transcripts. More recordings are
    not required for the active algorithmic step.
-6. **After the active goal:** close the remaining review/notes/boundary gates, then decide whether
-   any live profile is eligible for promotion. UI remains optional and late.
+6. **Recommended next goal:** Causal Local-Island Micro-ASR v2 for the `40` unresolved rows /
+   `210.41s`, followed by review/notes/boundary readiness. UI remains optional and late.
 
 <details>
 <summary>Historical implementation log (non-authoritative)</summary>

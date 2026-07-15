@@ -28,7 +28,7 @@ Working now:
 - live-ASR cache bridge exists as a diagnostic/future acceleration layer; incompatible or unsafe
   chunks fall back to batch ASR.
 
-Current operating point, 2026-07-14:
+Current operating point, 2026-07-15:
 
 - the stable batch route is usable for working transcripts and evidence-backed notes, with guarded
   review/export when unresolved risks remain;
@@ -38,10 +38,11 @@ Current operating point, 2026-07-14:
 - Near-Realtime Live Parity Coverage v1 is complete as a transport/evidence milestone;
 - Live Order and Role Reconciliation v1 is complete: all `23` auditable rows are classified, the
   `15` previous effective order blockers are now `0`, and no live turn mutation was required;
-- the active goal is Live Local Recall and Remote Leakage Hardening v1: process the finite `118`
-  local-recall rows / `451.03s` without increasing remote-like `Me`, effective order blockers,
-  per-session token F1 regressions or review burden;
-- more recordings are not required for this bounded offline step.
+- Live Local Recall and Remote Leakage Hardening v1 is complete: all `118` local-recall rows have
+  stable dispositions, the selected causal remote-energy shadow recovers `678.32s` aggregate
+  missing `Me`, and all seven per-session no-regression gates pass;
+- the recommended next goal is Causal Local-Island Micro-ASR v2 over `40` unresolved rows /
+  `210.41s`; more recordings are not required for its initial bounded offline step.
 
 Still future:
 

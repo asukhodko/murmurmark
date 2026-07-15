@@ -1,18 +1,20 @@
 # Reliable Transcription Route
 
-Status: active product route; stable batch capture/processing, live transport evidence and Live
-Order and Role Reconciliation v1 complete; Live Local Recall and Remote Leakage Hardening v1 active
-Date: 2026-07-14
+Status: active product route; stable batch capture/processing, live transport evidence, Live Order
+and Role Reconciliation v1 and Live Local Recall and Remote Leakage Hardening v1 complete
+Date: 2026-07-15
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
 corpus-calibrated gates and explicit review burden before broader repair. Outcome Contract v1,
 Reliable Processing UX v1, resumable ASR and durable committed-PCM Live Evidence are implemented.
 The stable production path is intentionally boring: a normal recording produces a usable two-track
 session or fails explicitly before ASR. Order/role reconciliation classified all `23` auditable
-rows and reduced the `15` previous effective blockers to `0` without changing turns. The current
-bounded gap is `118` local-recall blocker rows / `451.03s` in seven capture-safe sessions; recovery
-must not weaken remote-leakage, effective-order, token-F1 or review-burden gates. Near-realtime
-output remains shadow-only.
+rows and reduced the `15` previous effective blockers to `0` without changing turns. Local-recall
+hardening then classified all `118` bounded rows and materialized the causal remote-energy shadow
+profile. It reduces aggregate missing `Me` from `2844.88s` to `2166.56s` without increasing
+remote-like `Me`, effective order blockers, review burden or per-session token-F1 regressions. The
+next bounded question is Causal Local-Island Micro-ASR v2 over `40` unresolved rows / `210.41s`.
+Near-realtime output remains shadow-only.
 
 ## Why This Exists
 

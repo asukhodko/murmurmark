@@ -110,9 +110,11 @@ def check_corpus_report(path: Path) -> None:
     promotion = reconciliation.get("promotion") or {}
     assert reconciliation.get("status") == "passed", reconciliation
     assert scope.get("candidate_session_count") == 7, scope
-    assert scope.get("objective_baseline_matched") is True, scope
-    assert classification.get("previous_blocking_count") == 15, classification
-    assert classification.get("resolved_previous_blocking_count") == 15, classification
+    assert scope.get("objective_scope_matched") is True, scope
+    assert classification.get("previous_blocking_count") >= 15, classification
+    assert classification.get("resolved_previous_blocking_count") == classification.get(
+        "previous_blocking_count"
+    ), classification
     assert classification.get("effective_blocking_count") == 0, classification
     assert classification.get("stable_classification_count") == classification.get("item_count"), classification
     assert classification.get("unresolved_count") == 0, classification
@@ -170,7 +172,7 @@ def check_corpus_report(path: Path) -> None:
         )
         assert order_gate.get("status") == "passed", (comparison_path, order_gate)
         assert profile.get("promotion_allowed") is False, (comparison_path, profile)
-    assert total_previous == 15, total_previous
+    assert total_previous == classification.get("previous_blocking_count"), total_previous
     assert total_effective == 0, total_effective
 
 
@@ -247,6 +249,21 @@ def main() -> int:
     assert role_conflict["classification"] == "real_role_conflict", role_conflict
     assert role_conflict["shadow_repair_required"] is True, role_conflict
     assert role_conflict["disposition"] == "blocking", role_conflict
+
+    causal_shadow_source = classify_order_risk(
+        risk_row(
+            current_source="mic_runtime_causal_target_me_micro_asr_shadow",
+            current_role="Me",
+        ),
+        session="fixture",
+        profile="shadow",
+        previous_classification=previous("cross_source_order_risk"),
+    )
+    assert causal_shadow_source["classification"] == "causal_cross_source_overlap", causal_shadow_source
+    assert causal_shadow_source["disposition"] == "advisory", causal_shadow_source
+    assert causal_shadow_source["machine_evidence"]["source_role"]["current"]["expected_role"] == "Me", (
+        causal_shadow_source
+    )
 
     timeline_conflict = classify_order_risk(
         risk_row(

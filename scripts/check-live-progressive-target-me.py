@@ -426,6 +426,21 @@ def main() -> int:
             row.get("reason") == "runtime_candidate_not_speaker_confirmed"
             for row in speaker_only_rejected
         ), speaker_only_rejected
+        _, _, remote_energy_turns, _, remote_energy_rejected = compare.target_me_shadow_profile_components(
+            session=session,
+            policy=compare.BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
+            live_turns_rows=[],
+            suppressed_mic_asr_segments=[],
+            target_me_rows=[],
+            target_me_turns_by_policy={},
+            persistent_target_me_rows=[],
+            batch_utterances=[],
+        )
+        assert not remote_energy_turns, remote_energy_turns
+        assert any(
+            row.get("reason") == "runtime_remote_audio_guard_failed"
+            for row in remote_energy_rejected
+        ), remote_energy_rejected
         assert compare.target_me_shadow_profile_is_live_implementable(
             compare.RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICY
         ) is False
@@ -441,12 +456,16 @@ def main() -> int:
         assert compare.target_me_shadow_profile_is_live_implementable(
             compare.BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_SPEAKER_ONLY_PROFILE_POLICY
         ) is True
+        assert compare.target_me_shadow_profile_is_live_implementable(
+            compare.BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY
+        ) is True
         assert compare.selected_lab_policies(
             SimpleNamespace(with_labs=False, lab_policy=[])
         ) == (
             compare.RUNTIME_CAUSAL_TARGET_ME_BASELINE_PROFILE_POLICY,
             compare.BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
             compare.BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_SPEAKER_ONLY_PROFILE_POLICY,
+            compare.BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
             compare.RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
             compare.RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY,
             compare.RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY,

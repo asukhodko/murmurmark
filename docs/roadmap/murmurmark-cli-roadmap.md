@@ -37,13 +37,15 @@ The major product route remains [Reliable Transcription Route](../project/reliab
 turn a complete recording into a truthful result without the user watching every stage. The batch
 route, outcome contract, observable processing and resumable ASR are implemented. Live Order and
 Role Reconciliation v1 is complete: all `23` auditable rows have stable classes, the `15` previous
-effective blockers became `0`, and no transcript mutation was required. The active goal is now Live
-Local Recall and Remote Leakage Hardening v1. Near-Realtime Live Parity Coverage v1 already proved
-complete raw capture, pre-stop preview, terminal workers, zero final lag and successful batch output
-on three fresh real sessions. Live promotion remains blocked.
+effective blockers became `0`, and no transcript mutation was required. Live Local Recall and
+Remote Leakage Hardening v1 is also complete: all `118` bounded rows have dispositions and its
+causal shadow recovers `678.32s` aggregate missing `Me` with all seven no-regression gates passing.
+Near-Realtime Live Parity Coverage v1 already proved complete raw capture, pre-stop preview,
+terminal workers, zero final lag and successful batch output on three fresh real sessions. Live
+promotion remains blocked.
 
-The selected capture-safe shadow profile remains
-`online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_speaker_only_v1` in both
+The selected capture-safe shadow profile is
+`online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_v1` in both
 per-session comparison reports and the corpus reconciliation report.
 
 The target outcome is:
@@ -80,10 +82,13 @@ roadmap point it means:
   (`67.44s`) unchanged while reducing contentful order mismatches `15 -> 14` and blocking rows
   `5 -> 4`;
 - order/role reconciliation now passes `7/7`; raw matcher ambiguity remains visible as audit data;
-- current work therefore moves to live local recall with remote leakage as a parallel hard gate;
-  collecting more recordings is not required for this algorithmic step;
-- the refreshed capture-safe scope contains seven sessions and a finite local-recall work queue of
-  `118` blocker rows / `451.03s`; this bounded set is the next work unit;
+- live local-recall hardening classified the refreshed seven-session queue of `118` blocker rows /
+  `451.03s`; `9` rows are safe shadow candidates and `109` remain blocked;
+- the selected shadow reduces aggregate missing `Me` from `2844.88s` to `2166.56s`, while
+  remote-like `Me` remains `108.42s`, effective order blockers remain `0`, and review burden
+  remains `490.38s`;
+- the next bounded work unit is `40` unresolved rows / `210.41s`; collecting more recordings is
+  not required initially;
 - `status`, `next`, `finish`, session report and corpus report agree;
 - safe review suggestions are applied before asking for manual listening;
 - remaining review is short, explicit and backed by audio/transcript evidence;
@@ -326,12 +331,13 @@ flowchart LR
 
 ### Next
 
-- Live Local Recall and Remote Leakage Hardening v1:
-  - classify the `118` local-recall rows / `451.03s` in the seven capture-safe sessions;
-  - start with partial safe tails and remote-free local islands;
-  - publish only fragments with causal local-speaker and remote-forbidden evidence;
-  - require no regression in remote-like `Me`, effective order blockers, per-session token F1 or
-    review burden;
+- Causal Local-Island Micro-ASR v2:
+  - process the `40` unresolved rows / `210.41s` left by completed hardening v1;
+  - re-decode only recording-time remote-free local islands with committed-PCM timing;
+  - require local-speaker evidence and a passing remote-audio guard before materialization;
+  - use batch text and timing only for evaluation after candidate selection;
+  - reject every candidate profile that regresses remote-like `Me`, effective order blockers,
+    per-session token F1 or review burden;
   - keep batch authoritative and live promotion blocked until all gates pass;
 - keep `--live-pipeline` disabled by default; all new evidence should go through
   `record --experiment live-shadow-v1`.
@@ -479,14 +485,15 @@ Recently completed:
 
 ## Goal Sequence
 
-Recommended nearest goal: **Live Local Recall and Remote Leakage Hardening v1**. Transport,
-provenance, comparison immutability and effective order gates are proven. The smallest meaningful
-next unit is the existing `118` local-recall rows / `451.03s` in seven capture-safe sessions; no
-additional recording is required initially.
+Recommended nearest goal: **Causal Local-Island Micro-ASR v2**. Transport, provenance, comparison
+immutability, effective order gates and the bounded v1 disposition pass are proven. The smallest
+meaningful next unit is the existing `40` unresolved rows / `210.41s`; no additional recording is
+required initially.
 
-1. **Live Local Recall and Remote Leakage Hardening v1.** Classify the bounded queue, materialize
-   only causal local fragments, and require zero growth in remote-like `Me`, effective order
-   blockers, per-session token-F1 regressions and review burden.
+1. **Causal Local-Island Micro-ASR v2.** Re-decode only recording-time remote-free local islands in
+   the `40` unresolved rows, require committed-PCM timing, local-speaker evidence and a passing
+   remote guard, then reject every per-session regression in remote-like `Me`, effective order,
+   token F1 or review burden.
 2. **Live review/notes/boundary readiness.** After recall improves safely, close review burden,
    selected-notes readiness and chunk-boundary gates without weakening batch authority.
 3. **ASR-positive Echo promotion readiness.** Expand `coverage_v2_remote_gate_local_fir` validation

@@ -20,7 +20,7 @@ from live_order_role_reconciliation import (
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.44.0"
+SCRIPT_VERSION = "1.45.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?:-live)?$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -139,6 +139,9 @@ BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY = (
 BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_SPEAKER_ONLY_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_speaker_only_v1"
 )
+BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_v1"
+)
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_live_boundary_split_retime_remote_guarded_voice_boundary_v1"
@@ -174,6 +177,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "online_live_me_remote_overlap_filter_v1",
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_SPEAKER_ONLY_PROFILE_POLICY,
+    BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
     "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_audio_safe_union_v1",
@@ -250,6 +254,7 @@ TARGET_ME_SHADOW_PROFILE_METRICS = (
     "live_contentful_role_constrained_order_mismatch_count",
     "live_blocking_contentful_role_constrained_order_mismatch_count",
     "live_advisory_contentful_role_constrained_order_mismatch_count",
+    "live_effective_blocking_contentful_role_constrained_order_mismatch_count",
     "live_batch_interval_overlap_order_ambiguity_count",
     "live_role_constrained_batch_interval_overlap_order_ambiguity_count",
     "live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count",
@@ -1844,6 +1849,12 @@ def add_target_me_shadow_profile_summary(summary: dict[str, Any], rows: list[dic
             evaluated_rows,
             f"{base}_live_advisory_contentful_role_constrained_order_mismatch_count",
         )
+        summary[f"{out}_live_effective_blocking_contentful_role_constrained_order_mismatch_count"] = (
+            sum_int_metric(
+                evaluated_rows,
+                f"{base}_live_effective_blocking_contentful_role_constrained_order_mismatch_count",
+            )
+        )
         summary[f"{out}_live_batch_interval_overlap_order_ambiguity_count"] = sum_int_metric(
             evaluated_rows,
             f"{base}_live_batch_interval_overlap_order_ambiguity_count",
@@ -2133,6 +2144,11 @@ def target_me_shadow_profile_diagnostics(summary: dict[str, Any], prefix: str) -
             "live_advisory_contentful_role_constrained_order_mismatch_count": safe_int(
                 summary.get(f"{base}_live_advisory_contentful_role_constrained_order_mismatch_count")
             ),
+            "live_effective_blocking_contentful_role_constrained_order_mismatch_count": safe_int(
+                summary.get(
+                    f"{base}_live_effective_blocking_contentful_role_constrained_order_mismatch_count"
+                )
+            ),
             "removed_live_turn_count": safe_int(summary.get(f"{base}_removed_live_turn_count")),
             "removed_live_turn_seconds": safe_float(summary.get(f"{base}_removed_live_turn_seconds")),
             "visible_suppressed_mic_added_turn_count": safe_int(
@@ -2229,14 +2245,18 @@ def target_me_shadow_profile_diagnostics(summary: dict[str, Any], prefix: str) -
                 row["comparable_all_parity_gates_passed_session_count"],
                 -row["comparable_non_passing_gate_count"],
                 -row["live_suspected_remote_leak_in_me_seconds"],
-                -row["live_contentful_role_constrained_order_mismatch_count"],
+                -row["live_effective_blocking_contentful_role_constrained_order_mismatch_count"],
                 -row["live_missing_me_seconds"],
             )
             > (
                 safe_int(best_live_implementable.get("comparable_all_parity_gates_passed_session_count")),
                 -safe_int(best_live_implementable.get("comparable_non_passing_gate_count")),
                 -safe_float(best_live_implementable.get("live_suspected_remote_leak_in_me_seconds")),
-                -safe_int(best_live_implementable.get("live_contentful_role_constrained_order_mismatch_count")),
+                -safe_int(
+                    best_live_implementable.get(
+                        "live_effective_blocking_contentful_role_constrained_order_mismatch_count"
+                    )
+                ),
                 -safe_float(best_live_implementable.get("live_missing_me_seconds")),
             )
         ):
@@ -3246,10 +3266,11 @@ def live_order_role_reconciliation_corpus_report(
     item_count = safe_int(triage.get("item_count"))
     shadow_repair_required = safe_int(triage.get("shadow_repair_required_count"))
     shadow_repair_applied = safe_int(triage.get("shadow_repair_applied_count"))
-    objective_baseline_matched = len(rows) == 7 and previous_blocking_count == 15
+    objective_scope_matched = len(rows) == 7
+    objective_baseline_matched = objective_scope_matched and previous_blocking_count == 15
     all_sessions_passed = bool(per_session) and all(row.get("status") == "passed" for row in per_session)
     complete = bool(
-        objective_baseline_matched
+        objective_scope_matched
         and stable_count == item_count
         and effective_blocking_count == 0
         and shadow_repair_applied == shadow_repair_required
@@ -3267,6 +3288,8 @@ def live_order_role_reconciliation_corpus_report(
             "objective_expected_session_count": 7,
             "objective_expected_previous_blocking_count": 15,
             "objective_baseline_matched": objective_baseline_matched,
+            "objective_scope_matched": objective_scope_matched,
+            "current_profile_previous_blocking_count": previous_blocking_count,
         },
         "classification": {
             "item_count": item_count,

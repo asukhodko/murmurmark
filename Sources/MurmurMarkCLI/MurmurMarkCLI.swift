@@ -727,6 +727,7 @@ enum DoctorChecks {
             "scripts/report-live-replay-lab.py",
             "scripts/materialize-live-asr-cache.py",
             "scripts/report-live-corpus-gates.py",
+            "scripts/report-live-local-recall-hardening.py",
             "scripts/report-live-boundary-island-micro-asr-lab.py",
             "scripts/run-live-parity-pilot.sh",
             "scripts/experiment-sidecar-contract.py",
@@ -5600,9 +5601,25 @@ enum CorpusCommands {
                 return
             }
             forwarded = LiveCommands.addDefaultLiveCorpusOutDir(forwarded, sessionsRoot: sessionsRoot)
+            let liveReportOutDir = PathURLs.fileURL(
+                ArgumentEditing.peekOption("out-dir", in: forwarded)
+                    ?? "sessions/_reports/live-pipeline"
+            )
             try Tooling.runPath(
                 try PythonRuntime.resolve(),
                 [try script("report-live-corpus-gates.py").path] + forwarded + ["--sessions-root", sessionsRoot.path]
+            )
+            try Tooling.runPath(
+                try PythonRuntime.resolve(),
+                [
+                    try script("report-live-local-recall-hardening.py").path,
+                    "--sessions-root", sessionsRoot.path,
+                    "--scope-report", liveReportOutDir.appendingPathComponent(
+                        "live_order_role_reconciliation_v1.json"
+                    ).path,
+                    "--out-dir", liveReportOutDir.path,
+                    "--allow-missing-scope",
+                ]
             )
         case "report":
             guard forwarded.isEmpty else { throw CLIError("corpus report does not support extra arguments") }

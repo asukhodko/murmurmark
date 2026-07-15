@@ -5174,6 +5174,36 @@ Even when all gates pass, `promotion_allowed` remains `false` in v1. A passing c
 the live branch is safe enough to study as an acceleration candidate; batch transcript remains
 authoritative.
 
+### Live Local Recall Hardening Report
+
+A full seven-session capture-safe corpus run also writes the focused hardening outputs:
+
+```text
+sessions/_reports/live-pipeline/live_local_recall_remote_leakage_hardening_v1.json
+sessions/_reports/live-pipeline/live_local_recall_remote_leakage_hardening_v1.jsonl
+sessions/_reports/live-pipeline/live_local_recall_remote_leakage_hardening_v1.md
+```
+
+The JSON report uses `murmurmark.live_local_recall_remote_leakage_hardening/v1`. Every JSONL row
+uses `murmurmark.live_local_recall_blocker_disposition/v1` and records one stable disposition:
+`partial_safe_tail`, `remote_free_local_island`, `mixed_double_talk`, `duplicate_context`,
+`unsupported` or `unresolved`.
+
+Rows admitted as shadow candidates must prove all of the following from recording-time evidence:
+
+- role is `Me`;
+- timeline provenance is causal;
+- candidate selection did not use batch fields;
+- localization is remote-free;
+- local-speaker evidence is present;
+- the remote-audio guard passed.
+
+Batch text and timing are evaluation-only. The report includes per-session no-regression results,
+aggregate missing-`Me`, remote-like-`Me`, effective-order, token-F1 and review-burden metrics, plus
+SHA-256 input manifests for raw CAF and authoritative batch dialogue. It never enables promotion.
+When `murmurmark corpus live` runs on a partial scope, this focused seven-session report is skipped
+without failing the normal corpus report.
+
 ### Live Corpus Gates
 
 `scripts/report-live-corpus-gates.py` aggregates live comparisons:

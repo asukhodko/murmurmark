@@ -7,12 +7,23 @@ from typing import Any, Callable
 
 
 SCHEMA = "murmurmark.live_order_role_reconciliation/v1"
-CLASSIFIER_VERSION = "1.0.0"
+CLASSIFIER_VERSION = "1.1.0"
 
 EXPECTED_ROLE_BY_SOURCE = {
     "mic_segment": "Me",
     "remote_segment": "Colleagues",
 }
+
+
+def _expected_role_for_source(source: str) -> str | None:
+    exact = EXPECTED_ROLE_BY_SOURCE.get(source)
+    if exact is not None:
+        return exact
+    if source.startswith("mic_"):
+        return "Me"
+    if source.startswith("remote_"):
+        return "Colleagues"
+    return None
 
 
 def safe_float(value: Any, default: float = 0.0) -> float:
@@ -42,7 +53,7 @@ def _stable_id(session: str, profile: str, previous_id: str, current_id: str) ->
 def _source_role_evidence(turn: dict[str, Any]) -> dict[str, Any]:
     source = str(turn.get("source") or "")
     role = str(turn.get("role") or "")
-    expected_role = EXPECTED_ROLE_BY_SOURCE.get(source)
+    expected_role = _expected_role_for_source(source)
     return {
         "source": source,
         "role": role,
