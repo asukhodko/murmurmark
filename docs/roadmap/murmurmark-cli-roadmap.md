@@ -521,8 +521,9 @@ operational gap is fresh real-session evidence for this exact implementation.
 
 1. **Live Recovery Runtime Efficiency and Real Evidence v1.** Preserve the implemented incremental
    runtime and prove pre-stop candidates plus zero final lag on three fresh meaningful sessions
-   without raw/batch regression. Each proof must pass `murmurmark live evidence SESSION --refresh
-   --strict --require-causal-recovery --max-recovery-final-lag-sec 0`.
+   without raw/batch regression. Each proof and the final aggregate must pass `murmurmark live
+   recovery-evidence ... --refresh --strict --max-recovery-final-lag-sec 0`; manager-version and
+   recording-time-run checks prevent post-stop replay from counting as fresh evidence.
 2. **Causal double-talk recovery follow-up.** Use the `16/16` safely rejected mixed/double-talk rows
    as a bounded future scope only after runtime integration is stable; do not weaken remote guards
    merely to raise recall.

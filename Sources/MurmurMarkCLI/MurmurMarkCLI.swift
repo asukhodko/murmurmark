@@ -240,6 +240,8 @@ struct MurmurMark {
           murmurmark live watch SESSION|latest [--poll-sec SEC] [--diagnostic-draft] [--sessions-root ./sessions]
           murmurmark live evidence SESSION|latest [--refresh] [--strict] [--require-causal-recovery]
                                                    [--sessions-root ./sessions]
+          murmurmark live recovery-evidence [all|latest|SESSION...] [--refresh] [--strict]
+                                            [--min-sessions 3] [--sessions-root ./sessions]
           murmurmark live replay SESSION|latest [--refresh] [--with-labs] [--lab-policy POLICY]
           murmurmark live gate [--sessions-root ./sessions]
           murmurmark live pilot [SESSION] [--controlled-real] [--preflight-only] [--skip-safety-gate]
@@ -722,6 +724,7 @@ enum DoctorChecks {
             "scripts/live-pipeline-shadow.py",
             "scripts/watch-live-draft.py",
             "scripts/report-live-session-evidence.py",
+            "scripts/report-live-recovery-real-evidence.py",
             "scripts/live-progressive-target-me.py",
             "scripts/raw-sidecar-worker.py",
             "scripts/compare-live-batch.py",
@@ -5146,6 +5149,19 @@ enum LiveCommands {
             if status != 0 {
                 Foundation.exit(status)
             }
+        case "recovery-evidence":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                printRecoveryEvidenceHelp()
+                return
+            }
+            let status = try Tooling.runPathAllowingExitCodes(
+                try PythonRuntime.resolve(),
+                [try script("report-live-recovery-real-evidence.py").path] + forwarded,
+                allowedExitCodes: [0, 2]
+            )
+            if status != 0 {
+                Foundation.exit(status)
+            }
         case "status", "next":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 printStatusHelp()
@@ -5267,6 +5283,8 @@ enum LiveCommands {
           murmurmark live evidence SESSION|latest [--refresh] [--strict] [--require-causal-recovery]
                                                    [--max-recovery-final-lag-sec SEC]
                                                    [--sessions-root ./sessions]
+          murmurmark live recovery-evidence [all|latest|SESSION...] [--refresh] [--strict]
+                                            [--min-sessions 3] [--sessions-root ./sessions]
           murmurmark live replay SESSION|latest [--refresh] [--with-labs] [--lab-policy POLICY]
                                             [--sessions-root ./sessions]
           murmurmark live pilot [SESSION] [--duration SEC] [--segment-sec SEC] [--overlap-sec SEC]
@@ -5274,6 +5292,26 @@ enum LiveCommands {
 
         Live commands collect near-realtime shadow evidence. They do not promote live output.
         Batch transcript remains authoritative.
+        """)
+    }
+
+    static func printRecoveryEvidenceHelp() {
+        Swift.print("""
+        usage:
+          murmurmark live recovery-evidence [all|latest|SESSION...] [options]
+
+        Aggregates fresh real-session proof for the incremental recording-time causal recovery.
+        A session counts only when manager version 1.1.0 or newer actually completed recovery while
+        recording, authoritative batch and meaningful comparison exist, required recovery checks
+        pass, and final recovery lag is within the requested bound. Live promotion remains blocked.
+
+        Options:
+          --refresh                         Refresh per-session comparison and evidence first.
+          --strict                          Exit 2 until the minimum number of sessions passes.
+          --min-sessions N                  Required passing sessions. Default: 3.
+          --max-recovery-final-lag-sec SEC  Default: 0.
+          --sessions-root PATH              Default: ./sessions.
+          --out-dir PATH                    Default: sessions/_reports/live-pipeline.
         """)
     }
 

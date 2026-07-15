@@ -349,6 +349,11 @@ post-stop fallback ASR.
 artifacts, authoritative batch, pre-stop chunks, terminal worker state, bounded lag/latency,
 committed-PCM provenance, fallback isolation and meaningful comparison. It always keeps
 `promotion_allowed: false`; `--strict` returns exit code `2` until every parity gate passes.
+The narrower recording-time recovery objective has a separate aggregate command,
+`murmurmark live recovery-evidence`. It requires manager `1.1.0+`, a true pre-stop recovery run,
+healthy transport/batch, the incremental cache contract and zero final recovery lag, but does not
+pretend that the still-red transcript-promotion gates have passed. Its report schema is
+`murmurmark.live_recovery_real_evidence_report/v1`.
 The default comparison includes `online_live_me_remote_overlap_filter_v1` as the direct baseline and
 `live_runtime_causal_target_me_direct_v1` plus
 `live_runtime_causal_target_me_remote_energy_v1` as runtime candidates, so the corpus report can

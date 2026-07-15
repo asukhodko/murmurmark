@@ -1101,10 +1101,11 @@ nodes:
       Stride-1 replay на 2460s/41 cutoffs даёт p50 2.80s, p95 13.61s, max 19.16s и warm final 2.52s
       без новой работы. Stop path теперь имеет bounded 30s latest-cutoff drain вместо потери pending
       cutoff; focused tests подтверждают zero-lag completion и fail-open timeout. Команда `live
-      evidence --require-causal-recovery` автоматически проверяет experiment backpressure,
-      incremental state, pre-stop candidates и zero final lag. Осталось получить минимум три свежих
-      meaningful real-session proofs с полными raw tracks и successful batch. Normal preview,
-      transcript, notes, export и promotion не менять.
+      recovery-evidence` автоматически проверяет manager 1.1.0+, настоящее recording-time execution,
+      experiment backpressure, incremental state, pre-stop candidates и zero final lag; aggregate
+      сейчас честно показывает 0/3. Осталось получить минимум три свежих meaningful real-session
+      proofs с полными raw tracks и successful batch. Normal preview, transcript, notes, export и
+      promotion не менять.
 
   live-causal-double-talk-me-recovery-v1:
     title: "Causal Double-Talk Me Recovery v1"
@@ -1999,8 +2000,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Live Recovery Runtime Efficiency and Real Evidence v1: подтвердить уже реализованный incremental runtime на трёх свежих meaningful real sessions."
-      success_by_next_sync: "Три meaningful sessions дают полные raw tracks, successful batch, bounded pre-stop candidates и zero final lag; raw capture, normal preview и batch не регрессируют; promotion blocked."
+      nearest_goal: "Live Recovery Runtime Efficiency and Real Evidence v1: довести строгий recovery-evidence aggregate с 0/3 до 3/3 на свежих meaningful real sessions."
+      success_by_next_sync: "`murmurmark live recovery-evidence all --refresh --strict --min-sessions 3 --max-recovery-final-lag-sec 0` проходит; raw capture, normal preview и batch не регрессируют; promotion blocked."
     defaults:
       status_progress:
         done: 1.0

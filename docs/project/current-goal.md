@@ -29,8 +29,10 @@ Automated evidence:
   `19.16s`; its final warm invocation takes `2.52s` and performs no new chunk work.
 - stop handling now supersedes a stale active cutoff with the newest pending cutoff and gives that
   final drain a bounded `30s`; focused checks prove both zero-lag completion and fail-open timeout;
-- `murmurmark live evidence ... --require-causal-recovery` turns each fresh-session proof into a
-  strict machine gate for backpressure, incremental state, pre-stop candidates and zero final lag.
+- `murmurmark live recovery-evidence` turns each fresh-session proof and the final `3/3` aggregate
+  into a strict machine gate for manager version, true recording-time execution, backpressure,
+  incremental state, pre-stop candidates and zero final lag. The current aggregate is `0/3` because
+  no meeting has been recorded on manager `1.1.0` yet.
 
 Remaining Definition of Done: collect at least three fresh meaningful Live Evidence sessions. Each
 must prove complete mic/remote raw tracks, successful authoritative batch, no capture or sidecar

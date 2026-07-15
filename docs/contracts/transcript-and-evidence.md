@@ -5360,24 +5360,44 @@ sets with zero new chunk work. The `p95 <= 30s` latency gate is measured with
 `--stride-chunks 1`; a batched replay stride is a corpus-throughput test and is not valid live-latency
 evidence.
 
-Fresh-session acceptance can opt into causal-recovery checks through:
+The per-session report can expose causal-recovery checks through:
 
 ```bash
 murmurmark live evidence SESSION \
   --refresh \
-  --strict \
   --require-causal-recovery \
   --max-recovery-final-lag-sec 0
 ```
 
-The existing `murmurmark.live_session_evidence/v1` payload then adds five checks:
+The existing `murmurmark.live_session_evidence/v1` payload then adds six checks:
 `experiment_no_backpressure`, `causal_recovery_healthy`,
-`causal_recovery_incremental_runtime`, `causal_recovery_pre_stop_candidates` and
-`causal_recovery_zero_final_lag`. Its `metrics.causal_recovery` block records experiment/worker
+`causal_recovery_incremental_runtime`, `causal_recovery_recording_time_run`,
+`causal_recovery_pre_stop_candidates` and `causal_recovery_zero_final_lag`. Its
+`metrics.causal_recovery` block records experiment/worker
 status, child failure and timeout counts, final recovery lag, final candidate count, recording-time
-candidate-run count and the incremental runtime schema. The pre-stop candidate gate is required only
+run/candidate-run counts and the incremental runtime schema. The recording-time-run check prevents a
+post-stop replay of an older session from being counted as fresh evidence. The pre-stop candidate gate is required only
 when the final recovery state contains accepted candidates; a no-candidate meeting is not failed for
 lacking candidate provenance. These checks are evidence-only and never authorize publication.
+`--strict` on this lower-level command still means full live/batch parity and is intentionally not
+the current recovery-goal gate.
+
+Fresh proof aggregation uses `murmurmark.live_recovery_real_evidence_report/v1`:
+
+```bash
+murmurmark live recovery-evidence all \
+  --refresh \
+  --strict \
+  --min-sessions 3 \
+  --max-recovery-final-lag-sec 0
+```
+
+It writes `sessions/_reports/live-pipeline/live_recovery_real_evidence_v1.{json,md}`. A session is
+eligible only when its name identifies a real dated recording, the manager version is `1.1.0` or
+newer, and `causal_recovery_recording_time_run` proves execution before stop. Passing additionally
+requires a completed session, meaningful comparison, authoritative batch and every recovery check
+above. Full transcript parity is reported but is not required by this bounded runtime-evidence goal;
+promotion remains false.
 
 ### Live Corpus Gates
 

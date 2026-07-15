@@ -267,14 +267,13 @@ capture or the base live draft. Reproduce the seven-session replay/runtime proof
 Use `--stride-chunks 1` when measuring the live `p95 <= 30s` latency gate. Larger strides validate
 batched corpus throughput and must not be interpreted as per-cutoff live latency.
 
-After `murmurmark process` and `murmurmark experiment compare`, validate each fresh real-session
-proof with the strict recovery gate:
+After `murmurmark process`, validate each fresh real-session proof with the strict recovery gate:
 
 ```bash
-murmurmark live evidence "$SESSION" \
+murmurmark live recovery-evidence "$SESSION" \
   --refresh \
   --strict \
-  --require-causal-recovery \
+  --min-sessions 1 \
   --max-recovery-final-lag-sec 0
 ```
 
@@ -282,6 +281,19 @@ The command fails unless capture and batch are healthy, the experiment avoided b
 incremental recovery worker completed without timeout, accepted final candidates have recording-time
 evidence, and `final_live_lag_sec` is exactly zero. Recovery gets a bounded `30s` latest-cutoff drain
 after capture stops; failure remains isolated from raw CAF and the authoritative batch transcript.
+When three fresh sessions exist, run the aggregate gate:
+
+```bash
+murmurmark live recovery-evidence all \
+  --refresh \
+  --strict \
+  --min-sessions 3 \
+  --max-recovery-final-lag-sec 0
+```
+
+The aggregate accepts only date-named manager `1.1.0+` sessions with a completed recovery invocation
+from the recording-time worker. Replaying an older session after stop cannot satisfy this freshness
+gate. Its report is `sessions/_reports/live-pipeline/live_recovery_real_evidence_v1.{json,md}`.
 
 Do not use the runtime profile as transcript, notes or export input. Batch remains authoritative.
 

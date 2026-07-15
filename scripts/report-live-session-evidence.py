@@ -305,6 +305,13 @@ def main() -> int:
             and row.get("pre_stop_provenance") == "recording_time_worker"
             and int(row.get("accepted_candidate_count") or 0) > 0
         ]
+        recording_time_recovery_runs = [
+            row
+            for row in recovery_runs
+            if row.get("completed_before_stop") is True
+            and row.get("pre_stop_provenance") == "recording_time_worker"
+            and row.get("recording_active_at_submit") is True
+        ]
         experiment_status = str(experiment_state.get("status") or "missing")
         experiment_fail_open = experiment_status in {
             "disabled_backpressure",
@@ -350,6 +357,12 @@ def main() -> int:
                     {"schema": incremental_runtime.get("schema")},
                 ),
                 check(
+                    "causal_recovery_recording_time_run",
+                    bool(recording_time_recovery_runs),
+                    "at least one recovery invocation must complete while the recording is active",
+                    {"recording_time_run_count": len(recording_time_recovery_runs)},
+                ),
+                check(
                     "causal_recovery_pre_stop_candidates",
                     pre_stop_candidate_ok,
                     "accepted recovery candidates must appear before stop when the final run has candidates",
@@ -381,6 +394,7 @@ def main() -> int:
             "final_live_lag_sec": recovery_final_lag,
             "final_candidate_count": final_candidate_count,
             "pre_stop_candidate_run_count": len(pre_stop_candidate_runs),
+            "recording_time_run_count": len(recording_time_recovery_runs),
             "incremental_runtime_schema": incremental_runtime.get("schema"),
         }
     transport_passed = all(row["status"] == "passed" for row in checks)
@@ -462,6 +476,7 @@ def main() -> int:
         print(f"causal_recovery_status: {recovery_metrics.get('worker_status')}")
         print(f"causal_recovery_final_live_lag_sec: {recovery_metrics.get('final_live_lag_sec')}")
         print(f"causal_recovery_pre_stop_candidate_run_count: {recovery_metrics.get('pre_stop_candidate_run_count')}")
+        print(f"causal_recovery_recording_time_run_count: {recovery_metrics.get('recording_time_run_count')}")
     print(f"remaining_parity_gates: {len(remaining)}")
     print(f"next: {recommended_next}")
     if args.strict and (not all_parity_passed or not transport_passed):

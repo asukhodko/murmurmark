@@ -621,20 +621,30 @@ Measure the live-latency gate with one cutoff per live chunk, not with a batched
   --verify-warm-final
 ```
 
-For each fresh real proof, run the strict recovery-aware session gate after authoritative batch
-processing and comparison:
+For each fresh real proof, run the recovery-evidence gate after authoritative batch processing:
 
 ```bash
-murmurmark live evidence "$SESSION" \
+murmurmark live recovery-evidence "$SESSION" \
   --refresh \
   --strict \
-  --require-causal-recovery \
+  --min-sessions 1 \
   --max-recovery-final-lag-sec 0
 ```
 
 This verifies healthy raw/batch transport, no experiment backpressure, a terminal incremental
 recovery worker, recording-time candidates when the final recovery result contains accepted
-candidates, and exact zero final recovery lag.
+candidates, and exact zero final recovery lag. After three sessions, close the aggregate gate with:
+
+```bash
+murmurmark live recovery-evidence all \
+  --refresh \
+  --strict \
+  --min-sessions 3 \
+  --max-recovery-final-lag-sec 0
+```
+
+Only date-named sessions whose manager is `1.1.0` or newer and actually completed at least one
+recovery invocation while recording can count. Post-stop replay of an old session is ineligible.
 
 The report is written under
 `sessions/_reports/live-pipeline/recording_time_causal_me_recovery_runtime_v1.*`. This profile is
