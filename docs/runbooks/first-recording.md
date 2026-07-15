@@ -164,7 +164,9 @@ Watch the conservative preview from a second terminal with `murmurmark live watc
 Start it after the recorder has printed the session directory and pass that explicit path: during
 recording the final `session.json` does not exist yet, therefore `latest` is not usable until
 finalization. Use `--diagnostic-draft` only when investigating all candidate evidence. Both modes
-show worker heartbeat and lag; they must make a stalled preview visible while raw capture continues.
+print the current view once and then only new or materially revised timestamp blocks. Worker state
+appears on stage/chunk/lag changes and as a periodic heartbeat, so a stalled preview remains visible
+without repeatedly redrawing the whole transcript while raw capture continues.
 `murmurmark live evidence "$SESSION"` additionally checks
 `derived/live/preview_snapshots.jsonl`: at least one non-empty snapshot must predate `ended_at` and
 carry `recording_time_committed_pcm`. This is the proof that the visible preview was not rebuilt by

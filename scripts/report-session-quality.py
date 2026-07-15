@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.4.5"
+SCRIPT_VERSION = "0.4.6"
 SCHEMA = "murmurmark.session_quality_report/v1"
 READINESS_SCHEMA = "murmurmark.session_readiness/v1"
 CLEANUP_PROFILES = {
@@ -1557,11 +1557,16 @@ def use_gate_reasons(row: dict[str, Any]) -> list[dict[str, Any]]:
         )
     profile = row.get("selected_profile")
     if profile not in CLEANUP_PROFILES:
+        cleanup_was_attempted = cleanup_attempted(row)
         reasons.append(
             {
                 "id": "missing_cleanup_profile",
                 "severity": "review",
-                "message": "No reviewed or audit-cleaned transcript profile is selected.",
+                "message": (
+                    "Cleanup was attempted but rejected by safety gates; the selected baseline transcript requires review."
+                    if cleanup_was_attempted
+                    else "No reviewed or audit-cleaned transcript profile is selected."
+                ),
                 "value": profile,
             }
         )
@@ -1626,6 +1631,11 @@ def use_gate_reasons(row: dict[str, Any]) -> list[dict[str, Any]]:
     return reasons
 
 
+def cleanup_attempted(row: dict[str, Any]) -> bool:
+    stages = row.get("stages") if isinstance(row.get("stages"), dict) else {}
+    return any(bool(stages.get(profile)) for profile in CLEANUP_PROFILES)
+
+
 def session_use_gate(row: dict[str, Any]) -> str:
     if row.get("pipeline_status") != "complete":
         return "pipeline_incomplete"
@@ -1634,7 +1644,7 @@ def session_use_gate(row: dict[str, Any]) -> str:
     if row.get("verdict") == "risky" and not formal_residual_risk(row):
         return "do_not_use_without_manual_review"
     if row.get("selected_profile") not in CLEANUP_PROFILES:
-        return "pipeline_incomplete_review_first"
+        return "review_first" if cleanup_attempted(row) else "pipeline_incomplete_review_first"
     if formal_residual_risk(row):
         return "review_first"
 

@@ -793,6 +793,30 @@ assert any("murmurmark review workspace --session sessions/review-session" == it
 assert any("murmurmark review workspace apply --session sessions/review-session" == item["command"] for item in commands)
 assert any("murmurmark review progress --session sessions/review-session" == item["command"] for item in commands)
 assert any("murmurmark review apply --session sessions/review-session" == item["command"] for item in commands)
+cleanup_rejected_row = {
+    "pipeline_status": "complete",
+    "verdict": "usable_with_review",
+    "selected_profile": "shadow_v2",
+    "stages": {"audit_cleanup_v1": True},
+}
+assert module.session_use_gate(cleanup_rejected_row) == "review_first"
+cleanup_rejected_commands = module.readiness_next_commands(
+    Path("sessions/cleanup-rejected"),
+    {
+        **cleanup_rejected_row,
+        "use_gate": module.session_use_gate(cleanup_rejected_row),
+        "review_blockers": ["missing_cleanup_profile"],
+    },
+)
+assert cleanup_rejected_commands[0]["id"] == "review_suggested_preview", cleanup_rejected_commands
+assert all(item["id"] != "process_session" for item in cleanup_rejected_commands)
+cleanup_missing_row = {
+    "pipeline_status": "complete",
+    "verdict": "usable_with_review",
+    "selected_profile": "shadow_v2",
+    "stages": {"audit_cleanup_v1": False},
+}
+assert module.session_use_gate(cleanup_missing_row) == "pipeline_incomplete_review_first"
 order_commands = module.readiness_next_commands(
     Path("sessions/order-session"),
     {"use_gate": "review_first", "review_blockers": ["risk:transcript_order_risk"], "risk_flags": ["transcript_order_risk"]},

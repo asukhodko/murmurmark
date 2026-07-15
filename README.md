@@ -355,6 +355,10 @@ causal Target-Me shadow. Target-Me micro-ASR has a bounded child timeout and is 
 worker is already more than `60s` behind captured audio. The report exposes
 `skipped_lag_budget_count`; losing optional speaker evidence is preferable to letting it delay the
 base draft without bound.
+`live watch` prints the current preview once, then only newly added or materially revised timestamp
+blocks. It does not redraw the whole Markdown file when the worker finalizes a provisional block.
+Worker status is printed on meaningful state changes and as a periodic heartbeat, rather than on
+every internal heartbeat update.
 The base `mic` and `remote` decodes are independent: on hosts with at least twelve logical CPUs the
 worker runs them concurrently with four threads per decoder; smaller hosts keep the sequential path.
 Each decoder remains in a bounded child process, so shutdown and fail-open behavior are unchanged.

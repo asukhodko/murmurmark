@@ -2083,7 +2083,9 @@ default export blockers intact.
 - `review_first`: review flagged regions before using the result for medium-risk work;
 - `do_not_use_without_manual_review`: do not rely on the transcript without manual checking;
 - `pipeline_incomplete`: rerun the full post-recording pipeline first;
-- `pipeline_incomplete_review_first`: cleanup/synthesis profiles are missing or not selected yet.
+- `pipeline_incomplete_review_first`: cleanup artifacts have not been produced yet, so processing
+  must resume before review. If cleanup ran but its candidate was rejected by safety gates, the
+  session is `review_first`; rerunning the same pipeline is not presented as a remedy.
 
 `session_readiness.md` is the human-readable view of the same object and should be opened before
 the transcript or notes. `export_blockers` is the machine-readable default export gate. `review_blockers`

@@ -587,6 +587,11 @@ jq -e '
   and .metrics.suggested_closure_auto_seconds == 10
   and .metrics.suggested_closure_manual_remaining_seconds == 2.5
 ' "$review_session/derived/outcome/outcome.json" >/dev/null
+touch -t 202001010000 "$review_session/derived/outcome/outcome.json"
+touch -t 203001010000 "$review_session/derived/readiness/session_readiness.json"
+stale_outcome_status="$($bin status "$review_session")"
+echo "$stale_outcome_status" | grep -q '^  recommended_next: less .*transcript_order_review.md$'
+! echo "$stale_outcome_status" | grep -q '^  recommended_next: murmurmark review suggested apply '
 
 open_output="$("$bin" open "$session" --kind all)"
 echo "$open_output" | grep -q '^open:$'

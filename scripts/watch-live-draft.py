@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,9 @@ TERMINAL_STATUSES = {
     "disabled_pcm_copy",
     "stopped_by_limit",
 }
+HEADING_RE = re.compile(r"(?m)^##\s+(.+?)\s*$")
+PROVISIONAL_SUFFIX_RE = re.compile(r"\s+provisional\s*$", re.IGNORECASE)
+STATE_HEARTBEAT_INTERVAL_SEC = 30.0
 
 
 def parse_args() -> argparse.Namespace:
@@ -51,6 +55,64 @@ def changed_suffix(previous: str, current: str) -> str:
     return current[len(previous) :]
 
 
+def normalize_heading(value: str) -> str:
+    return PROVISIONAL_SUFFIX_RE.sub("", value.strip())
+
+
+def draft_blocks(text: str) -> tuple[str, list[dict[str, str]]]:
+    matches = list(HEADING_RE.finditer(text))
+    if not matches:
+        return text.strip(), []
+    blocks: list[dict[str, str]] = []
+    occurrences: dict[str, int] = {}
+    for index, match in enumerate(matches):
+        title = match.group(1).strip()
+        normalized = normalize_heading(title)
+        occurrences[normalized] = occurrences.get(normalized, 0) + 1
+        key = f"{normalized}#{occurrences[normalized]}"
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        markdown = text[match.start() : end].strip()
+        canonical = HEADING_RE.sub(lambda heading: f"## {normalize_heading(heading.group(1))}", markdown, count=1)
+        blocks.append(
+            {
+                "key": key,
+                "title": normalized,
+                "markdown": markdown,
+                "canonical": canonical,
+            }
+        )
+    return text[: matches[0].start()].strip(), blocks
+
+
+def draft_delta(previous: str, current: str) -> str:
+    if not previous:
+        return current
+    if current.startswith(previous):
+        return current[len(previous) :]
+
+    _, previous_blocks = draft_blocks(previous)
+    _, current_blocks = draft_blocks(current)
+    if not current_blocks:
+        return changed_suffix(previous, current)
+
+    previous_by_key = {block["key"]: block for block in previous_blocks}
+    current_keys = {block["key"] for block in current_blocks}
+    output: list[str] = []
+    if not previous_blocks:
+        output.append("[live] transcript started")
+    for block in current_blocks:
+        previous_block = previous_by_key.get(block["key"])
+        if previous_block is None:
+            output.append(block["markdown"])
+        elif previous_block["canonical"] != block["canonical"]:
+            output.append(f"[live] revised {block['title']}\n\n{block['markdown']}")
+
+    removed = len(set(previous_by_key) - current_keys)
+    if removed:
+        output.append(f"[live] {removed} previously shown block(s) no longer present")
+    return "\n\n".join(output)
+
+
 def state_line(state: dict[str, Any]) -> str:
     progress = state.get("progress") if isinstance(state.get("progress"), dict) else {}
     status = str(state.get("status") or "waiting")
@@ -67,6 +129,17 @@ def state_line(state: dict[str, Any]) -> str:
     return "[live] " + " ".join(parts)
 
 
+def state_signature(state: dict[str, Any]) -> tuple[Any, ...]:
+    progress = state.get("progress") if isinstance(state.get("progress"), dict) else {}
+    lag = progress.get("live_lag_sec")
+    return (
+        str(state.get("status") or "waiting"),
+        str(state.get("current_stage") or "unknown"),
+        state.get("current_index"),
+        round(float(lag), 1) if isinstance(lag, (int, float)) else None,
+    )
+
+
 def main() -> int:
     args = parse_args()
     session = args.session.expanduser().resolve()
@@ -77,7 +150,8 @@ def main() -> int:
         draft_path = diagnostic_path
     state_path = session / "derived/live/live_pipeline_state.json"
     previous_draft = ""
-    previous_state_line = ""
+    previous_state_signature: tuple[Any, ...] | None = None
+    last_state_printed_at = 0.0
     print(f"watching: {draft_path}", flush=True)
     try:
         while True:
@@ -88,18 +162,18 @@ def main() -> int:
                 print(f"\n[live] switched to: {draft_path}\n", flush=True)
             current_draft = read_text(draft_path)
             if current_draft != previous_draft:
-                suffix = changed_suffix(previous_draft, current_draft)
-                if suffix.strip():
-                    if previous_draft and not current_draft.startswith(previous_draft):
-                        print("\n[live] draft refreshed\n", flush=True)
-                    print(suffix.rstrip(), flush=True)
+                delta = draft_delta(previous_draft, current_draft)
+                if delta.strip():
+                    print(delta.rstrip(), flush=True)
                 previous_draft = current_draft
 
             state = read_json(state_path)
-            rendered = state_line(state)
-            if rendered != previous_state_line:
-                print(rendered, flush=True)
-                previous_state_line = rendered
+            signature = state_signature(state)
+            now = time.monotonic()
+            if signature != previous_state_signature or now - last_state_printed_at >= STATE_HEARTBEAT_INTERVAL_SEC:
+                print(state_line(state), flush=True)
+                previous_state_signature = signature
+                last_state_printed_at = now
 
             status = str(state.get("status") or "")
             if (session / "session.json").exists() and status in TERMINAL_STATUSES:

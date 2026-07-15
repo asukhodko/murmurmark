@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.3"
+SCRIPT_VERSION = "0.1.4"
 SCHEMA = "murmurmark.session_pipeline_run/v1"
 RUN_STATE_SCHEMA = "murmurmark.pipeline_run_state/v1"
 INTERRUPTED_CAPTURE_WARNING_MARKERS = (
@@ -1518,6 +1518,20 @@ def main() -> int:
         message="pipeline_started",
         completed_steps=[],
     )
+    if not args.plan_only:
+        write_json(
+            report_path,
+            {
+                "schema": SCHEMA,
+                "generator": {"name": "run-session-pipeline", "version": SCRIPT_VERSION},
+                "started_at": started_at,
+                "finished_at": None,
+                "session": str(session),
+                "status": "running",
+                "plan": plan_metadata,
+                "steps": [],
+            },
+        )
     interrupted_warnings = interrupted_capture_warnings(session)
     silent_warnings = silent_capture_warnings(session)
     sparse_warnings = sparse_capture_warnings(session)

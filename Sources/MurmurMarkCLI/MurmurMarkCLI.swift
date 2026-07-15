@@ -12487,6 +12487,14 @@ enum ReadinessPrinter {
 
     private static func compatibleOutcomePayload(_ session: URL, readinessProfile: String) -> [String: Any]? {
         guard let outcome = try? outcomePayload(session) else { return nil }
+        let fileManager = FileManager.default
+        let readinessURL = session.appendingPathComponent("derived/readiness/session_readiness.json")
+        let outcomeURL = session.appendingPathComponent("derived/outcome/outcome.json")
+        let readinessDate = (try? fileManager.attributesOfItem(atPath: readinessURL.path)[.modificationDate]) as? Date
+        let outcomeDate = (try? fileManager.attributesOfItem(atPath: outcomeURL.path)[.modificationDate]) as? Date
+        if let readinessDate, let outcomeDate, outcomeDate < readinessDate {
+            return nil
+        }
         let summary = outcome["summary"] as? [String: Any] ?? [:]
         let outcomeProfile = string(summary["selected_profile"])
             ?? string(outcome["selected_profile"])
