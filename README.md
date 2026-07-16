@@ -25,7 +25,7 @@ The stable CLI path is usable for working transcripts and evidence-backed notes.
 can be processed unattended and ends as `ready_for_notes`, `review_first` or `blocked`. Full export
 still requires explicit review when order, local recall or remote leakage cannot be resolved safely.
 
-Authoritative operating point, 2026-07-15:
+Authoritative operating point, 2026-07-16:
 
 - stable production remains `record -> process -> next -> finish` against one explicit `SESSION`;
 - raw `mic` and `remote` CAF files and the normal batch transcript remain the source of truth;
@@ -59,9 +59,9 @@ Authoritative operating point, 2026-07-15:
   equivalence passes `7/7`. A `2460s` stride-1 source-time replay finishes `41` cutoffs with
   `p50=2.80s`, `p95=13.61s`, maximum `19.16s` and a `2.52s` zero-new-work warm final run;
 - the runtime result stays in an explicit diagnostic namespace and cannot affect normal live watch,
-  transcript, notes, export or promotion. The remaining goal evidence is three fresh meaningful
-  real sessions proving complete raw tracks, successful batch, bounded pre-stop recovery and zero
-  final lag before considering any publication path.
+  transcript, notes, export or promotion. The fresh recovery-runtime gate is `1/3` after
+  `2026-07-16_11-15-15-live`; two more meaningful real sessions must prove complete raw tracks,
+  successful batch, bounded pre-stop recovery and zero final lag before considering publication.
 
 The system deliberately keeps unresolved uncertainty visible. Suggested review decisions may close
 only rows supported by local audio and audit evidence. `finish` and guarded `export` remain blocked
@@ -1573,8 +1573,10 @@ state is:
    preserve normal preview, raw capture and batch authority.
 8. **Current goal:** Live Recovery Runtime Efficiency and Real Evidence v1. Incremental runtime,
    bounded invalidation, fixed-corpus `7/7` agreement and the `p95 <= 30s` source-time gate are
-   implemented. Collect three fresh meaningful pre-stop proofs with zero final lag before closing
-   the goal or discussing publication. UI remains optional and late.
+   implemented. The fresh real-session gate is `1/3`: `2026-07-16_11-15-15-live` passed with
+   complete raw tracks, `62` healthy recording-time invocations, no backpressure and zero final lag.
+   Collect two more meaningful proofs before closing the goal or discussing publication. UI remains
+   optional and late.
 
 <details>
 <summary>Historical implementation log (non-authoritative)</summary>

@@ -52,8 +52,9 @@ sets and profile metrics `7/7`; timeout, lag and overload preserve the normal pr
 Live Recovery Runtime Efficiency and Real Evidence v1 is in progress: persistent stage watermarks,
 content-addressed DSP/candidate/micro-ASR caches and bounded model/config invalidation are implemented.
 A refreshed fixed corpus keeps candidate and metric agreement `7/7`, warm-final equivalence passes
-`7/7`, and a 41-cutoff stride-1 source-time replay gives `p95=13.61s` and maximum `19.16s`. Three
-fresh meaningful real sessions remain the completion gate.
+`7/7`, and a 41-cutoff stride-1 source-time replay gives `p95=13.61s` and maximum `19.16s`. The first
+fresh real proof (`2026-07-16_11-15-15-live`) passes with `62` recording-time invocations,
+`p95=3.98s`, no backpressure and zero final lag; two more sessions remain.
 Near-Realtime Live Parity Coverage v1 already proved complete raw capture, pre-stop preview,
 terminal workers, zero final lag and successful batch output on three fresh real sessions. Live
 promotion remains blocked.
@@ -110,8 +111,8 @@ roadmap point it means:
 - recording-time integration reproduces both replay candidate sets and profile metrics across all
   seven sessions; it remains an explicit-only `_runtime_v1` shadow;
 - incremental runtime efficiency is implemented and passes the `p95 <= 30s` source-time gate; the
-  remaining bounded work is three fresh meaningful real-session proofs with pre-stop candidates and
-  zero final lag;
+  first fresh proof passes, and the remaining bounded work is two more meaningful real-session
+  proofs with pre-stop candidates when suitable evidence exists and zero final lag;
 - `status`, `next`, `finish`, session report and corpus report agree;
 - safe review suggestions are applied before asking for manual listening;
 - remaining review is short, explicit and backed by audio/transcript evidence;
@@ -363,9 +364,9 @@ flowchart LR
   - implemented: only changed suffix evidence is processed while the proven `24`-group
     remote-active budget and all hard guards remain unchanged;
   - implemented in source-time replay: `p95=13.61s`, maximum `19.16s`, warm final `2.52s` with zero
-    new chunks; real recording still must prove zero final lag;
-  - collect three fresh meaningful sessions with pre-stop diagnostic candidates and no raw/batch
-    regression;
+    new chunks; one fresh real session has proved zero final lag and two more remain;
+  - collect two more fresh meaningful sessions, reaching three total, with pre-stop diagnostic
+    candidates when suitable evidence exists and no raw/batch regression;
   - keep the integrated profile diagnostic-only, batch authoritative and live promotion blocked;
 - keep `--live-pipeline` disabled by default; all new evidence should go through
   `record --experiment live-shadow-v1`.

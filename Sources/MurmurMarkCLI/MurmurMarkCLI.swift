@@ -7738,8 +7738,16 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                 "remote": remoteFramesWritten() ?? 0,
             ])
             let preFinishAudioCoverage = min(
-                writerCoverage(frames: micFramesWritten(), sampleRate: Double(sampleRate), actualDuration: actualDuration),
-                writerCoverage(frames: remoteFramesWritten(), sampleRate: Double(sampleRate), actualDuration: actualDuration)
+                writerCoverage(
+                    frames: micFramesWritten(),
+                    sampleRate: micSampleRateWritten() ?? Double(sampleRate),
+                    actualDuration: actualDuration
+                ),
+                writerCoverage(
+                    frames: remoteFramesWritten(),
+                    sampleRate: remoteSampleRateWritten() ?? Double(sampleRate),
+                    actualDuration: actualDuration
+                )
             )
             let severePreFinishAudioCoverageGap = actualDuration >= 60 && preFinishAudioCoverage < 0.80
             let finalizedAsPartial = stopReason.isUnexpectedCaptureStop || severePreFinishAudioCoverageGap
@@ -8743,6 +8751,14 @@ extension SessionRecorder {
         remoteBackend == .audioInput ? remoteInputCapture?.framesWritten : remoteWriter?.framesWritten
     }
 
+    private func micSampleRateWritten() -> Double? {
+        microphoneBackend == .voiceProcessing ? voiceProcessingMic?.sampleRate : micWriter?.sampleRate
+    }
+
+    private func remoteSampleRateWritten() -> Double? {
+        remoteBackend == .audioInput ? remoteInputCapture?.sampleRate : remoteWriter?.sampleRate
+    }
+
     private func fileInfo(path: String, framesWritten: AVAudioFramePosition?) throws -> FileEntry {
         let url = outputDirectory.appendingPathComponent(path)
         let file = try? AVAudioFile(forReading: url)
@@ -8817,6 +8833,10 @@ final class AudioFileWriter {
     private var firstWallDate: Date?
     private var timelineResetCount = 0
     private(set) var insertedSilenceFrames: AVAudioFramePosition = 0
+
+    var sampleRate: Double? {
+        currentFormat?.sampleRate
+    }
 
     init(url: URL, source: String, timelineStartDate: Date? = nil) throws {
         self.url = url
@@ -10249,6 +10269,10 @@ final class AudioInputDeviceCapture: NSObject, AVCaptureFileOutputRecordingDeleg
         (try? AVAudioFile(forReading: outputURL).length) ?? AVAudioFramePosition(0)
     }
 
+    var sampleRate: Double? {
+        try? AVAudioFile(forReading: outputURL).processingFormat.sampleRate
+    }
+
     func start() throws {
         try FileManager.default.createDirectory(at: outputURL.deletingLastPathComponent(), withIntermediateDirectories: true)
 
@@ -10325,6 +10349,10 @@ final class VoiceProcessingMicCapture: @unchecked Sendable {
 
     var framesWritten: AVAudioFramePosition {
         writerQueue.sync { framesWrittenStorage }
+    }
+
+    var sampleRate: Double? {
+        writerQueue.sync { monoFormat?.sampleRate }
     }
 
     func start() throws {

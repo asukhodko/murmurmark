@@ -6,8 +6,8 @@ authoritative.
 
 ## Current Goal: Live Recovery Runtime Efficiency and Real Evidence v1
 
-Status, 2026-07-15: implementation and automated evidence complete; fresh real-session evidence
-still required.
+Status, 2026-07-16: implementation and automated evidence complete; the fresh real-session gate is
+`1/3`.
 
 The runtime now persists separate stage watermarks and immutable content-addressed DSP, candidate
 and micro-ASR objects. It fingerprints committed audio, model, executable, configuration, schemas and
@@ -31,10 +31,15 @@ Automated evidence:
   final drain a bounded `30s`; focused checks prove both zero-lag completion and fail-open timeout;
 - `murmurmark live recovery-evidence` turns each fresh-session proof and the final `3/3` aggregate
   into a strict machine gate for manager version, true recording-time execution, backpressure,
-  incremental state, pre-stop candidates and zero final lag. The current aggregate is `0/3` because
-  no meeting has been recorded on manager `1.1.0` yet.
+  incremental state, pre-stop candidates and zero final lag;
+- `2026-07-16_11-15-15-live` is the first passing fresh proof: complete `1830.64s` mic/remote raw
+  tracks, successful authoritative batch, `62` successful recording-time recovery invocations,
+  no timeout/backpressure, per-cutoff incremental suffix of one new chunk, runtime `p50=2.95s`,
+  `p95=3.98s`, maximum `4.23s`, and zero final lag. The final candidate count is zero, so the
+  conditional pre-stop-candidate gate correctly passes without inventing recovery work.
 
-Remaining Definition of Done: collect at least three fresh meaningful Live Evidence sessions. Each
+Remaining Definition of Done: collect two more fresh meaningful Live Evidence sessions, reaching
+at least three in total. Each
 must prove complete mic/remote raw tracks, successful authoritative batch, no capture or sidecar
 backpressure regression, pre-stop recovery candidates when suitable `Me` evidence exists, bounded
 lag and `final_live_lag_sec=0`. Raw capture, base preview and batch remain authoritative; this goal

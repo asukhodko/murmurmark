@@ -174,6 +174,16 @@ assert_static_capture_contract() {
   grep -q 'final class RecordingProcessLock' "$source_file" \
     || fail "recording lock must keep concurrent record processes rejected"
 
+  grep -q 'sampleRate: micSampleRateWritten() ?? Double(sampleRate)' "$source_file" \
+    || fail "mic pre-finish coverage must use the actual mic writer sample rate"
+
+  grep -q 'sampleRate: remoteSampleRateWritten() ?? Double(sampleRate)' "$source_file" \
+    || fail "remote pre-finish coverage must use the actual remote writer sample rate"
+
+  if grep -Eq 'writerCoverage\(frames: (mic|remote)FramesWritten\(\), sampleRate: Double\(sampleRate\)' "$source_file"; then
+    fail "pre-finish coverage must not assume the configured sample rate for both tracks"
+  fi
+
   grep -q 'case "experiment"' "$source_file" \
     || fail "experimental sidecar contract must have a CLI command"
 
