@@ -54,6 +54,7 @@ def candidate(
 
 def main() -> int:
     module = load_module()
+    assert module.token_containment("Global своя", "Global. своя...") == 1.0
     utterances = [
         {
             "id": "remote_1",
@@ -68,6 +69,27 @@ def main() -> int:
             "start": 30.0,
             "end": 34.0,
             "text": "Я добавлю задачу про алерты.",
+        },
+        {
+            "id": "me_split_1",
+            "role": "me",
+            "start": 70.0,
+            "end": 72.0,
+            "text": "Нужно проверить лимиты.",
+        },
+        {
+            "id": "me_split_2",
+            "role": "me",
+            "start": 72.0,
+            "end": 74.0,
+            "text": "Очереди добавить алерт.",
+        },
+        {
+            "id": "me_split_3",
+            "role": "me",
+            "start": 74.0,
+            "end": 76.0,
+            "text": "Настроить дашборд оповещения.",
         },
     ]
     candidates = [
@@ -110,6 +132,12 @@ def main() -> int:
             63.0,
             "Спасибо за просмотр",
         ),
+        candidate(
+            "already_present_split",
+            70.0,
+            76.0,
+            "Нужно проверить лимиты очереди добавить алерт настроить дашборд оповещения.",
+        ),
     ]
 
     items, rejected = module.independent_live_me_items(candidates, utterances, [])
@@ -117,7 +145,7 @@ def main() -> int:
     assert all(row["label"] == "possible_lost_me" for row in items), items
     assert all(row["evidence_source"] == "live_causal_target_me" for row in items), items
     assert rejected["candidate_matches_authoritative_remote"] == 1, rejected
-    assert rejected["candidate_already_present_in_me"] == 1, rejected
+    assert rejected["candidate_already_present_in_me"] == 2, rejected
     assert rejected["target_speaker_evidence_too_weak"] == 1, rejected
     assert rejected["known_hallucination"] == 1, rejected
 

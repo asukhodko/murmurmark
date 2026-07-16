@@ -51,7 +51,7 @@ Current operating point, 2026-07-16:
   replay candidate sets and profile metrics `7/7`, while normal preview and batch stay unchanged;
 - Live Recovery Runtime Efficiency and Real Evidence v1 is in progress: per-stage watermarks,
   content-addressed DSP/candidate/micro-ASR caches, bounded invalidation and the `p95 <= 30s`
-  source-time gate are implemented; one of three fresh meaningful sessions now passes, and two more
+  source-time gate are implemented; two of three fresh meaningful sessions now pass, and one more
   must still prove bounded pre-stop recovery and zero final lag.
 
 Still future:

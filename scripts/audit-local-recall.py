@@ -11,7 +11,7 @@ from typing import Any
 
 SCHEMA_AUDIT = "murmurmark.local_recall_audit/v1"
 SCHEMA_ITEM = "murmurmark.local_recall_item/v1"
-SCRIPT_VERSION = "0.5.0"
+SCRIPT_VERSION = "0.5.1"
 DIALOGUE_PROFILE_ORDER = [
     "reviewed_v1",
     "order_repair_v1",
@@ -156,7 +156,7 @@ def format_time(seconds: float) -> str:
 def normalize_text(text: Any) -> str:
     value = str(text or "").lower().replace("ё", "е")
     value = re.sub(r"[^0-9a-zа-я_./+-]+", " ", value)
-    return " ".join(token for token in value.split() if token)
+    return " ".join(cleaned for token in value.split() if (cleaned := token.strip("./-")))
 
 
 def content_tokens(text: Any) -> list[str]:
@@ -217,6 +217,47 @@ def interval_overlap_sec(start: float, end: float, other_start: float, other_end
     return max(0.0, min(end, other_end) - max(start, other_start))
 
 
+def interval_union_coverage(
+    start: float,
+    end: float,
+    rows: list[dict[str, Any]],
+) -> float:
+    duration = max(0.001, end - start)
+    intervals = sorted(
+        (
+            max(start, safe_float(row.get("start"))),
+            min(end, safe_float(row.get("end"))),
+        )
+        for row in rows
+        if interval_overlap_sec(
+            start,
+            end,
+            safe_float(row.get("start")),
+            safe_float(row.get("end")),
+        )
+        > 0
+    )
+    covered = 0.0
+    merged_start: float | None = None
+    merged_end: float | None = None
+    for interval_start, interval_end in intervals:
+        if merged_start is None or merged_end is None:
+            merged_start, merged_end = interval_start, interval_end
+        elif interval_start <= merged_end:
+            merged_end = max(merged_end, interval_end)
+        else:
+            covered += merged_end - merged_start
+            merged_start, merged_end = interval_start, interval_end
+    if merged_start is not None and merged_end is not None:
+        covered += merged_end - merged_start
+    return min(1.0, covered / duration)
+
+
+def context_text(rows: list[dict[str, Any]]) -> str:
+    ordered = sorted(rows, key=lambda row: (safe_float(row.get("start")), safe_float(row.get("end"))))
+    return " ".join(str(row.get("text") or "").strip() for row in ordered if row.get("text"))
+
+
 def is_me_utterance(row: dict[str, Any]) -> bool:
     role = str(row.get("role") or row.get("speaker_label") or "").lower()
     return role in {"me", "mic"}
@@ -259,7 +300,6 @@ def independent_candidate_is_already_covered(
 ) -> tuple[bool, dict[str, Any]]:
     start = safe_float(row.get("start"))
     end = safe_float(row.get("end"), start)
-    duration = max(0.001, end - start)
     text = str(row.get("text") or "")
     me_rows = [
         item
@@ -273,23 +313,23 @@ def independent_candidate_is_already_covered(
         if not is_me_utterance(item)
         and interval_overlap_sec(start - 1.0, end + 1.0, safe_float(item.get("start")), safe_float(item.get("end"))) > 0
     ]
-    me_coverage = min(
-        1.0,
-        sum(
-            interval_overlap_sec(start, end, safe_float(item.get("start")), safe_float(item.get("end")))
-            for item in me_rows
-        )
-        / duration,
+    me_coverage = interval_union_coverage(start, end, me_rows)
+    me_max_utterance_containment = max(
+        (token_containment(text, item.get("text")) for item in me_rows),
+        default=0.0,
     )
-    me_text_containment = max((token_containment(text, item.get("text")) for item in me_rows), default=0.0)
-    remote_text_containment = max(
+    remote_max_utterance_containment = max(
         (token_containment(text, item.get("text")) for item in remote_rows),
         default=0.0,
     )
+    me_text_containment = token_containment(text, context_text(me_rows))
+    remote_text_containment = token_containment(text, context_text(remote_rows))
     diagnostics = {
         "batch_me_interval_coverage": round(me_coverage, 6),
         "batch_me_text_containment": round(me_text_containment, 6),
+        "batch_me_max_utterance_text_containment": round(me_max_utterance_containment, 6),
         "batch_remote_text_containment": round(remote_text_containment, 6),
+        "batch_remote_max_utterance_text_containment": round(remote_max_utterance_containment, 6),
         "nearby_me_utterance_ids": [str(item.get("id") or "") for item in me_rows if item.get("id")],
         "nearby_remote_utterance_ids": [
             str(item.get("id") or "") for item in remote_rows if item.get("id")

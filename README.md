@@ -59,9 +59,10 @@ Authoritative operating point, 2026-07-16:
   equivalence passes `7/7`. A `2460s` stride-1 source-time replay finishes `41` cutoffs with
   `p50=2.80s`, `p95=13.61s`, maximum `19.16s` and a `2.52s` zero-new-work warm final run;
 - the runtime result stays in an explicit diagnostic namespace and cannot affect normal live watch,
-  transcript, notes, export or promotion. The fresh recovery-runtime gate is `1/3` after
-  `2026-07-16_11-15-15-live`; two more meaningful real sessions must prove complete raw tracks,
-  successful batch, bounded pre-stop recovery and zero final lag before considering publication.
+  transcript, notes, export or promotion. The fresh recovery-runtime gate is `2/3` after
+  `2026-07-16_11-15-15-live` and `2026-07-16_14-01-26-live`; one more meaningful real session must
+  prove complete raw tracks, successful batch, bounded pre-stop recovery and zero final lag before
+  considering publication.
 
 The system deliberately keeps unresolved uncertainty visible. Suggested review decisions may close
 only rows supported by local audio and audit evidence. `finish` and guarded `export` remain blocked
@@ -1573,10 +1574,10 @@ state is:
    preserve normal preview, raw capture and batch authority.
 8. **Current goal:** Live Recovery Runtime Efficiency and Real Evidence v1. Incremental runtime,
    bounded invalidation, fixed-corpus `7/7` agreement and the `p95 <= 30s` source-time gate are
-   implemented. The fresh real-session gate is `1/3`: `2026-07-16_11-15-15-live` passed with
-   complete raw tracks, `62` healthy recording-time invocations, no backpressure and zero final lag.
-   Collect two more meaningful proofs before closing the goal or discussing publication. UI remains
-   optional and late.
+   implemented. The fresh real-session gate is `2/3`: `2026-07-16_11-15-15-live` and
+   `2026-07-16_14-01-26-live` pass with complete raw tracks, healthy recording-time recovery, no
+   timeout/backpressure and zero final lag. Collect one more meaningful proof before closing the
+   goal or discussing publication. UI remains optional and late.
 
 <details>
 <summary>Historical implementation log (non-authoritative)</summary>

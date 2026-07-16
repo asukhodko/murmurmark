@@ -56,6 +56,52 @@ def main() -> int:
     )
     assert len(output) == 2
 
+    output, corrections = module.suppress_adjacent_same_speaker_duplicates(
+        [
+            row(
+                "short_repair",
+                "я потому что сам как-то очень по-разному раньше слушал музыку",
+                118.0,
+                125.0,
+            ),
+            row(
+                "full_repair",
+                "что сам както очень поразному раньше слушал музыку во время работы и заметил результат",
+                118.0,
+                130.0,
+            ),
+        ]
+    )
+    assert len(output) == 1, output
+    assert corrections[-1]["reason"] == "near_same_speaker_fuzzy_overlap_drop", corrections
+
+    output, corrections = module.suppress_adjacent_same_speaker_duplicates(
+        [
+            row(
+                "overlap_variant_short",
+                "То есть понятно, что это неправильно и так далее, но это не является каким-то нарушением правил правительства.",
+                1074.71,
+                1084.72,
+            ),
+            row(
+                "overlap_variant_long",
+                "Понятно, что это неправильно и так далее, но это не является каким-то нарушением правил поведения и так далее.",
+                1075.22,
+                1085.82,
+            ),
+        ]
+    )
+    assert len(output) == 1, output
+    assert corrections[-1]["fuzzy_match"]["near_synchronous_asr_variant"] is True, corrections
+
+    output, _ = module.suppress_adjacent_same_speaker_duplicates(
+        [
+            row("enable", "Нужно включить сервис после проверки", 20.0, 25.0),
+            row("disable", "Нужно выключить сервис после аварии", 21.0, 26.0),
+        ]
+    )
+    assert len(output) == 2, output
+
     print("transcript dedupe checks ok")
     return 0
 

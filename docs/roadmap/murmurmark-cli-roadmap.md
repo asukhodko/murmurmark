@@ -54,7 +54,9 @@ content-addressed DSP/candidate/micro-ASR caches and bounded model/config invali
 A refreshed fixed corpus keeps candidate and metric agreement `7/7`, warm-final equivalence passes
 `7/7`, and a 41-cutoff stride-1 source-time replay gives `p95=13.61s` and maximum `19.16s`. The first
 fresh real proof (`2026-07-16_11-15-15-live`) passes with `62` recording-time invocations,
-`p95=3.98s`, no backpressure and zero final lag; two more sessions remain.
+`p95=3.98s`, no backpressure and zero final lag. The second proof
+(`2026-07-16_14-01-26-live`) passes with complete `4527.4s` raw tracks, `149` invocations,
+pre-stop candidates, `p95=10.99s`, no timeout/backpressure and zero final lag; one session remains.
 Near-Realtime Live Parity Coverage v1 already proved complete raw capture, pre-stop preview,
 terminal workers, zero final lag and successful batch output on three fresh real sessions. Live
 promotion remains blocked.
@@ -110,9 +112,9 @@ roadmap point it means:
   `Me` further to `1657.89s` without increasing remote-like `Me`, order risk or review burden;
 - recording-time integration reproduces both replay candidate sets and profile metrics across all
   seven sessions; it remains an explicit-only `_runtime_v1` shadow;
-- incremental runtime efficiency is implemented and passes the `p95 <= 30s` source-time gate; the
-  first fresh proof passes, and the remaining bounded work is two more meaningful real-session
-  proofs with pre-stop candidates when suitable evidence exists and zero final lag;
+- incremental runtime efficiency is implemented and passes the `p95 <= 30s` source-time gate; two
+  fresh proofs pass, and the remaining bounded work is one more meaningful real-session proof with
+  pre-stop candidates when suitable evidence exists and zero final lag;
 - `status`, `next`, `finish`, session report and corpus report agree;
 - safe review suggestions are applied before asking for manual listening;
 - remaining review is short, explicit and backed by audio/transcript evidence;
@@ -364,8 +366,8 @@ flowchart LR
   - implemented: only changed suffix evidence is processed while the proven `24`-group
     remote-active budget and all hard guards remain unchanged;
   - implemented in source-time replay: `p95=13.61s`, maximum `19.16s`, warm final `2.52s` with zero
-    new chunks; one fresh real session has proved zero final lag and two more remain;
-  - collect two more fresh meaningful sessions, reaching three total, with pre-stop diagnostic
+    new chunks; two fresh real sessions have proved zero final lag and one more remains;
+  - collect one more fresh meaningful session, reaching three total, with pre-stop diagnostic
     candidates when suitable evidence exists and no raw/batch regression;
   - keep the integrated profile diagnostic-only, batch authoritative and live promotion blocked;
 - keep `--live-pipeline` disabled by default; all new evidence should go through

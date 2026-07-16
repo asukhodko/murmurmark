@@ -2962,6 +2962,55 @@ def contained_fragment_match(short_text: str, long_text: str) -> list[str] | Non
     return None
 
 
+def fuzzy_overlapping_fragment_match(
+    short_row: dict[str, Any],
+    long_row: dict[str, Any],
+) -> dict[str, Any] | None:
+    short_text = str(short_row.get("corrected_text") or short_row.get("text") or "")
+    long_text = str(long_row.get("corrected_text") or long_row.get("text") or "")
+    short_tokens = [token.replace("-", "") for token, _, _ in display_token_spans(short_text)]
+    long_tokens = [token.replace("-", "") for token, _, _ in display_token_spans(long_text)]
+    if len(short_tokens) < 4 or len(short_tokens) > len(long_tokens):
+        return None
+
+    short_start = float(short_row.get("start", 0.0))
+    short_end = float(short_row.get("end", short_start))
+    long_start = float(long_row.get("start", 0.0))
+    long_end = float(long_row.get("end", long_start))
+    overlap = max(0.0, min(short_end, long_end) - max(short_start, long_start))
+    shorter_duration = min(max(0.0, short_end - short_start), max(0.0, long_end - long_start))
+    overlap_ratio = overlap / shorter_duration if shorter_duration > 0.0 else 0.0
+    if shorter_duration <= 0.0 or overlap_ratio < 0.70:
+        return None
+
+    short_set = set(short_tokens)
+    long_set = set(long_tokens)
+    containment = len(short_set & long_set) / max(1, len(short_set))
+    sequence_ratio = difflib.SequenceMatcher(None, short_tokens, long_tokens).ratio()
+    unique_short_tokens = sorted(short_set - long_set)
+    unique_limit = max(2, int(len(short_set) * 0.15))
+    near_synchronous_asr_variant = (
+        abs(short_start - long_start) <= 1.0
+        and overlap_ratio >= 0.90
+        and containment >= 0.80
+        and sequence_ratio >= 0.75
+        and len(unique_short_tokens) <= unique_limit + 1
+    )
+    if (
+        containment < 0.75
+        or (sequence_ratio < 0.55 and containment < 0.90)
+        or (len(unique_short_tokens) > unique_limit and not near_synchronous_asr_variant)
+    ):
+        return None
+    return {
+        "containment": round(containment, 6),
+        "sequence_ratio": round(sequence_ratio, 6),
+        "overlap_ratio": round(overlap_ratio, 6),
+        "unique_short_tokens": unique_short_tokens,
+        "near_synchronous_asr_variant": near_synchronous_asr_variant,
+    }
+
+
 def trim_trailing_duplicate_prefix(row: dict[str, Any], next_row: dict[str, Any]) -> tuple[str | None, dict[str, Any] | None]:
     text = str(row.get("corrected_text") or "").strip()
     next_text = str(next_row.get("corrected_text") or "").strip()
@@ -3055,12 +3104,17 @@ def suppress_near_same_speaker_fragments(rows: list[dict[str, Any]]) -> tuple[li
                 continue
             other_text = str(other.get("corrected_text") or "").strip()
             overlap_tokens = contained_fragment_match(text, other_text)
-            if overlap_tokens is None:
+            fuzzy_match = None if overlap_tokens is not None else fuzzy_overlapping_fragment_match(row, other)
+            if overlap_tokens is None and fuzzy_match is None:
                 continue
             keep[index] = False
             corrections.append(
                 {
-                    "reason": "near_same_speaker_contained_fragment_drop",
+                    "reason": (
+                        "near_same_speaker_contained_fragment_drop"
+                        if overlap_tokens is not None
+                        else "near_same_speaker_fuzzy_overlap_drop"
+                    ),
                     "utterance_id": row.get("id"),
                     "matched_utterance_id": other.get("id"),
                     "speaker_label": speaker,
@@ -3070,7 +3124,8 @@ def suppress_near_same_speaker_fragments(rows: list[dict[str, Any]]) -> tuple[li
                     "matched_end": other.get("end"),
                     "source_text": text,
                     "matched_text": other_text,
-                    "overlap_tokens": overlap_tokens,
+                    "overlap_tokens": overlap_tokens or [],
+                    "fuzzy_match": fuzzy_match,
                     "dropped": True,
                 }
             )

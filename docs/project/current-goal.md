@@ -7,7 +7,7 @@ authoritative.
 ## Current Goal: Live Recovery Runtime Efficiency and Real Evidence v1
 
 Status, 2026-07-16: implementation and automated evidence complete; the fresh real-session gate is
-`1/3`.
+`2/3`.
 
 The runtime now persists separate stage watermarks and immutable content-addressed DSP, candidate
 and micro-ASR objects. It fingerprints committed audio, model, executable, configuration, schemas and
@@ -37,9 +37,14 @@ Automated evidence:
   no timeout/backpressure, per-cutoff incremental suffix of one new chunk, runtime `p50=2.95s`,
   `p95=3.98s`, maximum `4.23s`, and zero final lag. The final candidate count is zero, so the
   conditional pre-stop-candidate gate correctly passes without inventing recovery work.
+- `2026-07-16_14-01-26-live` is the second passing fresh proof: complete `4527.4s` mic/remote raw
+  tracks, successful authoritative batch, `149` recording-time recovery invocations, `16` final
+  candidates and candidates already available before stop, no timeout/backpressure, runtime
+  `p50=3.74s`, `p95=10.99s`, maximum `61.19s`, and zero final lag. The outlier remains below the
+  accumulated source-time lag budget and does not affect raw capture, normal preview or batch.
 
-Remaining Definition of Done: collect two more fresh meaningful Live Evidence sessions, reaching
-at least three in total. Each
+Remaining Definition of Done: collect one more fresh meaningful Live Evidence session, reaching at
+least three in total. Each
 must prove complete mic/remote raw tracks, successful authoritative batch, no capture or sidecar
 backpressure regression, pre-stop recovery candidates when suitable `Me` evidence exists, bounded
 lag and `final_live_lag_sec=0`. Raw capture, base preview and batch remain authoritative; this goal
