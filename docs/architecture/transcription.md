@@ -55,6 +55,11 @@ Implemented now:
 - `shadow_v2` no-regression profile with audit artifacts;
 - start-of-call repair for short opening turns such as `Привет`, `Меня слышно?`, `Привет, да`.
 
+`Colleagues` has a strict provenance invariant: its text may only come from ASR over the `remote`
+track. The microphone may provide timing, echo, overlap and confidence evidence, but its recognized
+text is never copied into a `Colleagues` utterance. If remote recognition is uncertain, the safe
+responses are remote-only micro-ASR or `needs_review`.
+
 Current output root:
 
 ```text

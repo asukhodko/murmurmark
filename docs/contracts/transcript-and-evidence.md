@@ -3675,6 +3675,13 @@ Current role model:
 - `Colleagues` from the remote track;
 - no per-person diarization inside `Colleagues`.
 
+Remote text provenance is strict. Every `Colleagues` row must have `source_track: remote`; its
+`quality.text_source` must identify a remote ASR source (`candidate`, `opening_micro_asr` or
+`remote_micro_asr`); and any `quality.text_source_candidate_ids` must resolve only to remote
+candidates. Mic text may be used for duplicate, echo, timing and review evidence, but must never be
+copied into a `Colleagues` row. A provenance violation is a pipeline error rather than a silent
+fallback.
+
 The richer contract below remains the target for the future heavy-local transcription pipeline.
 
 ## `transcript.rich.json`

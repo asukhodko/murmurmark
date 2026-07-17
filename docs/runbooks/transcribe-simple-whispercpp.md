@@ -1818,9 +1818,10 @@ The bridge also uses token-level confidence from whisper.cpp full JSON:
   micro-ASR for short local islands;
 - a mic segment pinned to the beginning of the file can use Echo Guard's local-support start as the
   display timestamp;
-- if a low-confidence remote candidate has matching mic candidates that were dropped as remote
-  leakage, the remote utterance may use that mic duplicate text while keeping the `Colleagues` role.
-  In JSON this is marked as `quality.text_source = matched_mic_echo_duplicate`.
+- low-confidence remote candidates remain remote-only: the pipeline may use remote micro-ASR or mark
+  the utterance for review, but it never copies recognized mic text into the `Colleagues` role;
+- output generation enforces this provenance contract and fails instead of silently accepting a
+  `Colleagues` row backed by mic text.
 
 To debug raw mic recognition without this reconciliation filter:
 

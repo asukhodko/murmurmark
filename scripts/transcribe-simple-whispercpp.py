@@ -27,7 +27,7 @@ from typing import Any
 
 
 DEFAULT_MODEL = "~/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
-SCRIPT_VERSION = "0.2.0"
+SCRIPT_VERSION = "0.2.1"
 KNOWN_HALLUCINATION_RE = re.compile(
     r"("
     r"редактор\s+субтитров"
@@ -91,6 +91,31 @@ OPENING_MIC_START_WINDOWS = (
     ("M_start_0_8", 0, 8_000),
 )
 OPENING_ACK_WORDS = {"да", "ага", "угу", "окей", "хорошо"}
+REMOTE_BOUNDARY_MIC_PARENT_MAX_MS = 4_000
+REMOTE_BOUNDARY_MIC_SEGMENT_MAX_MS = 1_800
+REMOTE_BOUNDARY_MIC_MAX_DISTANCE_MS = 250
+REMOTE_BOUNDARY_MIC_MAX_ADJACENT_GAP_MS = 1_500
+REMOTE_BOUNDARY_MIC_MIN_TOKEN_AVG_PROB = 0.85
+REMOTE_BOUNDARY_MIC_MAX_LOW_PROB_RATIO = 0.25
+REMOTE_BOUNDARY_MIC_MIN_SHARED_TOKENS = 2
+REMOTE_BOUNDARY_MIC_MIN_UNIQUE_CONTENT_TOKENS = 2
+REMOTE_BOUNDARY_MIC_CONTENT_STOP_WORDS = {
+    "а",
+    "ага",
+    "да",
+    "его",
+    "ему",
+    "и",
+    "мы",
+    "ну",
+    "он",
+    "она",
+    "они",
+    "то",
+    "угу",
+    "это",
+    "я",
+}
 
 
 @dataclass
@@ -2297,14 +2322,20 @@ def authoritative_remote_intervals(candidates: list[Candidate]) -> list[dict[str
     for item in candidates:
         if item.source_track != "remote":
             continue
+        start_ms = item.display_start_ms
+        end_ms = item.display_end_ms
         intervals.append(
             {
                 "candidate_id": item.id,
-                "start_ms": item.start_ms,
-                "end_ms": item.end_ms,
-                "guarded_start_ms": max(0, item.start_ms - REMOTE_GUARD_BEFORE_MS),
-                "guarded_end_ms": item.end_ms + REMOTE_GUARD_AFTER_MS,
+                "start_ms": start_ms,
+                "end_ms": end_ms,
+                "guarded_start_ms": max(0, start_ms - REMOTE_GUARD_BEFORE_MS),
+                "guarded_end_ms": end_ms + REMOTE_GUARD_AFTER_MS,
+                "source_start_ms": item.start_ms,
+                "source_end_ms": item.end_ms,
                 "text": item.text_raw,
+                "token_avg_prob": item.asr_features.get("token_avg_prob"),
+                "token_low_prob_ratio": item.asr_features.get("token_low_prob_ratio"),
             }
         )
     return sorted(intervals, key=lambda row: (row["start_ms"], row["end_ms"]))
@@ -2341,6 +2372,122 @@ def remote_overlaps_for_candidate(candidate: Candidate, remote_intervals: list[d
     return overlaps
 
 
+def split_short_remote_boundary_mic_candidate(
+    *,
+    candidate: Candidate,
+    utterances_by_id: dict[str, Utterance],
+    remote_intervals: list[dict[str, Any]],
+    speaker_states: list[dict[str, Any]],
+) -> tuple[list[Candidate], list[str], str | None]:
+    if (
+        candidate.source_track != "mic"
+        or len(candidate.source_segments) < 2
+        or candidate.end_ms - candidate.start_ms > REMOTE_BOUNDARY_MIC_PARENT_MAX_MS
+        or candidate.echo_features.get("remote_active_ratio", 0.0) < 0.70
+    ):
+        return [], [], None
+
+    source_rows = [utterances_by_id.get(identifier) for identifier in candidate.source_segments]
+    source_rows = sorted(
+        [row for row in source_rows if row is not None],
+        key=lambda row: (row.start_ms, row.end_ms),
+    )
+    if len(source_rows) < 2:
+        return [], [], None
+
+    for remote in remote_intervals:
+        source_start_ms = int(remote.get("source_start_ms") or remote["start_ms"])
+        source_end_ms = int(remote.get("source_end_ms") or remote["end_ms"])
+        if source_start_ms > candidate.end_ms or source_end_ms < candidate.start_ms:
+            continue
+        token_avg = remote.get("token_avg_prob")
+        low_ratio = remote.get("token_low_prob_ratio")
+        remote_is_uncertain = (
+            (token_avg is not None and float(token_avg) < 0.75)
+            or (low_ratio is not None and float(low_ratio) > 0.15)
+        )
+        if not remote_is_uncertain:
+            continue
+
+        remote_tokens = set(normalize_for_compare(str(remote.get("text") or "")).split())
+        if not remote_tokens:
+            continue
+        analyses: list[dict[str, Any]] = []
+        for row in source_rows:
+            tokens = set(normalize_for_compare(row.raw_text).split())
+            shared_tokens = tokens & remote_tokens
+            unique_content_tokens = {
+                token
+                for token in tokens - remote_tokens
+                if len(token) > 1 and token not in REMOTE_BOUNDARY_MIC_CONTENT_STOP_WORDS
+            }
+            analyses.append(
+                {
+                    "row": row,
+                    "shared_tokens": shared_tokens,
+                    "unique_content_tokens": unique_content_tokens,
+                    "remote_like": len(shared_tokens) >= REMOTE_BOUNDARY_MIC_MIN_SHARED_TOKENS,
+                }
+            )
+
+        recovered_ids: list[str] = []
+        for index, analysis in enumerate(analyses):
+            row = analysis["row"]
+            duration_ms = row.end_ms - row.start_ms
+            token_avg_prob = float(row.token_avg_prob or 0.0)
+            low_prob_ratio = float(row.token_low_prob_ratio or 0.0)
+            boundary_distance_ms = min(
+                abs(row.end_ms - int(remote["start_ms"])),
+                abs(row.start_ms - int(remote["end_ms"])),
+            )
+            adjacent_remote_like = False
+            for adjacent_index in (index - 1, index + 1):
+                if adjacent_index < 0 or adjacent_index >= len(analyses):
+                    continue
+                adjacent = analyses[adjacent_index]
+                if not adjacent["remote_like"]:
+                    continue
+                adjacent_row = adjacent["row"]
+                gap_ms = max(0, row.start_ms - adjacent_row.end_ms, adjacent_row.start_ms - row.end_ms)
+                if gap_ms <= REMOTE_BOUNDARY_MIC_MAX_ADJACENT_GAP_MS:
+                    adjacent_remote_like = True
+                    break
+            if (
+                not analysis["shared_tokens"]
+                and len(analysis["unique_content_tokens"]) >= REMOTE_BOUNDARY_MIC_MIN_UNIQUE_CONTENT_TOKENS
+                and duration_ms <= REMOTE_BOUNDARY_MIC_SEGMENT_MAX_MS
+                and token_avg_prob >= REMOTE_BOUNDARY_MIC_MIN_TOKEN_AVG_PROB
+                and low_prob_ratio <= REMOTE_BOUNDARY_MIC_MAX_LOW_PROB_RATIO
+                and boundary_distance_ms <= REMOTE_BOUNDARY_MIC_MAX_DISTANCE_MS
+                and adjacent_remote_like
+            ):
+                recovered_ids.append(row.id)
+
+        if not recovered_ids:
+            continue
+
+        children: list[Candidate] = []
+        for index, row in enumerate(source_rows, start=1):
+            child = make_candidate(
+                f"{candidate.id}_remote_boundary_{index:02d}",
+                [row],
+                speaker_states,
+            )
+            if row.id in recovered_ids:
+                child.repair = {
+                    "status": "repaired",
+                    "action": "keep_needs_review",
+                    "reason": "short_unique_mic_at_uncertain_remote_boundary",
+                    "parent_candidate_id": candidate.id,
+                    "matched_remote_candidate_ids": [str(remote["candidate_id"])],
+                    "needs_review": True,
+                }
+            children.append(child)
+        return children, recovered_ids, str(remote["candidate_id"])
+
+    return [], [], None
+
+
 def timeline_repair(
     *,
     session: Path,
@@ -2371,6 +2518,8 @@ def timeline_repair(
         "local_only_island_count": 0,
         "local_only_island_recovered_count": 0,
         "short_local_islands_recovered_count": 0,
+        "short_remote_boundary_mic_candidates_repaired_count": 0,
+        "short_remote_boundary_mic_utterances_recovered_count": 0,
         "timeline_repair_dropped_count": 0,
     }
     next_repair_id = 1
@@ -2382,6 +2531,39 @@ def timeline_repair(
             continue
         if duration_ms >= LONG_MIC_SEGMENT_MS:
             metrics["long_mic_segments_count"] += 1
+
+        boundary_children, boundary_recovered_ids, boundary_remote_id = split_short_remote_boundary_mic_candidate(
+            candidate=candidate,
+            utterances_by_id=utterances_by_id,
+            remote_intervals=remote_intervals,
+            speaker_states=speaker_states,
+        )
+        if boundary_children:
+            metrics["short_remote_boundary_mic_candidates_repaired_count"] += 1
+            metrics["short_remote_boundary_mic_utterances_recovered_count"] += len(boundary_recovered_ids)
+            repaired.extend(boundary_children)
+            examples.append(
+                {
+                    "action": "split_remote_boundary_mic_candidate",
+                    "parent_candidate_id": candidate.id,
+                    "parent_start_ms": candidate.start_ms,
+                    "parent_end_ms": candidate.end_ms,
+                    "parent_text": candidate.text_raw,
+                    "matched_remote_candidate_id": boundary_remote_id,
+                    "recovered_source_segment_ids": boundary_recovered_ids,
+                    "children": [
+                        {
+                            "candidate_id": child.id,
+                            "start_ms": child.start_ms,
+                            "end_ms": child.end_ms,
+                            "action": str(child.repair.get("action") or "classify_normally"),
+                            "text": child.text_raw,
+                        }
+                        for child in boundary_children
+                    ],
+                }
+            )
+            continue
 
         overlaps = remote_overlaps_for_candidate(candidate, remote_intervals)
         max_remote_overlap_ms = max((int(row["overlap_ms"]) for row in overlaps), default=0)
@@ -2809,44 +2991,41 @@ def decide_roles(candidates: list[Candidate], mic_policy: str) -> list[RoleDecis
     return decisions
 
 
-REMOTE_LEAK_REASONS = {
-    "echo_guard_remote_active",
-    "probable_remote_duplicate",
-    "remote_duplicate",
-    "remote_leak_echo_overlap",
-    "remote_leak_time_overlap",
-}
+REMOTE_TEXT_SOURCES = {"candidate", "opening_micro_asr", "remote_micro_asr"}
 
 
-def output_text_for_decision(item: RoleDecision, decisions: list[RoleDecision]) -> tuple[str, str, list[str]]:
+def output_text_for_decision(item: RoleDecision) -> tuple[str, str, list[str]]:
     candidate = item.candidate
-    if candidate.source_track != "remote":
-        return candidate.text_raw, "candidate", []
-    token_avg = candidate.asr_features.get("token_avg_prob")
-    low_ratio = candidate.asr_features.get("token_low_prob_ratio")
-    remote_is_uncertain = (
-        (token_avg is not None and token_avg < 0.75)
-        or (low_ratio is not None and low_ratio > 0.15)
-    )
-    if not remote_is_uncertain:
-        return candidate.text_raw, "candidate", []
-    alternates = [
-        decision.candidate
-        for decision in decisions
-        if decision.final_role is None
-        and decision.candidate.source_track == "mic"
-        and decision.matched_remote_candidate_id == candidate.id
-        and decision.reason in REMOTE_LEAK_REASONS
-        and decision.evidence.get("time_overlap_ratio", 0.0) > 0.60
-        and decision.evidence.get("text_similarity", 0.0) > 0.25
-    ]
-    if not alternates:
-        return candidate.text_raw, "candidate", []
-    alternates = sorted(alternates, key=lambda row: (row.start_ms, row.end_ms))
-    alternate_text = clean_text(" ".join(row.text_raw for row in alternates))
-    if len(alternate_text) < 12 or len(alternate_text) < len(candidate.text_raw) * 0.35:
-        return candidate.text_raw, "candidate", []
-    return alternate_text, "matched_mic_echo_duplicate", [row.id for row in alternates]
+    return candidate.text_raw, "candidate", []
+
+
+def assert_remote_text_provenance(rows: list[dict[str, Any]], candidates: list[Candidate]) -> None:
+    candidate_tracks = {item.id: item.source_track for item in candidates}
+    for row in rows:
+        role = str(row.get("role") or "").lower()
+        speaker_label = str(row.get("speaker_label") or "").lower()
+        if role not in {"remote", "colleagues"} and speaker_label != "colleagues":
+            continue
+        utterance_id = str(row.get("id") or row.get("source_candidate_id") or "unknown")
+        if str(row.get("source_track") or "").lower() != "remote":
+            raise RuntimeError(f"remote text provenance violation for {utterance_id}: source_track is not remote")
+        quality = row.get("quality") if isinstance(row.get("quality"), dict) else {}
+        text_source = str(quality.get("text_source") or "")
+        if text_source not in REMOTE_TEXT_SOURCES:
+            raise RuntimeError(
+                f"remote text provenance violation for {utterance_id}: unsupported text_source {text_source!r}"
+            )
+        source_candidate_id = str(row.get("source_candidate_id") or "")
+        source_candidate_track = candidate_tracks.get(source_candidate_id)
+        if source_candidate_track is not None and source_candidate_track != "remote":
+            raise RuntimeError(
+                f"remote text provenance violation for {utterance_id}: source candidate is {source_candidate_track}"
+            )
+        for candidate_id in quality.get("text_source_candidate_ids") or []:
+            if candidate_tracks.get(str(candidate_id)) != "remote":
+                raise RuntimeError(
+                    f"remote text provenance violation for {utterance_id}: text candidate {candidate_id} is not remote"
+                )
 
 
 def merge_utterances(
@@ -3557,7 +3736,7 @@ def write_outputs(
     boundary_corrections: list[dict[str, Any]] = []
     for index, item in enumerate(kept_decisions, start=1):
         candidate = item.candidate
-        output_text, text_source, text_source_candidate_ids = output_text_for_decision(item, decisions)
+        output_text, text_source, text_source_candidate_ids = output_text_for_decision(item)
         row_corrections: list[dict[str, Any]] = []
         if artifact_suffix == ".shadow_v2" and candidate.source_track == "mic":
             local_score = float(item.evidence.get("local_score", candidate.echo_features.get("local_score", 0.0)) or 0.0)
@@ -3612,6 +3791,7 @@ def write_outputs(
     adjacent_duplicate_corrections: list[dict[str, Any]] = []
     if artifact_suffix == ".shadow_v2":
         json_rows, adjacent_duplicate_corrections = suppress_adjacent_same_speaker_duplicates(json_rows)
+    assert_remote_text_provenance(json_rows, candidates)
 
     cross_role_overlap_count = 0
     cross_role_overlap_seconds = 0.0
@@ -4352,6 +4532,7 @@ def write_opening_shadow_artifacts(
     report: dict[str, Any],
 ) -> dict[str, Any]:
     rows = sorted(patched_rows, key=lambda row: (float(row["start"]), str(row.get("source_track", "")), float(row["end"])))
+    assert_remote_text_provenance(rows, [])
     suffix = ".shadow_v2"
 
     def artifact(filename: str) -> Path:
