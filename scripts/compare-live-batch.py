@@ -191,9 +191,19 @@ CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_"
     "local_island_micro_asr_v2_causal_remote_active_me_separation_v1"
 )
+CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_"
+    "local_island_micro_asr_v2_causal_remote_active_me_separation_v1_"
+    "causal_double_talk_me_recovery_v1"
+)
 RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_"
     "local_island_micro_asr_v2_causal_remote_active_me_separation_v1_runtime_v1"
+)
+CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_RUNTIME_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_"
+    "local_island_micro_asr_v2_causal_remote_active_me_separation_v1_"
+    "causal_double_talk_me_recovery_v1_runtime_v1"
 )
 PROFILE_SELECTION_IGNORED_GATES = {"pre_stop_runtime_causal_target_me"}
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY = (
@@ -238,7 +248,9 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
     CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
     CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
+    CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_PROFILE_POLICY,
     RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY,
+    CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_RUNTIME_PROFILE_POLICY,
     "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_audio_safe_union_v1",
@@ -439,7 +451,9 @@ LIVE_ME_REMOTE_OVERLAP_FILTER_SHADOW_PROFILE_POLICIES = {
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
     CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
     CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
+    CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_PROFILE_POLICY,
     RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY,
+    CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_RUNTIME_PROFILE_POLICY,
     "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_audio_safe_union_v1",
@@ -477,7 +491,9 @@ LIVE_ME_REMOTE_OVERLAP_FILTER_NO_TARGET_PROFILE_POLICIES = {
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
     CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
     CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
+    CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_PROFILE_POLICY,
     RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY,
+    CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_RUNTIME_PROFILE_POLICY,
     "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
     RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY,
@@ -516,7 +532,9 @@ LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICIES = {
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
     CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
     CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
+    CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_PROFILE_POLICY,
     RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY,
+    CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_RUNTIME_PROFILE_POLICY,
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICY,
     VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY,
@@ -583,16 +601,26 @@ RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICIES = {
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
     CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
     CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
+    CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_PROFILE_POLICY,
     RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY,
+    CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_RUNTIME_PROFILE_POLICY,
 }
 CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICIES = {
     CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
     CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
+    CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_PROFILE_POLICY,
     RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY,
+    CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_RUNTIME_PROFILE_POLICY,
 }
 CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICIES = {
     CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
+    CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_PROFILE_POLICY,
     RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY,
+    CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_RUNTIME_PROFILE_POLICY,
+}
+CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_PROFILE_POLICIES = {
+    CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_PROFILE_POLICY,
+    CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_RUNTIME_PROFILE_POLICY,
 }
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICIES = {
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
@@ -6792,6 +6820,106 @@ def causal_remote_active_me_separation_v1_shadow_turns(
     )
 
 
+def causal_double_talk_me_recovery_v1_shadow_turns(
+    session: Path,
+    candidates_path: Path | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    rows = read_jsonl(
+        candidates_path
+        or session / "derived/live/causal-double-talk-me-recovery-v1/candidates.jsonl"
+    )
+    turns: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    for index, row in enumerate(rows, start=1):
+        evidence = row.get("independent_evidence") if isinstance(row.get("independent_evidence"), dict) else {}
+        training = row.get("causal_echo_training") if isinstance(row.get("causal_echo_training"), dict) else {}
+        checks = {
+            "accepted": row.get("status") == "accepted",
+            "genuine_double_talk": row.get("classification") == "genuine_double_talk",
+            "role_text_present": bool(clean_text(str(row.get("text") or ""))),
+            "timeline_causal": row.get("timeline_causal") is True,
+            "selection_does_not_use_batch": row.get("used_batch_fields_for_selection") is False,
+            "selection_mode": row.get("selection_mode")
+            == "recording_time_causal_double_talk_me_recovery_v1",
+            "past_echo_training": training.get("status") == "passed"
+            and training.get("past_only") is True,
+            "independent_residual_or_strict_single": evidence.get("acceptance_mode")
+            in {
+                "multi_residual_family_consensus",
+                "single_residual_plus_independent_voice_asr",
+            },
+            "target_me_supported": safe_int(evidence.get("target_me_family_count")) >= 1,
+            "local_asr_supported": evidence.get("local_asr_consensus") is True,
+            "remote_text_forbidden": evidence.get("remote_text_forbiddance") is True,
+            "remote_audio_forbidden": evidence.get("remote_audio_forbiddance") is True,
+            "publication_blocked": row.get("publication_allowed") is False,
+            "promotion_blocked": row.get("promotion_allowed") is False,
+            "batch_authoritative": row.get("batch_authoritative") is True,
+        }
+        context = {
+            "id": row.get("id") or f"causal_double_talk_me_recovery_v1_rejected_{index:06d}",
+            "chunk_index": row.get("chunk_index"),
+            "start": row.get("start"),
+            "end": row.get("end"),
+            "text": row.get("text"),
+            "candidate_source": "causal-double-talk-me-recovery-v1",
+            "contract_checks": checks,
+        }
+        if not all(checks.values()):
+            rejected.append(
+                {
+                    **context,
+                    "reason": "causal_double_talk_me_recovery_v1_contract_failed",
+                    "failed_checks": [name for name, passed in checks.items() if not passed],
+                }
+            )
+            continue
+        start = safe_float(row.get("start"))
+        end = safe_float(row.get("end"), start)
+        if end <= start:
+            rejected.append({**context, "reason": "invalid_interval"})
+            continue
+        text = clean_text(str(row.get("text") or ""))
+        turns.append(
+            {
+                "id": str(row.get("id") or f"causal_double_talk_me_recovery_v1_{index:06d}"),
+                "chunk_index": row.get("chunk_index"),
+                "source": "mic_causal_double_talk_me_recovery_v1_shadow",
+                "role": "Me",
+                "start": start,
+                "end": end,
+                "text": text,
+                "tokens": tokens(text),
+                "live_island_start": start,
+                "live_island_end": end,
+                "local_island_seconds": round(end - start, 3),
+                "local_island_count": 1,
+                "causal_double_talk_me_recovery_v1_shadow": True,
+                "candidate_source": "causal-double-talk-me-recovery-v1",
+                "used_batch_fields_for_selection": False,
+                "timeline_causal": True,
+                "live_group_classifier": "recording_time_causal_double_talk_me_recovery_v1",
+                "micro_asr_score": (row.get("consensus") or {}).get("mean_asr_score"),
+                "source_selection_ids": row.get("source_selection_ids") or [],
+                "source_start": row.get("source_start"),
+                "source_end": row.get("source_end"),
+                "target_voice_localization": row.get("target_voice_localization") or {},
+                "independent_evidence": evidence,
+                "causal_echo_training": training,
+                "selection_features": {
+                    "source_text": row.get("source_text"),
+                    "selection_mode": row.get("selection_mode"),
+                    "consensus": row.get("consensus") or {},
+                    "source_windows": row.get("source_windows") or [],
+                },
+            }
+        )
+    return (
+        sorted(turns, key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")))),
+        rejected,
+    )
+
+
 def boundary_order_retime_metrics(turns: list[dict[str, Any]]) -> dict[str, Any]:
     retimed = [turn for turn in turns if turn.get("boundary_order_retime_oracle")]
     split = [turn for turn in turns if turn.get("boundary_order_split_retime_oracle")]
@@ -6977,7 +7105,9 @@ def target_me_shadow_profile_components(
                 BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
                 CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
                 CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
+                CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_PROFILE_POLICY,
                 RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY,
+                CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_RUNTIME_PROFILE_POLICY,
             }
         )
         or policy in SOFT_LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICIES
@@ -7162,7 +7292,9 @@ def target_me_shadow_profile_components(
                     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
                     CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
                     CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
+                    CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_PROFILE_POLICY,
                     RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY,
+                    CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_RUNTIME_PROFILE_POLICY,
                 }
             ),
         )
@@ -7196,7 +7328,11 @@ def target_me_shadow_profile_components(
                 (
                     session
                     / "derived/live/causal-me-recovery-runtime-v1/local-island-v2/candidates.jsonl"
-                    if policy == RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY
+                    if policy
+                    in {
+                        RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY,
+                        CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_RUNTIME_PROFILE_POLICY,
+                    }
                     else None
                 ),
             )
@@ -7219,7 +7355,11 @@ def target_me_shadow_profile_components(
                 (
                     session
                     / "derived/live/causal-me-recovery-runtime-v1/remote-active-v1/candidates.jsonl"
-                    if policy == RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY
+                    if policy
+                    in {
+                        RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY,
+                        CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_RUNTIME_PROFILE_POLICY,
+                    }
                     else None
                 ),
             )
@@ -7235,6 +7375,29 @@ def target_me_shadow_profile_components(
         )
         rejected_supplemental_turns.extend(rejected_remote_active_turns)
         rejected_supplemental_turns.extend(rejected_covered_remote_active_turns)
+    if policy in CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_PROFILE_POLICIES:
+        double_talk_turns, rejected_double_talk_turns = (
+            causal_double_talk_me_recovery_v1_shadow_turns(
+                session,
+                (
+                    session
+                    / "derived/live/causal-me-recovery-runtime-v1/double-talk-v1/candidates.jsonl"
+                    if policy == CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_RUNTIME_PROFILE_POLICY
+                    else None
+                ),
+            )
+        )
+        double_talk_turns, rejected_covered_double_talk_turns = (
+            filter_micro_asr_turns_covered_by_base(
+                double_talk_turns,
+                live_turns + target_turns + supplemental_turns,
+            )
+        )
+        supplemental_turns = dedupe_supplemental_turns_by_interval(
+            supplemental_turns + double_talk_turns,
+        )
+        rejected_supplemental_turns.extend(rejected_double_talk_turns)
+        rejected_supplemental_turns.extend(rejected_covered_double_talk_turns)
     if (
         policy in LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICIES
         or policy in LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICIES
@@ -7948,7 +8111,9 @@ def build_target_me_shadow_profiles(
                     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
                     CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
                     CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
+                    CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_PROFILE_POLICY,
                     RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY,
+                    CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_RUNTIME_PROFILE_POLICY,
                 }
             ),
             runtime_causal_profile_scope=(
@@ -7962,7 +8127,9 @@ def build_target_me_shadow_profiles(
                         BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
                         CAUSAL_LOCAL_ISLAND_MICRO_ASR_V2_PROFILE_POLICY,
                         CAUSAL_REMOTE_ACTIVE_ME_SEPARATION_V1_PROFILE_POLICY,
+                        CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_PROFILE_POLICY,
                         RUNTIME_CAUSAL_ME_RECOVERY_V1_PROFILE_POLICY,
+                        CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_RUNTIME_PROFILE_POLICY,
                     }
                     else "direct"
                 )
