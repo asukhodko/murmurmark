@@ -41,7 +41,7 @@ nodes:
       export bundle и retention plan уже доказали, что pipeline можно использовать как
       локальный инструмент, а не как набор лабораторных скриптов.
 
-      Authoritative status, 2026-07-15: stable batch route и committed-PCM live transport работают.
+      Authoritative status, 2026-07-17: stable batch route и committed-PCM live transport работают.
       Live Order and Role Reconciliation v1 завершён: 23 audit rows классифицированы, 15 прежних
       effective blockers сведены к 0 без transcript mutation. Live Local Recall and Remote Leakage
       Hardening v1 также завершён: все 118 rows классифицированы, causal shadow восстановил 678.32s
@@ -52,11 +52,11 @@ nodes:
       завершён: 9/19 primary rows приняты, aggregate missing Me уменьшился ещё на 252.90s, а все 16
       mixed/double-talk cross-check rows безопасно отклонены. Recording-Time Causal Me Recovery
       Integration v1 завершён: replay-proven recovery перенесён в committed-PCM worker с bounded
-      lag и fail-open fallback. Live Recovery Runtime Efficiency and Real Evidence v1 выполняется:
-      persistent watermarks и content-addressed DSP/candidate/micro-ASR caches уже убрали повторную
-      обработку стабильного префикса. Candidate/metric agreement и warm equivalence проходят 7/7;
-      stride-1 source-time p95 равен 13.61s. До завершения нужны три fresh real-session proof с
-      pre-stop candidates и zero final lag.
+      lag и fail-open fallback. Live Recovery Runtime Efficiency and Real Evidence v1 тоже
+      завершён: persistent watermarks и content-addressed DSP/candidate/micro-ASR caches проходят
+      fixed-corpus gates, а strict fresh evidence aggregate достиг 3/3 с pre-stop candidates и zero
+      final lag. Текущая цель — Fast Authoritative Handoff v1: убрать повторный совместимый ASR и
+      отделить первый authoritative transcript/verdict от необязательного enrichment.
 
       Historical operational snapshot, 2026-07-02:
 
@@ -652,16 +652,24 @@ nodes:
       promotion.
 
   live-asr-cache-compatibility:
-    title: "Live ASR cache compatibility shadow"
+    title: "Fast Authoritative Handoff v1"
     kind: task
     parent: near-realtime-pipeline
-    deps: [live-parity-replay-lab]
-    status: next
-    effort: 3
+    deps: [live-parity-replay-lab, live-recovery-runtime-efficiency-real-evidence-v1]
+    status: current
+    effort: 8
     notes: |
-      Проверить отдельно live geometry 30s/5s и batch default 60s/5s. Текущий cache report
-      справедливо отклоняет reuse из-за window mismatch. Production defaults не менять, пока
-      shadow comparison не докажет сохранение текста, ролей, порядка и review burden.
+      Текущий batch handoff слишком медленный: сессия 2026-07-17_11-15-54-live длительностью
+      2304.1s обрабатывалась после stop 54m49s. Из них transcribe_current занял 20m53s,
+      shadow_v2 8m08s, stronger audio judge 18m16s и live comparison 4m03s. Live cache report
+      корректно вернул not_eligible с window_duration_mismatch:1 для live 30s/5s и batch 60s/5s.
+      Требуется track-level compatibility proof по source/preprocessing/model/prompt/geometry/
+      timestamps, безопасная реконструкция authoritative ASR cache либо неизменный batch fallback.
+      `process` должен отдельно материализовать authoritative_handoff и deferred_enrichment;
+      transcript, verdict и next action не должны ждать stronger judge, live comparison, clip/corpus
+      refresh без доказанной зависимости. Gate: p95 handoff <=15m для 30-60m sessions и <=0.4x
+      source duration для более длинных, без регрессии text/roles/order/local recall/remote-like Me/
+      review burden. Batch остаётся authoritative, live promotion blocked.
 
   realtime-final-reconcile:
     title: "Final reconcile after stop"
@@ -1092,10 +1100,10 @@ nodes:
     kind: task
     parent: near-realtime-pipeline
     deps: [live-recording-time-causal-me-recovery-integration-v1]
-    status: current
+    status: done
     effort: 8
     notes: |
-      В работе 2026-07-15. Реализованы persistent per-stage watermarks, immutable content-addressed
+      Завершено 2026-07-17. Реализованы persistent per-stage watermarks, immutable content-addressed
       DSP/candidate/micro-ASR caches, changed-suffix processing и bounded model/config invalidation.
       Fixed corpus сохраняет candidate agreement и profile metrics 7/7; warm-final equivalence 7/7.
       Stride-1 replay на 2460s/41 cutoffs даёт p50 2.80s, p95 13.61s, max 19.16s и warm final 2.52s
@@ -1106,19 +1114,20 @@ nodes:
       fresh proof `2026-07-16_11-15-15-live` проходит: raw 1830.64s, batch successful, 62 healthy
       recording-time invocations, runtime p95 3.98s, backpressure 0, final lag 0. Второй proof
       `2026-07-16_14-01-26-live` также проходит: raw 4527.4s, batch successful, 149 invocations,
-      pre-stop candidates, runtime p95 10.99s, no timeout/backpressure и final lag 0. Aggregate
-      теперь 2/3; осталась одна meaningful real-session proof. Normal preview, transcript, notes,
-      export и promotion не менять.
+      pre-stop candidates, runtime p95 10.99s, no timeout/backpressure и final lag 0. Третий proof
+      `2026-07-17_11-15-54-live` проходит: raw 2304.1s, 77 recording-time invocations, 59 pre-stop
+      candidate runs, 16 final candidates, no failed/timed-out invocation и final lag 0. Strict
+      aggregate теперь 3/3. Normal preview, transcript, notes, export и promotion не менялись.
 
   live-causal-double-talk-me-recovery-v1:
     title: "Causal Double-Talk Me Recovery v1"
     kind: task
     parent: near-realtime-pipeline
     deps: [live-recovery-runtime-efficiency-real-evidence-v1]
-    status: next
+    status: later
     effort: 8
     notes: |
-      Следующая bounded quality-цель после трёх real-session proofs. Зафиксированный вход — 16
+      Bounded quality-цель после Fast Authoritative Handoff v1. Зафиксированный вход — 16
       mixed/double-talk cross-check rows / 65.07s, которые текущий hard-guarded recovery корректно
       отклоняет. Требуется получить новое причинное evidence, а не ослаблять remote guards:
       несколько causal residual views, past-only Target-Me verification, multi-view micro-ASR
@@ -2003,8 +2012,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Live Recovery Runtime Efficiency and Real Evidence v1: довести строгий recovery-evidence aggregate с 2/3 до 3/3 на свежих meaningful real sessions."
-      success_by_next_sync: "`murmurmark live recovery-evidence all --refresh --strict --min-sessions 3 --max-recovery-final-lag-sec 0` проходит; raw capture, normal preview и batch не регрессируют; promotion blocked."
+      nearest_goal: "Fast Authoritative Handoff v1: отделить первый authoritative transcript/verdict от deferred enrichment и безопасно переиспользовать только строго совместимый live ASR."
+      success_by_next_sync: "На трёх meaningful sessions handoff p95 <=15m для 30-60m записей или <=0.4x для длинных; quality gates не регрессируют, incompatible cache уходит в batch fallback, promotion blocked."
     defaults:
       status_progress:
         done: 1.0

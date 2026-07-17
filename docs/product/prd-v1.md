@@ -28,7 +28,7 @@ Working now:
 - live-ASR cache bridge exists as a diagnostic/future acceleration layer; incompatible or unsafe
   chunks fall back to batch ASR.
 
-Current operating point, 2026-07-16:
+Current operating point, 2026-07-17:
 
 - the stable batch route is usable for working transcripts and evidence-backed notes, with guarded
   review/export when unresolved risks remain;
@@ -49,10 +49,14 @@ Current operating point, 2026-07-16:
   another `252.90s` without gate regressions;
 - Recording-Time Causal Me Recovery Integration v1 is complete: the bounded runtime reproduces
   replay candidate sets and profile metrics `7/7`, while normal preview and batch stay unchanged;
-- Live Recovery Runtime Efficiency and Real Evidence v1 is in progress: per-stage watermarks,
-  content-addressed DSP/candidate/micro-ASR caches, bounded invalidation and the `p95 <= 30s`
-  source-time gate are implemented; two of three fresh meaningful sessions now pass, and one more
-  must still prove bounded pre-stop recovery and zero final lag.
+- Live Recovery Runtime Efficiency and Real Evidence v1 is complete: per-stage watermarks,
+  content-addressed DSP/candidate/micro-ASR caches and bounded invalidation pass the fixed corpus,
+  while three fresh meaningful sessions prove recording-time execution, pre-stop candidates when
+  evidence exists, no timeout/backpressure regression and zero final lag.
+- Fast Authoritative Handoff v1 is current. A `38m24s` session exposed `54m49s` of post-stop work,
+  dominated by repeated batch ASR, shadow micro-ASR, stronger audio judging and live comparison.
+  The product must publish the authoritative transcript/verdict handoff before optional enrichment,
+  and may reuse live ASR only under strict audio/model/prompt/window/provenance compatibility.
 
 Still future:
 

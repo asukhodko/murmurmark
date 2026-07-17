@@ -4,10 +4,45 @@ This file keeps the latest goal context and the most relevant completed goals. T
 path remains non-live `record -> process`. Live output stays shadow-only and batch transcript remains
 authoritative.
 
-## Current Goal: Live Recovery Runtime Efficiency and Real Evidence v1
+## Current Goal: Fast Authoritative Handoff v1
 
-Status, 2026-07-16: implementation and automated evidence complete; the fresh real-session gate is
-`2/3`.
+Status, 2026-07-17: selected after closing the live recovery runtime proof. Capture and live preview
+are no longer the dominant delay; the post-stop batch critical path is.
+
+The fresh `2026-07-17_11-15-54-live` session recorded complete `2304.1s` mic and remote tracks,
+published all `77` live chunks before or immediately after stop and finished live recovery with zero
+lag. Its authoritative `process` run still took `54m49s`. Four sequential stages consumed about
+`51m20s`: batch `transcribe_current` (`20m53s`), `shadow_v2` micro-ASR (`8m08s`), stronger audio
+judge (`18m16s`) and live-vs-batch comparison (`4m03s`). The live-ASR cache bridge correctly refused
+reuse with `window_duration_mismatch:1`, so the batch path repeated ASR work already performed by
+the live sidecar. Echo preprocessing took only `21s` and is not the bottleneck.
+
+Objective: make the first authoritative transcript, verdict and next action available soon after
+stop without weakening batch authority or requiring the user to supervise enrichment. The normal
+pipeline should distinguish the authoritative handoff from deferred audit/enrichment, reuse live
+ASR only under a proven compatibility contract, and resume either phase safely after interruption.
+
+Definition of Done:
+
+- `process` records separate `authoritative_handoff` and `deferred_enrichment` phases, and `status`
+  shows which result is already safe to read while later audits continue or remain pending;
+- strict live-ASR cache compatibility is either proved for both tracks or applied track by track;
+  incompatible audio, preprocessing, model, prompt, geometry or timestamp provenance must fall back
+  to the existing chunked batch ASR without changing the result silently;
+- the authoritative handoff contains the selected transcript, quality verdict and next action; the
+  stronger audio judge, live-vs-batch comparison, clip generation and corpus refresh do not block
+  that first handoff unless a measured dependency requires them;
+- on at least three meaningful `30-60m` sessions, authoritative handoff p95 is at most `15m` after
+  stop; longer sessions stay at or below `0.4x` source duration;
+- selected transcript text/roles/order, local recall, remote-like `Me`, review burden and notes do
+  not regress against the current batch baseline;
+- interruption and cache-corruption tests prove idempotent resume, while raw CAF, normal live
+  preview, export policy and batch authority remain unchanged.
+
+## Completed Goal: Live Recovery Runtime Efficiency and Real Evidence v1
+
+Completed, 2026-07-17. Implementation, automated evidence and the fresh real-session gate pass
+`3/3`.
 
 The runtime now persists separate stage watermarks and immutable content-addressed DSP, candidate
 and micro-ASR objects. It fingerprints committed audio, model, executable, configuration, schemas and
@@ -42,13 +77,15 @@ Automated evidence:
   candidates and candidates already available before stop, no timeout/backpressure, runtime
   `p50=3.74s`, `p95=10.99s`, maximum `61.19s`, and zero final lag. The outlier remains below the
   accumulated source-time lag budget and does not affect raw capture, normal preview or batch.
+- `2026-07-17_11-15-54-live` is the third passing proof: complete `2304.1s` raw tracks, `77`
+  recording-time invocations, `59` pre-stop candidate runs, `16` final recovery candidates, no
+  failed or timed-out invocation and zero final lag.
+- `sessions/_reports/live-pipeline/live_recovery_real_evidence_v1.json` reports `3/3` passing from
+  four eligible sessions. The extra incomplete capture remains visible as failed evidence and does
+  not invalidate the three required passing proofs.
 
-Remaining Definition of Done: collect one more fresh meaningful Live Evidence session, reaching at
-least three in total. Each
-must prove complete mic/remote raw tracks, successful authoritative batch, no capture or sidecar
-backpressure regression, pre-stop recovery candidates when suitable `Me` evidence exists, bounded
-lag and `final_live_lag_sec=0`. Raw capture, base preview and batch remain authoritative; this goal
-still does not promote the diagnostic shadow.
+The goal closes without promoting live output. Raw capture, base preview and authoritative batch
+remain unchanged; the next bottleneck is post-stop handoff latency.
 
 ## Completed Goal: Recording-Time Causal Me Recovery Integration v1
 

@@ -33,6 +33,9 @@ def row(identifier: str, text: str, start: float, end: float, confidence: float 
 def main() -> int:
     module = load_transcribe_module()
 
+    assert module.KNOWN_HALLUCINATION_RE.search("Субтитры подогнал «Симон»")
+    assert not module.KNOWN_HALLUCINATION_RE.search("Обсудили подготовку субтитров к докладу")
+
     output, corrections = module.suppress_adjacent_same_speaker_duplicates(
         [
             row("first", "ручки в этом клиенте", 58.31, 62.0, 1.0),

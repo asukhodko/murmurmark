@@ -49,14 +49,16 @@ aggregate missing `Me` by another `252.90s` with all seven no-regression gates p
 Recording-Time Causal Me Recovery Integration v1 is complete: a latest-only bounded child now runs
 both proven layers after the base chunk is durable. Fixed-corpus paced replay reproduces candidate
 sets and profile metrics `7/7`; timeout, lag and overload preserve the normal preview and batch.
-Live Recovery Runtime Efficiency and Real Evidence v1 is in progress: persistent stage watermarks,
-content-addressed DSP/candidate/micro-ASR caches and bounded model/config invalidation are implemented.
-A refreshed fixed corpus keeps candidate and metric agreement `7/7`, warm-final equivalence passes
-`7/7`, and a 41-cutoff stride-1 source-time replay gives `p95=13.61s` and maximum `19.16s`. The first
-fresh real proof (`2026-07-16_11-15-15-live`) passes with `62` recording-time invocations,
-`p95=3.98s`, no backpressure and zero final lag. The second proof
-(`2026-07-16_14-01-26-live`) passes with complete `4527.4s` raw tracks, `149` invocations,
-pre-stop candidates, `p95=10.99s`, no timeout/backpressure and zero final lag; one session remains.
+Live Recovery Runtime Efficiency and Real Evidence v1 is complete. Persistent stage watermarks,
+content-addressed DSP/candidate/micro-ASR caches and bounded invalidation pass the fixed corpus, and
+the strict fresh evidence aggregate now passes `3/3`. The third proof
+(`2026-07-17_11-15-54-live`) has complete `2304.1s` raw tracks, `77` recording-time invocations,
+`59` pre-stop candidate runs, no timeout/backpressure and zero final lag.
+Fast Authoritative Handoff v1 is now the nearest goal. The same `38m24s` session needed `54m49s`
+after stop because batch ASR, shadow micro-ASR, stronger audio judging and live comparison still run
+sequentially. Live ASR cache reuse correctly remained ineligible on `30s` versus `60s` window
+geometry. The next step is a strict cache-compatibility proof plus a separate authoritative handoff
+phase that is not blocked by optional enrichment.
 Near-Realtime Live Parity Coverage v1 already proved complete raw capture, pre-stop preview,
 terminal workers, zero final lag and successful batch output on three fresh real sessions. Live
 promotion remains blocked.
@@ -112,9 +114,9 @@ roadmap point it means:
   `Me` further to `1657.89s` without increasing remote-like `Me`, order risk or review burden;
 - recording-time integration reproduces both replay candidate sets and profile metrics across all
   seven sessions; it remains an explicit-only `_runtime_v1` shadow;
-- incremental runtime efficiency is implemented and passes the `p95 <= 30s` source-time gate; two
-  fresh proofs pass, and the remaining bounded work is one more meaningful real-session proof with
-  pre-stop candidates when suitable evidence exists and zero final lag;
+- incremental runtime efficiency is implemented, passes the `p95 <= 30s` source-time gate and the
+  strict fresh-session aggregate `3/3`; the next bounded work is the post-stop authoritative
+  handoff, whose current sequential critical path can exceed the meeting duration;
 - `status`, `next`, `finish`, session report and corpus report agree;
 - safe review suggestions are applied before asking for manual listening;
 - remaining review is short, explicit and backed by audio/transcript evidence;
@@ -360,16 +362,17 @@ flowchart LR
 
 ### Next
 
-- Live Recovery Runtime Efficiency and Real Evidence v1:
-  - implemented: persistent per-stage watermarks and immutable content-addressed DSP,
-    candidate and micro-ASR caches replace whole-history recomputation;
-  - implemented: only changed suffix evidence is processed while the proven `24`-group
-    remote-active budget and all hard guards remain unchanged;
-  - implemented in source-time replay: `p95=13.61s`, maximum `19.16s`, warm final `2.52s` with zero
-    new chunks; two fresh real sessions have proved zero final lag and one more remains;
-  - collect one more fresh meaningful session, reaching three total, with pre-stop diagnostic
-    candidates when suitable evidence exists and no raw/batch regression;
-  - keep the integrated profile diagnostic-only, batch authoritative and live promotion blocked;
+- Fast Authoritative Handoff v1:
+  - split `process` reporting and artifacts into an authoritative handoff and deferred enrichment;
+  - determine track-level compatibility for live `30s/5s` and batch `60s/5s` ASR without changing
+    production defaults blindly;
+  - reuse only cache rows with matching audio preparation, source hashes, model, prompt, timestamps
+    and proven reconstruction parity; otherwise keep the current chunked batch fallback;
+  - move stronger-audio-judge, live comparison, clip generation and corpus refresh outside the
+    first handoff unless measured dependencies prove they are required;
+  - target authoritative handoff p95 `<=15m` for `30-60m` sessions and `<=0.4x` duration for longer
+    sessions, with no text/role/order/local-recall/review regression;
+  - keep live output diagnostic-only and batch authoritative;
 - keep `--live-pipeline` disabled by default; all new evidence should go through
   `record --experiment live-shadow-v1`.
 - Near-realtime shadow pipeline follow-up:
@@ -516,17 +519,14 @@ Recently completed:
 
 ## Goal Sequence
 
-Recommended nearest goal: **Live Recovery Runtime Efficiency and Real Evidence v1**. Transport,
-causal selection, recording-time integration and incremental runtime efficiency are proven. The
-stop path now drains the newest pending cutoff for up to `30s` instead of discarding it, and the
-strict recovery-aware session report checks the resulting zero-lag contract. The remaining
-operational gap is fresh real-session evidence for this exact implementation.
+Recommended nearest goal: **Fast Authoritative Handoff v1**. Live transport, causal recovery and
+recording-time runtime are proven by the strict `3/3` fresh-session gate. The remaining operational
+gap is that a usable authoritative result still arrives much later than the live draft because
+compatible work is not reused and optional enrichment blocks the same sequential command.
 
-1. **Live Recovery Runtime Efficiency and Real Evidence v1.** Preserve the implemented incremental
-   runtime and prove pre-stop candidates plus zero final lag on three fresh meaningful sessions
-   without raw/batch regression. Each proof and the final aggregate must pass `murmurmark live
-   recovery-evidence ... --refresh --strict --max-recovery-final-lag-sec 0`; manager-version and
-   recording-time-run checks prevent post-stop replay from counting as fresh evidence.
+1. **Fast Authoritative Handoff v1.** Prove strict track-level live-ASR cache compatibility, keep a
+   safe batch fallback, separate first authoritative transcript/verdict readiness from deferred
+   enrichment, and meet the bounded post-stop latency gate without quality regression.
 2. **Causal double-talk recovery follow-up.** Use the `16/16` safely rejected mixed/double-talk rows
    as a bounded future scope only after runtime integration is stable; do not weaken remote guards
    merely to raise recall.

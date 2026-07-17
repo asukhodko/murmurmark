@@ -25,7 +25,7 @@ The stable CLI path is usable for working transcripts and evidence-backed notes.
 can be processed unattended and ends as `ready_for_notes`, `review_first` or `blocked`. Full export
 still requires explicit review when order, local recall or remote leakage cannot be resolved safely.
 
-Authoritative operating point, 2026-07-16:
+Authoritative operating point, 2026-07-17:
 
 - stable production remains `record -> process -> next -> finish` against one explicit `SESSION`;
 - raw `mic` and `remote` CAF files and the normal batch transcript remain the source of truth;
@@ -59,10 +59,14 @@ Authoritative operating point, 2026-07-16:
   equivalence passes `7/7`. A `2460s` stride-1 source-time replay finishes `41` cutoffs with
   `p50=2.80s`, `p95=13.61s`, maximum `19.16s` and a `2.52s` zero-new-work warm final run;
 - the runtime result stays in an explicit diagnostic namespace and cannot affect normal live watch,
-  transcript, notes, export or promotion. The fresh recovery-runtime gate is `2/3` after
-  `2026-07-16_11-15-15-live` and `2026-07-16_14-01-26-live`; one more meaningful real session must
-  prove complete raw tracks, successful batch, bounded pre-stop recovery and zero final lag before
-  considering publication.
+  transcript, notes, export or promotion. Live Recovery Runtime Efficiency and Real Evidence v1 is
+  complete: the strict fresh-session gate passes `3/3`, including
+  `2026-07-17_11-15-54-live` with complete `2304.1s` raw tracks, `77` recording-time invocations,
+  pre-stop candidates, no timeout/backpressure and zero final lag;
+- the current bottleneck is the post-stop authoritative handoff. On that `38m24s` session, batch
+  processing took `54m49s`: batch ASR, shadow micro-ASR, stronger audio judge and live comparison
+  consumed about `51m20s`. Live ASR reuse was safely rejected because `30s` live and `60s` batch
+  window geometry did not match.
 
 The system deliberately keeps unresolved uncertainty visible. Suggested review decisions may close
 only rows supported by local audio and audit evidence. `finish` and guarded `export` remain blocked
@@ -1572,12 +1576,13 @@ state is:
 7. **Completed recording-time integration:** the proven recovery now runs behind the base live
    chunk through a bounded latest-only child. Candidate and metric agreement pass `7/7`; failures
    preserve normal preview, raw capture and batch authority.
-8. **Current goal:** Live Recovery Runtime Efficiency and Real Evidence v1. Incremental runtime,
-   bounded invalidation, fixed-corpus `7/7` agreement and the `p95 <= 30s` source-time gate are
-   implemented. The fresh real-session gate is `2/3`: `2026-07-16_11-15-15-live` and
-   `2026-07-16_14-01-26-live` pass with complete raw tracks, healthy recording-time recovery, no
-   timeout/backpressure and zero final lag. Collect one more meaningful proof before closing the
-   goal or discussing publication. UI remains optional and late.
+8. **Completed live runtime proof:** Live Recovery Runtime Efficiency and Real Evidence v1 passes
+   the strict fresh-session gate `3/3`; incremental runtime, bounded invalidation, pre-stop recovery
+   and zero final lag are now established without raw/batch regression.
+9. **Current goal:** Fast Authoritative Handoff v1. Split the post-stop critical path from deferred
+   enrichment, prove strict live-ASR cache reuse or safe fallback, and make the selected transcript,
+   verdict and next action available within a bounded delay without changing batch authority. UI
+   remains optional and late.
 
 <details>
 <summary>Historical implementation log (non-authoritative)</summary>
