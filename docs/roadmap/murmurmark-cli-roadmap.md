@@ -54,11 +54,15 @@ content-addressed DSP/candidate/micro-ASR caches and bounded invalidation pass t
 the strict fresh evidence aggregate now passes `3/3`. The third proof
 (`2026-07-17_11-15-54-live`) has complete `2304.1s` raw tracks, `77` recording-time invocations,
 `59` pre-stop candidate runs, no timeout/backpressure and zero final lag.
-Fast Authoritative Handoff v1 is now the nearest goal. The same `38m24s` session needed `54m49s`
-after stop because batch ASR, shadow micro-ASR, stronger audio judging and live comparison still run
-sequentially. Live ASR cache reuse correctly remained ineligible on `30s` versus `60s` window
-geometry. The next step is a strict cache-compatibility proof plus a separate authoritative handoff
-phase that is not blocked by optional enrichment.
+Fast Authoritative Handoff v1 is complete. `process` now publishes an atomic authoritative
+transcript/verdict checkpoint before deferred enrichment; `enrich` and `process --full` expose the
+remaining work explicitly. Bounded two-track ASR, deterministic micro-ASR scheduling and parallel
+byte-equivalent clip generation reduced the three-session cold handoff corpus to p50 `12m25s` and
+p95 `14m40s`; checkpoint reuse is at most `0.032s`. Transcript fingerprints, selected profiles and
+quality metrics match sequential baselines, and all six raw CAF files remain unchanged. Existing
+`30s/5s` live cache stays ineligible against `60s/5s` batch geometry and falls back per track.
+Causal Double-Talk Me Recovery v1 is now the nearest goal: resolve the fixed `16` mixed/double-talk
+rows / `65.07s` with stronger causal evidence while preserving remote-forbidden guards.
 Near-Realtime Live Parity Coverage v1 already proved complete raw capture, pre-stop preview,
 terminal workers, zero final lag and successful batch output on three fresh real sessions. Live
 promotion remains blocked.
@@ -362,17 +366,14 @@ flowchart LR
 
 ### Next
 
-- Fast Authoritative Handoff v1:
-  - split `process` reporting and artifacts into an authoritative handoff and deferred enrichment;
-  - determine track-level compatibility for live `30s/5s` and batch `60s/5s` ASR without changing
-    production defaults blindly;
-  - reuse only cache rows with matching audio preparation, source hashes, model, prompt, timestamps
-    and proven reconstruction parity; otherwise keep the current chunked batch fallback;
-  - move stronger-audio-judge, live comparison, clip generation and corpus refresh outside the
-    first handoff unless measured dependencies prove they are required;
-  - target authoritative handoff p95 `<=15m` for `30-60m` sessions and `<=0.4x` duration for longer
-    sessions, with no text/role/order/local-recall/review regression;
-  - keep live output diagnostic-only and batch authoritative;
+- Causal Double-Talk Me Recovery v1:
+  - keep the bounded scope at the `16` already classified mixed/double-talk rows / `65.07s`;
+  - derive multiple causal residual views from committed mic/remote PCM;
+  - verify candidates with past-only Target-Me evidence and multi-view micro-ASR consensus;
+  - retain hard remote-forbidden text/audio checks and explain every accepted or rejected row;
+  - require a material missing-`Me` reduction with no per-session regression in remote-like `Me`,
+    effective order blockers, token F1 or review burden;
+  - keep normal preview and authoritative batch output unchanged; a proved no-gain result is valid;
 - keep `--live-pipeline` disabled by default; all new evidence should go through
   `record --experiment live-shadow-v1`.
 - Near-realtime shadow pipeline follow-up:
@@ -443,7 +444,12 @@ flowchart LR
 
 ## Latest Completed Goals
 
-Near-Realtime Live Parity Coverage v1 is the latest completed live reliability goal. Three fresh
+Fast Authoritative Handoff v1 is the latest completed operational goal. Its three-session machine
+gate passes `3/3`: cold p50 `744.571s`, p95 `880.090s`, checkpoint reuse maximum `0.032s`, exact
+transcript/profile/quality equivalence to sequential baselines, and unchanged source CAF hashes.
+Strictly incompatible live cache remains an explicit per-track batch fallback.
+
+Near-Realtime Live Parity Coverage v1 is the completed live transport reliability goal. Three fresh
 real sessions prove complete raw capture, recording-time preview provenance, terminal workers, zero
 final lag and successful authoritative batch output. A real comparison rerun left realtime
 artifacts byte-identical. The milestone closes transport and blocker localization, not live
@@ -519,24 +525,20 @@ Recently completed:
 
 ## Goal Sequence
 
-Recommended nearest goal: **Fast Authoritative Handoff v1**. Live transport, causal recovery and
-recording-time runtime are proven by the strict `3/3` fresh-session gate. The remaining operational
-gap is that a usable authoritative result still arrives much later than the live draft because
-compatible work is not reused and optional enrichment blocks the same sequential command.
+Recommended nearest goal: **Causal Double-Talk Me Recovery v1**. Fast Authoritative Handoff now
+passes its `3/3` corpus gate, so the highest-value bounded quality debt is the fixed set of genuine
+local speech intervals that overlap remote activity and are still rejected by the safety contract.
 
-1. **Fast Authoritative Handoff v1.** Prove strict track-level live-ASR cache compatibility, keep a
-   safe batch fallback, separate first authoritative transcript/verdict readiness from deferred
-   enrichment, and meet the bounded post-stop latency gate without quality regression.
-2. **Causal double-talk recovery follow-up.** Use the `16/16` safely rejected mixed/double-talk rows
-   as a bounded future scope only after runtime integration is stable; do not weaken remote guards
-   merely to raise recall.
-3. **Live review/notes/boundary readiness.** After runtime recovery remains safe, close review burden,
+1. **Causal Double-Talk Me Recovery v1.** Give all `16` mixed/double-talk rows stable evidence-backed
+   outcomes and recover only candidates supported by causal residual views, past-only Target-Me and
+   multi-view ASR consensus under unchanged remote-forbidden guards.
+2. **Live review/notes/boundary readiness.** After double-talk recovery remains safe, close review burden,
    selected-notes readiness and chunk-boundary gates without weakening batch authority.
-4. **ASR-positive Echo promotion readiness.** Expand `coverage_v2_remote_gate_local_fir` validation
+3. **ASR-positive Echo promotion readiness.** Expand `coverage_v2_remote_gate_local_fir` validation
    beyond the current six sessions, add rollback/inspection criteria, compare review burden and
    local recall more broadly, and only then decide whether a non-default promoted bundle is worth
    testing.
-5. **Target-Me evidence follow-up.** Keep integrating `resemblyzer_dvector_v0` with review-lane
+4. **Target-Me evidence follow-up.** Keep integrating `resemblyzer_dvector_v0` with review-lane
    suggestions, live local-recall diagnostics and corpus reports. The new live Target-Me audit shows
    that suppressed live mic chunks contain a large recoverable local slice: `287.98s` of `295.34s`
    audited local/mixed seconds are possible or confirmed Target-Me. The first policy candidate,

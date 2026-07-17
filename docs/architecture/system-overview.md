@@ -72,7 +72,15 @@ process SESSION
   -> timeline/start/boundary repair candidates
   -> audit cleanup + reviewed transcript profiles
   -> quality verdict + evidence-backed extractive notes
-  -> outcome.json + exact next command
+  -> atomic authoritative_handoff.json
+       -> selected transcript + SHA-256
+       -> verdict + exact next command
+
+enrich SESSION
+  -> stronger local audio judge
+  -> extended repair evidence and clips
+  -> live-vs-batch diagnostics
+  -> deferred report without changing the published transcript
 
 review / finish / export / retention
   -> selected batch profile
@@ -82,6 +90,12 @@ review / finish / export / retention
 Raw CAF files and the selected batch transcript are authoritative. The optional live sidecar reads
 only copied PCM after durable raw writes, can fail independently and cannot mutate batch outputs.
 Live promotion remains blocked until all corpus parity gates pass.
+
+The post-stop pipeline has two explicit phases. `murmurmark process SESSION` stops after the first
+safe handoff. `murmurmark enrich SESSION` runs bounded optional diagnostics and may be interrupted
+or resumed independently. `murmurmark process SESSION --full` runs both for compatibility. CLI
+read commands accept the handoff only while its transcript SHA-256, selected profile and readiness
+path still match; a stale or edited result falls back to normal readiness/resume handling.
 
 Target full-product path:
 

@@ -6919,8 +6919,77 @@ being evaluated as a speed-up candidate", not "live is now authoritative".
   `real_meeting`, use known categories and keep `new_real_live_collection_allowed: false`;
 - `live_cache_parity_status`, `live_cache_parity_live_sessions`,
   `live_cache_parity_compared_sessions`, `live_cache_parity_meaningful_compared_sessions`,
-  `live_cache_parity_passing_compared_sessions` and `live_cache_parity_promotion_allowed_sessions`
+`live_cache_parity_passing_compared_sessions` and `live_cache_parity_promotion_allowed_sessions`
   are copied into `corpus_gates_report.json.summary`.
+
+## Authoritative Handoff
+
+The normal post-stop command publishes:
+
+```text
+derived/pipeline-run/authoritative_handoff.json
+derived/pipeline-run/authoritative_handoff_runs.jsonl
+```
+
+`authoritative_handoff.json` has schema `murmurmark.authoritative_handoff/v1`. It is written by
+atomic replacement after session readiness succeeds and contains:
+
+```json
+{
+  "status": "ready | review_required | blocked",
+  "selected_transcript_profile": "audit_cleanup_v2",
+  "verdict": "good | usable_with_review | risky | failed",
+  "paths": {
+    "transcript": "...",
+    "notes": "...",
+    "verdict": "...",
+    "verdict_json": "...",
+    "readiness": "...",
+    "pipeline_report": "..."
+  },
+  "transcript_fingerprint": {
+    "path": "...",
+    "size": 123,
+    "sha256": "..."
+  },
+  "asr_provenance": {
+    "invocation": {
+      "mode": "default | forced_batch | cache_reuse_requested | transcription_skipped",
+      "track_workers": 2,
+      "micro_asr_workers": 2
+    },
+    "tracks": {},
+    "live_cache": {},
+    "runtime": {},
+    "totals": {}
+  },
+  "required_gates": {},
+  "deferred_enrichment": {
+    "status": "pending | running | completed | failed | interrupted",
+    "command": "murmurmark enrich SESSION"
+  },
+  "recommended_next": "..."
+}
+```
+
+A consumer must reject this checkpoint unless the status is readable, the transcript file still
+matches both size and SHA-256, `paths.transcript` matches the fingerprint path, and
+`session_readiness.json` still selects the same profile and transcript path. Deferred enrichment
+may update only `deferred_enrichment` metadata in this checkpoint; it must not alter the published
+fingerprint or silently select another transcript.
+
+Each successful computed handoff and valid checkpoint reuse appends one
+`murmurmark.authoritative_handoff_run/v1` row. The row records elapsed time, profile, verdict,
+fingerprint, selected quality metrics, worker bounds and whether ASR was forced or cache reuse was
+requested. `scripts/report-authoritative-handoff-corpus.py` aggregates these rows as
+`murmurmark.authoritative_handoff_corpus/v1` and evaluates runtime, repeat-entry and sequential
+baseline-equivalence gates. Chunk reports describe persistent cache state; `asr_provenance.invocation`
+describes the current command and must be used when those two differ.
+
+Live ASR materialization is track-scoped. A track is reusable only when source/preparation identity,
+model and executable SHA-256, prompt/settings identity, window geometry and timestamp reconciliation
+all match the batch contract. Every incompatible track is an explicit `batch_fallback`; one eligible
+track must never authorize the other.
 
 For sanitized external synthesis:
 

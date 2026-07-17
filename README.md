@@ -63,10 +63,14 @@ Authoritative operating point, 2026-07-17:
   complete: the strict fresh-session gate passes `3/3`, including
   `2026-07-17_11-15-54-live` with complete `2304.1s` raw tracks, `77` recording-time invocations,
   pre-stop candidates, no timeout/backpressure and zero final lag;
-- the current bottleneck is the post-stop authoritative handoff. On that `38m24s` session, batch
-  processing took `54m49s`: batch ASR, shadow micro-ASR, stronger audio judge and live comparison
-  consumed about `51m20s`. Live ASR reuse was safely rejected because `30s` live and `60s` batch
-  window geometry did not match.
+- Fast Authoritative Handoff v1 is complete: `process` publishes an atomic transcript/verdict/next
+  checkpoint before optional `enrich` work. Three `30-60m` sessions pass with cold p50 `12m25s`,
+  p95 `14m40s` and checkpoint reuse at most `0.032s`; transcript fingerprints, profiles and quality
+  metrics match sequential baselines, and all six raw CAF files remain unchanged;
+- live ASR reuse remains correctly rejected for historical `30s/5s` live versus `60s/5s` batch
+  geometry and incomplete provenance. The decision is explicit per track and falls back to batch;
+- the current bounded quality goal is Causal Double-Talk Me Recovery v1: resolve the fixed `16`
+  mixed/double-talk rows / `65.07s` with stronger causal evidence without weakening remote guards.
 
 The system deliberately keeps unresolved uncertainty visible. Suggested review decisions may close
 only rows supported by local audio and audit evidence. `finish` and guarded `export` remain blocked
@@ -96,6 +100,8 @@ shadow-only until a broader corpus passes explicit promotion gates.
 - Echo Guard preprocessing with local FIR cleanup and a preserve-local policy.
 - Local `whisper.cpp` transcription with Russian support, prompt/domain hints, timeline repair and
   start-of-call repair.
+- Two-phase post-processing: `process` publishes an atomic authoritative transcript/verdict
+  checkpoint; `enrich` runs optional heavy diagnostics without changing that published transcript.
 - Audit layers for order, local recall, group overlaps, audio review and optional stronger local
   audio judge.
 - Remote-forbidden evidence audit: shadow rows with remote/mic tokens, speaker state, transcript
@@ -1165,6 +1171,28 @@ murmurmark transcript "$SESSION"
 murmurmark finish "$SESSION"
 ```
 
+`process` returns after the first authoritative transcript, quality verdict and exact next action
+are ready. Its checkpoint is `derived/pipeline-run/authoritative_handoff.json`; CLI read commands
+use it only while the transcript SHA-256 and selected readiness profile still match.
+
+Optional heavier diagnostics are a separate resumable phase:
+
+```bash
+murmurmark enrich "$SESSION"
+```
+
+Use the compatibility form only when both phases must run before the command returns:
+
+```bash
+murmurmark process "$SESSION" --full
+```
+
+The default batch runtime bounds independent work to two mic/remote ASR workers, six whisper.cpp
+threads per process and four micro-ASR workers. Override them with `--asr-track-workers 1`,
+`--asr-threads N` or `--micro-asr-workers 1` only for diagnosis and sequential baseline
+measurements. Review clips use four bounded ffmpeg workers and remain byte-equivalent to serial
+generation.
+
 Force ASR only when you intentionally want to regenerate the expensive transcription layer:
 
 ```bash
@@ -1579,10 +1607,12 @@ state is:
 8. **Completed live runtime proof:** Live Recovery Runtime Efficiency and Real Evidence v1 passes
    the strict fresh-session gate `3/3`; incremental runtime, bounded invalidation, pre-stop recovery
    and zero final lag are now established without raw/batch regression.
-9. **Current goal:** Fast Authoritative Handoff v1. Split the post-stop critical path from deferred
-   enrichment, prove strict live-ASR cache reuse or safe fallback, and make the selected transcript,
-   verdict and next action available within a bounded delay without changing batch authority. UI
-   remains optional and late.
+9. **Completed fast handoff:** `process` separates the atomic authoritative result from `enrich`,
+   strictly rejects incompatible cache reuse and passes the three-session latency/equivalence gate.
+10. **Current goal:** Causal Double-Talk Me Recovery v1. Resolve the `16` fixed mixed/double-talk
+   rows with stronger causal residual, Target-Me and multi-view ASR evidence while preserving
+   remote-like `Me`, order, token F1, review burden, raw capture and batch authority. UI remains
+   optional and late.
 
 <details>
 <summary>Historical implementation log (non-authoritative)</summary>

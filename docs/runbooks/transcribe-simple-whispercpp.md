@@ -33,7 +33,7 @@ murmurmark doctor
 murmurmark config init
 ```
 
-Start from a completed session and run the current full post-recording pipeline:
+Start from a completed session and publish the first authoritative result:
 
 ```bash
 SESSION=./sessions/<session>
@@ -46,6 +46,33 @@ less "$SESSION/derived/readiness/session_readiness.md"
 murmurmark retention plan "$SESSION"
 ```
 
+The normal command stops after the authoritative transcript, verdict and next action are ready.
+Run optional heavier diagnostics separately when needed:
+
+```bash
+murmurmark enrich "$SESSION"
+```
+
+To retain the old one-command behavior, use `murmurmark process "$SESSION" --full`. Either phase
+can be interrupted with `Ctrl-C` and resumed with the same command.
+
+To inspect the measured handoff gate across explicit sessions:
+
+```bash
+scripts/report-authoritative-handoff-corpus.py \
+  sessions/<session-1> \
+  sessions/<session-2> \
+  sessions/<session-3> \
+  --require-raw-integrity \
+  --require-passing-gates
+
+less sessions/_reports/authoritative-handoff/authoritative_handoff_corpus_v1.md
+```
+
+The report requires a sequential `1/1` baseline, a bounded `2/2` cold run and a checkpoint-reuse
+run for every session. It compares transcript SHA-256, selected profile and quality metrics in
+addition to elapsed time.
+
 If synthesis or readiness still reports review risk, the CLI handoff points to
 `murmurmark review next "$SESSION"` before export. Export is advertised from synthesis only after a
 good verdict with no review items.
@@ -55,9 +82,20 @@ Explicit command-line flags override config values.
 `murmurmark doctor` reports the selected config and model path, so run it after changing local
 defaults.
 
-`murmurmark process` calls the current runner: Echo Guard, export/transcription, shadow timeline repair,
-local-recall audit, transcript-order audit, group-overlap audit, audio-review audit, optional stronger local audio judge,
-`audit_cleanup_v1..v4`, extractive synthesis and per-session readiness. `audit_cleanup_v5` is a separate batch step after the suggested-review shadow report. Use
+`murmurmark process` calls the authoritative part of the current runner: Echo Guard,
+export/transcription, shadow timeline repair, local-recall audit, transcript-order audit,
+group-overlap audit, the minimum audio-review evidence required by `audit_cleanup_v2`, extractive
+synthesis and per-session readiness. It atomically writes
+`derived/pipeline-run/authoritative_handoff.json`. The checkpoint contains the selected profile,
+artifact paths, transcript SHA-256, verdict, ASR provenance, gate decisions, deferred state and the
+exact next command. `status`, `next`, `transcript`, `notes` and `finish` consume it only while the
+fingerprint and readiness profile still match.
+
+`murmurmark enrich` runs the deferred part: rebuilt review clips, optional stronger local audio
+judge, remote-forbidden/repair evidence, optional later cleanup profiles and live-vs-batch
+comparison. Each deferred step has a bounded timeout. Deferred work may update its own report but
+must not change the transcript fingerprint already published by the handoff. `audit_cleanup_v5`
+remains a separate batch step after the suggested-review shadow report. Use
 `--force-asr` when you need to regenerate Whisper output, and `--reuse-asr-cache` when you only want
 to rebuild repair, cleanup, synthesis and reports from cached ASR JSON. The runner prints each stage
 with `[run]`, `[passed]`, `[failed]` or `[skip]`, prints heartbeat lines for long-running stages, and
@@ -79,6 +117,14 @@ top-level `recommended_next`, `next_commands` and `open_commands` for agent hand
 `pipeline_run` terminal block prints the same next commands from that report. After `process`
 finishes, the last line is a single copyable `next: ...` command
 from the current readiness state.
+
+The default ASR runtime uses at most two track workers, six whisper.cpp compute threads per process
+and four independent micro-ASR workers. Mic, remote and micro results are consumed in stable order,
+and candidate scoring remains deterministic. The measured three-session corpus gives cold handoff
+p50 `744.571s`, p95 `880.090s` and exact sequential-baseline transcript/profile/quality
+equivalence. A forced run clears stale chunk progress before starting. If a child step times out or
+is interrupted, the runner terminates the complete process group so no hidden ASR worker survives
+the failed run.
 The usual summary commands (`status`, `report`, `open`, `audit`, `cleanup`, `repair`, `synthesize`,
 `notes`, `transcript`, `review`, `export`, `retention`) use the same convention. Pure output modes
 such as `--path-only`, `--command-only` and `--cat` do not append a handoff line.

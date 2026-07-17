@@ -53,10 +53,15 @@ Current operating point, 2026-07-17:
   content-addressed DSP/candidate/micro-ASR caches and bounded invalidation pass the fixed corpus,
   while three fresh meaningful sessions prove recording-time execution, pre-stop candidates when
   evidence exists, no timeout/backpressure regression and zero final lag.
-- Fast Authoritative Handoff v1 is current. A `38m24s` session exposed `54m49s` of post-stop work,
-  dominated by repeated batch ASR, shadow micro-ASR, stronger audio judging and live comparison.
-  The product must publish the authoritative transcript/verdict handoff before optional enrichment,
-  and may reuse live ASR only under strict audio/model/prompt/window/provenance compatibility.
+- Fast Authoritative Handoff v1 is complete. `process` publishes an atomic authoritative
+  transcript/verdict/next checkpoint before optional `enrich`; three meaningful sessions pass with
+  cold p50 `744.571s`, p95 `880.090s` and checkpoint reuse at most `0.032s`. Transcript fingerprints,
+  selected profiles and quality metrics match sequential baselines; all source CAF hashes match.
+  Live ASR remains reusable only under strict audio/model/prompt/window/provenance compatibility;
+  historical incompatible cache falls back per track.
+- Causal Double-Talk Me Recovery v1 is current. Its bounded input is `16` mixed/double-talk rows /
+  `65.07s`; stronger causal evidence may recover local speech, but existing remote-forbidden guards
+  and batch authority must not be weakened.
 
 Still future:
 

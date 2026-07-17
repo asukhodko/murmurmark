@@ -4,40 +4,77 @@ This file keeps the latest goal context and the most relevant completed goals. T
 path remains non-live `record -> process`. Live output stays shadow-only and batch transcript remains
 authoritative.
 
-## Current Goal: Fast Authoritative Handoff v1
+## Current Goal: Causal Double-Talk Me Recovery v1
 
-Status, 2026-07-17: selected after closing the live recovery runtime proof. Capture and live preview
-are no longer the dominant delay; the post-stop batch critical path is.
+Status, 2026-07-17: selected after Fast Authoritative Handoff v1 passed its three-session corpus
+gate. Post-stop latency is now bounded; the next material quality gap is local speech spoken while
+`remote` is also active.
 
-The fresh `2026-07-17_11-15-54-live` session recorded complete `2304.1s` mic and remote tracks,
-published all `77` live chunks before or immediately after stop and finished live recovery with zero
-lag. Its authoritative `process` run still took `54m49s`. Four sequential stages consumed about
-`51m20s`: batch `transcribe_current` (`20m53s`), `shadow_v2` micro-ASR (`8m08s`), stronger audio
-judge (`18m16s`) and live-vs-batch comparison (`4m03s`). The live-ASR cache bridge correctly refused
-reuse with `window_duration_mismatch:1`, so the batch path repeated ASR work already performed by
-the live sidecar. Echo preprocessing took only `21s` and is not the bottleneck.
+The fixed evidence scope is `16` mixed/double-talk cross-check rows covering `65.07s`. The current
+hard-guarded causal recovery rejects all of them. That is the correct safety result with the present
+evidence, but it leaves genuine `Me` speech missing from the live shadow. The task is to obtain
+stronger independent evidence, not to lower the existing remote guards.
 
-Objective: make the first authoritative transcript, verdict and next action available soon after
-stop without weakening batch authority or requiring the user to supervise enrichment. The normal
-pipeline should distinguish the authoritative handoff from deferred audit/enrichment, reuse live
-ASR only under a proven compatibility contract, and resume either phase safely after interruption.
+Objective: recover a material subset of those double-talk rows using only information available at
+recording time, while preserving the proven protection against publishing remote speech as `Me`.
+Batch remains authoritative and the new result stays in an explicit shadow profile.
 
 Definition of Done:
 
-- `process` records separate `authoritative_handoff` and `deferred_enrichment` phases, and `status`
-  shows which result is already safe to read while later audits continue or remain pending;
-- strict live-ASR cache compatibility is either proved for both tracks or applied track by track;
-  incompatible audio, preprocessing, model, prompt, geometry or timestamp provenance must fall back
-  to the existing chunked batch ASR without changing the result silently;
-- the authoritative handoff contains the selected transcript, quality verdict and next action; the
-  stronger audio judge, live-vs-batch comparison, clip generation and corpus refresh do not block
-  that first handoff unless a measured dependency requires them;
-- on at least three meaningful `30-60m` sessions, authoritative handoff p95 is at most `15m` after
-  stop; longer sessions stay at or below `0.4x` source duration;
-- selected transcript text/roles/order, local recall, remote-like `Me`, review burden and notes do
-  not regress against the current batch baseline;
-- interruption and cache-corruption tests prove idempotent resume, while raw CAF, normal live
-  preview, export policy and batch authority remain unchanged.
+- every one of the `16` rows has a stable, explainable outcome backed by committed mic/remote PCM,
+  speaker state and causal provenance;
+- evaluate multiple causal residual views, past-only Target-Me evidence and multi-view micro-ASR
+  consensus under remote-forbidden text/audio guards;
+- accepted rows materially reduce missing `Me`; rejected rows retain an explicit reason instead of
+  disappearing behind a threshold;
+- remote-like `Me`, effective order blockers, token F1 and mandatory review burden do not regress in
+  any corpus session;
+- raw capture, normal live preview, authoritative batch transcript and promotion policy remain
+  unchanged;
+- if no safe gain exists, close the goal with a reproducible negative result rather than weakening
+  the safety contract.
+
+## Completed Goal: Fast Authoritative Handoff v1
+
+Completed, 2026-07-17. The normal post-stop path now separates the first authoritative result from
+optional heavy enrichment:
+
+- `murmurmark process SESSION` writes an atomic
+  `derived/pipeline-run/authoritative_handoff.json` and returns after transcript, verdict and next
+  command are ready;
+- `murmurmark enrich SESSION` runs deferred stronger-audio and live/batch diagnostics;
+- `murmurmark process SESSION --full` runs both phases;
+- `status`, `next`, `transcript`, `notes` and `finish` consume only a valid checkpoint whose selected
+  readiness profile, path, size and SHA-256 still match;
+- deferred work records its state separately and cannot silently replace the published transcript;
+- interrupted and corrupt-cache paths are resumable, terminate child process groups and preserve an
+  explicit next command.
+
+The ASR critical path uses two independent track workers, six whisper.cpp threads per process and
+four deterministic micro-ASR workers. Current and shadow micro jobs are globally prewarmed but
+consumed in the original stable order. Review clips use four bounded ffmpeg workers; on a real pack
+this reduced `160` items / `960` WAV writes from `43.2s` to `12.7s`, with every WAV byte-identical.
+
+Three meaningful sessions passed the machine corpus gate:
+
+- `2026-07-14_11-14-29-live`, `2089.108s`: cold handoff `895.148s`;
+- `2026-07-16_11-15-15-live`, `1830.638s`: cold handoff `542.594s`;
+- `2026-07-17_15-15-18-live`, `2274.110s`: cold handoff `744.571s`.
+
+Aggregate result: cold p50 `744.571s`, p95 `880.090s` (`14m40s`), maximum checkpoint reuse
+`0.032s`, all three transcript fingerprints/profiles/selected quality metrics equal to their
+sequential baselines. SHA-256 manifests prove all six source CAF files unchanged. The report is
+`sessions/_reports/authoritative-handoff/authoritative_handoff_corpus_v1.json`.
+
+Strict live-cache compatibility remains intentionally negative for existing `30s/5s` live versus
+`60s/5s` batch windows and incomplete historical source/model/executable/settings provenance. The
+bridge records a per-track `batch_fallback`; it never treats approximate compatibility as reuse.
+
+Accepted optimizations: phase separation, atomic checkpoint reuse, one combined current/shadow
+transcriber invocation, two track workers, six compute threads, globally scheduled bounded
+micro-ASR and bounded byte-equivalent review-clip generation. Rejected optimizations: trusting the
+incompatible live cache, changing window geometry, relaxing output equality, and an eight-process
+micro pool, which was slower under GPU contention.
 
 ## Completed Goal: Live Recovery Runtime Efficiency and Real Evidence v1
 

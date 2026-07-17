@@ -55,8 +55,10 @@ nodes:
       lag и fail-open fallback. Live Recovery Runtime Efficiency and Real Evidence v1 тоже
       завершён: persistent watermarks и content-addressed DSP/candidate/micro-ASR caches проходят
       fixed-corpus gates, а strict fresh evidence aggregate достиг 3/3 с pre-stop candidates и zero
-      final lag. Текущая цель — Fast Authoritative Handoff v1: убрать повторный совместимый ASR и
-      отделить первый authoritative transcript/verdict от необязательного enrichment.
+      final lag. Fast Authoritative Handoff v1 завершён: первый authoritative transcript/verdict
+      отделён от необязательного enrichment, а strict live-cache gate не допускает приблизительный
+      reuse. Текущая цель — Causal Double-Talk Me Recovery v1 для зафиксированных 16 mixed/double-talk
+      rows / 65.07s без ослабления remote-forbidden guards.
 
       Historical operational snapshot, 2026-07-02:
 
@@ -656,20 +658,18 @@ nodes:
     kind: task
     parent: near-realtime-pipeline
     deps: [live-parity-replay-lab, live-recovery-runtime-efficiency-real-evidence-v1]
-    status: current
+    status: done
     effort: 8
     notes: |
-      Текущий batch handoff слишком медленный: сессия 2026-07-17_11-15-54-live длительностью
-      2304.1s обрабатывалась после stop 54m49s. Из них transcribe_current занял 20m53s,
-      shadow_v2 8m08s, stronger audio judge 18m16s и live comparison 4m03s. Live cache report
-      корректно вернул not_eligible с window_duration_mismatch:1 для live 30s/5s и batch 60s/5s.
-      Требуется track-level compatibility proof по source/preprocessing/model/prompt/geometry/
-      timestamps, безопасная реконструкция authoritative ASR cache либо неизменный batch fallback.
-      `process` должен отдельно материализовать authoritative_handoff и deferred_enrichment;
-      transcript, verdict и next action не должны ждать stronger judge, live comparison, clip/corpus
-      refresh без доказанной зависимости. Gate: p95 handoff <=15m для 30-60m sessions и <=0.4x
-      source duration для более длинных, без регрессии text/roles/order/local recall/remote-like Me/
-      review burden. Batch остаётся authoritative, live promotion blocked.
+      Завершено 2026-07-17. `process` атомарно публикует authoritative_handoff и возвращает transcript,
+      verdict и next command; `enrich` и `process --full` выполняют deferred enrichment отдельно.
+      status/next/transcript/notes/finish доверяют только checkpoint с совпадающими readiness profile,
+      path, size и SHA-256. Две дорожки распознаются bounded-пулом, micro-ASR глобально планируется
+      детерминированно, review clips пишутся четырьмя byte-equivalent workers. Три meaningful sessions
+      проходят: cold p50 744.571s, p95 880.090s, checkpoint reuse max 0.032s; fingerprints, profiles и
+      selected quality metrics совпадают с sequential baseline, шесть raw CAF неизменны. Live cache
+      30s/5s против batch 60s/5s и неполная historical provenance дают explicit per-track batch fallback,
+      а не приблизительный reuse. Batch остаётся authoritative, live promotion blocked.
 
   realtime-final-reconcile:
     title: "Final reconcile after stop"
@@ -1123,8 +1123,8 @@ nodes:
     title: "Causal Double-Talk Me Recovery v1"
     kind: task
     parent: near-realtime-pipeline
-    deps: [live-recovery-runtime-efficiency-real-evidence-v1]
-    status: later
+    deps: [live-recovery-runtime-efficiency-real-evidence-v1, live-asr-cache-compatibility]
+    status: current
     effort: 8
     notes: |
       Bounded quality-цель после Fast Authoritative Handoff v1. Зафиксированный вход — 16
@@ -2012,8 +2012,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Fast Authoritative Handoff v1: отделить первый authoritative transcript/verdict от deferred enrichment и безопасно переиспользовать только строго совместимый live ASR."
-      success_by_next_sync: "На трёх meaningful sessions handoff p95 <=15m для 30-60m записей или <=0.4x для длинных; quality gates не регрессируют, incompatible cache уходит в batch fallback, promotion blocked."
+      nearest_goal: "Causal Double-Talk Me Recovery v1: безопасно разрешить 16 mixed/double-talk rows / 65.07s более сильным причинным evidence без ослабления remote-forbidden guards."
+      success_by_next_sync: "Все 16 rows имеют stable explainable outcome; missing Me materially снижается либо зафиксирован proved no-gain, а remote-like Me, order, token F1, review burden, raw и authoritative batch не регрессируют."
     defaults:
       status_progress:
         done: 1.0
@@ -2039,8 +2039,8 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "CLI MVP и committed-PCM transport закрыты. Local-recall hardening уменьшил aggregate missing Me 2844.88s -> 1657.89s. Recording-time runtime теперь incremental, сохраняет replay candidates/metrics 7/7 и warm equivalence 7/7; stride-1 p95 13.61s. Production output остаётся batch."
-          next_sync_goal: "Собрать три fresh real-session pre-stop proofs с zero final lag, не меняя normal preview или batch authority."
+          sync_note: "CLI MVP, committed-PCM transport и Fast Authoritative Handoff закрыты. Handoff corpus проходит 3/3 с p95 14m40s и exact baseline equivalence. Local-recall hardening уменьшил aggregate missing Me 2844.88s -> 1657.89s; 16 mixed/double-talk rows / 65.07s остаются bounded quality scope. Production output остаётся batch."
+          next_sync_goal: "Получить stable outcomes для 16 double-talk rows и безопасный missing-Me gain либо доказанный no-gain без ослабления remote guards."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening, reliable-transcription-route]
