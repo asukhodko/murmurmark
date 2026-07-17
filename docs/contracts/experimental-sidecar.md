@@ -104,6 +104,52 @@ uses `murmurmark.live_causal_remote_active_me_separation_v1_outcome/v1`. Batch t
 appear only in the evaluation reference. The profile is never selected by normal compare, preview,
 transcript, notes or export commands.
 
+## Causal Double-Talk Me Recovery
+
+The explicit-only offline shadow writes:
+
+```text
+derived/live/causal-double-talk-me-recovery-v1/
+  source_decisions.jsonl
+  residual_views.jsonl
+  candidates.jsonl
+  state.json
+  report.md
+```
+
+Rows use `murmurmark.causal_double_talk_me_recovery/v1`. An accepted candidate must have:
+
+- `classification: genuine_double_talk` and non-empty local text;
+- `selection_mode: recording_time_causal_double_talk_me_recovery_v1`;
+- `timeline_causal: true` and `used_batch_fields_for_selection: false`;
+- past-only causal echo training;
+- independent residual/voice/ASR evidence;
+- `remote_text_forbiddance: true` and `remote_audio_forbiddance: true`;
+- `publication_allowed: false`, `promotion_allowed: false` and `batch_authoritative: true`.
+
+The immutable corpus and reports are stored under
+`sessions/_reports/live-pipeline/causal-double-talk-me-recovery-v1/`:
+
+```text
+corpus_manifest_v1.json
+corpus_rows_v1.jsonl
+outcomes_v1.jsonl
+recovery_report_v1.json
+recovery_report_v1.md
+```
+
+`corpus_manifest_v1.json` freezes every evaluation row and SHA-256 of raw capture, Echo Guard
+inputs/outputs, committed chunks, past enrollment, normal preview and authoritative outputs. A
+non-refreshing rebuild must fail closed if any input differs. Evaluation references may be used only
+after selection.
+
+The runtime stage lives under the existing causal recovery runtime as `double-talk-v1/`. It handles
+at most one prioritized group per closed chunk, uses the strict hybrid ratio-mask residual, has a
+bounded child timeout and writes its own stage counters. Its explicit comparison profile ends in
+`_causal_double_talk_me_recovery_v1_runtime_v1`. It is excluded from default policies and normal
+preview. Replay may gate only this new stage while keeping older Metal-dependent diagnostic parity
+informational.
+
 ## Manifest
 
 `experiment_manifest.json` is the durable experiment passport.

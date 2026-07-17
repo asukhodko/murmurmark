@@ -61,8 +61,12 @@ byte-equivalent clip generation reduced the three-session cold handoff corpus to
 p95 `14m40s`; checkpoint reuse is at most `0.032s`. Transcript fingerprints, selected profiles and
 quality metrics match sequential baselines, and all six raw CAF files remain unchanged. Existing
 `30s/5s` live cache stays ineligible against `60s/5s` batch geometry and falls back per track.
-Causal Double-Talk Me Recovery v1 is now the nearest goal: resolve the fixed `16` mixed/double-talk
-rows / `65.07s` with stronger causal evidence while preserving remote-forbidden guards.
+Causal Double-Talk Me Recovery v1 is complete. Its immutable `16`-row / `65.07s` corpus has stable
+outcomes; `4` rows / `11.56s` are safely recovered, aggregate missing `Me` falls to `1639.73s`, and
+every per-session, runtime and frozen-input gate passes. Causal Recovery Generalization and
+Promotion Readiness v1 is now nearest: broaden the narrow success to positive and adversarial
+remote-only controls plus fresh recording-time evidence before deciding whether it may enter normal
+advisory live preview.
 Near-Realtime Live Parity Coverage v1 already proved complete raw capture, pre-stop preview,
 terminal workers, zero final lag and successful batch output on three fresh real sessions. Live
 promotion remains blocked.
@@ -116,11 +120,15 @@ roadmap point it means:
 - remote-active separation gives all `19` primary rows / `88.39s` and `16` mixed/double-talk
   cross-check rows / `65.07s` stable outcomes, adds `42` turns / `289.46s`, and reduces missing
   `Me` further to `1657.89s` without increasing remote-like `Me`, order risk or review burden;
+- double-talk recovery gives all `16` cross-check rows stable outcomes, safely matches `4` rows /
+  `11.56s`, reduces missing `Me` to `1639.73s`, keeps remote-like `Me=108.42s` and blockers `0`,
+  and passes runtime p95/final-lag plus `356`-input SHA gates;
 - recording-time integration reproduces both replay candidate sets and profile metrics across all
   seven sessions; it remains an explicit-only `_runtime_v1` shadow;
 - incremental runtime efficiency is implemented, passes the `p95 <= 30s` source-time gate and the
-  strict fresh-session aggregate `3/3`; the next bounded work is the post-stop authoritative
-  handoff, whose current sequential critical path can exceed the meeting duration;
+  strict fresh-session aggregate `3/3`; Fast Authoritative Handoff has since separated the first
+  usable result from deferred enrichment, and the next bounded work is causal recovery
+  generalization/promotion readiness;
 - `status`, `next`, `finish`, session report and corpus report agree;
 - safe review suggestions are applied before asking for manual listening;
 - remaining review is short, explicit and backed by audio/transcript evidence;
@@ -366,14 +374,14 @@ flowchart LR
 
 ### Next
 
-- Causal Double-Talk Me Recovery v1:
-  - keep the bounded scope at the `16` already classified mixed/double-talk rows / `65.07s`;
-  - derive multiple causal residual views from committed mic/remote PCM;
-  - verify candidates with past-only Target-Me evidence and multi-view micro-ASR consensus;
-  - retain hard remote-forbidden text/audio checks and explain every accepted or rejected row;
-  - require a material missing-`Me` reduction with no per-session regression in remote-like `Me`,
-    effective order blockers, token F1 or review burden;
-  - keep normal preview and authoritative batch output unchanged; a proved no-gain result is valid;
+- Causal Recovery Generalization and Promotion Readiness v1:
+  - freeze a broader corpus of accepted, rejected, runtime-only and remote-only controls;
+  - explain additional runtime candidates outside the original `16` rows;
+  - reproduce offline/runtime outcomes with bounded p95, final lag `0` and fail-open behavior;
+  - collect fresh real-session evidence before changing normal preview wiring;
+  - require no per-session regression in remote-like `Me`, effective order blockers, token F1,
+    review burden or raw/Echo Guard/authoritative hashes;
+  - either promote behind an explicit rollback switch or publish a precise no-promotion verdict;
 - keep `--live-pipeline` disabled by default; all new evidence should go through
   `record --experiment live-shadow-v1`.
 - Near-realtime shadow pipeline follow-up:
@@ -525,14 +533,14 @@ Recently completed:
 
 ## Goal Sequence
 
-Recommended nearest goal: **Causal Double-Talk Me Recovery v1**. Fast Authoritative Handoff now
-passes its `3/3` corpus gate, so the highest-value bounded quality debt is the fixed set of genuine
-local speech intervals that overlap remote activity and are still rejected by the safety contract.
+Recommended nearest goal: **Causal Recovery Generalization and Promotion Readiness v1**. The fixed
+double-talk goal passed, but its explicit-only result is not yet broad enough to alter normal live
+preview. The next useful decision is whether the combined causal stack generalizes safely.
 
-1. **Causal Double-Talk Me Recovery v1.** Give all `16` mixed/double-talk rows stable evidence-backed
-   outcomes and recover only candidates supported by causal residual views, past-only Target-Me and
-   multi-view ASR consensus under unchanged remote-forbidden guards.
-2. **Live review/notes/boundary readiness.** After double-talk recovery remains safe, close review burden,
+1. **Causal Recovery Generalization and Promotion Readiness v1.** Expand positive and remote-only
+   controls, prove recording-time behavior on fresh sessions, and produce a gated promote/no-promote
+   decision with rollback and unchanged batch authority.
+2. **Live review/notes/boundary readiness.** After generalized recovery remains safe, close review burden,
    selected-notes readiness and chunk-boundary gates without weakening batch authority.
 3. **ASR-positive Echo promotion readiness.** Expand `coverage_v2_remote_gate_local_fir` validation
    beyond the current six sessions, add rollback/inspection criteria, compare review burden and

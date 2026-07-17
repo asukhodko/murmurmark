@@ -59,9 +59,13 @@ Current operating point, 2026-07-17:
   selected profiles and quality metrics match sequential baselines; all source CAF hashes match.
   Live ASR remains reusable only under strict audio/model/prompt/window/provenance compatibility;
   historical incompatible cache falls back per track.
-- Causal Double-Talk Me Recovery v1 is current. Its bounded input is `16` mixed/double-talk rows /
-  `65.07s`; stronger causal evidence may recover local speech, but existing remote-forbidden guards
-  and batch authority must not be weakened.
+- Causal Double-Talk Me Recovery v1 is complete. Its immutable `16`-row / `65.07s` corpus has
+  stable outcomes; `4` rows / `11.56s` are recovered, aggregate missing `Me` falls to `1639.73s`,
+  remote-like `Me` remains `108.42s`, order blockers remain `0`, and every per-session/runtime/SHA
+  gate passes. The result remains explicit-only and batch-authoritative.
+- Causal Recovery Generalization and Promotion Readiness v1 is current. It must expand the proof to
+  a broader positive/adversarial-negative corpus and fresh recording-time evidence before any normal
+  live preview wiring changes.
 
 Still future:
 

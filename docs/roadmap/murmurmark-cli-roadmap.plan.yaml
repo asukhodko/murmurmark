@@ -41,7 +41,7 @@ nodes:
       export bundle и retention plan уже доказали, что pipeline можно использовать как
       локальный инструмент, а не как набор лабораторных скриптов.
 
-      Authoritative status, 2026-07-17: stable batch route и committed-PCM live transport работают.
+      Authoritative status, 2026-07-18: stable batch route и committed-PCM live transport работают.
       Live Order and Role Reconciliation v1 завершён: 23 audit rows классифицированы, 15 прежних
       effective blockers сведены к 0 без transcript mutation. Live Local Recall and Remote Leakage
       Hardening v1 также завершён: все 118 rows классифицированы, causal shadow восстановил 678.32s
@@ -57,8 +57,11 @@ nodes:
       fixed-corpus gates, а strict fresh evidence aggregate достиг 3/3 с pre-stop candidates и zero
       final lag. Fast Authoritative Handoff v1 завершён: первый authoritative transcript/verdict
       отделён от необязательного enrichment, а strict live-cache gate не допускает приблизительный
-      reuse. Текущая цель — Causal Double-Talk Me Recovery v1 для зафиксированных 16 mixed/double-talk
-      rows / 65.07s без ослабления remote-forbidden guards.
+      reuse. Causal Double-Talk Me Recovery v1 завершён: 16/16 rows имеют stable outcomes, 4 rows /
+      11.56s восстановлены, aggregate missing Me снизился 1657.89s -> 1639.73s, remote-like Me
+      остался 108.42s, order blockers 0, runtime p95 23.473s, final lag 0, 356 frozen inputs не
+      изменились. Текущая цель — Causal Recovery Generalization and Promotion Readiness v1:
+      расширить доказательство и принять gated promote/no-promote решение для normal live preview.
 
       Historical operational snapshot, 2026-07-02:
 
@@ -566,9 +569,11 @@ nodes:
       Recording-Time Causal Me Recovery Integration v1 перенёс два последних replay-proven слоя за
       базовый live chunk: latest-only child, bounded timeout/lag, past-only evidence и fail-open
       fallback. Fixed seven-session paced replay воспроизводит candidate sets и profile metrics
-      7/7; missing Me 1657.89s, remote-like Me 108.42s, blockers 0, review burden 490.38s. Runtime
-      shadow не подключён к normal preview/export/promotion. Следующий фокус — incremental runtime
-      efficiency и три свежих meaningful real-session proofs до любого обсуждения публикации.
+      7/7. Incremental runtime и fresh evidence 3/3 завершены. Causal Double-Talk Me Recovery v1
+      дополнительно снижает missing Me 1657.89s -> 1639.73s при remote-like Me 108.42s, blockers 0,
+      review burden 478.82s, runtime p95 23.473s и final lag 0. Runtime shadow не подключён к normal
+      preview/export/promotion. Следующий фокус — generalization corpus, fresh evidence и gated
+      promote/no-promote решение.
 
   realtime-segment-writer:
     title: "Durable committed PCM sidecar"
@@ -1124,18 +1129,32 @@ nodes:
     kind: task
     parent: near-realtime-pipeline
     deps: [live-recovery-runtime-efficiency-real-evidence-v1, live-asr-cache-compatibility]
+    status: done
+    effort: 8
+    notes: |
+      Завершено 2026-07-18. Immutable corpus: 16 rows / 65.07s, 356 frozen input files. Все rows
+      имеют stable explainable outcomes; 4 rows / 11.56s восстановлены causal FIR/spectral/hybrid/
+      ratio-mask residuals, past-only Target-Me и local micro-ASR consensus при неизменных remote
+      text/audio forbiddance. Aggregate missing Me 1657.89s -> 1639.73s, remote-like Me 108.42s,
+      effective order blockers 0, review burden 490.38s -> 478.82s, no per-session token-F1
+      regression. Runtime double-talk p95 23.473s, final lag 0. Raw, Echo Guard, normal preview,
+      authoritative batch и promotion не изменились.
+
+  live-causal-recovery-generalization-promotion-readiness-v1:
+    title: "Causal Recovery Generalization and Promotion Readiness v1"
+    kind: task
+    parent: near-realtime-pipeline
+    deps: [live-causal-double-talk-me-recovery-v1, corpus-regression]
     status: current
     effort: 8
     notes: |
-      Bounded quality-цель после Fast Authoritative Handoff v1. Зафиксированный вход — 16
-      mixed/double-talk cross-check rows / 65.07s, которые текущий hard-guarded recovery корректно
-      отклоняет. Требуется получить новое причинное evidence, а не ослаблять remote guards:
-      несколько causal residual views, past-only Target-Me verification, multi-view micro-ASR
-      consensus и remote-forbidden text/audio checks. Каждый row должен получить explainable stable
-      outcome. Публикация допустима только при материальном снижении missing Me без роста remote-like
-      Me, effective order blockers, token-F1 regression или review burden. Raw capture, normal
-      preview, batch transcript и promotion остаются неизменными; отсутствие safe gain фиксируется
-      как доказанный отрицательный результат, а не компенсируется снижением порогов.
+      Расширить узкий double-talk proof до immutable generalization corpus: accepted, rejected,
+      runtime-only и adversarial remote-only controls. Объяснить extra runtime candidates, повторить
+      offline/recording-time outcomes и собрать fresh real-session evidence. Promotion в normal
+      advisory live preview допускается только с per-session no-regression по remote-like Me,
+      effective order, token F1 и review burden, unchanged raw/Echo Guard/authoritative hashes,
+      bounded p95, final lag 0, fail-open и rollback switch. Иначе выпустить точный no-promotion
+      report; batch остаётся authoritative в обоих исходах.
 
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"
@@ -2012,8 +2031,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Causal Double-Talk Me Recovery v1: безопасно разрешить 16 mixed/double-talk rows / 65.07s более сильным причинным evidence без ослабления remote-forbidden guards."
-      success_by_next_sync: "Все 16 rows имеют stable explainable outcome; missing Me materially снижается либо зафиксирован proved no-gain, а remote-like Me, order, token F1, review burden, raw и authoritative batch не регрессируют."
+      nearest_goal: "Causal Recovery Generalization and Promotion Readiness v1: расширить causal recovery proof и принять gated promote/no-promote решение для normal advisory live preview."
+      success_by_next_sync: "Есть immutable generalization corpus, объяснены runtime-only candidates, fresh recording-time evidence проходит gates, и promotion либо безопасно включён за rollback switch, либо отклонён с точным воспроизводимым blocker report."
     defaults:
       status_progress:
         done: 1.0
@@ -2039,8 +2058,8 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "CLI MVP, committed-PCM transport и Fast Authoritative Handoff закрыты. Handoff corpus проходит 3/3 с p95 14m40s и exact baseline equivalence. Local-recall hardening уменьшил aggregate missing Me 2844.88s -> 1657.89s; 16 mixed/double-talk rows / 65.07s остаются bounded quality scope. Production output остаётся batch."
-          next_sync_goal: "Получить stable outcomes для 16 double-talk rows и безопасный missing-Me gain либо доказанный no-gain без ослабления remote guards."
+          sync_note: "CLI MVP, committed-PCM transport и Fast Authoritative Handoff закрыты. Causal Double-Talk Me Recovery v1 проходит: 16/16 stable outcomes, 4 rows / 11.56s recovered, missing Me 1657.89s -> 1639.73s, remote/order/F1/runtime/SHA gates green. Production output остаётся batch."
+          next_sync_goal: "Расширить causal recovery proof до generalization corpus и fresh sessions, затем принять gated promote/no-promote решение для normal advisory live preview."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening, reliable-transcription-route]

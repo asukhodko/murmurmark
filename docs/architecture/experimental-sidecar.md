@@ -93,7 +93,7 @@ preview/draft output. `transcript.preview.md` is the conservative recording-time
 `transcript.draft.md` retains all candidate-only diagnostics. Canonical experiment audio lives under
 `derived/experiments/live-shadow-v1/audio/`.
 
-Evidence status, 2026-07-15: three fresh meaningful real sessions have complete raw tracks,
+Evidence status, 2026-07-18: three fresh meaningful real sessions have complete raw tracks,
 recording-time preview snapshots, terminal workers, zero final lag and successful authoritative
 batch transcripts. This closes transport uncertainty for v1. Order/role reconciliation also closed
 the `15` previous effective blockers without mutating turns. Local-recall hardening classified all
@@ -108,8 +108,11 @@ committed-PCM worker. Fixed-corpus paced replay reproduces their candidates and 
 micro-ASR objects, so a stable prefix is reused and only a changed suffix is processed. A refreshed
 fixed corpus preserves candidate/metric agreement `7/7` and warm-final equivalence `7/7`; a
 `2460s`, 41-cutoff stride-1 source-time replay gives `p95=13.61s` and maximum `19.16s`. The runtime
-shadow remains disconnected from normal preview and promotion. Three fresh meaningful real sessions
-are still required to close the current efficiency/evidence goal.
+shadow remains disconnected from normal preview and promotion. Causal Double-Talk Me Recovery v1
+then evaluates multiple residual families over a fixed `16`-row corpus, recovers `4` rows /
+`11.56s`, reduces aggregate missing `Me` to `1639.73s`, and keeps remote-like `Me=108.42s`, order
+blockers `0`, runtime p95 `23.473s` and final lag `0`. Generalization and fresh evidence for this new
+layer are required before any normal preview wiring changes.
 
 The worker path is:
 
@@ -387,6 +390,33 @@ the same causal candidates and closed-chunk audio, but accepts a candidate only 
 most `-65 dBFS` or `mic - remote` is at least `20 dB`. A missing audio measurement rejects the
 candidate. This leaves uncertain double-talk out of the live draft while preserving the direct
 profile as an explicit diagnostic reference.
+
+## Causal Double-Talk Recovery Shadow
+
+Causal Double-Talk Me Recovery v1 handles the narrower case where genuine local speech and remote
+speech overlap. It remains an explicit-only branch after the normal preview and durable base chunk:
+
+```text
+committed mic/remote PCM + closed live ASR + past enrollment
+  -> past-only echo model
+  -> FIR 40/80/160ms + spectral + hybrid + ratio-mask residual views
+  -> past-only Target-Me localization
+  -> local micro-ASR and cross-view consensus
+  -> remote text/audio forbiddance
+  -> diagnostic Me shadow candidate | explained rejection
+```
+
+Selection cannot read future audio, batch text or batch timing. Batch fields are permitted only in
+the fixed-corpus evaluator after the candidate has been accepted or rejected. Offline evaluation
+uses every residual family; recording-time runtime is bounded to one prioritized group per closed
+chunk and the strict hybrid ratio-mask view. Timeout, corrupt cache or overload disables only this
+stage.
+
+The fixed `16`-row / `65.07s` corpus recovers `4` rows / `11.56s` and improves aggregate missing
+`Me` from `1657.89s` to `1639.73s` without increasing remote-like `Me`, order blockers or per-session
+token-F1 regression. Runtime p95 is `23.473s`, final lag is `0`, and `356` frozen raw/Echo Guard/
+preview/authoritative inputs retain their SHA-256. The layer is not connected to normal preview or
+promotion; generalization and fresh-session evidence are separate gates.
 
 ### Disable Sidecar Instead Of Saving Every Experiment
 

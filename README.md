@@ -25,7 +25,7 @@ The stable CLI path is usable for working transcripts and evidence-backed notes.
 can be processed unattended and ends as `ready_for_notes`, `review_first` or `blocked`. Full export
 still requires explicit review when order, local recall or remote leakage cannot be resolved safely.
 
-Authoritative operating point, 2026-07-17:
+Authoritative operating point, 2026-07-18:
 
 - stable production remains `record -> process -> next -> finish` against one explicit `SESSION`;
 - raw `mic` and `remote` CAF files and the normal batch transcript remain the source of truth;
@@ -69,8 +69,15 @@ Authoritative operating point, 2026-07-17:
   metrics match sequential baselines, and all six raw CAF files remain unchanged;
 - live ASR reuse remains correctly rejected for historical `30s/5s` live versus `60s/5s` batch
   geometry and incomplete provenance. The decision is explicit per track and falls back to batch;
-- the current bounded quality goal is Causal Double-Talk Me Recovery v1: resolve the fixed `16`
-  mixed/double-talk rows / `65.07s` with stronger causal evidence without weakening remote guards.
+- Causal Double-Talk Me Recovery v1 is complete. An immutable `16`-row / `65.07s` corpus now has
+  stable outcomes; `4` rows / `11.56s` are safely recovered. Aggregate missing `Me` improves
+  `1657.89s -> 1639.73s`, remote-like `Me` remains `108.42s`, order blockers remain `0`, per-session
+  token F1 does not regress, and review burden improves `490.38s -> 478.82s`;
+- its bounded runtime replay has double-talk p95 `23.473s`, final lag `0`, and fail-open isolation.
+  All `356` frozen raw/Echo Guard/preview/authoritative input hashes remain unchanged;
+- the current bounded goal is Causal Recovery Generalization and Promotion Readiness v1: expand the
+  narrow success to a broader negative/positive corpus and fresh recording-time evidence before
+  deciding whether the combined recovery may enter the normal advisory live preview.
 
 The system deliberately keeps unresolved uncertainty visible. Suggested review decisions may close
 only rows supported by local audio and audit evidence. `finish` and guarded `export` remain blocked
@@ -80,7 +87,8 @@ Current reliability route:
 [Reliable Transcription Route](docs/project/reliable-transcription-route.md). Outcome, resumable ASR,
 review and final handoff are implemented. Live Local Recall and Remote Leakage Hardening v1 and
 Causal Local-Island Micro-ASR v2, Causal Remote-Active Me Separation v1 and their bounded
-recording-time integration are complete. The replay-proven capture-safe shadow is
+recording-time integration are complete. Causal Double-Talk Me Recovery v1 adds another strictly
+guarded explicit-only layer. The replay-proven capture-safe base shadow is
 `online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_local_island_micro_asr_v2_causal_remote_active_me_separation_v1`.
 Its runtime-only counterpart ends in `_runtime_v1` and remains disconnected from normal preview.
 The [current goal context](docs/project/current-goal.md) tracks the next bounded hardening step.
@@ -1609,10 +1617,13 @@ state is:
    and zero final lag are now established without raw/batch regression.
 9. **Completed fast handoff:** `process` separates the atomic authoritative result from `enrich`,
    strictly rejects incompatible cache reuse and passes the three-session latency/equivalence gate.
-10. **Current goal:** Causal Double-Talk Me Recovery v1. Resolve the `16` fixed mixed/double-talk
-   rows with stronger causal residual, Target-Me and multi-view ASR evidence while preserving
-   remote-like `Me`, order, token F1, review burden, raw capture and batch authority. UI remains
-   optional and late.
+10. **Completed double-talk recovery:** all `16` fixed rows have stable outcomes; `4` rows /
+    `11.56s` are recovered, missing `Me` falls to `1639.73s`, all no-regression gates and the bounded
+    runtime gate pass, and normal preview/batch remain unchanged.
+11. **Current goal:** Causal Recovery Generalization and Promotion Readiness v1. Expand the proof to
+    broad positive and remote-only controls plus fresh recording-time sessions, then either promote
+    the combined recovery to advisory live preview behind rollback or publish a precise no-promotion
+    verdict. UI remains optional and late.
 
 <details>
 <summary>Historical implementation log (non-authoritative)</summary>

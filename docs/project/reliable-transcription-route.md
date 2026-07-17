@@ -1,10 +1,9 @@
 # Reliable Transcription Route
 
-Status: active product route; stable batch capture/processing, live transport evidence, Live Order
-and Role Reconciliation v1, Live Local Recall and Remote Leakage Hardening v1 and Causal
-Local-Island Micro-ASR v2, Causal Remote-Active Me Separation v1 and Recording-Time Causal Me
-Recovery Integration v1 complete; incremental runtime implemented, real-session proof pending
-Date: 2026-07-15
+Status: active product route; stable batch capture/processing, live transport evidence, order/role
+reconciliation, causal local-island, remote-active and double-talk recovery, bounded recording-time
+runtime and fast authoritative handoff complete; generalization/promotion evidence is current
+Date: 2026-07-18
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
 corpus-calibrated gates and explicit review burden before broader repair. Outcome Contract v1,
@@ -24,8 +23,13 @@ child after the base live chunk is durable. Paced replay reproduces candidate se
 metrics across all seven sessions; failures and lag affect only the explicit diagnostic shadow. The
 runtime now reuses a content-addressed stable prefix and processes only new/invalidated suffix
 evidence. Warm equivalence passes `7/7`, and a stride-1 source-time run gives `p95=13.61s` and
-maximum `19.16s`. The remaining bounded question is fresh real-session pre-stop evidence and zero
-final lag before any publication path is considered.
+maximum `19.16s`. Three fresh real sessions subsequently proved pre-stop execution and zero final
+lag. Causal Double-Talk Me Recovery v1 now gives all `16` fixed overlap rows stable outcomes and
+safely recovers `4` rows / `11.56s`; aggregate missing `Me` falls to `1639.73s`, remote-like `Me`
+stays `108.42s`, order blockers stay `0`, review burden falls to `478.82s`, and runtime p95 is
+`23.473s` with final lag `0`. The remaining bounded question is generalization: whether this narrow
+explicit-only success survives broader remote-only controls and fresh recording-time sessions well
+enough to enter the normal advisory live preview.
 Near-realtime output remains shadow-only.
 
 ## Why This Exists

@@ -4,35 +4,63 @@ This file keeps the latest goal context and the most relevant completed goals. T
 path remains non-live `record -> process`. Live output stays shadow-only and batch transcript remains
 authoritative.
 
-## Current Goal: Causal Double-Talk Me Recovery v1
+## Current Goal: Causal Recovery Generalization and Promotion Readiness v1
 
-Status, 2026-07-17: selected after Fast Authoritative Handoff v1 passed its three-session corpus
-gate. Post-stop latency is now bounded; the next material quality gap is local speech spoken while
-`remote` is also active.
+Status, 2026-07-18: selected after Causal Double-Talk Me Recovery v1 passed every fixed-corpus and
+runtime gate. The new double-talk layer is useful, but it is still an explicit-only shadow tested on
+a narrow, deliberately selected corpus. The next task is to decide whether the combined causal
+recovery stack generalizes well enough to enter the normal live preview path.
 
-The fixed evidence scope is `16` mixed/double-talk cross-check rows covering `65.07s`. The current
-hard-guarded causal recovery rejects all of them. That is the correct safety result with the present
-evidence, but it leaves genuine `Me` speech missing from the live shadow. The task is to obtain
-stronger independent evidence, not to lower the existing remote guards.
-
-Objective: recover a material subset of those double-talk rows using only information available at
-recording time, while preserving the proven protection against publishing remote speech as `Me`.
-Batch remains authoritative and the new result stays in an explicit shadow profile.
+Objective: expand evaluation from the fixed `16` double-talk rows to every eligible remote-active
+candidate and a deliberate remote-only/adversarial negative set, prove recording-time behavior on
+fresh sessions, and make one evidence-backed promotion decision. Batch remains authoritative in
+either outcome.
 
 Definition of Done:
 
-- every one of the `16` rows has a stable, explainable outcome backed by committed mic/remote PCM,
-  speaker state and causal provenance;
-- evaluate multiple causal residual views, past-only Target-Me evidence and multi-view micro-ASR
-  consensus under remote-forbidden text/audio guards;
-- accepted rows materially reduce missing `Me`; rejected rows retain an explicit reason instead of
-  disappearing behind a threshold;
-- remote-like `Me`, effective order blockers, token F1 and mandatory review burden do not regress in
-  any corpus session;
-- raw capture, normal live preview, authoritative batch transcript and promotion policy remain
-  unchanged;
-- if no safe gain exists, close the goal with a reproducible negative result rather than weakening
-  the safety contract.
+- build an immutable generalization corpus that includes accepted, rejected, runtime-only and
+  remote-only controls without using batch fields for candidate selection;
+- explain the extra runtime candidates that do not map to the original `16` rows and classify each
+  as genuine recovery, duplicate, remote leak, timing overlap, ASR noise or insufficient evidence;
+- reproduce offline and recording-time outcomes, with bounded p95, zero final lag and fail-open
+  behavior under timeout, corrupt cache and backpressure;
+- require per-session no-regression for remote-like `Me`, effective order blockers, token F1 and
+  mandatory review burden, plus unchanged raw/Echo Guard/authoritative SHA-256 inputs;
+- collect fresh real-session evidence before changing normal preview wiring;
+- either promote the combined causal layer to the normal advisory live preview behind a rollback
+  switch, or publish a reproducible no-promotion report with the exact blocker and next experiment.
+
+## Completed Goal: Causal Double-Talk Me Recovery v1
+
+Completed, 2026-07-18. The fixed corpus contains `16` immutable rows / `65.07s` and `356` frozen
+input files covering raw CAF, Echo Guard inputs/outputs, committed chunks, normal preview and
+authoritative outputs. Rebuilding the corpus without `--refresh` returns `verified_immutable`.
+
+The explicit profile
+`online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_local_island_micro_asr_v2_causal_remote_active_me_separation_v1_causal_double_talk_me_recovery_v1`
+uses past-only adaptive FIR (`40/80/160ms`), spectral projection, hybrid and ratio-mask residuals,
+past-only Target-Me localization and local micro-ASR. Strict evidence fusion requires local ASR and
+Target-Me support and forbids remote text containment and strong remote audio similarity.
+
+Result:
+
+- all `16/16` rows have stable machine-readable outcomes and explicit reasons;
+- `4` rows / `11.56s` match the fixed evaluation references and are safely recovered;
+- aggregate missing `Me` improves `1657.89s -> 1639.73s`;
+- remote-like `Me` remains `108.42s`, effective order blockers remain `0`, and token F1 does not
+  regress in any of seven sessions;
+- projected mandatory review burden improves `490.38s -> 478.82s`;
+- the bounded runtime replay matches the required offline double-talk candidates, has double-talk
+  p95 `23.473s` and final lag `0`;
+- all `356` frozen input SHA-256 values remain unchanged; normal preview, authoritative transcript,
+  export and promotion policy remain untouched.
+
+Primary reports are under
+`sessions/_reports/live-pipeline/causal-double-talk-me-recovery-v1/` as JSON, JSONL and Markdown.
+Accepted hypotheses are multi-family past-only residual recovery and independent Target-Me/ASR
+fusion. Rejected hypotheses include one static FIR for all intervals, source-track ASR as sufficient
+role evidence, full-window speaker embeddings for short overlap speech, mandatory GPU whisper.cpp,
+and processing every remote-active group inside the live cutoff budget.
 
 ## Completed Goal: Fast Authoritative Handoff v1
 

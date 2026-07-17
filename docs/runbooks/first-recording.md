@@ -645,3 +645,35 @@ Echo diagnostics are optional for the minimal capture workflow. They are useful 
 The current CLI uses ScreenCaptureKit as the working capture backend. The target Core Audio Process
 Tap design remains documented in ADR-0001 and ADR-0008 as a future option for more precise
 per-application capture.
+
+## Verify Causal Double-Talk Recovery
+
+This is a maintainer acceptance path, not a normal meeting command. It never modifies raw CAF,
+normal preview or authoritative transcript.
+
+```bash
+CORPUS="sessions/_reports/live-pipeline/causal-double-talk-me-recovery-v1"
+
+.venv/bin/python scripts/build-causal-double-talk-corpus.py --require-valid
+
+.venv/bin/python scripts/replay-live-causal-me-recovery-runtime.py \
+  sessions/2026-07-09_15-15-52 \
+  --stride-chunks 1 \
+  --max-captured-sec 300 \
+  --output-dir sessions/2026-07-09_15-15-52/derived/live/causal-me-recovery-runtime-v1-double-talk-v1 \
+  --verify-warm-final \
+  --agreement-scope double-talk
+
+.venv/bin/python scripts/report-causal-double-talk-me-recovery-v1.py \
+  --runtime-replay sessions/2026-07-09_15-15-52/derived/live/causal-me-recovery-runtime-v1-double-talk-v1/paced_replay.json \
+  --require-stable \
+  --require-acceptance
+
+jq '{summary, acceptance, runtime_acceptance, frozen_inputs}' \
+  "$CORPUS/recovery_report_v1.json"
+```
+
+The accepted v1 result is `16/16` stable outcomes, `4` recovered rows / `11.56s`, missing `Me`
+`1657.89s -> 1639.73s`, remote-like `Me=108.42s`, order blockers `0`, runtime p95 `23.473s`, final
+lag `0`, and no changed frozen input hashes. Use `--refresh` on the corpus builder only for an
+intentional new corpus version; ordinary verification must remain immutable.
