@@ -10,6 +10,8 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
+import signal
 import subprocess
 import sys
 import time
@@ -20,13 +22,15 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_causal_me_recovery_runtime/v1"
-SCRIPT_VERSION = "1.1.0"
-PROFILE = (
+SCRIPT_VERSION = "1.2.0"
+BASE_PROFILE = (
     "online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_"
     "local_island_micro_asr_v2_causal_remote_active_me_separation_v1_runtime_v1"
 )
+PROFILE = BASE_PROFILE.removesuffix("_runtime_v1") + "_causal_double_talk_me_recovery_v1_runtime_v1"
 OUTPUT_RELATIVE = Path("derived/live/causal-me-recovery-runtime-v1")
 REMOTE_ACTIVE_MAX_ASR_GROUPS = 24
+DOUBLE_TALK_STAGE_TIMEOUT_SEC = 28.0
 
 
 def now_iso() -> str:
@@ -223,15 +227,49 @@ def mark_superseded_candidates(
     return rows, effective
 
 
-def run_stage(command: list[str]) -> dict[str, Any]:
+def run_stage(command: list[str], *, timeout_sec: float = 0.0) -> dict[str, Any]:
     started = time.monotonic()
-    result = subprocess.run(command, capture_output=True, text=True, check=False)
+    if timeout_sec <= 0.0:
+        result = subprocess.run(command, capture_output=True, text=True, check=False)
+        return {
+            "status": "passed" if result.returncode == 0 else "failed",
+            "returncode": result.returncode,
+            "elapsed_sec": round(time.monotonic() - started, 3),
+            "stdout_tail": result.stdout[-2000:],
+            "stderr_tail": result.stderr[-2000:],
+        }
+    process = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    timed_out = False
+    try:
+        stdout, stderr = process.communicate(timeout=timeout_sec)
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        try:
+            stdout, stderr = process.communicate(timeout=2.0)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            stdout, stderr = process.communicate()
     return {
-        "status": "passed" if result.returncode == 0 else "failed",
-        "returncode": result.returncode,
+        "status": "timed_out_fail_open" if timed_out else "passed" if process.returncode == 0 else "failed",
+        "returncode": process.returncode,
+        "timeout_sec": timeout_sec,
+        "timed_out": timed_out,
         "elapsed_sec": round(time.monotonic() - started, 3),
-        "stdout_tail": result.stdout[-2000:],
-        "stderr_tail": result.stderr[-2000:],
+        "stdout_tail": stdout[-2000:],
+        "stderr_tail": stderr[-2000:],
     }
 
 
@@ -429,6 +467,42 @@ def main() -> int:
         invocation=invocation,
         stage=remote_stage,
     )
+
+    double_output = output / "double-talk-v1"
+    previous_double_state = read_json(double_output / "state.json")
+    previous_double_cutoff = safe_int(previous_double_state.get("through_chunk_index"))
+    double_command = [
+        sys.executable,
+        str(scripts / "live-causal-double-talk-me-recovery.py"),
+        str(session),
+        "--through-chunk-index",
+        str(args.through_chunk_index),
+        "--from-chunk-index",
+        str(1 if args.force else max(1, previous_double_cutoff + 1)),
+        "--source-selection",
+        str(local_output / "selection.jsonl"),
+        "--output-dir",
+        str(double_output),
+        "--runtime-shadow",
+        "--view-profile",
+        "runtime",
+        "--micro-asr-backend",
+        "whisper-cpp-cpu",
+        "--model",
+        args.model,
+        "--language",
+        args.language,
+        "--whisper-cli",
+        args.whisper_cli,
+    ]
+    if args.force:
+        double_command.append("--force")
+    double_stage = run_stage(double_command, timeout_sec=DOUBLE_TALK_STAGE_TIMEOUT_SEC)
+    double_rows = add_runtime_evidence(
+        double_output / "candidates.jsonl",
+        invocation=invocation,
+        stage=double_stage,
+    )
     completed_at = now_iso()
     session_meta = read_json(session / "session.json")
     ended_at = parse_datetime(session_meta.get("ended_at"))
@@ -460,6 +534,11 @@ def main() -> int:
         invocation=final_invocation,
         stage=remote_stage,
     )
+    double_rows = add_runtime_evidence(
+        double_output / "candidates.jsonl",
+        invocation=final_invocation,
+        stage=double_stage,
+    )
     local_rows, accepted_local = mark_superseded_candidates(
         local_rows,
         source="causal-local-island-micro-asr-v2-runtime",
@@ -473,19 +552,59 @@ def main() -> int:
         + [candidate_turn(row, "causal-local-island-micro-asr-v2-runtime") for row in accepted_local],
         compare=compare,
     )
+    strict_double_turns, double_contract_rejections = (
+        compare.causal_double_talk_me_recovery_v1_shadow_turns(
+            session,
+            double_output / "candidates.jsonl",
+        )
+    )
+    strict_double_ids = {str(row.get("id") or "") for row in strict_double_turns}
+    double_rows, accepted_double = mark_superseded_candidates(
+        double_rows,
+        source="causal-double-talk-me-recovery-v1-runtime",
+        baseline_turns=baseline_turns
+        + [candidate_turn(row, "causal-local-island-micro-asr-v2-runtime") for row in accepted_local]
+        + [candidate_turn(row, "causal-remote-active-me-separation-v1-runtime") for row in accepted_remote],
+        compare=compare,
+    )
+    accepted_double = [
+        row for row in accepted_double if str(row.get("id") or "") in strict_double_ids
+    ]
+    for row in double_rows:
+        if row.get("status") == "accepted" and str(row.get("id") or "") not in strict_double_ids:
+            row["runtime_publication_status"] = "rejected_contract_fail_open"
     write_jsonl(local_output / "candidates.jsonl", local_rows)
     write_jsonl(remote_output / "candidates.jsonl", remote_rows)
+    write_jsonl(double_output / "candidates.jsonl", double_rows)
     enriched_turns = sorted(
         baseline_turns
         + [candidate_turn(row, "causal-local-island-micro-asr-v2-runtime") for row in accepted_local]
-        + [candidate_turn(row, "causal-remote-active-me-separation-v1-runtime") for row in accepted_remote],
+        + [candidate_turn(row, "causal-remote-active-me-separation-v1-runtime") for row in accepted_remote]
+        + [candidate_turn(row, "causal-double-talk-me-recovery-v1-runtime") for row in accepted_double],
         key=lambda row: (
             safe_float(row.get("start")),
             safe_float(row.get("end")),
             str(row.get("id") or ""),
         ),
     )
-    status = "completed" if remote_stage["status"] == "passed" else "completed_partial"
+    status = (
+        "completed"
+        if remote_stage["status"] == "passed" and double_stage["status"] == "passed"
+        else "completed_partial"
+    )
+    double_state = read_json(double_output / "state.json")
+    double_incremental = {
+        "stage": "causal_double_talk_me_recovery_v1",
+        "status": double_stage.get("status"),
+        "through_chunk_index": args.through_chunk_index,
+        "previous_through_chunk_index": previous_double_cutoff,
+        "new_chunk_count": max(0, args.through_chunk_index - previous_double_cutoff),
+        "reused_chunk_count": min(args.through_chunk_index, previous_double_cutoff),
+        "processed_group_count": safe_int(double_state.get("source_group_count")),
+        "accepted_candidate_count": len(accepted_double),
+        "elapsed_sec": double_stage.get("elapsed_sec"),
+        "timed_out": double_stage.get("timed_out") is True,
+    }
     state = {
         **final_invocation,
         "schema": SCHEMA,
@@ -497,22 +616,28 @@ def main() -> int:
         "baseline_turn_count": len(baseline_turns),
         "accepted_local_island_count": len(accepted_local),
         "accepted_remote_active_count": len(accepted_remote),
+        "accepted_double_talk_count": len(accepted_double),
+        "double_talk_contract_rejection_count": len(double_contract_rejections),
         "algorithm_accepted_candidate_count": sum(
-            1 for row in local_rows + remote_rows if row.get("status") == "accepted"
+            1 for row in local_rows + remote_rows + double_rows if row.get("status") == "accepted"
         ),
         "superseded_candidate_count": sum(
             1
-            for row in local_rows + remote_rows
+            for row in local_rows + remote_rows + double_rows
             if row.get("runtime_publication_status") == "superseded_by_later_base_turn"
         ),
-        "accepted_candidate_count": len(accepted_local) + len(accepted_remote),
+        "accepted_candidate_count": len(accepted_local) + len(accepted_remote) + len(accepted_double),
         "accepted_candidate_seconds": round(
-            sum(safe_float(row.get("duration_sec")) for row in accepted_local + accepted_remote),
+            sum(
+                safe_float(row.get("duration_sec"))
+                for row in accepted_local + accepted_remote + accepted_double
+            ),
             3,
         ),
         "stages": {
             "local_island_v2": local_stage,
             "remote_active_v1": remote_stage,
+            "double_talk_v1": double_stage,
         },
         "incremental_runtime": {
             "schema": "murmurmark.live_recovery_incremental_runtime/v1",
@@ -523,6 +648,7 @@ def main() -> int:
             "remote_active_v1": (
                 read_json(remote_output / "state.json").get("incremental_cache") or {}
             ),
+            "double_talk_v1": double_incremental,
             "cache_root": str(incremental_root.relative_to(session)),
         },
         "outputs": {
@@ -531,6 +657,7 @@ def main() -> int:
             "runtime_runs": str(output_relative / "runtime_runs.jsonl"),
             "local_candidates": str(output_relative / "local-island-v2/candidates.jsonl"),
             "remote_active_candidates": str(output_relative / "remote-active-v1/candidates.jsonl"),
+            "double_talk_candidates": str(output_relative / "double-talk-v1/candidates.jsonl"),
         },
         "normal_preview_connected": False,
         "batch_authoritative": True,

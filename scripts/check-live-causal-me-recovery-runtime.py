@@ -73,7 +73,7 @@ def main() -> int:
             "if int(os.environ.get('FAKE_RUNTIME_EXIT','0')) == 0:\n"
             "    state=Path(sys.argv[1])/'derived/live/causal-me-recovery-runtime-v1/state.json'\n"
             "    state.parent.mkdir(parents=True,exist_ok=True)\n"
-            "    state.write_text(json.dumps({'incremental_runtime':{'schema':'murmurmark.live_recovery_incremental_runtime/v1','local_island_v2':{'new_chunk_count':1},'remote_active_v1':{'new_chunk_count':1}}})+'\\n')\n"
+            "    state.write_text(json.dumps({'incremental_runtime':{'schema':'murmurmark.live_recovery_incremental_runtime/v1','local_island_v2':{'new_chunk_count':1},'remote_active_v1':{'new_chunk_count':1},'double_talk_v1':{'new_chunk_count':1,'status':'passed'}}})+'\\n')\n"
             "raise SystemExit(int(os.environ.get('FAKE_RUNTIME_EXIT','0')))\n",
             encoding="utf-8",
         )
@@ -96,6 +96,7 @@ def main() -> int:
         assert success.failed_invocations == 0
         assert success.final_live_lag_sec == 0.0
         assert success.last_incremental_runtime["local_island_v2"]["new_chunk_count"] == 1
+        assert success.last_incremental_runtime["double_talk_v1"]["status"] == "passed"
         success_state = json.loads(success.state_path.read_text(encoding="utf-8"))
         assert success_state["last_incremental_runtime"] == success.last_incremental_runtime
 

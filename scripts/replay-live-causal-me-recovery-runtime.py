@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import json
 import os
 import shutil
@@ -16,7 +17,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_causal_me_recovery_paced_replay/v1"
-SCRIPT_VERSION = "1.2.0"
+SCRIPT_VERSION = "1.4.0"
 OUTPUT_RELATIVE = Path("derived/live/causal-me-recovery-runtime-v1")
 
 
@@ -83,6 +84,113 @@ def accepted_ids(path: Path, *, runtime: bool, through_chunk_index: int = 0) -> 
     }
 
 
+def accepted_rows(
+    path: Path,
+    *,
+    runtime: bool,
+    through_chunk_index: int = 0,
+) -> list[dict[str, Any]]:
+    return [
+        row
+        for row in read_jsonl(path)
+        if row.get("status") == "accepted"
+        and (through_chunk_index <= 0 or safe_int(row.get("chunk_index")) <= through_chunk_index)
+        and (
+            not runtime
+            or row.get("runtime_publication_status") in {None, "effective_candidate"}
+        )
+    ]
+
+
+def token_metrics(candidate: str, reference: str) -> dict[str, float | int]:
+    def tokens(value: str) -> list[str]:
+        normalized = "".join(
+            character.lower() if character.isalnum() else " " for character in value
+        )
+        return [token for token in normalized.split() if token]
+
+    candidate_tokens = tokens(candidate)
+    reference_tokens = tokens(reference)
+    if not candidate_tokens or not reference_tokens:
+        return {"token_f1": 0.0, "reference_recall": 0.0, "matched_token_count": 0}
+    matched = sum((Counter(candidate_tokens) & Counter(reference_tokens)).values())
+    precision = matched / len(candidate_tokens)
+    recall = matched / len(reference_tokens)
+    f1 = 2.0 * precision * recall / (precision + recall) if precision + recall else 0.0
+    return {
+        "token_f1": round(f1, 6),
+        "reference_recall": round(recall, 6),
+        "matched_token_count": matched,
+    }
+
+
+def interval_overlap(row: dict[str, Any], other: dict[str, Any]) -> float:
+    return max(
+        0.0,
+        min(float(row.get("end") or 0.0), float(other.get("end") or 0.0))
+        - max(float(row.get("start") or 0.0), float(other.get("start") or 0.0)),
+    )
+
+
+def equivalent_double_talk_candidates(
+    replay_rows: list[dict[str, Any]],
+    runtime_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    matches: list[dict[str, Any]] = []
+    matched_runtime_ids: set[str] = set()
+    missing: list[str] = []
+    for replay in replay_rows:
+        ranked: list[tuple[float, float, dict[str, Any], dict[str, float | int]]] = []
+        for runtime in runtime_rows:
+            if safe_int(runtime.get("chunk_index")) != safe_int(replay.get("chunk_index")):
+                continue
+            overlap = interval_overlap(replay, runtime)
+            metrics = token_metrics(str(runtime.get("text") or ""), str(replay.get("text") or ""))
+            if (
+                overlap >= 0.35
+                and float(metrics["token_f1"]) >= 0.30
+                and float(metrics["reference_recall"]) >= 0.20
+            ):
+                ranked.append((float(metrics["token_f1"]), overlap, runtime, metrics))
+        if not ranked:
+            missing.append(str(replay.get("id") or ""))
+            continue
+        _, overlap, runtime, metrics = max(ranked, key=lambda item: (item[0], item[1]))
+        runtime_id = str(runtime.get("id") or "")
+        matched_runtime_ids.add(runtime_id)
+        matches.append(
+            {
+                "replay_id": replay.get("id"),
+                "runtime_id": runtime_id,
+                "overlap_sec": round(overlap, 3),
+                **metrics,
+            }
+        )
+    extras = [
+        {
+            "id": row.get("id"),
+            "chunk_index": row.get("chunk_index"),
+            "start": row.get("start"),
+            "end": row.get("end"),
+            "text": row.get("text"),
+            "classification": row.get("classification"),
+        }
+        for row in runtime_rows
+        if str(row.get("id") or "") not in matched_runtime_ids
+    ]
+    return {
+        "comparison": "causal_interval_and_text_equivalence",
+        "replay_count": len(replay_rows),
+        "runtime_count": len(runtime_rows),
+        "matched_count": len(matches),
+        "matches": matches,
+        "missing_in_runtime": missing,
+        "additional_runtime_candidates": extras,
+        "additional_runtime_candidates_are_evaluation_only": True,
+        "passed": not missing,
+    }
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Paced causal Me recovery replay over closed chunk cutoffs.")
     parser.add_argument("session", type=Path)
@@ -110,6 +218,12 @@ def parse_args() -> argparse.Namespace:
         "--verify-warm-final",
         action="store_true",
         help="Repeat the final cutoff and require a zero-new-work equivalent candidate set.",
+    )
+    parser.add_argument(
+        "--agreement-scope",
+        choices=("all", "double-talk"),
+        default="all",
+        help="Keep legacy all-stage parity, or gate only the new double-talk stage.",
     )
     return parser.parse_args()
 
@@ -205,6 +319,7 @@ def main() -> int:
     if args.verify_warm_final and invocations and invocations[-1].get("returncode") == 0:
         before_local = accepted_ids(output / "local-island-v2/candidates.jsonl", runtime=True)
         before_remote = accepted_ids(output / "remote-active-v1/candidates.jsonl", runtime=True)
+        before_double = accepted_ids(output / "double-talk-v1/candidates.jsonl", runtime=True)
         final_chunk = next(row for row in chunks if safe_int(row.get("index")) == final_cutoff)
         submitted_at = now_iso()
         invocation_id = f"paced_warm_final_{final_cutoff:06d}"
@@ -240,9 +355,10 @@ def main() -> int:
         )
         after_local = accepted_ids(output / "local-island-v2/candidates.jsonl", runtime=True)
         after_remote = accepted_ids(output / "remote-active-v1/candidates.jsonl", runtime=True)
+        after_double = accepted_ids(output / "double-talk-v1/candidates.jsonl", runtime=True)
         stages = [
             incremental.get(name) or {}
-            for name in ("local_island_v2", "remote_active_v1")
+            for name in ("local_island_v2", "remote_active_v1", "double_talk_v1")
         ]
         warm_verification = {
             "requested": True,
@@ -250,6 +366,7 @@ def main() -> int:
             if result.returncode == 0
             and before_local == after_local
             and before_remote == after_remote
+            and before_double == after_double
             and all(safe_int(stage.get("new_chunk_count")) == 0 for stage in stages)
             else "failed",
             "returncode": result.returncode,
@@ -257,6 +374,7 @@ def main() -> int:
             "simulated_captured_sec": round(float(final_chunk.get("end_sec") or 0.0), 3),
             "local_candidates_equivalent": before_local == after_local,
             "remote_candidates_equivalent": before_remote == after_remote,
+            "double_talk_candidates_equivalent": before_double == after_double,
             "incremental_runtime": incremental,
             "stdout_tail": result.stdout[-1000:],
             "stderr_tail": result.stderr[-1000:],
@@ -281,6 +399,20 @@ def main() -> int:
         runtime=True,
         through_chunk_index=final_cutoff,
     )
+    replay_double_rows = accepted_rows(
+        session / "derived/live/causal-double-talk-me-recovery-v1/candidates.jsonl",
+        runtime=False,
+        through_chunk_index=final_cutoff,
+    )
+    runtime_double_rows = accepted_rows(
+        output / "double-talk-v1/candidates.jsonl",
+        runtime=True,
+        through_chunk_index=final_cutoff,
+    )
+    double_agreement = equivalent_double_talk_candidates(
+        replay_double_rows,
+        runtime_double_rows,
+    )
     agreement = {
         "local_island": {
             "replay_count": len(replay_local),
@@ -296,12 +428,18 @@ def main() -> int:
             "extra_in_runtime": sorted(runtime_remote - replay_remote),
             "passed": replay_remote == runtime_remote,
         },
+        "double_talk": double_agreement,
     }
     state = read_json(output / "state.json")
+    required_agreements = (
+        [agreement["double_talk"]]
+        if args.agreement_scope == "double-talk"
+        else list(agreement.values())
+    )
     passed = bool(
         invocations
         and all(row.get("returncode") == 0 for row in invocations)
-        and all(row.get("passed") is True for row in agreement.values())
+        and all(row.get("passed") is True for row in required_agreements)
         and state.get("completed_before_stop") is True
         and (not args.verify_warm_final or warm_verification.get("status") == "passed")
     )
@@ -344,6 +482,19 @@ def main() -> int:
             }
         ),
     }
+    double_latencies = [
+        float(((invocation.get("incremental_runtime") or {}).get("double_talk_v1") or {}).get("elapsed_sec") or 0.0)
+        for invocation in invocations
+    ]
+    efficiency["double_talk_latency_p50_sec"] = round(percentile(double_latencies, 0.50), 3)
+    efficiency["double_talk_latency_p95_sec"] = round(percentile(double_latencies, 0.95), 3)
+    efficiency["double_talk_latency_max_sec"] = round(max(double_latencies, default=0.0), 3)
+    efficiency["double_talk_latency_p95_within_30s"] = (
+        efficiency["double_talk_latency_p95_sec"] <= 30.0
+    )
+    final_source_sec = float(next(row for row in chunks if safe_int(row.get("index")) == final_cutoff).get("end_sec") or 0.0)
+    completed_chunk = safe_int(state.get("through_chunk_index"))
+    final_lag_sec = 0.0 if completed_chunk >= final_cutoff else final_source_sec
     report = {
         "schema": SCHEMA,
         "generator": {"name": "replay-live-causal-me-recovery-runtime", "version": SCRIPT_VERSION},
@@ -354,6 +505,7 @@ def main() -> int:
         "stride_chunks": stride,
         "pace_scale": args.pace_scale,
         "max_captured_sec": args.max_captured_sec,
+        "agreement_scope": args.agreement_scope,
         "source_coverage_sec": round(previous_end, 3),
         "cutoff_count": len(cutoffs),
         "invocations": invocations,
@@ -361,6 +513,7 @@ def main() -> int:
         "warm_cache_verification": warm_verification,
         "candidate_agreement": agreement,
         "runtime_state": state,
+        "final_live_lag_sec": final_lag_sec,
         "used_batch_fields_for_selection": False,
         "batch_authoritative": True,
         "promotion_allowed": False,
@@ -370,6 +523,7 @@ def main() -> int:
     print(f"cutoffs: {len(cutoffs)}")
     print(f"local_agreement: {agreement['local_island']['passed']}")
     print(f"remote_active_agreement: {agreement['remote_active']['passed']}")
+    print(f"double_talk_agreement: {agreement['double_talk']['passed']}")
     print(f"report: {output / 'paced_replay.json'}")
     return 0 if passed else 1
 
