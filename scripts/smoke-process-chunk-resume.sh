@@ -126,6 +126,8 @@ set +e
   --skip-preprocess \
   --skip-audits \
   --skip-cleanup \
+  --asr-track-workers 1 \
+  --micro-asr-workers 1 \
   --progress-interval-sec 1 >"$workdir/first.log" 2>&1
 first_status=$?
 set -e
@@ -154,6 +156,8 @@ jq -e '
   --skip-preprocess \
   --skip-audits \
   --skip-cleanup \
+  --asr-track-workers 1 \
+  --micro-asr-workers 1 \
   --progress-interval-sec 1 >"$workdir/second.log" 2>&1
 
 jq -e '
@@ -261,6 +265,8 @@ jq -n \
   --skip-preprocess \
   --skip-audits \
   --skip-cleanup \
+  --asr-track-workers 1 \
+  --micro-asr-workers 1 \
   --progress-interval-sec 1 >"$legacy_workdir/process.log" 2>&1
 
 jq -e '.status == "passed"' \
@@ -406,6 +412,10 @@ command = [
     "--skip-preprocess",
     "--skip-audits",
     "--skip-cleanup",
+    "--asr-track-workers",
+    "1",
+    "--micro-asr-workers",
+    "1",
     "--progress-interval-sec",
     "1",
 ]
@@ -462,6 +472,8 @@ unset FAKE_WHISPER_SLEEP_ON_SECOND
   --skip-preprocess \
   --skip-audits \
   --skip-cleanup \
+  --asr-track-workers 1 \
+  --micro-asr-workers 1 \
   --progress-interval-sec 1 >"$interrupt_workdir/second.log" 2>&1
 
 jq -e '

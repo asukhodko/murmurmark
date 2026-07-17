@@ -86,6 +86,8 @@ struct MurmurMark {
                 try PipelineCommands.sessions(args)
             case "process":
                 try PipelineCommands.process(args)
+            case "enrich":
+                try PipelineCommands.enrich(args)
             case "status":
                 try PipelineCommands.status(args)
             case "outcome":
@@ -181,11 +183,14 @@ struct MurmurMark {
                               [--sessions-root ./sessions]
           murmurmark latest [--sessions-root ./sessions]
           murmurmark process ./session|latest [--model ./model.bin] [--language ru] [--prompt-file ./prompt.txt]
+                                [--full]
                                 [--force-asr] [--reuse-asr-cache] [--plan-only] [--skip-build]
+                                [--asr-track-workers 1|2] [--asr-threads N] [--micro-asr-workers 1|2|4]
                                 [--skip-preprocess] [--skip-transcription] [--skip-audits] [--skip-cleanup]
                                 [--skip-stronger-audio-judge] [--stronger-audio-judge-exhaustive]
-                                [--progress-interval-sec 60] [--allow-partial]
+                                [--progress-interval-sec 60] [--deferred-step-timeout-sec 3600] [--allow-partial]
                                 [--config murmurmark.config.json] [--sessions-root ./sessions]
+          murmurmark enrich ./session|latest [--skip-stronger-audio-judge] [--config murmurmark.config.json]
           murmurmark status [./session|latest] [--sessions-root ./sessions]
           murmurmark outcome [./session|latest] [--refresh] [--sessions-root ./sessions]
           murmurmark next [./session|latest|corpus] [--refresh] [--export-manifest ./export_manifest.json] [--sessions-root ./sessions]
@@ -1016,6 +1021,39 @@ enum PipelineCommands {
         }
     }
 
+    static func enrich(_ args: [String]) throws {
+        if ArgumentEditing.hasHelpFlag(args) {
+            PipelineHelp.printEnrich()
+            return
+        }
+        guard let target = args.first else {
+            PipelineHelp.printEnrich()
+            return
+        }
+        var forwarded = Array(args.dropFirst())
+        let config = try MurmurMarkConfig.load(from: ArgumentEditing.takeOption("config", from: &forwarded))
+        let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &forwarded) ?? "sessions")
+        let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
+        let python = try PythonRuntime.resolve()
+        let script = PathURLs.fileURL("scripts/run-session-pipeline.py")
+        guard FileManager.default.fileExists(atPath: script.path) else {
+            throw CLIError("pipeline runner not found: \(script.path)")
+        }
+
+        var command = [script.path, session.path, "--phase", "deferred"]
+        command += config.processDefaults(unless: forwarded)
+        if !ArgumentEditing.hasOption("murmurmark-bin", in: forwarded) {
+            command += ["--murmurmark-bin", ExecutablePath.current()]
+        }
+        command += forwarded
+
+        print("SESSION=\"\(PathDisplay.display(session))\"")
+        fflush(stdout)
+        try Tooling.runPathForwardingInterrupts(python, command)
+        try ReadinessPrinter.printSession(session, label: "readiness")
+        try ReadinessPrinter.printFinalNext(session)
+    }
+
     static func status(_ args: [String]) throws {
         if ArgumentEditing.hasHelpFlag(args) {
             PipelineHelp.printStatus()
@@ -1354,13 +1392,17 @@ enum PipelineHelp {
     static func printProcess() {
         Swift.print("""
         usage: murmurmark process ./session|latest [--model ./model.bin] [--language ru] [--prompt-file ./prompt.txt]
+                                [--full]
                                 [--force-asr] [--reuse-asr-cache] [--plan-only] [--skip-build]
+                                [--asr-track-workers 1|2] [--asr-threads N] [--micro-asr-workers 1|2|4]
                                 [--skip-preprocess] [--skip-transcription] [--skip-audits] [--skip-cleanup]
                                 [--skip-stronger-audio-judge] [--stronger-audio-judge-exhaustive]
                                 [--progress-interval-sec 60] [--allow-partial]
                                 [--config murmurmark.config.json] [--sessions-root ./sessions]
 
-        Runs scripts/run-session-pipeline.py for one recorded session, then prints readiness.
+        Produces the authoritative transcript/verdict handoff and then returns. Deferred local
+        audio judges and live-vs-batch diagnostics are intentionally left for `murmurmark enrich`.
+        Use --full to run both phases in one foreground command.
         Defaults come from murmurmark.config.json when present; explicit CLI flags win.
         The --skip-* flags are for debugging or refreshing only selected derived layers.
         The normal stronger-audio-judge pass audits the residual queue with mic_clean+remote.
@@ -1371,6 +1413,18 @@ enum PipelineHelp {
           murmurmark process ./sessions/<id> --plan-only --skip-build
           murmurmark process ./sessions/<id> --progress-interval-sec 30
           murmurmark process latest  # only when no newer session can appear
+        """)
+    }
+
+    static func printEnrich() {
+        Swift.print("""
+        usage: murmurmark enrich ./session|latest [--skip-stronger-audio-judge]
+                                [--stronger-audio-judge-exhaustive]
+                                [--progress-interval-sec 60] [--deferred-step-timeout-sec 3600]
+                                [--config murmurmark.config.json] [--sessions-root ./sessions]
+
+        Idempotently runs deferred enrichment after a valid authoritative handoff. Enrichment may
+        add review evidence and candidate profiles, but it cannot replace the published transcript.
         """)
     }
 
@@ -1641,6 +1695,11 @@ enum SessionListPrinter {
         if let readiness {
             if let exportHandoff = successfulExportHandoff(session: session, readiness: readiness) {
                 return exportHandoff.command
+            }
+            if let handoff = AuthoritativeHandoffState.payload(session),
+               let next = string(handoff["recommended_next"]),
+               !next.isEmpty {
+                return next
             }
             if let next = string(readiness["recommended_next"]), !next.isEmpty {
                 return next
@@ -4348,6 +4407,84 @@ enum SynthesisCommands {
     }
 }
 
+enum AuthoritativeHandoffState {
+    static func payload(_ session: URL) -> [String: Any]? {
+        let url = session.appendingPathComponent("derived/pipeline-run/authoritative_handoff.json")
+        guard FileManager.default.fileExists(atPath: url.path),
+              let payload = try? JSONFiles.object(url),
+              payload["schema"] as? String == "murmurmark.authoritative_handoff/v1",
+              let status = payload["status"] as? String,
+              ["ready", "review_required"].contains(status),
+              fingerprintMatches(payload, session: session),
+              readinessProfileMatches(payload, session: session)
+        else {
+            return nil
+        }
+        return payload
+    }
+
+    static func selectedProfile(_ session: URL) -> String? {
+        payload(session)?["selected_transcript_profile"] as? String
+    }
+
+    static func artifact(_ key: String, session: URL) -> URL? {
+        guard let paths = payload(session)?["paths"] as? [String: Any],
+              let raw = paths[key] as? String,
+              !raw.isEmpty
+        else {
+            return nil
+        }
+        let url = raw.hasPrefix("/") ? URL(fileURLWithPath: raw) : session.appendingPathComponent(raw)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    private static func fingerprintMatches(_ payload: [String: Any], session: URL) -> Bool {
+        guard let fingerprint = payload["transcript_fingerprint"] as? [String: Any],
+              let rawPath = fingerprint["path"] as? String,
+              let expectedSHA = fingerprint["sha256"] as? String,
+              !rawPath.isEmpty,
+              !expectedSHA.isEmpty,
+              let paths = payload["paths"] as? [String: Any],
+              paths["transcript"] as? String == rawPath
+        else {
+            return false
+        }
+        let url = rawPath.hasPrefix("/")
+            ? URL(fileURLWithPath: rawPath)
+            : session.appendingPathComponent(rawPath)
+        guard FileManager.default.fileExists(atPath: url.path),
+              let data = try? Data(contentsOf: url)
+        else {
+            return false
+        }
+        if let expectedSize = fingerprint["size"] as? Int, expectedSize != data.count {
+            return false
+        }
+        let actualSHA = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        return actualSHA == expectedSHA
+    }
+
+    private static func readinessProfileMatches(_ payload: [String: Any], session: URL) -> Bool {
+        guard let expectedProfile = payload["selected_transcript_profile"] as? String,
+              !expectedProfile.isEmpty,
+              let paths = payload["paths"] as? [String: Any],
+              let transcriptPath = paths["transcript"] as? String
+        else {
+            return false
+        }
+        let readinessURL = session.appendingPathComponent("derived/readiness/session_readiness.json")
+        guard let readiness = try? JSONFiles.object(readinessURL),
+              readiness["selected_profile"] as? String == expectedProfile,
+              let outputs = readiness["outputs"] as? [String: Any],
+              let transcript = outputs["transcript"] as? [String: Any],
+              transcript["path"] as? String == transcriptPath
+        else {
+            return false
+        }
+        return true
+    }
+}
+
 enum NotesCommands {
     static func notes(_ args: [String]) throws {
         if args.isEmpty || ArgumentEditing.hasHelpFlag(args) {
@@ -4368,7 +4505,15 @@ enum NotesCommands {
 
         let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
         let resolvedProfile = try selectedProfile(profile, session: session)
-        let paths = artifactPaths(session: session, profile: resolvedProfile)
+        var paths = artifactPaths(session: session, profile: resolvedProfile)
+        if profile == "auto" {
+            if let notes = AuthoritativeHandoffState.artifact("notes", session: session) {
+                paths["notes"] = notes
+            }
+            if let verdict = AuthoritativeHandoffState.artifact("verdict", session: session) {
+                paths["verdict"] = verdict
+            }
+        }
         guard let url = paths[kind] else {
             throw CLIError("unknown notes kind: \(kind)")
         }
@@ -4413,6 +4558,9 @@ enum NotesCommands {
     private static func selectedProfile(_ requested: String, session: URL) throws -> String {
         if requested != "auto" {
             return requested
+        }
+        if let profile = AuthoritativeHandoffState.selectedProfile(session), !profile.isEmpty {
+            return profile
         }
         let verdict = session.appendingPathComponent("derived/synthesis-simple/extractive/quality_verdict.json")
         if FileManager.default.fileExists(atPath: verdict.path) {
@@ -4610,7 +4758,9 @@ enum TranscriptCommands {
 
         let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
         let profile = try selectedProfile(requestedProfile, session: session)
-        let url = transcriptURL(profile: profile, session: session)
+        let url = requestedProfile == "auto"
+            ? (AuthoritativeHandoffState.artifact("transcript", session: session) ?? transcriptURL(profile: profile, session: session))
+            : transcriptURL(profile: profile, session: session)
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw CLIError("transcript not found: \(PathDisplay.display(url)); run `murmurmark process \(PathDisplay.display(session))`")
         }
@@ -4647,6 +4797,9 @@ enum TranscriptCommands {
     private static func selectedProfile(_ requested: String, session: URL) throws -> String {
         if requested != "auto" {
             return requested
+        }
+        if let profile = AuthoritativeHandoffState.selectedProfile(session), !profile.isEmpty {
+            return profile
         }
         let verdict = session.appendingPathComponent("derived/synthesis-simple/extractive/quality_verdict.json")
         if FileManager.default.fileExists(atPath: verdict.path) {
@@ -6363,7 +6516,7 @@ enum FinishCommands {
         var remaining = args
         let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
         let format = ArgumentEditing.takeOption("format", from: &remaining) ?? "markdown"
-        let profile = ArgumentEditing.takeOption("profile", from: &remaining) ?? "auto"
+        let requestedProfile = ArgumentEditing.takeOption("profile", from: &remaining) ?? "auto"
         let outDir = PathURLs.fileURL(ArgumentEditing.takeOption("out-dir", from: &remaining) ?? "exports/private")
         let forceExport = ArgumentEditing.takeFlag("force-export", from: &remaining)
         let noJSON = ArgumentEditing.takeFlag("no-json", from: &remaining)
@@ -6382,7 +6535,12 @@ enum FinishCommands {
         print("SESSION=\"\(PathDisplay.display(session))\"")
         fflush(stdout)
 
-        try refreshReadiness(session)
+        let handoffProfile = requestedProfile == "auto"
+            ? AuthoritativeHandoffState.selectedProfile(session)
+            : nil
+        if handoffProfile == nil {
+            try refreshReadiness(session)
+        }
         try ReadinessPrinter.printSession(session, label: "readiness")
         try ReadinessPrinter.printOutcome(session)
 
@@ -6390,7 +6548,7 @@ enum FinishCommands {
             session: session,
             options: ExportOptions(
                 format: format,
-                profile: profile,
+                profile: handoffProfile ?? requestedProfile,
                 outDir: outDir,
                 includeJSON: !noJSON,
                 force: forceExport
@@ -12513,8 +12671,20 @@ enum ReadinessPrinter {
         let outcome = compatibleOutcomePayload(session, readinessProfile: profile)
         let outcomeSummary = outcome?["summary"] as? [String: Any]
         let outcomeCommand = outcome.flatMap { string($0["next_command"]) }
-        let command = exportHandoff?.command ?? outcomeCommand ?? readinessCommand
-        let source = exportHandoff == nil ? (outcomeCommand == nil ? "readiness" : "outcome") : "export_manifest"
+        let handoffCommand = AuthoritativeHandoffState.payload(session).flatMap {
+            string($0["recommended_next"])
+        }
+        let command = exportHandoff?.command ?? handoffCommand ?? outcomeCommand ?? readinessCommand
+        let source: String
+        if exportHandoff != nil {
+            source = "export_manifest"
+        } else if handoffCommand != nil {
+            source = "authoritative_handoff"
+        } else if outcomeCommand != nil {
+            source = "outcome"
+        } else {
+            source = "readiness"
+        }
         let displayStatus = exportHandoff == nil
             ? effectiveStatus(readinessStatus: status, outcome: outcome)
             : status
@@ -12701,6 +12871,7 @@ enum ReadinessPrinter {
         print("  recommendation: \(recommendation)")
         print("  selected_profile: \(profile)")
         print("  verdict: \(verdict)")
+        printAuthoritativeHandoffSummary(session)
         print(String(format: "  notes_review_burden: %.2f min / %.2f%%", reviewSeconds / 60, reviewRatio))
         if abs(transcriptReviewSeconds - reviewSeconds) > 0.05 {
             print(String(format: "  transcript_review_burden: %.2f min / %.2f%%", transcriptReviewSeconds / 60, transcriptReviewRatio))
@@ -12779,6 +12950,10 @@ enum ReadinessPrinter {
         guard status == "running" || status == "interrupted" else {
             return nil
         }
+        if string(payload["phase"]) == "deferred_enrichment",
+           AuthoritativeHandoffState.payload(session) != nil {
+            return nil
+        }
         let reportURL = session.appendingPathComponent("derived/pipeline-run/pipeline_run_report.json")
         if let stateDate = modificationDate(stateURL),
            let reportDate = modificationDate(reportURL),
@@ -12786,6 +12961,27 @@ enum ReadinessPrinter {
             return nil
         }
         return payload
+    }
+
+    private static func printAuthoritativeHandoffSummary(_ session: URL) {
+        guard let payload = AuthoritativeHandoffState.payload(session) else {
+            return
+        }
+        let deferred = payload["deferred_enrichment"] as? [String: Any] ?? [:]
+        let fingerprint = payload["transcript_fingerprint"] as? [String: Any] ?? [:]
+        print("  authoritative_handoff:")
+        print("    status: \(string(payload["status"]) ?? "unknown")")
+        if let readyAt = string(payload["ready_at"]) {
+            print("    ready_at: \(readyAt)")
+        }
+        if let elapsed = double(payload["elapsed_sec"]) {
+            print(String(format: "    elapsed: %.1fs", elapsed))
+        }
+        print("    deferred: \(string(deferred["status"]) ?? "pending")")
+        if let sha = string(fingerprint["sha256"]) {
+            print("    transcript_sha256: \(String(sha.prefix(16)))")
+        }
+        print("    report: \(PathDisplay.display(session.appendingPathComponent("derived/pipeline-run/authoritative_handoff.json")))")
     }
 
     private static func modificationDate(_ url: URL) -> Date? {

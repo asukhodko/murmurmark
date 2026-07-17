@@ -479,6 +479,32 @@ if [[ -e "$session/derived/pipeline-run/pipeline_run_report.json" ]]; then
   exit 1
 fi
 
+mkdir -p "$session/derived/pipeline-run"
+handoff_transcript="derived/transcript-simple/whisper-cpp/resolved/transcript.md"
+handoff_sha="$(shasum -a 256 "$session/$handoff_transcript" | awk '{print $1}')"
+handoff_size="$(stat -f%z "$session/$handoff_transcript")"
+jq -n \
+  --arg transcript "$handoff_transcript" \
+  --arg sha "$handoff_sha" \
+  --arg next "murmurmark finish $session" \
+  --argjson size "$handoff_size" \
+  '{
+    schema: "murmurmark.authoritative_handoff/v1",
+    status: "ready",
+    selected_transcript_profile: "current",
+    verdict: "good",
+    ready_at: "2026-07-17T00:00:00Z",
+    elapsed_sec: 1.0,
+    paths: {
+      transcript: $transcript,
+      notes: "derived/synthesis-simple/extractive/notes.md",
+      verdict: "derived/synthesis-simple/extractive/quality_verdict.md"
+    },
+    transcript_fingerprint: {path: $transcript, size: $size, sha256: $sha},
+    deferred_enrichment: {status: "pending"},
+    recommended_next: $next
+  }' >"$session/derived/pipeline-run/authoritative_handoff.json"
+
 status_output="$("$bin" status "$session")"
 echo "$status_output" | grep -q '^readiness:$'
 echo "$status_output" | grep -q '^  status: exportable$'
@@ -487,6 +513,7 @@ echo "$status_output" | grep -q '^    summary: ready to read and export$'
 echo "$status_output" | grep -q '^    can_read_notes: true$'
 echo "$status_output" | grep -q '^    can_export: true$'
 echo "$status_output" | grep -q '^    minimum_step: murmurmark finish '
+echo "$status_output" | grep -q '^  authoritative_handoff:$'
 tail -1 <<<"$status_output" | grep -q '^next: murmurmark finish '
 
 outcome_output="$("$bin" outcome "$session")"
@@ -510,6 +537,7 @@ tail -1 <<<"$report_output" | grep -q '^next: murmurmark finish '
 next_output="$("$bin" next "$session")"
 echo "$next_output" | grep -q '^next:$'
 echo "$next_output" | grep -q '^  command: murmurmark finish '
+echo "$next_output" | grep -q '^  source: authoritative_handoff$'
 
 review_session="$workdir/sessions/review-handoff"
 mkdir -p \
@@ -651,12 +679,47 @@ live_cache_session="$workdir/sessions/live-cache-smoke"
 mkdir -p \
   "$live_cache_session/derived/live/chunks/0001" \
   "$live_cache_session/derived/live/chunks/0002"
-"$eval_python" - "$live_cache_session" <<'PY'
+live_cache_model="$live_cache_session/fake-model.bin"
+live_cache_whisper="$live_cache_session/fake-whisper-cli"
+printf 'fake-model\n' >"$live_cache_model"
+printf '#!/usr/bin/env sh\nexit 0\n' >"$live_cache_whisper"
+chmod +x "$live_cache_whisper"
+"$eval_python" - "$live_cache_session" "$live_cache_model" "$live_cache_whisper" <<'PY'
 from pathlib import Path
+import hashlib
 import json
 import sys
 
 base = Path(sys.argv[1])
+model = Path(sys.argv[2]).resolve()
+whisper_cli = Path(sys.argv[3]).resolve()
+
+def sha256_file(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+def content_sha256(value):
+    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+def settings(source, prep):
+    return {
+        "schema": "murmurmark.live_batch_asr_compatibility_settings/v1",
+        "track": source,
+        "model": str(model),
+        "language": "ru",
+        "max_context": 0,
+        "prompt_sha256": None,
+        "asr_mode": "windowed",
+        "asr_window_sec": 60,
+        "asr_overlap_sec": 5,
+        "audio_prep": prep,
+        "output_json_full": True,
+        "log_score": True,
+        "suppress_nst": True,
+        "suppress_regex": r"^(Редактор субтитров|Продолжение следует|Спасибо за просмотр|Субтитры.*)$",
+        "timestamp_reconciliation": "hard_window_center_v1",
+    }
+
 (base / "derived/live").mkdir(parents=True, exist_ok=True)
 (base / "derived/live/live_pipeline_report.json").write_text(
     json.dumps({"schema": "murmurmark.live_pipeline_report/v1", "status": "completed"}, indent=2) + "\n",
@@ -687,7 +750,7 @@ for index, start, end, clip_start, clip_end in [(1, 0, 60, 0, 65), (2, 60, 80, 5
         live_json.write_text(
             json.dumps(
                 {
-                    "params": {"source": source},
+                    "params": {"source": source, "model": str(model), "language": "ru"},
                     "transcription": [
                         {
                             "text": text,
@@ -713,6 +776,14 @@ for index, start, end, clip_start, clip_end in [(1, 0, 60, 0, 65), (2, 60, 80, 5
             "clip_end_sec": clip_end,
             "preprocess_status": "passed",
             "asr": {"status": "passed", "json": str(live_json)},
+            "batch_cache_compatibility": {
+                "schema": "murmurmark.live_batch_asr_compatibility/v1",
+                "source_kind": "exact_batch_prepared_window",
+                "prepared_audio_sha256": sha256_file(live_wav),
+                "model_sha256": sha256_file(model),
+                "whisper_cli_sha256": sha256_file(whisper_cli),
+                "settings_sha256": content_sha256(settings(source, prep)),
+            },
             "text": text,
         }
     chunks.append(chunk)
@@ -723,6 +794,8 @@ PY
 
 "$eval_python" "$repo_root/scripts/materialize-live-asr-cache.py" \
   "$live_cache_session" \
+  --model "$live_cache_model" \
+  --whisper-cli "$live_cache_whisper" \
   --asr-window-sec 60 \
   --asr-overlap-sec 5 \
   --force >/dev/null

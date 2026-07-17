@@ -398,6 +398,7 @@ assert_capture_health_matrix() {
         write_capture_fixture_session "$session" tone tone completed false sigint none
         ;;
     esac
+    set +e
     python3 "$repo_root/scripts/run-session-pipeline.py" "$session" \
       --murmurmark-bin "$bin" \
       --model "$fake_model" \
@@ -405,12 +406,18 @@ assert_capture_health_matrix() {
       --skip-preprocess \
       --skip-transcription \
       --skip-audits \
-      --skip-cleanup >"$workdir/$name.log" 2>&1 || {
+      --skip-cleanup >"$workdir/$name.log" 2>&1
+    local status=$?
+    set -e
+    if [[ $status -ne 0 ]] && ! jq -e \
+      '.status == "failed" and .phase == "handoff" and .outputs.selected_transcript_profile == "missing"' \
+      "$session/derived/pipeline-run/pipeline_run_report.json" >/dev/null; then
         cat "$workdir/$name.log" >&2
         fail "$name fixture should pass the early capture gate"
-      }
-    jq -e '.status == "passed"' "$session/derived/pipeline-run/pipeline_run_report.json" >/dev/null \
-      || fail "$name fixture did not write a passed pipeline report"
+    fi
+    jq -e '(.blocker // "") == "" and .phase == "handoff"' \
+      "$session/derived/pipeline-run/pipeline_run_report.json" >/dev/null \
+      || fail "$name fixture did not pass from capture validation into handoff"
   done
 
   local silent="$workdir/silence"

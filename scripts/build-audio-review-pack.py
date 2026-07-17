@@ -6,6 +6,7 @@ import json
 import shutil
 import subprocess
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -61,6 +62,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--padding-sec", type=float, default=3.0)
     parser.add_argument("--max-items", type=int, default=160)
     parser.add_argument("--write-clips", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument(
+        "--clip-workers",
+        type=int,
+        choices=(1, 2, 4, 8),
+        default=4,
+        help="Bounded workers for independent ffmpeg clip jobs. Default: 4.",
+    )
     return parser.parse_args()
 
 
@@ -673,8 +681,18 @@ def main() -> int:
     if args.write_clips:
         clips_dir = out_dir / "clips"
         sources = source_paths(session)
-        for item in items:
-            attach_clips(item, sources, clips_dir, args.padding_sec)
+        if args.clip_workers > 1:
+            with ThreadPoolExecutor(max_workers=args.clip_workers) as executor:
+                futures = [
+                    executor.submit(attach_clips, item, sources, clips_dir, args.padding_sec)
+                    for item in items
+                ]
+                # Resolve in item order so failures remain deterministic.
+                for future in futures:
+                    future.result()
+        else:
+            for item in items:
+                attach_clips(item, sources, clips_dir, args.padding_sec)
 
     summary = summarize(items, profile, out_dir)
     manifest = {
@@ -683,6 +701,7 @@ def main() -> int:
         "session": str(session),
         "session_id": session.name,
         "profile": profile,
+        "clip_workers": args.clip_workers,
         "inputs": {key: str(path) for key, path in paths.items()},
         "audio_sources": {key: {"path": str(path), "exists": path.exists()} for key, path in source_paths(session).items()},
         "outputs": {

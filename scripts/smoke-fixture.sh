@@ -3529,7 +3529,7 @@ EOF
     grep -Fx "    $json_next_command" "$workdir/pipeline-plan.out" >/dev/null
   done < <(jq -r '.next_commands[].command' "$pipeline_plan")
   jq -e 'all(.steps[]; (.started_at | type) == "string" and (.duration_sec | type) == "number")' "$pipeline_plan" >/dev/null
-  jq -e 'any(.steps[]; .name == "plan_remote_leak_segment_repair")' "$pipeline_plan" >/dev/null
+  jq -e 'any(.performance.deferred_stages_pending[]; . == "plan_remote_leak_segment_repair")' "$pipeline_plan" >/dev/null
   jq -e 'any(.steps[]; .name == "session_readiness")' "$pipeline_plan" >/dev/null
   interrupted_session="$workdir/interrupted-session"
   mkdir -p "$interrupted_session"

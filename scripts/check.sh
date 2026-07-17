@@ -12,6 +12,7 @@ swift build
 swiftlint lint --quiet
 "$python_bin" -m py_compile scripts/*.py
 "$python_bin" scripts/check-transcript-dedupe.py
+"$python_bin" scripts/check-remote-role-integrity.py
 "$python_bin" scripts/check-live-voice-activity-retime.py
 "$python_bin" scripts/check-live-progressive-target-me.py
 "$python_bin" scripts/check-live-profile-selection.py
@@ -21,6 +22,11 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-live-causal-remote-active-me-separation-v1.py
 "$python_bin" scripts/check-live-causal-me-recovery-runtime.py
 "$python_bin" scripts/check-live-recovery-incremental-cache.py
+"$python_bin" scripts/check-live-asr-cache-compatibility.py
+"$python_bin" scripts/check-authoritative-handoff.py
+"$python_bin" scripts/check-authoritative-handoff-corpus.py
+"$python_bin" scripts/check-bounded-asr-parallelism.py
+"$python_bin" scripts/check-audio-review-clip-parallelism.py
 "$python_bin" scripts/check-independent-me-evidence.py
 "$python_bin" scripts/check-experiment-compare-timeout.py
 scripts/check-open-source-readiness.sh

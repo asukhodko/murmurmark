@@ -20,6 +20,7 @@ import os
 import re
 import shutil
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -179,7 +180,26 @@ def parse_args() -> argparse.Namespace:
         help="MurmurMark executable. Default: MURMURMARK_BIN, then murmurmark from PATH, then .build/debug/murmurmark.",
     )
     parser.add_argument("--prompt-file", type=Path, default=None)
-    parser.add_argument("--threads", type=int, default=4)
+    parser.add_argument(
+        "--threads",
+        type=int,
+        default=6,
+        help="whisper.cpp compute threads per process. Default: 6 (measured M3 Max optimum for two-track ASR).",
+    )
+    parser.add_argument(
+        "--track-workers",
+        type=int,
+        choices=(1, 2),
+        default=1,
+        help="Run mic and remote ASR sequentially or with at most two independent workers.",
+    )
+    parser.add_argument(
+        "--micro-asr-workers",
+        type=int,
+        choices=(1, 2, 4),
+        default=1,
+        help="Evaluate independent micro-ASR source/window variants with bounded parallelism.",
+    )
     parser.add_argument("--max-context", type=int, default=0)
     parser.add_argument("--force", action="store_true", help="rerun whisper-cli even when raw JSON exists")
     parser.add_argument("--skip-export", action="store_true")
@@ -1828,6 +1848,8 @@ def materialize_micro_reasr(
     json_path = output_base.with_suffix(".json")
 
     if force or not json_path.exists():
+        if force:
+            json_path.unlink(missing_ok=True)
         ffmpeg = shutil.which("ffmpeg") or "ffmpeg"
         run(
             [
@@ -2019,6 +2041,8 @@ def run_micro_reasr_current(
     json_path = output_base.with_suffix(".json")
 
     if force or not json_path.exists():
+        if force:
+            json_path.unlink(missing_ok=True)
         ffmpeg = shutil.which("ffmpeg") or "ffmpeg"
         run(
             [
@@ -2141,6 +2165,7 @@ def run_micro_reasr(
     local_score: float = 0.0,
     force: bool,
     repair_profile: str,
+    micro_asr_workers: int = 1,
 ) -> tuple[str, dict[str, Any]]:
     if repair_profile == "current":
         return run_micro_reasr_current(
@@ -2206,13 +2231,20 @@ def run_micro_reasr(
 
     def try_windows(windows: list[dict[str, Any]]) -> None:
         nonlocal best_text, best_meta, best_score
+        jobs: list[tuple[dict[str, Any], str, Path]] = []
         for window in windows:
             window_start_ms = int(window["start_ms"])
             window_end_ms = int(window["end_ms"])
             if window_end_ms <= window_start_ms:
                 continue
             for source_label, source in sources:
-                text, meta = materialize_micro_reasr(
+                jobs.append((window, source_label, source))
+
+        def materialize(job: tuple[dict[str, Any], str, Path]) -> tuple[str, dict[str, Any]]:
+            window, source_label, source = job
+            window_start_ms = int(window["start_ms"])
+            window_end_ms = int(window["end_ms"])
+            return materialize_micro_reasr(
                     source=source,
                     source_label=source_label,
                     window_label=str(window["label"]),
@@ -2233,15 +2265,25 @@ def run_micro_reasr(
                     remote_context_text=remote_context_text,
                     local_score=local_score,
                 )
-                attempts.append(meta)
-                score = optional_float(meta.get("score")) if meta else None
-                if best_text and text and drops_baseline_prefix(text, best_text):
-                    meta["rejected_reason"] = "drops_current_baseline_prefix"
-                    continue
-                if text and score is not None and score > best_score + SHADOW_V2_REPLACE_SCORE_MARGIN:
-                    best_text = text
-                    best_meta = meta
-                    best_score = score
+
+        if micro_asr_workers > 1 and len(jobs) > 1:
+            with ThreadPoolExecutor(max_workers=min(micro_asr_workers, len(jobs))) as executor:
+                materialized = list(executor.map(materialize, jobs))
+        else:
+            materialized = [materialize(job) for job in jobs]
+
+        # executor.map preserves job order. Selection therefore stays byte-for-byte
+        # equivalent to the sequential implementation; only subprocess scheduling changes.
+        for text, meta in materialized:
+            attempts.append(meta)
+            score = optional_float(meta.get("score")) if meta else None
+            if best_text and text and drops_baseline_prefix(text, best_text):
+                meta["rejected_reason"] = "drops_current_baseline_prefix"
+                continue
+            if text and score is not None and score > best_score + SHADOW_V2_REPLACE_SCORE_MARGIN:
+                best_text = text
+                best_meta = meta
+                best_score = score
 
     try_windows(initial_windows)
     if (
@@ -2488,6 +2530,107 @@ def split_short_remote_boundary_mic_candidate(
     return [], [], None
 
 
+def timeline_repair_geometry(
+    *,
+    candidate: Candidate,
+    remote_intervals: list[dict[str, Any]],
+    utterances_by_id: dict[str, Utterance],
+    speaker_states: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    duration_ms = candidate.end_ms - candidate.start_ms
+    overlaps = remote_overlaps_for_candidate(candidate, remote_intervals)
+    max_remote_overlap_ms = max((int(row["overlap_ms"]) for row in overlaps), default=0)
+    if not (
+        duration_ms >= LONG_MIC_SEGMENT_MS
+        and candidate.echo_features.get("remote_active_ratio", 0.0) >= REMOTE_ACTIVE_REPAIR_RATIO
+        and max_remote_overlap_ms >= REMOTE_OVERLAP_REPAIR_MS
+    ):
+        return None
+
+    guarded_blocks = [
+        (int(row["guarded_start_ms"]), int(row["guarded_end_ms"]))
+        for row in overlaps
+        if int(row["guarded_overlap_ms"]) > 0
+    ]
+    local_intervals = state_action_intervals(
+        candidate.start_ms,
+        candidate.end_ms,
+        speaker_states,
+        {"pass_raw_local_only"},
+    )
+    if not local_intervals:
+        token_intervals: list[tuple[int, int]] = []
+        for segment_id in candidate.source_segments:
+            utterance = utterances_by_id.get(segment_id)
+            if utterance is None:
+                continue
+            for chunk in split_tokens_on_gaps(utterance.tokens, TOKEN_GAP_SPLIT_THRESHOLD_MS):
+                if not chunk:
+                    continue
+                token_intervals.append(
+                    (
+                        min(int(token.get("start_ms") or candidate.start_ms) for token in chunk),
+                        max(int(token.get("end_ms") or candidate.start_ms) for token in chunk),
+                    )
+                )
+        local_intervals = [
+            (max(candidate.start_ms, start), min(candidate.end_ms, end))
+            for start, end in token_intervals
+            if min(candidate.end_ms, end) - max(candidate.start_ms, start) >= LOCAL_ISLAND_MIN_MS
+        ]
+    return {
+        "overlaps": overlaps,
+        "guarded_blocks": guarded_blocks,
+        "local_intervals": local_intervals,
+        "islands": subtract_intervals(local_intervals, guarded_blocks),
+    }
+
+
+def shadow_micro_plan(
+    *,
+    candidate: Candidate,
+    island_start: int,
+    island_end: int,
+    overlaps: list[dict[str, Any]],
+    guarded_blocks: list[tuple[int, int]],
+    speaker_states: list[dict[str, Any]],
+) -> dict[str, Any]:
+    recognition_start, recognition_end = expand_local_island_for_shadow(
+        island_start_ms=island_start,
+        island_end_ms=island_end,
+        candidate_start_ms=candidate.start_ms,
+        candidate_end_ms=candidate.end_ms,
+        speaker_states=speaker_states,
+        guarded_blocks=guarded_blocks,
+    )
+    recognition_windows = shadow_micro_decode_windows(
+        island_start_ms=island_start,
+        island_end_ms=island_end,
+        candidate_start_ms=candidate.start_ms,
+        candidate_end_ms=candidate.end_ms,
+        speaker_states=speaker_states,
+        guarded_blocks=guarded_blocks,
+        specs=SHADOW_V2_MICRO_WINDOWS,
+    )
+    recovery_windows = shadow_micro_decode_windows(
+        island_start_ms=island_start,
+        island_end_ms=island_end,
+        candidate_start_ms=candidate.start_ms,
+        candidate_end_ms=candidate.end_ms,
+        speaker_states=speaker_states,
+        guarded_blocks=guarded_blocks,
+        specs=SHADOW_V2_RECOVERY_WINDOWS,
+    )
+    return {
+        "recognition_start": recognition_start,
+        "recognition_end": recognition_end,
+        "recognition_windows": recognition_windows,
+        "recovery_windows": recovery_windows,
+        "remote_context_text": clean_text(" ".join(str(row.get("text") or "") for row in overlaps)),
+        "local_score": float(candidate.echo_features.get("local_score", 0.0) or 0.0),
+    }
+
+
 def timeline_repair(
     *,
     session: Path,
@@ -2501,6 +2644,7 @@ def timeline_repair(
     resolved_dir: Path,
     force: bool,
     repair_profile: str,
+    micro_asr_workers: int = 1,
 ) -> tuple[list[Candidate], dict[str, Any], list[dict[str, Any]]]:
     repair_dir = resolved_dir.parent / ("timeline-repair" if repair_profile == "current" else f"timeline-repair-{repair_profile}")
     repair_dir.mkdir(parents=True, exist_ok=True)
@@ -2515,6 +2659,8 @@ def timeline_repair(
         "unrepaired_long_mic_crossings_count": 0,
         "micro_reasr_attempt_count": 0,
         "micro_reasr_success_count": 0,
+        "current_micro_prewarm_count": 0,
+        "shadow_micro_prewarm_count": 0,
         "local_only_island_count": 0,
         "local_only_island_recovered_count": 0,
         "short_local_islands_recovered_count": 0,
@@ -2523,6 +2669,149 @@ def timeline_repair(
         "timeline_repair_dropped_count": 0,
     }
     next_repair_id = 1
+    prewarmed_current_micro: set[tuple[int, int]] = set()
+
+    if repair_profile == "current" and micro_asr_workers > 1:
+        jobs: list[tuple[int, int]] = []
+        scheduled: set[tuple[int, int]] = set()
+        for candidate in candidates:
+            if candidate.source_track != "mic":
+                continue
+            geometry = timeline_repair_geometry(
+                candidate=candidate,
+                remote_intervals=remote_intervals,
+                utterances_by_id=utterances_by_id,
+                speaker_states=speaker_states,
+            )
+            if geometry is None:
+                continue
+            for island_start, island_end in geometry["islands"]:
+                key = (int(island_start), int(island_end))
+                if (
+                    key not in scheduled
+                    and key[1] - key[0] >= LOCAL_ISLAND_MIN_MS
+                    and key[1] - key[0] <= MICRO_REASR_MAX_ISLAND_MS
+                ):
+                    scheduled.add(key)
+                    jobs.append(key)
+
+        def prewarm_current(job: tuple[int, int]) -> tuple[str, dict[str, Any]]:
+            return run_micro_reasr_current(
+                session=session,
+                repair_dir=repair_dir,
+                whisper_cli=whisper_cli,
+                model=model,
+                language=language,
+                threads=threads,
+                start_ms=job[0],
+                end_ms=job[1],
+                force=force,
+            )
+
+        if jobs:
+            with ThreadPoolExecutor(max_workers=min(micro_asr_workers, len(jobs))) as executor:
+                list(executor.map(prewarm_current, jobs))
+            for start_ms, end_ms in jobs:
+                stem = f"micro_{start_ms:010d}_{end_ms:010d}"
+                if (repair_dir / "micro_reasr" / f"{stem}.json").exists():
+                    prewarmed_current_micro.add((start_ms, end_ms))
+        metrics["current_micro_prewarm_count"] = len(prewarmed_current_micro)
+
+    shadow_micro_prewarmed = False
+    if repair_profile == "shadow_v2" and micro_asr_workers > 1:
+        sources = micro_reasr_sources(session, repair_profile)
+        jobs_by_key: dict[tuple[Any, ...], dict[str, Any]] = {}
+        for candidate in candidates:
+            if candidate.source_track != "mic":
+                continue
+            geometry = timeline_repair_geometry(
+                candidate=candidate,
+                remote_intervals=remote_intervals,
+                utterances_by_id=utterances_by_id,
+                speaker_states=speaker_states,
+            )
+            if geometry is None:
+                continue
+            overlaps = list(geometry["overlaps"])
+            guarded_blocks = list(geometry["guarded_blocks"])
+            for island_start, island_end in geometry["islands"]:
+                island_start = int(island_start)
+                island_end = int(island_end)
+                if not (
+                    island_end - island_start >= LOCAL_ISLAND_MIN_MS
+                    and island_end - island_start <= MICRO_REASR_MAX_ISLAND_MS
+                ):
+                    continue
+                plan = shadow_micro_plan(
+                    candidate=candidate,
+                    island_start=island_start,
+                    island_end=island_end,
+                    overlaps=overlaps,
+                    guarded_blocks=guarded_blocks,
+                    speaker_states=speaker_states,
+                )
+                windows = list(plan["recognition_windows"])
+                if not windows:
+                    windows = [
+                        {
+                            "label": "default",
+                            "start_ms": max(0, int(plan["recognition_start"]) - MICRO_REASR_PADDING_MS),
+                            "end_ms": int(plan["recognition_end"]) + MICRO_REASR_PADDING_MS,
+                        }
+                    ]
+                for window in windows:
+                    window_start = int(window["start_ms"])
+                    window_end = int(window["end_ms"])
+                    if window_end <= window_start:
+                        continue
+                    for source_label, source in sources:
+                        key = (
+                            str(window["label"]),
+                            source_label,
+                            window_start,
+                            window_end,
+                            int(plan["recognition_start"]),
+                            int(plan["recognition_end"]),
+                            island_start,
+                            island_end,
+                        )
+                        jobs_by_key.setdefault(
+                            key,
+                            {
+                                "source": source,
+                                "source_label": source_label,
+                                "window_label": str(window["label"]),
+                                "recognition_start_ms": window_start,
+                                "recognition_end_ms": window_end,
+                                "selection_start_ms": int(plan["recognition_start"]),
+                                "selection_end_ms": int(plan["recognition_end"]),
+                                "target_start_ms": island_start,
+                                "target_end_ms": island_end,
+                                "remote_context_text": str(plan["remote_context_text"]),
+                                "local_score": float(plan["local_score"]),
+                            },
+                        )
+
+        def prewarm_shadow(job: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+            return materialize_micro_reasr(
+                **job,
+                micro_dir=repair_dir / "micro_reasr",
+                whisper_cli=whisper_cli,
+                model=model,
+                language=language,
+                threads=threads,
+                force=force,
+                repair_profile=repair_profile,
+                leading_silence_ms=SHADOW_V2_LEADING_SILENCE_MS,
+            )
+
+        shadow_jobs = list(jobs_by_key.values())
+        if shadow_jobs:
+            (repair_dir / "micro_reasr").mkdir(parents=True, exist_ok=True)
+            with ThreadPoolExecutor(max_workers=min(micro_asr_workers, len(shadow_jobs))) as executor:
+                list(executor.map(prewarm_shadow, shadow_jobs))
+            shadow_micro_prewarmed = True
+        metrics["shadow_micro_prewarm_count"] = len(shadow_jobs)
 
     for candidate in candidates:
         duration_ms = candidate.end_ms - candidate.start_ms
@@ -2565,50 +2854,21 @@ def timeline_repair(
             )
             continue
 
-        overlaps = remote_overlaps_for_candidate(candidate, remote_intervals)
-        max_remote_overlap_ms = max((int(row["overlap_ms"]) for row in overlaps), default=0)
-        is_problem = (
-            duration_ms >= LONG_MIC_SEGMENT_MS
-            and candidate.echo_features.get("remote_active_ratio", 0.0) >= REMOTE_ACTIVE_REPAIR_RATIO
-            and max_remote_overlap_ms >= REMOTE_OVERLAP_REPAIR_MS
+        geometry = timeline_repair_geometry(
+            candidate=candidate,
+            remote_intervals=remote_intervals,
+            utterances_by_id=utterances_by_id,
+            speaker_states=speaker_states,
         )
-        if not is_problem:
+        if geometry is None:
             repaired.append(candidate)
             continue
 
         metrics["long_mic_segments_crossing_remote_count"] += 1
-        guarded_blocks = [
-            (int(row["guarded_start_ms"]), int(row["guarded_end_ms"]))
-            for row in overlaps
-            if int(row["guarded_overlap_ms"]) > 0
-        ]
-        local_intervals = state_action_intervals(
-            candidate.start_ms,
-            candidate.end_ms,
-            speaker_states,
-            {"pass_raw_local_only"},
-        )
-        if not local_intervals:
-            token_intervals: list[tuple[int, int]] = []
-            for segment_id in candidate.source_segments:
-                utterance = utterances_by_id.get(segment_id)
-                if utterance is None:
-                    continue
-                for chunk in split_tokens_on_gaps(utterance.tokens, TOKEN_GAP_SPLIT_THRESHOLD_MS):
-                    if not chunk:
-                        continue
-                    token_intervals.append(
-                        (
-                            min(int(token.get("start_ms") or candidate.start_ms) for token in chunk),
-                            max(int(token.get("end_ms") or candidate.start_ms) for token in chunk),
-                        )
-                    )
-            local_intervals = [
-                (max(candidate.start_ms, start), min(candidate.end_ms, end))
-                for start, end in token_intervals
-                if min(candidate.end_ms, end) - max(candidate.start_ms, start) >= LOCAL_ISLAND_MIN_MS
-            ]
-        islands = subtract_intervals(local_intervals, guarded_blocks)
+        overlaps = list(geometry["overlaps"])
+        guarded_blocks = list(geometry["guarded_blocks"])
+        local_intervals = list(geometry["local_intervals"])
+        islands = list(geometry["islands"])
         metrics["local_only_island_count"] += len(islands)
         children: list[Candidate] = []
         child_records: list[dict[str, Any]] = []
@@ -2619,40 +2879,28 @@ def timeline_repair(
             recognition_end = island_end
             recognition_windows: list[dict[str, Any]] | None = None
             recovery_windows: list[dict[str, Any]] | None = None
+            remote_context_text = clean_text(" ".join(str(row.get("text") or "") for row in overlaps))
+            local_score = float(candidate.echo_features.get("local_score", 0.0) or 0.0)
             if repair_profile == "shadow_v2":
-                recognition_start, recognition_end = expand_local_island_for_shadow(
-                    island_start_ms=island_start,
-                    island_end_ms=island_end,
-                    candidate_start_ms=candidate.start_ms,
-                    candidate_end_ms=candidate.end_ms,
-                    speaker_states=speaker_states,
+                plan = shadow_micro_plan(
+                    candidate=candidate,
+                    island_start=island_start,
+                    island_end=island_end,
+                    overlaps=overlaps,
                     guarded_blocks=guarded_blocks,
-                )
-                recognition_windows = shadow_micro_decode_windows(
-                    island_start_ms=island_start,
-                    island_end_ms=island_end,
-                    candidate_start_ms=candidate.start_ms,
-                    candidate_end_ms=candidate.end_ms,
                     speaker_states=speaker_states,
-                    guarded_blocks=guarded_blocks,
-                    specs=SHADOW_V2_MICRO_WINDOWS,
                 )
-                recovery_windows = shadow_micro_decode_windows(
-                    island_start_ms=island_start,
-                    island_end_ms=island_end,
-                    candidate_start_ms=candidate.start_ms,
-                    candidate_end_ms=candidate.end_ms,
-                    speaker_states=speaker_states,
-                    guarded_blocks=guarded_blocks,
-                    specs=SHADOW_V2_RECOVERY_WINDOWS,
-                )
+                recognition_start = int(plan["recognition_start"])
+                recognition_end = int(plan["recognition_end"])
+                recognition_windows = list(plan["recognition_windows"])
+                recovery_windows = list(plan["recovery_windows"])
+                remote_context_text = str(plan["remote_context_text"])
+                local_score = float(plan["local_score"])
             micro_text = ""
             micro_meta: dict[str, Any] = {}
             use_micro = island_end - island_start <= MICRO_REASR_MAX_ISLAND_MS
             if use_micro:
                 metrics["micro_reasr_attempt_count"] += 1
-                remote_context_text = clean_text(" ".join(str(row.get("text") or "") for row in overlaps))
-                local_score = float(candidate.echo_features.get("local_score", 0.0) or 0.0)
                 micro_text, micro_meta = run_micro_reasr(
                     session=session,
                     repair_dir=repair_dir,
@@ -2668,8 +2916,13 @@ def timeline_repair(
                     recovery_windows=recovery_windows,
                     remote_context_text=remote_context_text,
                     local_score=local_score,
-                    force=force,
+                    force=force
+                    and (
+                        (repair_profile == "current" and (island_start, island_end) not in prewarmed_current_micro)
+                        or (repair_profile == "shadow_v2" and not shadow_micro_prewarmed)
+                    ),
                     repair_profile=repair_profile,
+                    micro_asr_workers=micro_asr_workers,
                 )
                 if micro_text:
                     metrics["micro_reasr_success_count"] += 1
@@ -2781,6 +3034,7 @@ def timeline_repair(
             "token_gap_split_threshold_ms": TOKEN_GAP_SPLIT_THRESHOLD_MS,
             "micro_reasr_padding_ms": MICRO_REASR_PADDING_MS,
             "micro_reasr_max_island_ms": MICRO_REASR_MAX_ISLAND_MS,
+            "micro_asr_workers": micro_asr_workers,
             "token_fallback_min_island_ms": TOKEN_FALLBACK_MIN_ISLAND_MS,
             "repair_profile": repair_profile,
         },
@@ -3606,6 +3860,9 @@ def write_outputs(
     asr_mode: str,
     asr_window_sec: int,
     asr_overlap_sec: int,
+    threads: int,
+    track_workers: int,
+    micro_asr_workers: int,
     mic_audio_prep: str,
     remote_audio_prep: str,
     prompt_file: Path | None,
@@ -4051,6 +4308,9 @@ def write_outputs(
         "asr_mode": asr_mode,
         "asr_window_sec": asr_window_sec,
         "asr_overlap_sec": asr_overlap_sec,
+        "threads": threads,
+        "track_workers": track_workers,
+        "micro_asr_workers": micro_asr_workers,
         "mic_audio_prep": mic_audio_prep,
         "remote_audio_prep": remote_audio_prep,
         "prompt_file": str(prompt_file.expanduser().resolve()) if prompt_file is not None else None,
@@ -5009,6 +5269,13 @@ def main() -> int:
     asr_dir = session / "derived" / "asr"
     prepared_dir = session / "derived" / "transcript-simple" / "whisper-cpp" / "prepared-audio"
 
+    if args.force and not args.skip_transcribe and args.asr_mode == "windowed":
+        # Reset progress before audio export/preparation so a heartbeat cannot
+        # expose a completed report from an older forced run.
+        for output_base in (raw_dir / "mic", raw_dir / "remote"):
+            report_path = output_base.parent / "chunks" / output_base.name / "chunk_cache_report.json"
+            report_path.unlink(missing_ok=True)
+
     if not args.skip_export:
         run([args.murmurmark_bin, "export-audio", str(session)])
 
@@ -5031,9 +5298,11 @@ def main() -> int:
     if not args.skip_transcribe:
         if not model.exists():
             raise SystemExit(f"model not found: {model}")
-        for _, _, _, input_wav, output_base, audio_prep in tracks:
+        for _, _, _, input_wav, _, _ in tracks:
             if not input_wav.exists():
                 raise SystemExit(f"input wav not found: {input_wav}")
+        def transcribe_track(track: tuple[str, str, str, Path, Path, str]) -> None:
+            _, _, _, input_wav, output_base, audio_prep = track
             source_audio = audio_fingerprint(input_wav)
             cache_config = whisper_cache_config(
                 model=model,
@@ -5091,6 +5360,16 @@ def main() -> int:
                 if args.asr_mode == "windowed":
                     write_whisper_text_sidecars(output_base)
 
+        if args.track_workers > 1:
+            with ThreadPoolExecutor(max_workers=min(args.track_workers, len(tracks))) as executor:
+                # Read futures in track order so failures and terminal output remain predictable.
+                futures = [executor.submit(transcribe_track, track) for track in tracks]
+                for future in futures:
+                    future.result()
+        else:
+            for track in tracks:
+                transcribe_track(track)
+
     utterances: list[Utterance] = []
     dropped: list[dict[str, Any]] = []
     for source_track, role, label, _, output_base, _ in tracks:
@@ -5121,6 +5400,7 @@ def main() -> int:
         resolved_dir=resolved_dir,
         force=args.force,
         repair_profile="current",
+        micro_asr_workers=args.micro_asr_workers,
     )
     decisions = decide_roles(candidates, args.mic_policy)
 
@@ -5132,6 +5412,9 @@ def main() -> int:
         asr_mode=args.asr_mode,
         asr_window_sec=args.asr_window_sec,
         asr_overlap_sec=args.asr_overlap_sec,
+        threads=args.threads,
+        track_workers=args.track_workers,
+        micro_asr_workers=args.micro_asr_workers,
         mic_audio_prep=args.mic_audio_prep,
         remote_audio_prep=args.remote_audio_prep,
         prompt_file=args.prompt_file,
@@ -5164,6 +5447,7 @@ def main() -> int:
             resolved_dir=resolved_dir,
             force=args.force,
             repair_profile="shadow_v2",
+            micro_asr_workers=args.micro_asr_workers,
         )
         shadow_decisions = decide_roles(shadow_candidates, args.mic_policy)
         shadow_output = write_outputs(
@@ -5174,6 +5458,9 @@ def main() -> int:
             asr_mode=args.asr_mode,
             asr_window_sec=args.asr_window_sec,
             asr_overlap_sec=args.asr_overlap_sec,
+            threads=args.threads,
+            track_workers=args.track_workers,
+            micro_asr_workers=args.micro_asr_workers,
             mic_audio_prep=args.mic_audio_prep,
             remote_audio_prep=args.remote_audio_prep,
             prompt_file=args.prompt_file,
