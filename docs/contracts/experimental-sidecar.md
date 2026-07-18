@@ -143,6 +143,13 @@ inputs/outputs, committed chunks, past enrollment, normal preview and authoritat
 non-refreshing rebuild must fail closed if any input differs. Evaluation references may be used only
 after selection.
 
+`recovery_report_v1.json` is also the machine-readable completion audit. It contains
+`manifest_contract`, `lab_evidence`, `completion_evidence` and per-row `boundary_evidence`.
+Boundary evidence is evaluation-only and records interval overlap, reference coverage, candidate
+precision, boundary deltas and spill. Acceptance requires at least three residual families, reasons
+for every rejected view, a valid classification for every candidate and the complete strict
+evidence contract for every accepted candidate.
+
 The runtime stage lives under the existing causal recovery runtime as `double-talk-v1/`. It handles
 at most one prioritized group per closed chunk, uses the strict hybrid ratio-mask residual, has a
 bounded child timeout and writes its own stage counters. Its explicit comparison profile ends in

@@ -669,7 +669,7 @@ CORPUS="sessions/_reports/live-pipeline/causal-double-talk-me-recovery-v1"
   --require-stable \
   --require-acceptance
 
-jq '{summary, acceptance, runtime_acceptance, frozen_inputs}' \
+jq '{summary, acceptance, manifest_contract, lab_evidence, completion_evidence, runtime_acceptance, frozen_inputs}' \
   "$CORPUS/recovery_report_v1.json"
 ```
 
@@ -677,3 +677,7 @@ The accepted v1 result is `16/16` stable outcomes, `4` recovered rows / `11.56s`
 `1657.89s -> 1639.73s`, remote-like `Me=108.42s`, order blockers `0`, runtime p95 `23.473s`, final
 lag `0`, and no changed frozen input hashes. Use `--refresh` on the corpus builder only for an
 intentional new corpus version; ordinary verification must remain immutable.
+
+The completion audit must additionally report four residual families, `161` evaluated views,
+explicit reasons for all rejected views, strict evidence on every accepted candidate and
+evaluation-only boundary evidence on every recovered row.

@@ -74,7 +74,9 @@ Authoritative operating point, 2026-07-18:
   `1657.89s -> 1639.73s`, remote-like `Me` remains `108.42s`, order blockers remain `0`, per-session
   token F1 does not regress, and review burden improves `490.38s -> 478.82s`;
 - its bounded runtime replay has double-talk p95 `23.473s`, final lag `0`, and fail-open isolation.
-  All `356` frozen raw/Echo Guard/preview/authoritative input hashes remain unchanged;
+  All `356` frozen raw/Echo Guard/preview/authoritative input hashes remain unchanged. The final
+  completion audit covers `161` FIR/spectral/hybrid/ratio-mask views, explains every rejected view
+  and records evaluation-only boundary evidence for every recovered row;
 - the current bounded goal is Causal Recovery Generalization and Promotion Readiness v1: expand the
   narrow success to a broader negative/positive corpus and fresh recording-time evidence before
   deciding whether the combined recovery may enter the normal advisory live preview.

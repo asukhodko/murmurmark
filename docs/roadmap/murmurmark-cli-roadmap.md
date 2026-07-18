@@ -63,7 +63,9 @@ quality metrics match sequential baselines, and all six raw CAF files remain unc
 `30s/5s` live cache stays ineligible against `60s/5s` batch geometry and falls back per track.
 Causal Double-Talk Me Recovery v1 is complete. Its immutable `16`-row / `65.07s` corpus has stable
 outcomes; `4` rows / `11.56s` are safely recovered, aggregate missing `Me` falls to `1639.73s`, and
-every per-session, runtime and frozen-input gate passes. Causal Recovery Generalization and
+every per-session, runtime and frozen-input gate passes. Its completion audit covers `161` views
+from four residual families, explains all rejected views and records evaluation-only boundary
+evidence for every recovered row. Causal Recovery Generalization and
 Promotion Readiness v1 is now nearest: broaden the narrow success to positive and adversarial
 remote-only controls plus fresh recording-time evidence before deciding whether it may enter normal
 advisory live preview.

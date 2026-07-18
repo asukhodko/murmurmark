@@ -1138,7 +1138,9 @@ nodes:
       text/audio forbiddance. Aggregate missing Me 1657.89s -> 1639.73s, remote-like Me 108.42s,
       effective order blockers 0, review burden 490.38s -> 478.82s, no per-session token-F1
       regression. Runtime double-talk p95 23.473s, final lag 0. Raw, Echo Guard, normal preview,
-      authoritative batch и promotion не изменились.
+      authoritative batch и promotion не изменились. Completion audit проверяет 161 residual view
+      из четырёх families, причины всех rejected views, strict evidence каждого accepted candidate
+      и evaluation-only boundary evidence всех recovered rows.
 
   live-causal-recovery-generalization-promotion-readiness-v1:
     title: "Causal Recovery Generalization and Promotion Readiness v1"

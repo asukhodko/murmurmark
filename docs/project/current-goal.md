@@ -54,6 +54,12 @@ Result:
   p95 `23.473s` and final lag `0`;
 - all `356` frozen input SHA-256 values remain unchanged; normal preview, authoritative transcript,
   export and promotion policy remain untouched.
+- the completion audit evaluates `161` residual views across FIR, spectral, hybrid and ratio-mask
+  families; all `109` rejected views have explicit reasons and every accepted candidate passes the
+  strict causal/Target-Me/ASR/remote-forbidden contract;
+- all four recovered rows include evaluation-only boundary evidence: overlap, reference coverage,
+  candidate precision, start/end deltas and leading/trailing spill. These fields cannot affect
+  candidate selection.
 
 Primary reports are under
 `sessions/_reports/live-pipeline/causal-double-talk-me-recovery-v1/` as JSON, JSONL and Markdown.
