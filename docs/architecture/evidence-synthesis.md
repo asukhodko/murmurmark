@@ -31,7 +31,9 @@ derived/synthesis-simple/extractive/
   review_items.jsonl
 ```
 
-The `auto` profile first prefers `residual_me_evidence_v1` when its session gates, frozen source
+The `auto` profile first checks `residual_audio_arbitration_v1`, but selects it only after a
+corpus-wide `PROMOTE_RESIDUAL_AUDIO_ARBITRATION_V1`. The current arbitration decision is
+`DO_NOT_PROMOTE`, so `auto` prefers `residual_me_evidence_v1` when its session gates, frozen source
 hashes, promoted corpus report and output fingerprints all pass. It then falls back to promoted
 `authoritative_boundary_v1`. Otherwise it follows the existing order: a material passing
 `audit_cleanup_v7`, `reviewed_v1`, `agent_reviewed_v1`, the remaining passing
@@ -57,6 +59,7 @@ clean_dialogue.json
   -> optional audit_cleanup_v* profile
   -> optional corpus-gated authoritative_boundary_v1
   -> optional corpus-gated residual_me_evidence_v1
+  -> optional corpus-gated residual_audio_arbitration_v1
   -> topic_blocks
   -> candidate_items
   -> scored_items

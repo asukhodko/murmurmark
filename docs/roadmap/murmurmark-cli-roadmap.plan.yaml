@@ -69,9 +69,11 @@ nodes:
       PROMOTE_AUTHORITATIVE_BOUNDARY_V1: доказательно закрыты 213/337 строк и 1253.620/1731.892s
       обязательной review-очереди без регрессий. Residual Me Evidence Closure v1 завершён решением
       PROMOTE_RESIDUAL_ME_EVIDENCE_V1: ещё 31/124 строк и 170.589/478.272s безопасно закрыты;
-      остаток равен 93 строкам / 307.683s. Ближайшая цель — Residual Audio Evidence Arbitration v1:
-      разобрать крупнейший однородный остаток, 66 audio-review строк / 196.920s, сохраняя fail-open
-      и все corpus gates.
+      остаток равен 93 строкам / 307.683s. Residual Audio Evidence Arbitration v1 завершён
+      воспроизводимым DO_NOT_PROMOTE: все 66 audio-review строк / 196.920s классифицированы, но
+      безопасно закрыта только 1 строка / 0.640s при требуемых 14 / 39.384s. Ближайшая цель —
+      Residual Local Recall Closure v1 для отдельных 13 строк / 48.073s; 14 chronology rows остаются
+      отдельным последующим контрактом.
 
       Historical operational snapshot, 2026-07-02:
 
@@ -359,8 +361,10 @@ nodes:
       Boundary and Review Closure v1 затем закрыл 213/337 строк и 1253.620/1731.892s обязательной
       review-очереди с corpus-решением PROMOTE. Residual Me Evidence Closure v1 добавил точные
       Target-Me, remote-forbidden и micro-ASR evidence, закрыл ещё 31 строку / 170.589s и тоже
-      получил PROMOTE. Следующий bounded quality-шаг — доказательно классифицировать 66 оставшихся
-      audio-review строк / 196.920s, не смешивая их с local-recall и order очередями.
+      получил PROMOTE. Residual Audio Evidence Arbitration v1 классифицировал все 66 оставшихся
+      audio-review строк / 196.920s, но безопасно закрыл лишь 1 строку / 0.640s и завершился
+      DO_NOT_PROMOTE. Следующий bounded quality-шаг — insertion-only разбор 13 local-recall строк /
+      48.073s, без изменения audio-review и order очередей.
 
   current-pipeline-stabilization-v1:
     title: "Current Pipeline Stabilization v1"
@@ -1546,16 +1550,28 @@ nodes:
     kind: task
     parent: quality-hardening
     deps: [quality-residual-me-evidence-closure-v1, quality-audio-judge-labels, corpus-regression]
+    status: done
+    effort: 8
+    notes: |
+      Завершено 2026-07-18 решением `DO_NOT_PROMOTE`. Все 66 audio-review строк / 196.920s получили
+      устойчивые outcomes и SHA-bound provenance; 14 per-session калибровок Target-Me надёжны.
+      Безопасно закрыта 1 строка / 0.640s, ниже порога 14 строк / 39.384s. Ни одного audio-only drop,
+      изменения remote/protected/unique Me content или регрессии нет. Отдельные 13 local-recall и
+      14 order строк сохранены; `residual_me_evidence_v1` остаётся selected fallback.
+
+  quality-residual-local-recall-closure-v1:
+    title: "Residual Local Recall Closure v1"
+    kind: task
+    parent: quality-hardening
+    deps: [quality-residual-audio-evidence-arbitration-v1, quality-residual-me-evidence-closure-v1, corpus-regression]
     status: next
     effort: 8
     notes: |
-      Зафиксировать 66 оставшихся audio-review строк / 196.920s из продвинутого
-      `residual_me_evidence_v1`. Откалибровать per-session Target-Me positives и remote negatives,
-      сопоставить exact/speaker-bounded mic/remote clips с локальным word-timestamp micro-ASR и
-      remote-forbidden evidence. Разрешать только whole-utterance keep/drop при независимом
-      согласии; protected text, unique local continuation, weak enrollment и конфликт судей должны
-      оставаться `needs_review`. Закрыть не менее 20% строк и секунд либо выпустить воспроизводимый
-      DO_NOT_PROMOTE. Отдельные 13 local-recall и 14 order строк не менять.
+      Заморозить отдельные 13 local-recall строк / 48.073s из `residual_me_evidence_v1`.
+      Восстанавливать только independently confirmed local speech с word-level timestamps, без
+      remote-text support и без overlap/paraphrase существующего Me. 66 audio-review dispositions,
+      14 chronology rows, raw CAF и existing text не менять. Выпустить isolated profile и разрешить
+      auto-selection только после corpus-wide local-recall gain и no-regression gates.
 
   quality-audio-judge-labels:
     title: "Richer audio-judge labels"
@@ -2069,7 +2085,7 @@ views:
           - live-causal-recovery-generalization-promotion-readiness-v1
       current-goal:
         title: "Ближайшая цель"
-        nodes: [quality-residual-audio-evidence-arbitration-v1]
+        nodes: [quality-residual-local-recall-closure-v1]
       conditional-decision:
         title: "Условное следующее решение"
         nodes: [live-causal-recovery-promotion-reconsideration]
@@ -2142,8 +2158,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Residual Audio Evidence Arbitration v1: доказательно классифицировать 66 оставшихся audio-review строк / 196.920s без ослабления corpus gates."
-      success_by_next_sync: "Audio-review queue заморожена; все 66 строк имеют calibrated local/remote evidence и provenance; закрыто не менее 20% строк и секунд либо опубликован воспроизводимый DO_NOT_PROMOTE с точными blockers."
+      nearest_goal: "Residual Local Recall Closure v1: доказательно разобрать 13 local-recall строк / 48.073s и восстановить только timestamp-backed remote-forbidden Me speech."
+      success_by_next_sync: "Local-recall queue заморожена; все 13 строк имеют stable outcomes и provenance; безопасные вставки улучшают local recall без chronology/remote/notes/export regressions либо опубликован точный DO_NOT_PROMOTE."
     defaults:
       status_progress:
         done: 1.0
@@ -2170,7 +2186,7 @@ x:
         mgmt:
           health: yellow
           sync_note: "CLI MVP, committed-PCM transport и Fast Authoritative Handoff закрыты. Boundary и residual профили получили PROMOTE и суммарно закрыли 244/337 строк / 1424.209s mandatory review без регрессий. Production output остаётся batch."
-          next_sync_goal: "Откалибровать локальное и remote evidence для 66 остаточных audio-review строк и безопасно закрыть материальную часть."
+          next_sync_goal: "Доказательно восстановить безопасную часть 13 local-recall строк / 48.073s без изменения audio-review и chronology очередей."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening, reliable-transcription-route]
@@ -2178,7 +2194,7 @@ x:
         mgmt:
           health: green
           sync_note: "Corpus CLI, review loop, audio judge, authoritative_boundary_v1 и residual_me_evidence_v1 образуют воспроизводимый контур: 72.4% строк и 82.23% секунд исходной очереди закрыто; 93 строки / 307.683s остаются явными. Echo candidate остаётся shadow-only."
-          next_sync_goal: "Разделить genuine Me, remote duplicate/leak, ASR noise и double-talk в audio-review остатке, применяя только решения, проходящие frozen corpus и per-session no-regression gates."
+          next_sync_goal: "Проверить insertion-only local-recall recovery на frozen corpus и продвинуть профиль только при word-level, remote-forbidden и per-session no-regression gates."
       future-capabilities:
         title: "Будущие возможности"
         scope_nodes: [evidence-notes, export-workflows, future-heavy-local, future-llm-synthesis]

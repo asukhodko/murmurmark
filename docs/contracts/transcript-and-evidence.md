@@ -865,6 +865,42 @@ corpus decision and session gates pass, the session is in `promoted_sessions`, a
 hashes match and both reports agree with the current output fingerprint. Any stale or incomplete
 result falls back to `authoritative_boundary_v1`.
 
+### Residual Audio Evidence Arbitration
+
+`scripts/residual-audio-arbitration.py` freezes only the `audio_review` rows remaining in the
+promoted residual queue. Corpus artifacts are:
+
+```text
+sessions/_reports/residual-audio-arbitration-v1/
+  baseline_manifest.json
+  residual_audio_queue.jsonl
+  residual_audio_corpus_report.json
+  residual_audio_corpus_report.md
+```
+
+The baseline, queue and corpus schemas are
+`murmurmark.residual_audio_arbitration_baseline/v1`,
+`murmurmark.residual_audio_arbitration_queue_item/v1` and
+`murmurmark.residual_audio_arbitration_corpus_report/v1`. The baseline freezes the input profile,
+raw CAF, the 66-row audio queue and separate hashes for the local-recall and transcript-order rows.
+
+Per-session evidence uses `murmurmark.residual_audio_arbitration_evidence/v1` and records exact,
+whole-utterance and speaker-bounded intervals; clip SHA-256 values; speaker state; frozen local
+faster-whisper word timestamps; stronger-judge evidence; positive and remote-negative Target-Me
+calibration; remote-forbidden checks; and a provenance SHA. Outcomes are `genuine_me`,
+`remote_duplicate_or_leak`, `asr_noise`, `real_double_talk` or `insufficient_evidence`.
+
+The isolated transcript profile allows only `keep_me`, `drop_duplicate_or_noise` and
+`needs_review`. A drop requires independent voice, text and prior-judge evidence and may affect only
+one whole `Me` utterance. Audio similarity alone, protected content, unique local continuation,
+mixed speech, weak enrollment and missing artifacts always fail open.
+
+`PROMOTE_RESIDUAL_AUDIO_ARBITRATION_V1` requires at least 20% closure by rows and seconds plus all
+frozen-input, raw, remote, existing-text, local-recall, chronology, notes and deterministic-output
+gates. The current result is `DO_NOT_PROMOTE`: `1/66` rows and `0.640/196.920s` close, below the
+required `14` rows and `39.384s`. Auto-selection therefore remains on
+`residual_me_evidence_v1`.
+
 `murmurmark corpus order` aggregates per-session order audits into:
 
 ```text

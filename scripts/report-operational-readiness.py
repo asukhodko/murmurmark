@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.4.3"
+SCRIPT_VERSION = "0.4.4"
 SCHEMA = "murmurmark.operational_readiness_report/v1"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
@@ -617,13 +617,14 @@ def authoritative_boundary_resolved_ids(session_path: Path, profile: str, source
 
 
 def residual_me_evidence_input_profile(session_path: Path, profile: str) -> str | None:
-    if profile != "residual_me_evidence_v1":
+    if profile not in {"residual_me_evidence_v1", "residual_audio_arbitration_v1"}:
         return None
-    report = read_json(
-        session_path
-        / "derived/transcript-simple/whisper-cpp/residual-me-evidence-v1"
-        / "residual_me_evidence_profile_report.json"
+    report_path = (
+        "residual-me-evidence-v1/residual_me_evidence_profile_report.json"
+        if profile == "residual_me_evidence_v1"
+        else "residual-audio-arbitration-v1/residual_audio_arbitration_profile_report.json"
     )
+    report = read_json(session_path / "derived/transcript-simple/whisper-cpp" / report_path)
     if not isinstance(report, dict):
         return None
     value = report.get("input_profile")
@@ -631,13 +632,14 @@ def residual_me_evidence_input_profile(session_path: Path, profile: str) -> str 
 
 
 def residual_me_evidence_resolved_ids(session_path: Path, profile: str, sources: set[str]) -> set[str]:
-    if profile != "residual_me_evidence_v1":
+    if profile not in {"residual_me_evidence_v1", "residual_audio_arbitration_v1"}:
         return set()
-    path = (
-        session_path
-        / "derived/transcript-simple/whisper-cpp/residual-me-evidence-v1"
-        / "residual_me_applied.jsonl"
+    applied_path = (
+        "residual-me-evidence-v1/residual_me_applied.jsonl"
+        if profile == "residual_me_evidence_v1"
+        else "residual-audio-arbitration-v1/residual_audio_applied.jsonl"
     )
+    path = session_path / "derived/transcript-simple/whisper-cpp" / applied_path
     return {
         str(row.get("source_audit_id"))
         for row in read_jsonl(path)
@@ -943,6 +945,7 @@ def formal_residual_risk(row: dict[str, Any]) -> dict[str, Any] | None:
         "local_recall_repair_v1",
         "authoritative_boundary_v1",
         "residual_me_evidence_v1",
+        "residual_audio_arbitration_v1",
     }:
         return None
     flags = {str(flag) for flag in row.get("risk_flags") or []}
@@ -991,6 +994,7 @@ def session_use_gate(row: dict[str, Any]) -> str:
         "local_recall_repair_v1",
         "authoritative_boundary_v1",
         "residual_me_evidence_v1",
+        "residual_audio_arbitration_v1",
     }:
         return "pipeline_incomplete_review_first"
     if formal_residual_risk(row):
@@ -2695,6 +2699,7 @@ def operational_verdict(
         + safe_int(selected_profiles.get("local_recall_repair_v1"))
         + safe_int(selected_profiles.get("authoritative_boundary_v1"))
         + safe_int(selected_profiles.get("residual_me_evidence_v1"))
+        + safe_int(selected_profiles.get("residual_audio_arbitration_v1"))
     )
     cleanup_ratio = cleanup_profiles / session_count if session_count > 0 else 0.0
 

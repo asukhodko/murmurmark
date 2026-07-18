@@ -101,9 +101,13 @@ Authoritative operating point, 2026-07-18:
   Target-Me, remote-forbidden and local micro-ASR evidence safely close another `31/124` rows /
   `170.589/478.272s`; `residual_me_evidence_v1` leaves `93` explicit rows / `307.683s`. Across the
   original queue, `244/337` rows and `1424.209/1731.892s` are now closed without a corpus regression;
-- the recommended next goal is Residual Audio Evidence Arbitration v1: resolve the largest coherent
-  remainder, `66` audio-review rows / `196.920s`, while keeping the `13` local-recall and `14` order
-  rows as separate explicit problems. Live recovery remains a diagnostic branch.
+- Residual Audio Evidence Arbitration v1 is complete with reproducible `DO_NOT_PROMOTE`. All `66`
+  audio-review rows / `196.920s` have stable outcomes and provenance, but only `1` row / `0.640s`
+  passes the whole-utterance closure gates. Promotion required `14` rows / `39.384s`, so
+  `residual_me_evidence_v1` remains authoritative;
+- the recommended next goal is Residual Local Recall Closure v1: treat the separate `13`
+  local-recall rows / `48.073s` with insertion-specific evidence and lossless timestamp gates. The
+  `14` chronology rows / `62.690s` remain a later boundary problem.
 
 Planning authority is intentionally split by purpose: [current-goal.md](docs/project/current-goal.md)
 defines the recommended executable goal and its acceptance gates, the
@@ -1404,6 +1408,21 @@ fingerprints all match. Missing models, clips or evidence fail open to the previ
 The script is a frozen-corpus maintenance tool; ordinary new sessions continue through the normal
 `murmurmark process` route.
 
+The residual audio arbitration result is reproducible with:
+
+```bash
+.venv/bin/python scripts/residual-audio-arbitration.py freeze
+.venv/bin/python scripts/residual-audio-arbitration.py evidence
+.venv/bin/python scripts/residual-audio-arbitration.py evaluate --apply --synthesize
+
+jq '{decision, summary, gates, evidence_limit}' \
+  sessions/_reports/residual-audio-arbitration-v1/residual_audio_corpus_report.json
+```
+
+It writes the isolated `residual_audio_arbitration_v1` candidate. The current decision is
+`DO_NOT_PROMOTE`: `auto`, status, notes and export continue to use `residual_me_evidence_v1`.
+Missing models or evidence remain `needs_review`; no raw CAF or frozen profile is modified.
+
 `corpus gate` now treats the review queue as a hard product signal: by default it allows at most
 `15` packed mandatory review actions and `25` queue rows across the operational corpus. The current
 corpus is below that line (`9` actions / `12` rows), so future cleanup must preserve the shorter
@@ -1706,9 +1725,12 @@ state is:
 14. **Completed residual closure:** `residual_me_evidence_v1` safely closes another `31` rows /
     `170.589s`; all `124` rows have outcomes, the promotion gates pass and `93` rows / `307.683s`
     remain explicit.
-15. **Recommended next goal:** Residual Audio Evidence Arbitration v1. Concentrate on the `66`
-    remaining audio-review rows / `196.920s`; preserve local-recall and chronology uncertainty as
-    separate queues. UI remains optional and late.
+15. **Completed residual audio arbitration:** all `66` audio-review rows / `196.920s` have stable
+    outcomes, but only `1` row / `0.640s` closes safely. The reproducible decision is
+    `DO_NOT_PROMOTE`; `residual_me_evidence_v1` remains selected.
+16. **Recommended next goal:** Residual Local Recall Closure v1. Concentrate on the separate `13`
+    local-recall rows / `48.073s` and permit insertion only from independently confirmed local
+    speech with lossless word timestamps and no remote-text support.
 
 <details>
 <summary>Historical implementation log (non-authoritative)</summary>

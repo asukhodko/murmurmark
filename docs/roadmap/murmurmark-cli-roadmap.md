@@ -85,8 +85,10 @@ Authoritative Transcript Boundary and Review Closure v1 then completed with
 remaining queue is `124` rows / `478.272s`, with no per-session gate regressions.
 Residual Me Evidence Closure v1 then completed with `PROMOTE_RESIDUAL_ME_EVIDENCE_V1`: exact local
 audio and source provenance safely close another `31` rows / `170.589s`; `93` rows / `307.683s`
-remain explicit. The nearest product goal is Residual Audio Evidence Arbitration v1, focused on the
-largest coherent remainder of `66` audio-review rows / `196.920s`.
+remain explicit. Residual Audio Evidence Arbitration v1 then classified all `66` audio-review rows /
+`196.920s`, but safely closed only `1` row / `0.640s` and therefore ended in reproducible
+`DO_NOT_PROMOTE`. The nearest product goal is Residual Local Recall Closure v1, focused on the
+separate `13` local-recall rows / `48.073s`.
 Near-Realtime Live Parity Coverage v1 already proved complete raw capture, pre-stop preview,
 terminal workers, zero final lag and successful batch output on three fresh real sessions. Live
 promotion remains blocked.
@@ -394,15 +396,18 @@ flowchart LR
 
 ### Next
 
-- Residual Audio Evidence Arbitration v1:
-  - freeze the promoted residual profile and its `66` remaining audio-review rows / `196.920s`;
-  - calibrate per-session local-speaker evidence and compare exact mic/remote clips with local
-    word-timestamp ASR and remote-forbidden checks;
-  - allow only evidence-backed whole-utterance keep/drop decisions; preserve protected, unique and
-    conflicting local content as `needs_review`;
-  - close a material safe subset without changing the separate `13` local-recall or `14` order rows,
-    or publish exact `DO_NOT_PROMOTE` blockers;
-  - keep live recovery diagnostic after its reproducible `DO_NOT_PROMOTE` result;
+- Residual Audio Evidence Arbitration v1 is complete with `DO_NOT_PROMOTE`:
+  - all `66` audio-review rows / `196.920s` have stable outcomes and provenance;
+  - all 14 affected sessions have reliable positive/remote-negative Target-Me calibration;
+  - only `1` row / `0.640s` closes safely, below the `14` rows / `39.384s` promotion floor;
+  - `residual_me_evidence_v1` remains authoritative and the separate local-recall/order queues are
+    unchanged;
+- Residual Local Recall Closure v1 is next:
+  - freeze the separate `13` local-recall rows / `48.073s`;
+  - permit only word-timestamp-backed insertion of independently confirmed local speech;
+  - preserve the `14` chronology rows and all existing text;
+  - promote only on local-recall gain with chronology, remote-like `Me`, notes and export
+    no-regression;
 - keep `--live-pipeline` disabled by default; all new evidence should go through
   `record --experiment live-shadow-v1`.
 - Near-realtime shadow pipeline follow-up:
@@ -554,22 +559,23 @@ Recently completed:
 
 ## Goal Sequence
 
-Recommended nearest goal: **Residual Audio Evidence Arbitration v1**. Residual Me Evidence Closure
-already promoted a measurable improvement; the largest remaining class is now a finite 66-row audio
-decision problem. Extending the failed live-prefilter branch would not improve the authoritative
-user result.
+Recommended nearest goal: **Residual Local Recall Closure v1**. Residual Audio Evidence Arbitration
+has established a reproducible evidence ceiling and remains unpromoted. The next useful class is the
+finite 13-row missing-local-speech queue; extending keep/drop rules for mixed audio would weaken the
+current safety contract.
 
-1. **Residual Audio Evidence Arbitration v1.** Calibrate exact local/remote evidence for the `66`
-   audio-review rows and close a material safe subset without weakening the promoted residual gates.
-2. **Residual local-recall and chronology follow-up.** Treat the remaining `13` local-recall and
-   `14` order rows under their own insertion and boundary contracts; do not mix them into audio-only
-   keep/drop policy.
-3. **Operational corpus and export closure.** Recompute selected notes, verdict, review burden and
+1. **Residual Audio Evidence Arbitration v1, completed.** `DO_NOT_PROMOTE`: `1/66` rows and
+   `0.640/196.920s` close safely; the exact evidence limit is recorded.
+2. **Residual Local Recall Closure v1.** Treat the remaining `13` local-recall rows / `48.073s`
+   under an insertion contract with word timestamps and remote-forbidden evidence.
+3. **Residual chronology follow-up.** Treat the remaining `14` order rows / `62.690s` under a
+   separate lossless boundary contract.
+4. **Operational corpus and export closure.** Recompute selected notes, verdict, review burden and
    guarded export after the residual profile; unresolved content must remain explicit.
-4. **Persistent causal expensive worker, optional lab.** Only if live recovery is reopened, reuse one
+5. **Persistent causal expensive worker, optional lab.** Only if live recovery is reopened, reuse one
    loaded local faster-whisper model against the same immutable corpus. Do not change route decisions,
    the `28s` timeout, normal preview or batch authority.
-5. **ASR-positive Echo promotion readiness.** Expand `coverage_v2_remote_gate_local_fir` validation
+6. **ASR-positive Echo promotion readiness.** Expand `coverage_v2_remote_gate_local_fir` validation
    beyond the current six sessions, add rollback/inspection criteria, compare review burden and
    local recall more broadly, and only then decide whether a non-default promoted bundle is worth
    testing.

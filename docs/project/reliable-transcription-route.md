@@ -132,10 +132,12 @@ residual row exact local evidence and safely closes another `31` rows / `170.589
 local-recall, `9` order and `1` audio-review row. The selected residual profile leaves `93` rows /
 `307.683s` explicit and passes every frozen-input, local-content, order, notes and export gate.
 
-Residual Audio Evidence Arbitration v1 is the recommended bounded step. It focuses on the largest
-remaining class, `66` audio-review rows / `196.920s`, and may apply only whole-utterance keep/drop
-decisions supported by calibrated Target-Me, exact local micro-ASR and remote-forbidden evidence.
-The remaining `13` local-recall and `14` order rows stay separate and explicit.
+Residual Audio Evidence Arbitration v1 is complete with reproducible `DO_NOT_PROMOTE`. It classified
+all `66` audio-review rows / `196.920s`, but independent Target-Me, bounded word-timestamp ASR and
+remote-forbidden evidence safely closed only `1` row / `0.640s`. The input
+`residual_me_evidence_v1` profile therefore remains authoritative. The recommended bounded step is
+Residual Local Recall Closure v1: handle the separate `13` local-recall rows / `48.073s` under an
+insertion-only contract while keeping all audio-review dispositions and `14` order rows unchanged.
 
 This step does not change capture, Echo Guard, the primary ASR, live promotion or raw audio. The
 failed live-recovery profile remains diagnostic evidence rather than another user-facing branch.

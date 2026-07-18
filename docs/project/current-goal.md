@@ -9,7 +9,33 @@ Roadmap status and dependency truth live in `docs/roadmap/murmurmark-cli-roadmap
 Markdown roadmap explains the same route for humans. Completed sections below are historical
 evidence and cannot redefine the recommended scope.
 
-## Recommended Next Goal: Residual Audio Evidence Arbitration v1
+## Recommended Next Goal: Residual Local Recall Closure v1
+
+The promoted `residual_me_evidence_v1` profile still leaves `93` explicit rows / `307.683s` after
+Residual Audio Evidence Arbitration v1 reached a reproducible `DO_NOT_PROMOTE`. The next coherent
+class is `13` local-recall rows / `48.073s`: intervals where local speech evidence exists but the
+authoritative dialogue may lack a complete `Me` utterance.
+
+Objective: recover only independently proven missing local speech, using existing exact and
+speaker-bounded audio, word timestamps, Target-Me calibration and remote-forbidden checks. Existing
+utterance text, the `66` audio-review dispositions and the `14` chronology rows remain unchanged.
+
+Definition of Done:
+
+- all 13 local-recall rows have stable outcomes and complete provenance;
+- safe insertions use word-level timestamps and do not overlap or paraphrase existing `Me` text;
+- no candidate supported by remote text, weak enrollment or mixed speech is inserted;
+- a material subset closes, or the corpus report records a reproducible evidence ceiling;
+- local recall improves without chronology, remote-like `Me`, notes, verdict or guarded-export
+  regression;
+- the candidate remains isolated and `auto` changes only after corpus-wide promotion.
+
+Out of scope: the remaining 14 chronology rows, capture, Echo Guard, primary ASR, live promotion,
+cloud processing, individual `Colleagues` diarization and UI.
+
+## Completed Goal: Residual Audio Evidence Arbitration v1
+
+Completed, 2026-07-18, with decision `DO_NOT_PROMOTE`.
 
 The promoted residual profile leaves `93` explicit evidence rows / `307.683s`. The largest coherent
 class is `66` audio-review rows / `196.920s`; the other `13` local-recall rows / `48.073s` and `14`
@@ -45,8 +71,19 @@ Definition of Done:
 - implementation, tests, corpus report, documentation, roadmap, commit and push form one completed
   change.
 
-Out of scope: capture, Echo Guard, primary ASR replacement, live promotion, cloud processing,
-individual `Colleagues` diarization and UI work.
+Actual corpus result:
+
+- all `66` rows / `196.920s` have stable outcomes and SHA-bound provenance;
+- all `14` affected sessions have reliable positive-vs-remote-negative Target-Me calibration;
+- outcomes: `1 genuine_me`, `1 remote_duplicate_or_leak`, `64 insufficient_evidence`;
+- only `1` row / `0.640s` passes safe `keep_me`; no row passes safe deletion;
+- promotion required at least `14` rows and `39.384s`, so the evidence ceiling is explicit;
+- all `13` local-recall and `14` order rows, raw CAF, frozen inputs, remote text, notes evidence and
+  authoritative auto-selection remain unchanged.
+
+Reports are under `sessions/_reports/residual-audio-arbitration-v1/`. Candidate evidence and
+dispositions live under `derived/audit/residual-audio-arbitration-v1/` and
+`derived/transcript-simple/whisper-cpp/residual-audio-arbitration-v1/`.
 
 ## Completed Goal: Residual Me Evidence Closure v1
 

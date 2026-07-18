@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 
-GENERATOR_VERSION = "0.3.3"
+GENERATOR_VERSION = "0.3.4"
 TOKEN_RE = re.compile(r"[0-9A-Za-zА-Яа-яЁё_./+-]+")
 
 DEFAULT_RULES: dict[str, Any] = {
@@ -558,6 +558,7 @@ def parse_args() -> argparse.Namespace:
             "local_recall_repair_v1",
             "authoritative_boundary_v1",
             "residual_me_evidence_v1",
+            "residual_audio_arbitration_v1",
         ),
         default="auto",
         help="Transcript artifact profile to synthesize from.",
@@ -750,6 +751,9 @@ def source_profile_paths(resolved_dir: Path, requested_profile: str) -> dict[str
         "residual_me_evidence_report": resolved_dir.parent
         / "residual-me-evidence-v1"
         / "residual_me_evidence_profile_report.json",
+        "residual_audio_arbitration_report": resolved_dir.parent
+        / "residual-audio-arbitration-v1"
+        / "residual_audio_arbitration_profile_report.json",
     }
 
 
@@ -907,6 +911,67 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
             return paths
         return None
 
+    def residual_audio_arbitration_paths_if_promoted() -> dict[str, Path] | None:
+        paths = source_profile_paths(resolved_dir, "residual_audio_arbitration_v1")
+        report, report_error = read_json(paths["residual_audio_arbitration_report"])
+        try:
+            session = resolved_dir.parents[3]
+        except IndexError:
+            return None
+        corpus_dir = session.parent / "_reports/residual-audio-arbitration-v1"
+        corpus, corpus_error = read_json(corpus_dir / "residual_audio_corpus_report.json")
+        baseline, baseline_error = read_json(corpus_dir / "baseline_manifest.json")
+        record = next(
+            (
+                row
+                for row in (baseline.get("sessions") or [])
+                if isinstance(row, dict) and str(row.get("session_id") or "") == session.name
+            ),
+            None,
+        ) if isinstance(baseline, dict) else None
+        frozen_artifacts = (
+            record.get("artifacts")
+            if isinstance(record, dict) and isinstance(record.get("artifacts"), dict)
+            else {}
+        )
+        frozen_inputs_match = bool(frozen_artifacts) and all(
+            not isinstance(value, dict)
+            or not value.get("sha256")
+            or sha256_file(Path(str(value.get("path") or ""))) == value.get("sha256")
+            for value in frozen_artifacts.values()
+        )
+        corpus_session = next(
+            (
+                row
+                for row in (corpus.get("sessions") or [])
+                if isinstance(row, dict) and str(row.get("session_id") or "") == session.name
+            ),
+            None,
+        ) if isinstance(corpus, dict) else None
+        inputs = report.get("inputs") if isinstance(report, dict) and isinstance(report.get("inputs"), dict) else {}
+        output_fingerprint = authoritative_boundary_output_fingerprint(paths)
+        if (
+            report_error is None
+            and isinstance(report, dict)
+            and isinstance(report.get("gates"), dict)
+            and report["gates"].get("passed") is True
+            and corpus_error is None
+            and isinstance(corpus, dict)
+            and corpus.get("decision") == "PROMOTE_RESIDUAL_AUDIO_ARBITRATION_V1"
+            and isinstance(corpus.get("gates"), dict)
+            and corpus["gates"].get("passed") is True
+            and baseline_error is None
+            and frozen_inputs_match
+            and sha256_file(corpus_dir / "baseline_manifest.json") == corpus.get("baseline_manifest_sha256")
+            and session.name in {str(value) for value in corpus.get("promoted_sessions") or []}
+            and inputs.get("frozen_dialogue_sha256") == inputs.get("actual_dialogue_sha256")
+            and report.get("output_fingerprint") == output_fingerprint
+            and isinstance(corpus_session, dict)
+            and corpus_session.get("output_fingerprint") == output_fingerprint
+        ):
+            return paths
+        return None
+
     def order_repair_for(base_profile: str) -> tuple[str, dict[str, Path]] | None:
         order_paths = source_profile_paths(resolved_dir, "order_repair_v1")
         order_report, order_error = read_json(order_paths["order_repair_report"])
@@ -929,6 +994,9 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
         return None
 
     if requested_profile == "auto":
+        residual_audio_paths = residual_audio_arbitration_paths_if_promoted()
+        if residual_audio_paths:
+            return "residual_audio_arbitration_v1", residual_audio_paths, repair_comparison, risk_items
         residual_paths = residual_me_evidence_paths_if_promoted()
         if residual_paths:
             return "residual_me_evidence_v1", residual_paths, repair_comparison, risk_items
@@ -1206,6 +1274,33 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
             )
         return "residual_me_evidence_v1", paths, repair_comparison, risk_items
 
+    if requested_profile == "residual_audio_arbitration_v1":
+        paths = source_profile_paths(resolved_dir, "residual_audio_arbitration_v1")
+        report, report_error = read_json(paths["residual_audio_arbitration_report"])
+        if report_error is not None:
+            risk_items.append({"type": "missing_residual_audio_arbitration_report", "severity": "high", "reason": report_error})
+        elif (
+            not isinstance(report, dict)
+            or not isinstance(report.get("gates"), dict)
+            or report["gates"].get("passed") is not True
+        ):
+            risk_items.append(
+                {
+                    "type": "residual_audio_arbitration_gates_failed",
+                    "severity": "high",
+                    "reason": "residual audio arbitration profile was requested but per-session gates did not pass",
+                }
+            )
+        elif residual_audio_arbitration_paths_if_promoted() is None:
+            risk_items.append(
+                {
+                    "type": "residual_audio_arbitration_not_currently_promoted",
+                    "severity": "high",
+                    "reason": "the corpus promotion, frozen input SHA, or output fingerprint is missing or stale",
+                }
+            )
+        return "residual_audio_arbitration_v1", paths, repair_comparison, risk_items
+
     if requested_profile == "shadow_v2":
         paths = source_profile_paths(resolved_dir, "shadow_v2")
         comparison, error = read_json(paths["repair_comparison"])
@@ -1368,6 +1463,7 @@ def verdict_from_metrics(
         "agent_reviewed_v1",
         "authoritative_boundary_v1",
         "residual_me_evidence_v1",
+        "residual_audio_arbitration_v1",
     } and "audit_harmful_seconds_after" in metrics:
         duration = max(1.0, float(metrics.get("meeting_duration_sec", 0.0) or 0.0))
         harmful = float(metrics.get("audit_harmful_seconds_after", 0.0) or 0.0)
@@ -2706,6 +2802,7 @@ def main() -> int:
         "local_recall_repair_v1",
         "authoritative_boundary_v1",
         "residual_me_evidence_v1",
+        "residual_audio_arbitration_v1",
     }:
         profile_suffix = selected_profile
         profile_aliases = {

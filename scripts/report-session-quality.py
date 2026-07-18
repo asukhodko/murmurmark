@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.4.9"
+SCRIPT_VERSION = "0.5.0"
 SCHEMA = "murmurmark.session_quality_report/v1"
 READINESS_SCHEMA = "murmurmark.session_readiness/v1"
 CLEANUP_PROFILES = {
@@ -30,6 +30,7 @@ CLEANUP_PROFILES = {
     "local_recall_repair_v1",
     "authoritative_boundary_v1",
     "residual_me_evidence_v1",
+    "residual_audio_arbitration_v1",
 }
 
 
@@ -320,7 +321,45 @@ def residual_me_evidence_usable(session: Path) -> bool:
     )
 
 
+def residual_audio_arbitration_usable(session: Path) -> bool:
+    resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
+    profile_path = session / "derived/transcript-simple/whisper-cpp/residual-audio-arbitration-v1"
+    report = read_json(profile_path / "residual_audio_arbitration_profile_report.json")
+    corpus_dir = session.parent / "_reports/residual-audio-arbitration-v1"
+    corpus = read_json(corpus_dir / "residual_audio_corpus_report.json")
+    baseline = read_json(corpus_dir / "baseline_manifest.json")
+    inputs = report.get("inputs") if isinstance(report, dict) and isinstance(report.get("inputs"), dict) else {}
+    output_fingerprint = profile_output_fingerprint(resolved, "residual_audio_arbitration_v1")
+    corpus_session = next(
+        (
+            row
+            for row in (corpus.get("sessions") or [])
+            if isinstance(row, dict) and str(row.get("session_id") or "") == session.name
+        ),
+        None,
+    ) if isinstance(corpus, dict) else None
+    return bool(
+        isinstance(report, dict)
+        and isinstance(report.get("gates"), dict)
+        and report["gates"].get("passed") is True
+        and report.get("output_profile") == "residual_audio_arbitration_v1"
+        and isinstance(corpus, dict)
+        and corpus.get("decision") == "PROMOTE_RESIDUAL_AUDIO_ARBITRATION_V1"
+        and isinstance(corpus.get("gates"), dict)
+        and corpus["gates"].get("passed") is True
+        and sha256_file(corpus_dir / "baseline_manifest.json") == corpus.get("baseline_manifest_sha256")
+        and frozen_boundary_inputs_match(baseline, session)
+        and session.name in {str(value) for value in corpus.get("promoted_sessions") or []}
+        and inputs.get("frozen_dialogue_sha256") == inputs.get("actual_dialogue_sha256")
+        and report.get("output_fingerprint") == output_fingerprint
+        and isinstance(corpus_session, dict)
+        and corpus_session.get("output_fingerprint") == output_fingerprint
+    )
+
+
 def selected_profile(session: Path) -> str:
+    if residual_audio_arbitration_usable(session):
+        return "residual_audio_arbitration_v1"
     if residual_me_evidence_usable(session):
         return "residual_me_evidence_v1"
     if authoritative_boundary_usable(session):
@@ -521,6 +560,7 @@ def stage_status(session: Path) -> dict[str, bool]:
     local_recall_repair = session / "derived/transcript-simple/whisper-cpp/local-recall-repair"
     authoritative_boundary = session / "derived/transcript-simple/whisper-cpp/authoritative-boundary-v1"
     residual_me_evidence = session / "derived/transcript-simple/whisper-cpp/residual-me-evidence-v1"
+    residual_audio_arbitration = session / "derived/transcript-simple/whisper-cpp/residual-audio-arbitration-v1"
     remote_leak_repair = session / "derived/transcript-simple/whisper-cpp/remote-leak-repair"
     remote_forbidden = session / "derived/audit/remote-forbidden"
     return {
@@ -581,6 +621,9 @@ def stage_status(session: Path) -> dict[str, bool]:
         "residual_me_evidence_v1": (resolved / "quality_report.residual_me_evidence_v1.json").exists()
         and (resolved / "clean_dialogue.residual_me_evidence_v1.json").exists()
         and (residual_me_evidence / "residual_me_evidence_profile_report.json").exists(),
+        "residual_audio_arbitration_v1": (resolved / "quality_report.residual_audio_arbitration_v1.json").exists()
+        and (resolved / "clean_dialogue.residual_audio_arbitration_v1.json").exists()
+        and (residual_audio_arbitration / "residual_audio_arbitration_profile_report.json").exists(),
         "synthesis": (synthesis / "quality_verdict.json").exists() and (synthesis / "evidence_notes.json").exists(),
         "synthesis_audit_cleanup_v1": (synthesis / "quality_verdict.audit_cleanup_v1.json").exists()
         and (synthesis / "evidence_notes.audit_cleanup_v1.json").exists(),
@@ -610,6 +653,8 @@ def stage_status(session: Path) -> dict[str, bool]:
         and (synthesis / "evidence_notes.authoritative_boundary_v1.json").exists(),
         "synthesis_residual_me_evidence_v1": (synthesis / "quality_verdict.residual_me_evidence_v1.json").exists()
         and (synthesis / "evidence_notes.residual_me_evidence_v1.json").exists(),
+        "synthesis_residual_audio_arbitration_v1": (synthesis / "quality_verdict.residual_audio_arbitration_v1.json").exists()
+        and (synthesis / "evidence_notes.residual_audio_arbitration_v1.json").exists(),
         "audio_review_pack": (audio_review / "review_pack_summary.json").exists()
         and (audio_review / "review_pack_items.jsonl").exists(),
         "audio_review_audit": (audio_review / "audio_review_summary.json").exists()
@@ -737,13 +782,15 @@ def cleanup_input_profile(session: Path, profile: str) -> str | None:
 
 
 def residual_me_evidence_input_profile(session: Path, profile: str) -> str | None:
-    if profile != "residual_me_evidence_v1":
+    if profile not in {"residual_me_evidence_v1", "residual_audio_arbitration_v1"}:
         return None
-    report = read_json(
-        session
-        / "derived/transcript-simple/whisper-cpp/residual-me-evidence-v1"
-        / "residual_me_evidence_profile_report.json"
+    directory = "residual-me-evidence-v1" if profile == "residual_me_evidence_v1" else "residual-audio-arbitration-v1"
+    filename = (
+        "residual_me_evidence_profile_report.json"
+        if profile == "residual_me_evidence_v1"
+        else "residual_audio_arbitration_profile_report.json"
     )
+    report = read_json(session / "derived/transcript-simple/whisper-cpp" / directory / filename)
     if not isinstance(report, dict):
         return None
     value = report.get("input_profile")
@@ -751,12 +798,12 @@ def residual_me_evidence_input_profile(session: Path, profile: str) -> str | Non
 
 
 def residual_me_evidence_resolved_ids(session: Path, profile: str, sources: set[str]) -> set[str]:
-    if profile != "residual_me_evidence_v1":
+    if profile not in {"residual_me_evidence_v1", "residual_audio_arbitration_v1"}:
         return set()
-    path = (
-        session
-        / "derived/transcript-simple/whisper-cpp/residual-me-evidence-v1"
-        / "residual_me_applied.jsonl"
+    path = session / "derived/transcript-simple/whisper-cpp" / (
+        "residual-me-evidence-v1/residual_me_applied.jsonl"
+        if profile == "residual_me_evidence_v1"
+        else "residual-audio-arbitration-v1/residual_audio_applied.jsonl"
     )
     return {
         str(row.get("source_audit_id"))
@@ -1948,15 +1995,20 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
             session
             / "derived/transcript-simple/whisper-cpp/authoritative-boundary-v1/boundary_repair_report.json"
         )
-        if profile in {"authoritative_boundary_v1", "residual_me_evidence_v1"}
+        if profile in {"authoritative_boundary_v1", "residual_me_evidence_v1", "residual_audio_arbitration_v1"}
         else None
     )
     residual_me_report = (
         read_json(
             session
-            / "derived/transcript-simple/whisper-cpp/residual-me-evidence-v1/residual_me_evidence_profile_report.json"
+            / "derived/transcript-simple/whisper-cpp"
+            / (
+                "residual-me-evidence-v1/residual_me_evidence_profile_report.json"
+                if profile == "residual_me_evidence_v1"
+                else "residual-audio-arbitration-v1/residual_audio_arbitration_profile_report.json"
+            )
         )
-        if profile == "residual_me_evidence_v1"
+        if profile in {"residual_me_evidence_v1", "residual_audio_arbitration_v1"}
         else None
     )
     session_json = read_json(session / "session.json") or {}

@@ -33,6 +33,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-independent-me-evidence.py
 "$python_bin" scripts/check-authoritative-boundary.py
 "$python_bin" scripts/check-residual-me-evidence.py
+"$python_bin" scripts/check-residual-audio-arbitration.py
 "$python_bin" scripts/check-experiment-compare-timeout.py
 scripts/check-open-source-readiness.sh
 scripts/check-capture-regressions.sh

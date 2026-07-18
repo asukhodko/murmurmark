@@ -57,7 +57,10 @@ Implemented now:
 - corpus-gated `authoritative_boundary_v1`, which freezes selected batch inputs and closes only
   order/boundary rows supported by existing source segments or independent audio evidence;
 - corpus-gated `residual_me_evidence_v1`, which applies exact Target-Me, remote-forbidden and local
-  micro-ASR evidence to the finite residual queue without rerunning primary ASR.
+  micro-ASR evidence to the finite residual queue without rerunning primary ASR;
+- shadow-only `residual_audio_arbitration_v1`, which classifies remaining audio-review rows with
+  per-session positive/remote-negative calibration. Its current corpus decision is
+  `DO_NOT_PROMOTE`, so it cannot replace `residual_me_evidence_v1` through `auto`.
 
 `Colleagues` has a strict provenance invariant: its text may only come from ASR over the `remote`
 track. The microphone may provide timing, echo, overlap and confidence evidence, but its recognized
@@ -126,6 +129,19 @@ The promoted result closes `31` rows / `170.589s` and leaves `93` rows / `307.68
 allowed only when the global decision is `PROMOTE_RESIDUAL_ME_EVIDENCE_V1`, the session is listed,
 the frozen source hashes still match and the current profile fingerprint equals both per-session and
 corpus reports. Any stale or incomplete evidence falls back to `authoritative_boundary_v1`.
+
+### Residual audio arbitration profile
+
+`residual_audio_arbitration_v1` freezes the `66` audio-review rows left by the promoted residual
+profile. It compares exact review intervals, whole `Me` utterances and speaker-bounded local islands
+across mic raw, mic clean, role-masked and remote audio. Local faster-whisper word timestamps,
+stronger-judge transcripts, speaker state, per-session Target-Me calibration and remote-forbidden
+checks are recorded in each decision's provenance.
+
+Only a whole `Me` utterance can be kept or dropped. Audio similarity alone cannot delete text;
+protected content, unique local continuation, double-talk, weak calibration and conflicting judges
+remain explicit. The current corpus safely closes `1/66` rows and `0.640/196.920s`, below the 20%
+promotion floor, so the profile remains auditable and `auto` keeps its prior fallback.
 
 ## Input
 
