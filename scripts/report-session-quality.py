@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import shlex
 import statistics
@@ -12,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.4.6"
+SCRIPT_VERSION = "0.4.8"
 SCHEMA = "murmurmark.session_quality_report/v1"
 READINESS_SCHEMA = "murmurmark.session_readiness/v1"
 CLEANUP_PROFILES = {
@@ -27,6 +28,7 @@ CLEANUP_PROFILES = {
     "reviewed_v1",
     "agent_reviewed_v1",
     "local_recall_repair_v1",
+    "authoritative_boundary_v1",
 }
 
 
@@ -191,7 +193,95 @@ def session_duration_sec(session_json: dict[str, Any]) -> float | None:
     return None
 
 
+def sha256_file(path: Path) -> str | None:
+    if not path.is_file():
+        return None
+    digest = hashlib.sha256()
+    with path.open("rb") as file:
+        while chunk := file.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def authoritative_boundary_output_fingerprint(resolved: Path) -> str:
+    paths = {
+        "dialogue": resolved / "clean_dialogue.authoritative_boundary_v1.json",
+        "quality": resolved / "quality_report.authoritative_boundary_v1.json",
+        "overlaps": resolved / "overlaps.authoritative_boundary_v1.json",
+        "transcript": resolved / "transcript.authoritative_boundary_v1.md",
+        "transcript_json": resolved / "transcript.simple.authoritative_boundary_v1.json",
+    }
+    values = {name: sha256_file(path) for name, path in paths.items()}
+    canonical = json.dumps(values, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
+
+
+def frozen_boundary_inputs_match(baseline: dict[str, Any] | None, session: Path) -> bool:
+    if not isinstance(baseline, dict):
+        return False
+    record = next(
+        (
+            row
+            for row in (baseline.get("sessions") or [])
+            if isinstance(row, dict) and str(row.get("session_id") or "") == session.name
+        ),
+        None,
+    )
+    artifacts = record.get("artifacts") if isinstance(record, dict) and isinstance(record.get("artifacts"), dict) else {}
+    frozen = [value for value in artifacts.values() if isinstance(value, dict) and value.get("sha256")]
+    return bool(frozen) and all(
+        sha256_file(Path(str(value.get("path") or ""))) == value.get("sha256")
+        for value in frozen
+    )
+
+
+def authoritative_boundary_usable(session: Path) -> bool:
+    resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
+    boundary_dir = session / "derived/transcript-simple/whisper-cpp/authoritative-boundary-v1"
+    report = read_json(
+        boundary_dir / "boundary_repair_report.json"
+    )
+    corpus_dir = session.parent / "_reports/authoritative-boundary-v1"
+    corpus = read_json(corpus_dir / "boundary_corpus_report.json")
+    baseline = read_json(corpus_dir / "baseline_manifest.json")
+    inputs = report.get("inputs") if isinstance(report, dict) and isinstance(report.get("inputs"), dict) else {}
+    input_profile = str(report.get("input_profile") or "") if isinstance(report, dict) else ""
+    input_suffix = "" if input_profile == "current" else f".{input_profile}"
+    input_dialogue = resolved / f"clean_dialogue{input_suffix}.json"
+    current_input_sha = sha256_file(input_dialogue)
+    output_fingerprint = authoritative_boundary_output_fingerprint(resolved)
+    corpus_session = next(
+        (
+            row
+            for row in (corpus.get("sessions") or [])
+            if isinstance(row, dict) and str(row.get("session_id") or "") == session.name
+        ),
+        None,
+    ) if isinstance(corpus, dict) else None
+    return bool(
+        isinstance(report, dict)
+        and isinstance(report.get("gates"), dict)
+        and report["gates"].get("passed") is True
+        and report.get("output_profile") == "authoritative_boundary_v1"
+        and isinstance(corpus, dict)
+        and corpus.get("decision") == "PROMOTE_AUTHORITATIVE_BOUNDARY_V1"
+        and isinstance(corpus.get("gates"), dict)
+        and corpus["gates"].get("passed") is True
+        and sha256_file(corpus_dir / "baseline_manifest.json") == corpus.get("baseline_manifest_sha256")
+        and frozen_boundary_inputs_match(baseline, session)
+        and session.name in {str(value) for value in corpus.get("promoted_sessions") or []}
+        and current_input_sha is not None
+        and current_input_sha == inputs.get("frozen_clean_dialogue_sha256")
+        and current_input_sha == inputs.get("actual_clean_dialogue_sha256")
+        and report.get("output_fingerprint") == output_fingerprint
+        and isinstance(corpus_session, dict)
+        and corpus_session.get("output_fingerprint") == output_fingerprint
+    )
+
+
 def selected_profile(session: Path) -> str:
+    if authoritative_boundary_usable(session):
+        return "authoritative_boundary_v1"
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
     cleanup = session / "derived/transcript-simple/whisper-cpp/audit-cleanup"
     review_decisions = session / "derived/transcript-simple/whisper-cpp/review-decisions"
@@ -386,6 +476,7 @@ def stage_status(session: Path) -> dict[str, bool]:
     order_audit = session / "derived/audit/order"
     order_repair = session / "derived/transcript-simple/whisper-cpp/order-repair"
     local_recall_repair = session / "derived/transcript-simple/whisper-cpp/local-recall-repair"
+    authoritative_boundary = session / "derived/transcript-simple/whisper-cpp/authoritative-boundary-v1"
     remote_leak_repair = session / "derived/transcript-simple/whisper-cpp/remote-leak-repair"
     remote_forbidden = session / "derived/audit/remote-forbidden"
     return {
@@ -440,6 +531,9 @@ def stage_status(session: Path) -> dict[str, bool]:
         "local_recall_repair_v1": (resolved / "quality_report.local_recall_repair_v1.json").exists()
         and (resolved / "clean_dialogue.local_recall_repair_v1.json").exists()
         and (local_recall_repair / "local_recall_repair_report.local_recall_repair_v1.json").exists(),
+        "authoritative_boundary_v1": (resolved / "quality_report.authoritative_boundary_v1.json").exists()
+        and (resolved / "clean_dialogue.authoritative_boundary_v1.json").exists()
+        and (authoritative_boundary / "boundary_repair_report.json").exists(),
         "synthesis": (synthesis / "quality_verdict.json").exists() and (synthesis / "evidence_notes.json").exists(),
         "synthesis_audit_cleanup_v1": (synthesis / "quality_verdict.audit_cleanup_v1.json").exists()
         and (synthesis / "evidence_notes.audit_cleanup_v1.json").exists(),
@@ -465,6 +559,8 @@ def stage_status(session: Path) -> dict[str, bool]:
         and (synthesis / "evidence_notes.order_repair_v1.json").exists(),
         "synthesis_local_recall_repair_v1": (synthesis / "quality_verdict.local_recall_repair_v1.json").exists()
         and (synthesis / "evidence_notes.local_recall_repair_v1.json").exists(),
+        "synthesis_authoritative_boundary_v1": (synthesis / "quality_verdict.authoritative_boundary_v1.json").exists()
+        and (synthesis / "evidence_notes.authoritative_boundary_v1.json").exists(),
         "audio_review_pack": (audio_review / "review_pack_summary.json").exists()
         and (audio_review / "review_pack_items.jsonl").exists(),
         "audio_review_audit": (audio_review / "audio_review_summary.json").exists()
@@ -1766,6 +1862,14 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
         if profile == "order_repair_v1"
         else None
     )
+    boundary_report = (
+        read_json(
+            session
+            / "derived/transcript-simple/whisper-cpp/authoritative-boundary-v1/boundary_repair_report.json"
+        )
+        if profile == "authoritative_boundary_v1"
+        else None
+    )
     session_json = read_json(session / "session.json") or {}
 
     metrics = verdict.get("metrics") if isinstance(verdict, dict) else None
@@ -1863,6 +1967,37 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     row.update(remote_forbidden_metrics(remote_forbidden))
     row.update(local_recall_metrics(local_recall, review_report))
     row.update(transcript_order_metrics(order_audit, review_report, order_repair_report))
+    if isinstance(boundary_report, dict) and (boundary_report.get("gates") or {}).get("passed") is True:
+        boundary_summary = boundary_report.get("summary") if isinstance(boundary_report.get("summary"), dict) else {}
+        remaining_local_count = safe_int(boundary_summary.get("remaining_local_recall_items")) or 0
+        remaining_local_seconds = round_or_none(boundary_summary.get("remaining_local_recall_seconds")) or 0.0
+        remaining_order_count = safe_int(boundary_summary.get("remaining_order_items")) or 0
+        remaining_order_seconds = round_or_none(boundary_summary.get("remaining_order_seconds")) or 0.0
+        row.update(
+            {
+                "authoritative_boundary_gates_passed": True,
+                "authoritative_boundary_closed_items": safe_int(boundary_summary.get("closed_items")),
+                "authoritative_boundary_remaining_items": safe_int(boundary_summary.get("remaining_items")),
+                "local_recall_possible_lost_me_count": remaining_local_count,
+                "local_recall_possible_lost_me_seconds": remaining_local_seconds,
+                "local_recall_needs_review_count": 0,
+                "local_recall_needs_review_seconds": 0.0,
+                "local_recall_meaningful_review_seconds": remaining_local_seconds,
+                "local_recall_blocking_low_local_recall": remaining_local_seconds > 0.0,
+                "local_recall_recommended_next_step": (
+                    "review_local_recall_items" if remaining_local_seconds > 0.0 else "authoritative_boundary_local_recall_clear"
+                ),
+                "transcript_order_probable_order_risk_count": remaining_order_count,
+                "transcript_order_probable_order_risk_seconds": remaining_order_seconds,
+                "transcript_order_needs_review_count": 0,
+                "transcript_order_needs_review_seconds": 0.0,
+                "transcript_order_review_seconds": remaining_order_seconds,
+                "transcript_order_blocking_order_risk": remaining_order_seconds > 0.0,
+                "transcript_order_recommended_next_step": (
+                    "review_transcript_order_items" if remaining_order_seconds > 0.0 else "authoritative_boundary_order_clear"
+                ),
+            }
+        )
     row["risk_flags"] = risk_flags(row)
     add_use_gate(row)
     return row

@@ -229,6 +229,7 @@ struct MurmurMark {
                                 [--mode conservative] [--sessions-root ./sessions]
           murmurmark repair local-recall ./session|latest [--input-profile auto] [--output-profile local_recall_repair_v1]
                                [--mode conservative] [--sessions-root ./sessions]
+          murmurmark repair boundary ./session|latest [--sessions-root ./sessions]
           murmurmark repair remote-leak ./session|latest [--sessions-root ./sessions]
           murmurmark corpus process all|latest|./session... [--per-label 16] [--max-items 160] [--sessions-root ./sessions]
           murmurmark corpus build all|latest|./session... [--per-label 16] [--max-items 160] [--sessions-root ./sessions]
@@ -756,6 +757,7 @@ enum DoctorChecks {
             "scripts/audit-audio-review-pack.py",
             "scripts/audit-stronger-audio-judge.py",
             "scripts/audit-target-me.py",
+            "scripts/authoritative-boundary.py",
             "scripts/run-asr-positive-echo-candidate.py",
             "scripts/report-asr-positive-echo-candidate-corpus.py",
             "scripts/probe-review-lane-pack-audio.py",
@@ -4337,6 +4339,22 @@ enum RepairCommands {
             if status != 0 {
                 throw CLIError("local-recall repair gates did not pass; inspect local_recall_repair_report before promoting the profile")
             }
+        case "boundary":
+            let status = try Tooling.runPathAllowingExitCodes(
+                try PythonRuntime.resolve(),
+                [
+                    try script("authoritative-boundary.py").path,
+                    "apply",
+                    session.path,
+                    "--sessions-root",
+                    sessionsRoot.path,
+                ] + remaining,
+                allowedExitCodes: [0, 2]
+            )
+            try RepairPrinter.printBoundarySummary(session: session)
+            if status != 0 {
+                throw CLIError("boundary repair gates did not pass; the frozen input remains authoritative")
+            }
         case "remote-leak":
             try Tooling.runPath(
                 try PythonRuntime.resolve(),
@@ -4363,10 +4381,12 @@ enum RepairCommands {
                                 [--mode conservative] [--sessions-root ./sessions]
           murmurmark repair local-recall ./session|latest [--input-profile auto] [--output-profile local_recall_repair_v1]
                                        [--mode conservative] [--sessions-root ./sessions]
+          murmurmark repair boundary ./session|latest [--sessions-root ./sessions]
           murmurmark repair remote-leak ./session|latest [--sessions-root ./sessions]
 
         order writes a separate transcript profile with conservative transcript-order repairs.
         local-recall writes a separate transcript profile with conservative inserted Me islands.
+        boundary applies frozen evidence dispositions and writes authoritative_boundary_v1.
         remote-leak writes an audit-only leak/duplicate segment repair plan and never edits transcript profiles.
         """)
     }
@@ -4960,6 +4980,34 @@ enum CleanupPrinter {
 }
 
 enum RepairPrinter {
+    static func printBoundarySummary(session: URL) throws {
+        let reportURL = session.appendingPathComponent(
+            "derived/transcript-simple/whisper-cpp/authoritative-boundary-v1/boundary_repair_report.json"
+        )
+        guard FileManager.default.fileExists(atPath: reportURL.path) else {
+            print("")
+            print("repair:")
+            print("  kind: authoritative_boundary")
+            print("  report: missing")
+            print("  expected: \(PathDisplay.display(reportURL))")
+            return
+        }
+        let payload = try JSONFiles.object(reportURL)
+        let summary = dict(payload["summary"])
+        let gates = dict(payload["gates"])
+        print("")
+        print("repair:")
+        print("  kind: authoritative_boundary")
+        print("  report: \(PathDisplay.display(reportURL))")
+        print("  input_profile: \(string(payload["input_profile"]) ?? "unknown")")
+        print("  output_profile: \(string(payload["output_profile"]) ?? "authoritative_boundary_v1")")
+        print("  closed_items: \(int(summary["closed_items"]))")
+        print("  remaining_items: \(int(summary["remaining_items"]))")
+        print("  gates_passed: \(bool(gates["passed"]))")
+        let next = "murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile authoritative_boundary_v1"
+        FinalNextPrinter.print(next)
+    }
+
     static func printLocalRecallSummary(session: URL, args: [String]) throws {
         let profile = ArgumentEditing.peekOption("output-profile", in: args) ?? "local_recall_repair_v1"
         let suffix = profile == "current" ? "" : ".\(profile)"
@@ -5666,7 +5714,7 @@ enum CorpusCommands {
         guard let subcommand = args.first else {
             throw CLIError(
                 "corpus requires process, build, evaluate, train-audio-judge, taxonomy, gate, order, " +
-                    "local-recall, local-recall-repair, remote-leak, echo-candidate, or report"
+                    "local-recall, local-recall-repair, boundary, remote-leak, echo-candidate, or report"
             )
         }
         var forwarded = Array(args.dropFirst())
@@ -5785,6 +5833,34 @@ enum CorpusCommands {
             }
             try transcriptOrder(sessions: sessions, extraArgs: forwarded)
             try CorpusPrinter.printTranscriptOrder(outDir: outDir)
+        case "boundary":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(
+                    try PythonRuntime.resolve(),
+                    [try script("authoritative-boundary.py").path, "--help"]
+                )
+                return
+            }
+            let action = forwarded.first.map { value -> String in
+                if ["freeze", "evaluate", "run"].contains(value) {
+                    forwarded.removeFirst()
+                    return value
+                }
+                return "run"
+            } ?? "run"
+            let status = try Tooling.runPathAllowingExitCodes(
+                try PythonRuntime.resolve(),
+                [
+                    try script("authoritative-boundary.py").path,
+                    action,
+                    "--sessions-root",
+                    sessionsRoot.path,
+                ] + forwarded,
+                allowedExitCodes: [0, 2]
+            )
+            if status != 0 {
+                throw CLIError("authoritative boundary corpus gates did not pass; inspect sessions/_reports/authoritative-boundary-v1")
+            }
         case "local-recall":
             try CorpusLocalRecallCommands.run(args: forwarded, sessionsRoot: sessionsRoot)
         case "local-recall-repair":
@@ -5947,6 +6023,7 @@ enum CorpusHelp {
           murmurmark corpus order [all|latest|./session...] [--repair] [--sessions-root ./sessions]
           murmurmark corpus local-recall [all|latest|./session...] [--audit] [--sessions-root ./sessions]
           murmurmark corpus local-recall-repair [all|latest|./session...] [--repair] [--sessions-root ./sessions]
+          murmurmark corpus boundary [freeze|evaluate|run] [--sessions-root ./sessions]
           murmurmark corpus remote-leak [all|latest|./session...] [--plan] [--sessions-root ./sessions]
           murmurmark corpus echo-candidate [all|latest|./session...] [--run] [--sessions-root ./sessions]
           murmurmark corpus live [all|latest|./session...] [--refresh] [--target-live-sessions 3] [--sessions-root ./sessions]

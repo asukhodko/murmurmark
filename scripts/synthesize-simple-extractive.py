@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import shlex
@@ -11,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 
-GENERATOR_VERSION = "0.3.1"
+GENERATOR_VERSION = "0.3.3"
 TOKEN_RE = re.compile(r"[0-9A-Za-zА-Яа-яЁё_./+-]+")
 
 DEFAULT_RULES: dict[str, Any] = {
@@ -555,6 +556,7 @@ def parse_args() -> argparse.Namespace:
             "suggested_review_v1",
             "order_repair_v1",
             "local_recall_repair_v1",
+            "authoritative_boundary_v1",
         ),
         default="auto",
         help="Transcript artifact profile to synthesize from.",
@@ -736,17 +738,109 @@ def source_profile_paths(resolved_dir: Path, requested_profile: str) -> dict[str
         "clean_dialogue": resolved_dir / f"clean_dialogue{suffix}.json",
         "quality_report": resolved_dir / f"quality_report{suffix}.json",
         "overlaps": resolved_dir / f"overlaps{suffix}.json",
+        "transcript": resolved_dir / f"transcript{suffix}.md",
+        "transcript_json": resolved_dir / f"transcript.simple{suffix}.json",
         "repair_comparison": resolved_dir / "repair_comparison.json",
         "audit_cleanup_report": resolved_dir.parent / "audit-cleanup" / f"audit_cleanup_report{suffix}.json",
         "review_decisions_report": resolved_dir.parent / "review-decisions" / f"review_decisions_report{suffix}.json",
         "order_repair_report": resolved_dir.parent / "order-repair" / f"transcript_order_repair_report{suffix}.json",
         "local_recall_repair_report": resolved_dir.parent / "local-recall-repair" / f"local_recall_repair_report{suffix}.json",
+        "authoritative_boundary_report": resolved_dir.parent / "authoritative-boundary-v1" / "boundary_repair_report.json",
     }
+
+
+def sha256_file(path: Path) -> str | None:
+    if not path.is_file():
+        return None
+    digest = hashlib.sha256()
+    with path.open("rb") as file:
+        while chunk := file.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def authoritative_boundary_output_fingerprint(paths: dict[str, Path]) -> str:
+    values = {
+        "dialogue": sha256_file(paths["clean_dialogue"]),
+        "quality": sha256_file(paths["quality_report"]),
+        "overlaps": sha256_file(paths["overlaps"]),
+        "transcript": sha256_file(paths["transcript"]),
+        "transcript_json": sha256_file(paths["transcript_json"]),
+    }
+    canonical = json.dumps(values, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
+
+
+def frozen_boundary_inputs_match(baseline: dict[str, Any] | None, session: Path) -> bool:
+    if not isinstance(baseline, dict):
+        return False
+    record = next(
+        (
+            row
+            for row in (baseline.get("sessions") or [])
+            if isinstance(row, dict) and str(row.get("session_id") or "") == session.name
+        ),
+        None,
+    )
+    artifacts = record.get("artifacts") if isinstance(record, dict) and isinstance(record.get("artifacts"), dict) else {}
+    frozen = [value for value in artifacts.values() if isinstance(value, dict) and value.get("sha256")]
+    return bool(frozen) and all(
+        sha256_file(Path(str(value.get("path") or ""))) == value.get("sha256")
+        for value in frozen
+    )
 
 
 def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dict[str, Path], dict[str, Any] | None, list[dict[str, Any]]]:
     risk_items: list[dict[str, Any]] = []
     repair_comparison: dict[str, Any] | None = None
+
+    def authoritative_boundary_paths_if_promoted() -> dict[str, Path] | None:
+        paths = source_profile_paths(resolved_dir, "authoritative_boundary_v1")
+        report, report_error = read_json(paths["authoritative_boundary_report"])
+        try:
+            session = resolved_dir.parents[3]
+        except IndexError:
+            return None
+        corpus_path = session.parent / "_reports/authoritative-boundary-v1/boundary_corpus_report.json"
+        corpus, corpus_error = read_json(corpus_path)
+        corpus_dir = corpus_path.parent
+        baseline, baseline_error = read_json(corpus_dir / "baseline_manifest.json")
+        inputs = report.get("inputs") if isinstance(report, dict) and isinstance(report.get("inputs"), dict) else {}
+        input_profile = str(report.get("input_profile") or "") if isinstance(report, dict) else ""
+        input_paths = source_profile_paths(resolved_dir, input_profile) if input_profile else {}
+        input_sha = sha256_file(input_paths["clean_dialogue"]) if input_paths else None
+        output_fingerprint = authoritative_boundary_output_fingerprint(paths)
+        corpus_session = next(
+            (
+                row
+                for row in (corpus.get("sessions") or [])
+                if isinstance(row, dict) and str(row.get("session_id") or "") == session.name
+            ),
+            None,
+        ) if isinstance(corpus, dict) else None
+        if (
+            report_error is None
+            and isinstance(report, dict)
+            and isinstance(report.get("gates"), dict)
+            and report["gates"].get("passed") is True
+            and corpus_error is None
+            and isinstance(corpus, dict)
+            and corpus.get("decision") == "PROMOTE_AUTHORITATIVE_BOUNDARY_V1"
+            and isinstance(corpus.get("gates"), dict)
+            and corpus["gates"].get("passed") is True
+            and baseline_error is None
+            and frozen_boundary_inputs_match(baseline, session)
+            and sha256_file(corpus_dir / "baseline_manifest.json") == corpus.get("baseline_manifest_sha256")
+            and session.name in {str(value) for value in corpus.get("promoted_sessions") or []}
+            and input_sha is not None
+            and input_sha == inputs.get("frozen_clean_dialogue_sha256")
+            and input_sha == inputs.get("actual_clean_dialogue_sha256")
+            and report.get("output_fingerprint") == output_fingerprint
+            and isinstance(corpus_session, dict)
+            and corpus_session.get("output_fingerprint") == output_fingerprint
+        ):
+            return paths
+        return None
 
     def order_repair_for(base_profile: str) -> tuple[str, dict[str, Path]] | None:
         order_paths = source_profile_paths(resolved_dir, "order_repair_v1")
@@ -770,6 +864,9 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
         return None
 
     if requested_profile == "auto":
+        boundary_paths = authoritative_boundary_paths_if_promoted()
+        if boundary_paths:
+            return "authoritative_boundary_v1", boundary_paths, repair_comparison, risk_items
         comparison_path = resolved_dir / "repair_comparison.json"
         comparison, error = read_json(comparison_path)
         if error is None and isinstance(comparison, dict):
@@ -987,6 +1084,33 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
                 )
         return "local_recall_repair_v1", paths, repair_comparison, risk_items
 
+    if requested_profile == "authoritative_boundary_v1":
+        paths = source_profile_paths(resolved_dir, "authoritative_boundary_v1")
+        report, report_error = read_json(paths["authoritative_boundary_report"])
+        if report_error is not None:
+            risk_items.append({"type": "missing_authoritative_boundary_report", "severity": "high", "reason": report_error})
+        elif (
+            not isinstance(report, dict)
+            or not isinstance(report.get("gates"), dict)
+            or report["gates"].get("passed") is not True
+        ):
+            risk_items.append(
+                {
+                    "type": "authoritative_boundary_gates_failed",
+                    "severity": "high",
+                    "reason": "authoritative boundary profile was requested but per-session gates did not pass",
+                }
+            )
+        elif authoritative_boundary_paths_if_promoted() is None:
+            risk_items.append(
+                {
+                    "type": "authoritative_boundary_not_currently_promoted",
+                    "severity": "high",
+                    "reason": "the corpus promotion, frozen input SHA, or output fingerprint is missing or stale",
+                }
+            )
+        return "authoritative_boundary_v1", paths, repair_comparison, risk_items
+
     if requested_profile == "shadow_v2":
         paths = source_profile_paths(resolved_dir, "shadow_v2")
         comparison, error = read_json(paths["repair_comparison"])
@@ -1137,7 +1261,18 @@ def verdict_from_metrics(
     if int(metrics["golden_phrase_fail_count"]) > 0:
         items.append({"type": "golden_phrase_failures", "severity": "high", "reason": "configured golden phrase checks failed"})
 
-    if selected_profile in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "audit_cleanup_v5", "audit_cleanup_v6", "audit_cleanup_v7", "reviewed_v1", "agent_reviewed_v1"} and "audit_harmful_seconds_after" in metrics:
+    if selected_profile in {
+        "audit_cleanup_v1",
+        "audit_cleanup_v2",
+        "audit_cleanup_v3",
+        "audit_cleanup_v4",
+        "audit_cleanup_v5",
+        "audit_cleanup_v6",
+        "audit_cleanup_v7",
+        "reviewed_v1",
+        "agent_reviewed_v1",
+        "authoritative_boundary_v1",
+    } and "audit_harmful_seconds_after" in metrics:
         duration = max(1.0, float(metrics.get("meeting_duration_sec", 0.0) or 0.0))
         harmful = float(metrics.get("audit_harmful_seconds_after", 0.0) or 0.0)
         review = float(metrics.get("audit_review_seconds", 0.0) or 0.0)
@@ -2473,6 +2608,7 @@ def main() -> int:
         "suggested_review_v1",
         "order_repair_v1",
         "local_recall_repair_v1",
+        "authoritative_boundary_v1",
     }:
         profile_suffix = selected_profile
         profile_aliases = {

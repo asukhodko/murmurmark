@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.4.1"
+SCRIPT_VERSION = "0.4.2"
 SCHEMA = "murmurmark.operational_readiness_report/v1"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
@@ -587,12 +587,42 @@ def local_recall_repair_input_profile(session_path: Path, profile: str) -> str |
     return str(value) if value and str(value) != profile else None
 
 
+def authoritative_boundary_input_profile(session_path: Path, profile: str) -> str | None:
+    if profile != "authoritative_boundary_v1":
+        return None
+    report = read_json(
+        session_path
+        / "derived/transcript-simple/whisper-cpp/authoritative-boundary-v1/boundary_repair_report.json"
+    )
+    if not isinstance(report, dict):
+        return None
+    value = report.get("input_profile")
+    return str(value) if value and str(value) != profile else None
+
+
+def authoritative_boundary_resolved_ids(session_path: Path, profile: str, sources: set[str]) -> set[str]:
+    if profile != "authoritative_boundary_v1":
+        return set()
+    path = (
+        session_path
+        / "derived/transcript-simple/whisper-cpp/authoritative-boundary-v1/boundary_repair_applied.jsonl"
+    )
+    return {
+        str(row.get("source_audit_id"))
+        for row in read_jsonl(path)
+        if str(row.get("source") or "") in sources
+        and row.get("closed") is True
+        and row.get("source_audit_id")
+    }
+
+
 def inherited_profiles_for_review(session_path: Path, profile: str) -> list[str]:
     profiles: list[str] = []
     for candidate in (
         cleanup_input_profile(session_path, profile),
         review_input_profile(session_path, profile),
         local_recall_repair_input_profile(session_path, profile),
+        authoritative_boundary_input_profile(session_path, profile),
     ):
         if candidate and candidate != profile and candidate not in profiles:
             profiles.append(candidate)
@@ -658,6 +688,7 @@ def review_resolved_audio_ids(session_path: Path, profile: str, seen: set[str] |
     for inherited_profile in inherited_profiles_for_review(session_path, profile):
         inherited.update(review_resolved_audio_ids(session_path, inherited_profile, seen))
     resolved: set[str] = set(inherited)
+    resolved.update(authoritative_boundary_resolved_ids(session_path, profile, {"audio_review"}))
     for row in pending_review_decision_rows(session_path, profile):
         if str(row.get("status") or "") != "reviewed":
             continue
@@ -731,6 +762,7 @@ def review_resolved_local_recall_ids(session_path: Path, profile: str, seen: set
     for inherited_profile in inherited_profiles_for_review(session_path, profile):
         inherited.update(review_resolved_local_recall_ids(session_path, inherited_profile, seen))
     resolved: set[str] = set(inherited)
+    resolved.update(authoritative_boundary_resolved_ids(session_path, profile, {"local_recall", "local_recall_repair"}))
     for row in pending_review_decision_rows(session_path, profile):
         if str(row.get("status") or "") != "reviewed":
             continue
@@ -768,6 +800,7 @@ def review_resolved_transcript_order_ids(session_path: Path, profile: str, seen:
     for inherited_profile in inherited_profiles_for_review(session_path, profile):
         inherited.update(review_resolved_transcript_order_ids(session_path, inherited_profile, seen))
     resolved: set[str] = set(inherited)
+    resolved.update(authoritative_boundary_resolved_ids(session_path, profile, {"transcript_order"}))
     for row in pending_review_decision_rows(session_path, profile):
         if str(row.get("status") or "") != "reviewed":
             continue
@@ -873,6 +906,7 @@ def formal_residual_risk(row: dict[str, Any]) -> dict[str, Any] | None:
         "reviewed_v1",
         "agent_reviewed_v1",
         "local_recall_repair_v1",
+        "authoritative_boundary_v1",
     }:
         return None
     flags = {str(flag) for flag in row.get("risk_flags") or []}
@@ -919,6 +953,7 @@ def session_use_gate(row: dict[str, Any]) -> str:
         "reviewed_v1",
         "agent_reviewed_v1",
         "local_recall_repair_v1",
+        "authoritative_boundary_v1",
     }:
         return "pipeline_incomplete_review_first"
     if formal_residual_risk(row):
@@ -2621,6 +2656,7 @@ def operational_verdict(
         + safe_int(selected_profiles.get("reviewed_v1"))
         + safe_int(selected_profiles.get("agent_reviewed_v1"))
         + safe_int(selected_profiles.get("local_recall_repair_v1"))
+        + safe_int(selected_profiles.get("authoritative_boundary_v1"))
     )
     cleanup_ratio = cleanup_profiles / session_count if session_count > 0 else 0.0
 

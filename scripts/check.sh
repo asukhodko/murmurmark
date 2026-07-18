@@ -31,6 +31,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-bounded-asr-parallelism.py
 "$python_bin" scripts/check-audio-review-clip-parallelism.py
 "$python_bin" scripts/check-independent-me-evidence.py
+"$python_bin" scripts/check-authoritative-boundary.py
 "$python_bin" scripts/check-experiment-compare-timeout.py
 scripts/check-open-source-readiness.sh
 scripts/check-capture-regressions.sh
