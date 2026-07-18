@@ -62,8 +62,10 @@ nodes:
       остался 108.42s, order blockers 0, runtime p95 23.473s, final lag 0, 356 frozen inputs не
       изменились. Causal Recovery Generalization and Promotion Readiness v1 завершён решением
       DO_NOT_PROMOTE: 963 outcomes, 832 unchanged inputs, 0 accepted negatives; blockers — 268/783
-      candidate coverage, три runtime timeout и один order regression. Текущая цель — Causal
-      Candidate Coverage and Cheap Negative Prefilter v1 на том же frozen corpus.
+      candidate coverage, три runtime timeout и один order regression. Follow-up prefilter завершён
+      вторым DO_NOT_PROMOTE: 783/783 строго past-only routes и order no-regression; все 65 frozen
+      negatives отвергнуты, но один новый candidate — post-hoc ASR noise, runtime 0/3. Текущая цель —
+      Authoritative Transcript Boundary and Review Closure v1.
 
       Historical operational snapshot, 2026-07-02:
 
@@ -345,10 +347,10 @@ nodes:
       Causal Remote-Active Me Separation v1 обработал 19 speaker-supported rows и восстановил ещё
       252.90s без per-session регрессий. Recording-time integration, incremental runtime, fresh
       evidence 3/3, Fast Authoritative Handoff и Causal Double-Talk Recovery уже завершены.
-      Generalization дала DO_NOT_PROMOTE: candidate stage покрывает только 268/783 eligible rows,
-      три holdout replay timed out fail-open и один holdout получил order regression. Текущий
-      bounded quality-шаг — cheap causal negative prefilter и 783/783 explainable decisions на том
-      же frozen corpus без изменения normal preview.
+      Generalization и follow-up prefilter дали DO_NOT_PROMOTE. Prefilter обеспечивает 783/783
+      explainable routes и устраняет order regression, но принимает один post-hoc ASR-noise candidate
+      и проходит runtime 0/3 holdouts. Live branch остаётся diagnostic. Текущий bounded quality-шаг —
+      Authoritative Transcript Boundary and Review Closure v1 на operational batch corpus.
 
   current-pipeline-stabilization-v1:
     title: "Current Pipeline Stabilization v1"
@@ -578,10 +580,10 @@ nodes:
       7/7. Incremental runtime и fresh evidence 3/3 завершены. Causal Double-Talk Me Recovery v1
       дополнительно снижает missing Me 1657.89s -> 1639.73s при remote-like Me 108.42s, blockers 0,
       review burden 478.82s, runtime p95 23.473s и final lag 0. Runtime shadow не подключён к normal
-      preview/export/promotion. Generalization decision — DO_NOT_PROMOTE: negatives остаются safe,
-      но candidate-stage coverage 268/783, три holdout replay timed out fail-open и один holdout
-      получает order regression. Следующий фокус — cheap causal negative prefilter и 100% bounded
-      decision coverage на том же frozen corpus.
+      preview/export/promotion. Generalization и cheap-prefilter decisions — DO_NOT_PROMOTE. Prefilter
+      дал 783/783 routes и убрал order regression, но один post-hoc ASR-noise candidate и runtime 0/3
+      закрывают promotion branch. Persistent faster-whisper worker остаётся optional isolated lab; product
+      focus возвращён к authoritative batch boundary/review closure.
 
   realtime-segment-writer:
     title: "Durable committed PCM sidecar"
@@ -1172,21 +1174,19 @@ nodes:
     kind: task
     parent: near-realtime-pipeline
     deps: [live-causal-recovery-generalization-promotion-readiness-v1, corpus-regression]
-    status: current
+    status: done
     effort: 8
     notes: |
-      Дать causal cheap-prefilter outcome всем 783 eligible remote-active source rows до дорогого
-      residual/Target-Me/micro-ASR stage. Cheap pass должен отсеивать remote-only и ASR-noise без
-      batch/future evidence и без ослабления remote-forbidden guards. Переиспользовать frozen
-      963-row corpus и три holdout, сохранить 4 rows / 11.56s fixed recall и accepted negatives 0,
-      добиться 100% decision coverage, runtime p95 <= 30s, final lag 0, deterministic
-      offline/runtime agreement и no per-session order/remote/F1/review regression. Новые записи
-      для старта не требуются; normal preview не менять до отдельного passing promotion decision.
-      Последовательность: frozen baseline -> cheap current/past-only features -> routing
-      cheap_reject/expensive_candidate/unresolved -> expensive stage только для positive local
-      evidence -> три holdout replay -> новый binary decision. Отчёт обязан разделять source-row
-      decision coverage и expensive-stage coverage, объяснять каждую строку и сохранять старый
-      generalization-v1 namespace неизменным.
+      Завершено 2026-07-18 решением DO_NOT_PROMOTE. Все 783 eligible rows имеют causal route:
+      48 cheap_reject, 159 expensive_candidate, 576 unresolved. Cheap reject не удаляет frozen
+      genuine double-talk; selection не использует batch/future evidence. Expensive stage: 87
+      candidates, 39 accepted / 191.26s; fixed 4 rows / 11.56s сохранены. Все 10 per-session
+      order/remote/F1/review no-regression gates проходят, прежняя order regression устранена.
+      Все 65 frozen negative controls отвергнуты; blocker — 1 новый post-hoc ASR-noise candidate.
+      Runtime проходит 0/3 holdouts, 20 attempts timed_out_fail_open, overall p95 max 42.634s при лимите 30s. Routes
+      совпадают offline/runtime 643/643, final lag 0. Prefilter watermark теперь сохраняется до
+      expensive work, поэтому timeout не повторяет тот же cutoff. Normal preview не менялся, batch
+      authoritative; live promotion branch закрыт.
 
   live-causal-recovery-promotion-reconsideration:
     title: "Causal Recovery Promotion Reconsideration"
@@ -1196,11 +1196,10 @@ nodes:
     status: blocked
     effort: 3
     notes: |
-      Нельзя начинать до завершения cheap-prefilter goal. Если все coverage/runtime/determinism/
-      per-session no-regression gates проходят, определить ограниченное включение, rollback и
-      inspection contract отдельным решением. Если хотя бы один gate не проходит, зафиксировать
-      воспроизводимый DO_NOT_PROMOTE и оставить normal preview неизменным; бесконечно продлевать
-      эксперимент новыми thresholds или записями нельзя.
+      Заблокировано итогом cheap-prefilter goal: один post-hoc ASR-noise candidate и runtime 0/3 не проходят
+      hard gates. Решение DO_NOT_PROMOTE воспроизводимо, normal preview неизменён, batch authoritative.
+      Возвращаться к promotion можно только отдельной будущей целью с новой доказуемой гипотезой;
+      persistent faster-whisper worker допустим лишь как isolated lab на том же immutable corpus.
 
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"
@@ -1495,17 +1494,25 @@ nodes:
     title: "Transcript order regression cases"
     kind: task
     parent: quality-hardening
-    status: current
+    status: done
     effort: 5
-    notes: "murmurmark audit order уже выявляет длинные Me-блоки поверх remote, входит в process/session-quality/corpus gates, имеет audit-only review lane и корпусный report через murmurmark corpus order. Первый безопасный repair-контур order_repair_v1 умеет явно разрезать Me-блок только по сохранённым source ASR segments; corpus report теперь показывает aggregate repair effect, чтобы расширять repair только по доказанным случаям."
+    notes: "Базовый order-контур завершён: murmurmark audit order выявляет длинные Me-блоки поверх remote, входит в process/session-quality/corpus gates и имеет audit-only review lane; order_repair_v1 разрезает блок только по сохранённым source ASR segments. Следующий bounded слой объединяет оставшиеся order и start/end boundary rows с review closure."
 
   quality-boundary-repair:
-    title: "Start/end boundary repair"
+    title: "Authoritative Transcript Boundary and Review Closure v1"
     kind: task
     parent: quality-hardening
-    status: next
-    effort: 5
-    notes: "Восстановление коротких фраз на границах окон без роста remote leak."
+    deps: [quality-order-regressions, operational-corpus-green-v2]
+    status: current
+    effort: 8
+    notes: |
+      Ближайшая цель после закрытия live recovery решением DO_NOT_PROMOTE. Заморозить operational
+      batch corpus и конечную очередь order/start/end-boundary rows; дать каждой строке disposition
+      по source ASR segments, speaker_state, audio-review clips и existing decisions. Применять только
+      explainable safe edits в новом profile, сохранять uncertain rows manual. Acceptance: mandatory
+      review actions/seconds уменьшаются; ни одна session не регрессирует remote-like Me, contentful
+      order, local recall, token F1, selected notes или export safety. Capture, Echo Guard, primary
+      ASR, raw CAF, live promotion и existing profiles не меняются.
 
   quality-audio-judge-labels:
     title: "Richer audio-judge labels"
@@ -2019,7 +2026,7 @@ views:
           - live-causal-recovery-generalization-promotion-readiness-v1
       current-goal:
         title: "Текущая цель"
-        nodes: [live-causal-candidate-coverage-cheap-negative-prefilter-v1]
+        nodes: [quality-boundary-repair]
       conditional-decision:
         title: "Условное следующее решение"
         nodes: [live-causal-recovery-promotion-reconsideration]
@@ -2092,8 +2099,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Causal Candidate Coverage and Cheap Negative Prefilter v1: закрыть измеренные coverage/runtime/order blockers на frozen generalization corpus без ослабления safety guards."
-      success_by_next_sync: "Все 783 eligible rows имеют bounded causal outcome; cheap negatives не запускают micro-ASR; три holdout replay проходят p95/final-lag/determinism/no-regression gates либо дают новый точный DO_NOT_PROMOTE report."
+      nearest_goal: "Authoritative Transcript Boundary and Review Closure v1: снизить обязательную review-очередь batch transcript через доказанные order/start/end repairs без регрессий."
+      success_by_next_sync: "Frozen operational corpus имеет конечные dispositions для boundary/order rows; новый profile уменьшает mandatory review и проходит per-session remote/order/recall/F1/notes/export gates либо публикует точные blockers."
     defaults:
       status_progress:
         done: 1.0
@@ -2119,8 +2126,8 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "CLI MVP, committed-PCM transport и Fast Authoritative Handoff закрыты. Generalization corpus дал 963 stable outcomes и DO_NOT_PROMOTE: negatives safe, но candidate coverage 268/783, три runtime timeout и один order regression. Production output остаётся batch."
-          next_sync_goal: "На frozen corpus добавить cheap causal negative prefilter, получить 783/783 bounded decisions и повторить holdout runtime/no-regression gates без новых записей и без изменения normal preview."
+          sync_note: "CLI MVP, committed-PCM transport и Fast Authoritative Handoff закрыты. Cheap prefilter дал 783/783 strictly past-only routes и убрал order regression; один post-hoc ASR-noise candidate и runtime 0/3 подтвердили DO_NOT_PROMOTE. Production output остаётся batch."
+          next_sync_goal: "Закрыть evidence-backed order/start/end boundary rows в authoritative batch profile и снизить mandatory review без per-session regressions."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening, reliable-transcription-route]

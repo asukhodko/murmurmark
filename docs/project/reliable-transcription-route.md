@@ -3,7 +3,7 @@
 Status: active product route; stable batch capture/processing, live transport evidence, order/role
 reconciliation, causal local-island, remote-active and double-talk recovery, bounded recording-time
 runtime and fast authoritative handoff complete; generalization is complete with `DO_NOT_PROMOTE`;
-cheap causal candidate coverage is current
+candidate prefilter is complete with `DO_NOT_PROMOTE`; authoritative boundary/review closure is current
 Date: 2026-07-18
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
@@ -32,9 +32,12 @@ stays `108.42s`, order blockers stay `0`, review burden falls to `478.82s`, and 
 `832` frozen input hashes and accepted zero of `65` adversarial negative controls. It still returned
 `DO_NOT_PROMOTE`: only `268/783` eligible rows reached the expensive candidate stage, all three
 holdout runtime replays timed out fail-open, and one holdout gained an effective order blocker. The
-remaining bounded question is now whether a cheap causal negative prefilter can classify every
-eligible row before micro-ASR and make the same frozen holdouts finish without quality regression.
-Near-realtime output remains shadow-only.
+follow-up prefilter classified all `783` rows and removed that order regression. All `65` frozen
+negative controls remain rejected, but one new candidate is post-hoc probable ASR noise; none of the
+three holdouts passed runtime gates, with `20` fail-open timeouts and p95 up to `42.634s`.
+Near-realtime output therefore remains shadow-only. The bounded product
+question is now how much authoritative batch order/boundary review can be closed safely from existing
+source segments and audio evidence.
 
 ## Why This Exists
 
@@ -107,25 +110,25 @@ The main remaining blockers are consistent across recent sessions:
 - `process` is batch-first and expensive for long meetings;
 - several diagnostics exist, but their implications are still scattered across reports.
 
-The current live-recovery bottleneck is narrower and measurable:
+The completed live-recovery experiment is narrower and measurable:
 
-- only `268/783` eligible remote-active rows reach the expensive residual/Target-Me/micro-ASR stage;
-- obvious remote-only and ASR-noise rows consume or prevent bounded runtime coverage;
-- all three holdout runtime replays time out fail-open;
-- one holdout still has an effective order regression (`3 -> 4`).
+- all `783` eligible rows now have causal routes, and the earlier order regression is removed;
+- all `65` frozen negative controls remain rejected, but one new accepted candidate fails post-hoc
+  evaluation as probable ASR noise;
+- none of the three holdouts passes every runtime gate; p95 reaches `42.634s` and `20` expensive
+  attempts time out fail-open;
+- final lag remains zero and normal preview remains disconnected.
 
 ## Current Bounded Step
 
-Causal Candidate Coverage and Cheap Negative Prefilter v1 runs on the existing immutable corpus.
-It must give `783/783` eligible rows a past-only decision, reject cheap remote/noise negatives before
-micro-ASR and preserve the strict remote-forbidden contract. Expensive recovery is reserved for rows
-with positive local evidence. Completion requires the fixed `4` recoveries / `11.56s`, zero accepted
-negative controls, deterministic offline/runtime agreement, runtime p95 at most `30s`, final lag
-`0`, and no per-session order, remote-like `Me`, token-F1 or review-burden regression.
+Authoritative Transcript Boundary and Review Closure v1 works on the selected batch transcript and
+the existing operational corpus. It builds a finite queue of order and start/end-boundary risks,
+uses source ASR segments, speaker state, review audio and prior decisions to classify each row, and
+applies only explainable safe edits in a new profile. Success means lower mandatory review without
+per-session remote-like `Me`, order, local-recall, token-F1, notes or export regression.
 
-This step does not change capture, Echo Guard, the primary ASR, normal live preview or batch
-authority. It also does not require another meeting recording before implementation and frozen-corpus
-replay are complete.
+This step does not change capture, Echo Guard, the primary ASR, live promotion or raw audio. The
+failed live-recovery profile remains diagnostic evidence rather than another user-facing branch.
 
 ## Route To Reliability
 

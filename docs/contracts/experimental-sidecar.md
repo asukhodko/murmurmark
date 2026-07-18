@@ -403,6 +403,33 @@ Current v1 decision is `DO_NOT_PROMOTE`: candidate-stage coverage is incomplete,
 recording-time replays time out fail-open, and one holdout gains an effective order blocker. The
 fixed positive result and all authoritative hashes remain intact.
 
+## Causal Candidate Prefilter Contract
+
+The follow-up namespace is
+`sessions/_reports/live-pipeline/causal-candidate-coverage-cheap-negative-prefilter-v1/`. It adds:
+
+- `murmurmark.causal_candidate_prefilter/v1` for each source-row route;
+- `murmurmark.causal_candidate_prefilter_corpus_run/v1` for corpus execution;
+- `murmurmark.causal_candidate_prefilter_report/v1` for coverage, quality and runtime evidence;
+- `murmurmark.causal_candidate_prefilter_promotion_decision/v1` for the exact binary decision;
+- `murmurmark.causal_candidate_prefilter_acceptance/v1` for completion validation.
+
+Each eligible source row has exactly one route: `cheap_reject`, `expensive_candidate` or
+`unresolved`. A decision includes contract checks, cheap features, reasons, routing metadata and a
+stable fingerprint. It must set `timeline_causal: true`, `used_batch_fields_for_selection: false`
+and list authoritative batch text, future chunks, future enrollment and `evaluation_reference` as
+forbidden inputs.
+
+The expensive stage may run only for `expensive_candidate`. Runtime must persist the prefilter
+watermark before starting disposable residual/Target-Me/micro-ASR work. Timeout or a missing
+watermark yields fail-open partial diagnostic output; it cannot block raw capture, change normal
+preview or be retried for the same cutoff indefinitely.
+
+Current decision is `DO_NOT_PROMOTE`: `783/783` routes and all no-regression gates pass. All `65`
+frozen negative controls remain rejected, but one new accepted candidate is post-hoc probable ASR
+noise and `0/3` holdouts pass all runtime gates. Batch remains authoritative and
+`promotion_allowed` stays false.
+
 ## Report
 
 `report.json` and `report.md` are readable summaries of the manifest and state. They are not

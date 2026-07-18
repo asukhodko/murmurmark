@@ -75,21 +75,45 @@ The current three holdouts are deliberately replayed into isolated output direct
 A failed replay is valid evidence when the child fails open and raw/batch artifacts remain usable.
 Do not increase timeout or weaken remote-forbidden guards merely to turn the report green.
 
-## Handoff To The Current Goal
+## Candidate Prefilter Completion
 
-This runbook freezes the `DO_NOT_PROMOTE` baseline. Causal Candidate Coverage and Cheap Negative
-Prefilter v1 must use the same corpus membership, input SHA-256 manifest, fixed `4` recoveries /
-`11.56s`, `65` adversarial controls and three holdouts. It must write a separate report namespace;
-do not refresh or overwrite `causal-recovery-generalization-v1` merely to improve its decision.
+The follow-up experiment writes a separate namespace and never refreshes the immutable baseline:
 
-The next acceptance run must prove:
+```bash
+.venv/bin/python scripts/check-causal-candidate-prefilter-v1.py
 
-- cheap causal decisions for `783/783` eligible rows;
-- explicit routing counts for `cheap_reject`, `expensive_candidate` and `unresolved`;
-- zero accepted remote-only, ASR-noise and adversarial controls;
-- deterministic offline/runtime outcomes;
-- holdout runtime p95 at most `30s` and final lag `0`;
-- no per-session order, remote-like `Me`, token-F1 or mandatory-review regression.
+.venv/bin/python scripts/run-causal-candidate-prefilter-corpus-v1.py \
+  --decision-only \
+  --require-complete
 
-Until those checks exist and pass, keep the current `DO_NOT_PROMOTE` decision and normal preview
-unchanged.
+# Expensive corpus execution is local and intentionally slow. Reuse existing outputs unless the
+# algorithm or immutable inputs changed.
+.venv/bin/python scripts/run-causal-candidate-prefilter-corpus-v1.py \
+  --require-complete
+
+.venv/bin/python scripts/report-causal-candidate-prefilter-v1.py
+.venv/bin/python scripts/check-causal-candidate-prefilter-acceptance-v1.py
+```
+
+Primary output directory:
+
+```text
+sessions/_reports/live-pipeline/causal-candidate-coverage-cheap-negative-prefilter-v1/
+  cheap_prefilter_decisions_v1.jsonl
+  coverage_report_v1.json
+  coverage_report_v1.md
+  runtime_equivalence_v1.json
+  no_regression_v1.json
+  promotion_decision.json
+  acceptance_report_v1.json
+```
+
+Current result is `DO_NOT_PROMOTE`: routes cover `783/783`, fixed recovery remains `4/11.56s`, all
+per-session quality checks pass and all `65` frozen negative controls remain rejected. One newly
+accepted candidate is post-hoc probable ASR noise, and `0/3` holdouts pass the runtime gates. `20`
+expensive attempts time out fail-open; p95 reaches `42.634s`; final lag remains `0`.
+
+Do not increase the `28s` timeout, weaken remote-forbidden guards or refresh the old corpus to make
+this decision green. The next product goal is authoritative batch boundary/review closure. A future
+persistent faster-whisper worker is a separate isolated hypothesis and must start from these exact
+reports.

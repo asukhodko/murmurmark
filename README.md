@@ -84,9 +84,16 @@ Authoritative operating point, 2026-07-18:
 - promotion is blocked because only `268/783` eligible source rows reached the expensive candidate
   stage, all three holdout runtime replays timed out fail-open, and one holdout gains an effective
   order blocker (`3 -> 4`). Normal preview remains unchanged and batch remains authoritative;
-- the next bounded goal is Causal Candidate Coverage and Cheap Negative Prefilter v1: give every
-  eligible row a cheap causal decision, reserve expensive micro-ASR for plausible local speech and
-  repeat the same immutable holdout without collecting more meetings first.
+- Causal Candidate Coverage and Cheap Negative Prefilter v1 is complete with `DO_NOT_PROMOTE`.
+  Every eligible row has a strictly past-only route: `48 cheap_reject`, `159 expensive_candidate`,
+  `576 unresolved`. The fixed `4` recoveries / `11.56s` and all per-session no-regression gates remain;
+- all `65` frozen negative controls remain rejected, but one newly accepted candidate is classified
+  post-hoc as probable ASR noise. No holdout passes all runtime gates (`0/3`): `20` expensive-stage
+  attempts time out fail-open and maximum overall p95 is `42.634s`. Offline/runtime routing still
+  agrees for all `643` holdout rows and final lag is `0`;
+- the next product goal is Authoritative Transcript Boundary and Review Closure v1: reduce the
+  batch transcript's explicit review queue using existing source segments and audio evidence while
+  keeping uncertain content visible. Live recovery remains a diagnostic branch.
 
 Planning authority is intentionally split by purpose: [current-goal.md](docs/project/current-goal.md)
 defines the active executable goal and its acceptance gates, the
@@ -1646,10 +1653,12 @@ state is:
 11. **Completed generalization decision:** `963` stable outcomes, `832` unchanged input hashes,
     three independent holdout replays and deterministic acceptance produce `DO_NOT_PROMOTE`.
     Coverage, runtime timeout and one order regression keep the layer explicit-only.
-12. **Current goal:** Causal Candidate Coverage and Cheap Negative Prefilter v1. Give all `783`
-    eligible source rows bounded causal outcomes, reject obvious remote/noise before expensive ASR,
-    and rerun the same immutable holdout under the existing safety gates. UI remains optional and
-    late.
+12. **Completed prefilter decision:** all `783` eligible rows have causal routes and the previous
+    order regression is removed. One post-hoc ASR-noise false positive and a `0/3` runtime result
+    produce a second reproducible `DO_NOT_PROMOTE`; normal preview and batch stay unchanged.
+13. **Current goal:** Authoritative Transcript Boundary and Review Closure v1. Repair only proven
+    batch order/boundary errors, reduce the mandatory review queue and leave every uncertain row
+    explicit. UI remains optional and late.
 
 <details>
 <summary>Historical implementation log (non-authoritative)</summary>

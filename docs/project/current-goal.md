@@ -8,79 +8,74 @@ This file is authoritative for the active executable goal. Roadmap status and de
 in `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`; the Markdown roadmap explains the same route for
 humans. Completed sections below are historical evidence and cannot redefine the active scope.
 
-## Current Goal: Causal Candidate Coverage and Cheap Negative Prefilter v1
+## Current Goal: Authoritative Transcript Boundary and Review Closure v1
 
-Status, 2026-07-18: selected after the generalization corpus produced a reproducible
-`DO_NOT_PROMOTE` decision. The strict recovery contract rejected every negative control, but the
-expensive stage covered only `268/783` eligible source rows, timed out in all three holdout replays
-and added one effective order blocker on one holdout.
+Status, 2026-07-18: selected after the second causal-recovery promotion experiment completed with
+`DO_NOT_PROMOTE`. Live recovery stays useful as diagnostic evidence, but it is not the shortest path
+to a more dependable user result.
 
-Objective: give every eligible remote-active source row a bounded causal decision before expensive
-micro-ASR. A cheap first pass should reject obvious remote-only and ASR-noise rows, preserve
-plausible local speech for the strict residual/Target-Me/ASR stage and make the recording-time
-worker complete inside its existing budget. Use the existing immutable corpus first; no new real
-recordings are required to begin.
-
-Why this is the shortest path:
-
-- the strict safety contract already rejects all `65` adversarial negative controls;
-- the fixed positive result is reproducible, so a new recovery family is not the first bottleneck;
-- only `34.2273%` of eligible source rows reach the expensive stage;
-- increasing the timeout would hide the coverage problem and weaken the live lag contract;
-- collecting more meetings before fixing deterministic coverage would add data without changing the
-  known failure mode.
+Objective: reduce the mandatory review queue of the authoritative batch transcript by repairing only
+proven order and start/end-boundary errors. Reuse existing source ASR segments, audio-review clips,
+speaker state and review decisions; keep uncertain rows explicit instead of guessing.
 
 Implementation sequence:
 
-1. Preserve the existing `963`-row corpus, `832` input hashes and outcome fingerprint as immutable
-   baseline evidence.
-2. Add a cheap feature pass using only current/past committed PCM, current/past live ASR, speaker
-   state, boundary timing and past-only Target-Me enrollment.
-3. Give every eligible row one explainable routing outcome: `cheap_reject`,
-   `expensive_candidate` or `unresolved`.
-4. Run residual separation, Target-Me and micro-ASR only for `expensive_candidate`; keep all other
-   rows bounded without starting expensive work.
-5. Reuse the same decision logic offline and in recording-time replay, then compare exact row-level
-   outcomes and fingerprints.
-6. Replay all three frozen holdouts and publish a new binary promotion-readiness decision.
-
-Planned evidence outputs, under a new report namespace rather than the immutable v1 directory:
-
-- row-level cheap-prefilter decisions and reasons;
-- source-row and expensive-stage coverage summary;
-- expensive-work budget and timing distribution;
-- offline/runtime agreement and determinism report;
-- per-session order, remote-like `Me`, token-F1 and review-burden deltas;
-- final `READY_FOR_PROMOTION_RECONSIDERATION` or `DO_NOT_PROMOTE` decision with blockers.
-
-Out of scope:
-
-- changing capture, raw CAF, Echo Guard or the primary ASR;
-- using authoritative batch text, future chunks or future enrollment for selection;
-- raising timeouts to make a failing replay appear successful;
-- changing normal live preview, transcript, notes, export or retention before a separate promotion
-  decision passes;
-- collecting new real meetings before the frozen-corpus implementation pass is complete.
+1. Freeze the current operational corpus, selected transcript fingerprints and review burden.
+2. Build one finite queue of unresolved batch order and boundary rows, including opening/closing
+   phrases and mixed long `Me` turns.
+3. Classify each row as safe repair, safe keep, duplicate/noise drop or manual review using existing
+   audio and source-segment evidence.
+4. Apply only whole, explainable edits in a new transcript profile; never rewrite raw CAF, Echo Guard
+   output, primary ASR or existing profiles.
+5. Recompute transcript order, remote-like `Me`, token F1, selected notes, review burden and guarded
+   export readiness per session.
+6. Promote the profile only if every corpus gate passes; otherwise retain the useful subset as review
+   suggestions and publish exact blockers.
 
 Definition of Done:
 
-- produce a causal cheap-prefilter decision for `783/783` eligible source rows;
-- keep authoritative batch fields, future chunks and future Target-Me enrollment unavailable to
-  selection;
-- preserve the original `4` fixed recoveries / `11.56s` and accept zero remote-only, ASR-noise or
-  adversarial negative controls;
-- reserve expensive residual/Target-Me/micro-ASR processing for rows with positive local evidence;
-- make all three frozen holdout replays deterministic with runtime p95 at most `30s`, final lag `0`
-  and fail-open behavior unchanged;
-- remove the `3 -> 4` holdout order regression and keep remote-like `Me`, token F1 and mandatory
-  review burden no worse in every session;
-- publish a new binary promotion-readiness decision without changing normal preview unless every
-  gate passes.
+- every selected order/boundary row has one stable machine-readable disposition and evidence IDs;
+- mandatory review actions and seconds decrease on the frozen operational corpus;
+- no session regresses remote-like `Me`, contentful order, local recall, token F1, notes evidence or
+  export safety;
+- unresolved content remains in the review queue;
+- normal `record -> process -> next -> finish` behavior, raw audio and current selected profile stay
+  unchanged until a separate passing promotion decision;
+- tests, documentation, roadmap and OpsKarta describe the same result and next action.
 
-Completion has two valid outcomes. If every gate passes, the next separate goal is guarded causal
-recovery promotion reconsideration with rollback. If any gate fails, publish a reproducible
-`DO_NOT_PROMOTE` report, keep the live branch diagnostic and move product effort back to the
-authoritative batch/review route instead of extending this experiment indefinitely.
+Out of scope: capture, Echo Guard, default ASR, live promotion, timeout increases, cloud processing,
+speaker diarization and UI work.
+
+## Completed Goal: Causal Candidate Coverage and Cheap Negative Prefilter v1
+
+Completed, 2026-07-18, with decision `DO_NOT_PROMOTE`.
+
+The shared past-only prefilter gives all `783/783` eligible source rows a causal route:
+`48 cheap_reject`, `159 expensive_candidate` and `576 unresolved`. It uses no batch text, future
+chunks or future enrollment. Cheap rejection removes no frozen genuine-double-talk row. The decision
+fingerprint is `31213f388a499ba60dc3eeb803e6762ca457bb58f30fa5ac089a6352b169cf60`.
+
+The expensive stage produced `87` candidates and accepted `39` / `191.26s`. The original four fixed
+recoveries / `11.56s` remain present, and all ten sessions pass order, remote-like `Me`, token-F1 and
+review-burden no-regression checks. The earlier `3 -> 4` order regression is gone.
+
+Promotion remains blocked for two independent reasons:
+
+- all `65` frozen negative controls remain rejected, but one newly accepted candidate fails post-hoc
+  evaluation as probable ASR noise;
+- exact offline/runtime route agreement covers all `643` holdout rows, but none of the three
+  holdouts passes all runtime gates. There are `20` fail-open expensive-stage timeouts; maximum
+  overall p95 is `42.634s` against the `30s` limit. Final lag is `0` on all three sessions.
+
+The runtime now persists the cheap decision watermark before disposable expensive work. A timeout
+therefore drops only that candidate attempt and cannot repeatedly consume the same cutoff. Missing
+model, corrupt cache, timeout and backpressure remain fail-open. Normal preview is disconnected and
+batch remains authoritative.
+
+Reports are under
+`sessions/_reports/live-pipeline/causal-candidate-coverage-cheap-negative-prefilter-v1/`. A persistent
+local faster-whisper worker remains a future isolated hypothesis, not the next product goal and not a
+reason to extend this experiment indefinitely.
 
 ## Completed Goal: Causal Recovery Generalization and Promotion Readiness v1
 

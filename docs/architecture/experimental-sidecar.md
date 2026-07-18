@@ -115,10 +115,12 @@ blockers `0`, runtime p95 `23.473s` and final lag `0`. Generalization and fresh 
 layer are now complete. The immutable generalization corpus produced `963` stable outcomes, zero
 accepted negative controls and decision `DO_NOT_PROMOTE`. Only `268/783` eligible rows reached the
 expensive candidate stage, every holdout runtime replay timed out fail-open and one holdout gained an
-effective order blocker. The current bounded change is a cheap causal negative prefilter before
-residual/Target-Me/micro-ASR: Causal Candidate Coverage and Cheap Negative Prefilter v1. It remains
-inside the isolated recovery shadow and cannot change normal preview until a later binary promotion
-decision passes every gate.
+effective order blocker. Candidate Prefilter v1 then routed all `783` eligible rows and removed the
+order regression while preserving the fixed `4` recoveries / `11.56s`. All `65` frozen negative
+controls remain rejected, but one new accepted candidate is post-hoc probable ASR noise. None of the
+three holdouts passed runtime gates (`20` fail-open timeouts, maximum p95 `42.634s`). The resulting
+decision is again `DO_NOT_PROMOTE`; this branch remains
+isolated and normal preview cannot consume it.
 
 The worker path is:
 
@@ -135,7 +137,7 @@ Only one child and one latest pending cutoff are retained. A child timeout, lag-
 coalesced cutoff or stop-wait timeout affects only the diagnostic shadow. Base live output, raw CAF
 and authoritative batch processing do not wait for recovery.
 
-Planned recovery routing for the current goal:
+Implemented recovery routing:
 
 ```text
 eligible remote-active row
@@ -148,6 +150,9 @@ eligible remote-active row
 
 The cheap pass may use committed current/past PCM, current/past live ASR, speaker state and past-only
 Target-Me enrollment. Batch text, future chunks and future enrollment remain evaluation-only.
+Measured route counts are `48 cheap_reject`, `159 expensive_candidate` and `576 unresolved`. A
+future persistent-ASR worker may test model reuse in this namespace, but current product work is the
+authoritative batch boundary/review route.
 
 Implemented v1 contract:
 

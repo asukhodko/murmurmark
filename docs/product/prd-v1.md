@@ -67,16 +67,18 @@ Current operating point, 2026-07-18:
   `963` stable outcomes, `832` unchanged input hashes, three independent holdouts and zero accepted
   negative controls. Promotion is blocked by `268/783` expensive-stage coverage, three bounded
   runtime timeouts and one holdout order regression.
-- The current bounded goal is Causal Candidate Coverage and Cheap Negative Prefilter v1. It must give
-  all `783` eligible rows a cheap causal decision, keep expensive residual/Target-Me/micro-ASR work
-  for plausible local speech, preserve the fixed `4` recoveries / `11.56s` and zero accepted
-  negatives, and replay the same frozen holdouts without per-session quality regressions. No new
-  meeting recording is required to start.
+- Causal Candidate Coverage and Cheap Negative Prefilter v1 is complete with `DO_NOT_PROMOTE`.
+  It routes all `783` eligible rows and removes the previous order regression. All `65` frozen
+  negative controls remain rejected, but one post-hoc ASR-noise candidate and runtime gates (`0/3`
+  holdouts, p95 up to `42.634s`) keep it diagnostic.
+- The current bounded goal is Authoritative Transcript Boundary and Review Closure v1: repair only
+  evidence-backed batch order/start/end errors, reduce mandatory review and preserve explicit
+  uncertainty, raw audio and selected-profile safety.
 
 Still future:
 
-- near-realtime promotion beyond shadow, conditional on full cheap-prefilter coverage, bounded
-  runtime, zero accepted negatives and no per-session order/local-recall/remote-leak regression;
+- near-realtime promotion beyond shadow, conditional on bounded runtime, zero accepted negatives
+  and no per-session order/local-recall/remote-leak regression;
 - signed menubar app;
 - remote speaker diarization inside `Colleagues`;
 - heavy-local ASR stack with specialized models;

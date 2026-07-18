@@ -75,9 +75,13 @@ from four residual families, explains all rejected views and records evaluation-
 evidence for every recovered row. Causal Recovery Generalization and Promotion Readiness v1 is now
 complete with `DO_NOT_PROMOTE`: `963` outcomes, three holdouts / `9105.631s`, `832` unchanged input
 hashes and zero accepted negative controls. Promotion is blocked by `268/783` expensive-stage
-coverage, three recording-time timeouts and one holdout order regression. The nearest goal is
-Causal Candidate Coverage and Cheap Negative Prefilter v1: reject cheap remote/noise negatives
-before micro-ASR and replay the same immutable corpus at full decision coverage.
+coverage, three recording-time timeouts and one holdout order regression. Causal Candidate Coverage
+and Cheap Negative Prefilter v1 then routed all `783` eligible rows (`48/159/576`) and removed the
+order regression. All `65` frozen negative controls remain rejected, but one new candidate is
+post-hoc probable ASR noise; `0/3` holdouts passed runtime gates (`20` fail-open timeouts, p95 up to
+`42.634s`). Its decision is also `DO_NOT_PROMOTE`.
+The nearest product goal is Authoritative Transcript Boundary and Review Closure v1: use existing
+batch evidence to reduce the explicit review queue without guessing or changing live promotion.
 Near-Realtime Live Parity Coverage v1 already proved complete raw capture, pre-stop preview,
 terminal workers, zero final lag and successful batch output on three fresh real sessions. Live
 promotion remains blocked.
@@ -138,8 +142,8 @@ roadmap point it means:
   seven sessions; it remains an explicit-only `_runtime_v1` shadow;
 - incremental runtime efficiency is implemented, passes the `p95 <= 30s` source-time gate and the
   strict fresh-session aggregate `3/3`; Fast Authoritative Handoff has since separated the first
-  usable result from deferred enrichment; generalization has since returned `DO_NOT_PROMOTE`, and
-  the next bounded work is full cheap-prefilter decision coverage before expensive recovery;
+  usable result from deferred enrichment; both generalization and cheap-prefilter promotion passes
+  have since returned `DO_NOT_PROMOTE`, so product work returns to authoritative batch review;
 - `status`, `next`, `finish`, session report and corpus report agree;
 - safe review suggestions are applied before asking for manual listening;
 - remaining review is short, explicit and backed by audio/transcript evidence;
@@ -385,15 +389,14 @@ flowchart LR
 
 ### Next
 
-- Causal Candidate Coverage and Cheap Negative Prefilter v1:
-  - reuse the immutable `963`-row generalization corpus; no new recording is initially required;
-  - give all `783` eligible source rows a cheap causal outcome before expensive residual/ASR work;
-  - reject obvious remote-only and ASR-noise rows without weakening remote-forbidden guards;
-  - preserve the fixed `4` recoveries / `11.56s` and zero accepted negative controls;
-  - make all three holdout replays finish with p95 at most `30s`, final lag `0` and deterministic
-    offline/runtime decisions;
-  - remove the holdout order regression while preserving remote-like `Me`, token F1 and review
-    burden per session;
+- Authoritative Transcript Boundary and Review Closure v1:
+  - freeze the current operational batch corpus and review burden;
+  - classify every selected order/start/end-boundary row from source ASR, speaker state, audio clips
+    and existing review decisions;
+  - apply only evidence-backed edits in a new profile and keep uncertainty explicit;
+  - reduce mandatory review actions/seconds without per-session remote-like `Me`, order, local-recall,
+    token-F1, notes or export regression;
+  - keep live recovery diagnostic after its reproducible `DO_NOT_PROMOTE` result;
 - keep `--live-pipeline` disabled by default; all new evidence should go through
   `record --experiment live-shadow-v1`.
 - Near-realtime shadow pipeline follow-up:
@@ -545,19 +548,18 @@ Recently completed:
 
 ## Goal Sequence
 
-Recommended nearest goal: **Causal Candidate Coverage and Cheap Negative Prefilter v1**. The
-generalization decision is complete and says `DO_NOT_PROMOTE`; the shortest path forward is to fix
-the measured coverage/runtime/order blockers on the same frozen corpus.
+Recommended nearest goal: **Authoritative Transcript Boundary and Review Closure v1**. The
+cheap-prefilter branch is complete with a second `DO_NOT_PROMOTE`; extending it now would spend more
+compute without improving the authoritative user result.
 
-1. **Causal Candidate Coverage and Cheap Negative Prefilter v1.** Give all eligible remote-active
-   rows bounded decisions, filter cheap negatives before micro-ASR and pass the existing three
-   holdout recording-time/no-regression gates.
-2. **Causal recovery promotion reconsideration.** This node is blocked by the current goal. If all
-   coverage/runtime/no-regression gates pass, decide a guarded rollout and rollback contract. If any
-   gate fails, close the branch with a reproducible `DO_NOT_PROMOTE` decision and keep normal preview
-   unchanged.
-3. **Live review/notes/boundary readiness.** After generalized recovery remains safe, close review burden,
-   selected-notes readiness and chunk-boundary gates without weakening batch authority.
+1. **Authoritative Transcript Boundary and Review Closure v1.** Build a finite evidence-backed queue
+   of batch order/start/end errors, apply only safe repairs in a new profile and reduce mandatory
+   review without per-session regressions.
+2. **Operational corpus and export closure.** Recompute selected notes, verdict, review burden and
+   guarded export after the boundary profile; unresolved content must remain explicit.
+3. **Persistent causal expensive worker, optional lab.** Only if live recovery is reopened, reuse one
+   loaded local faster-whisper model against the same immutable corpus. Do not change route decisions,
+   the `28s` timeout, normal preview or batch authority.
 4. **ASR-positive Echo promotion readiness.** Expand `coverage_v2_remote_gate_local_fir` validation
    beyond the current six sessions, add rollback/inspection criteria, compare review burden and
    local recall more broadly, and only then decide whether a non-default promoted bundle is worth

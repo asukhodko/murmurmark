@@ -66,31 +66,35 @@ missing-model, corrupt-cache and backpressure tests fail open. The outcome finge
 550a6eb71cf3defdf2b5ed29659cfce0da2a900c846e7f50c9548f51d15fe147
 ```
 
-## Next Experiment
+## Candidate Prefilter Result
 
-Causal Candidate Coverage and Cheap Negative Prefilter v1 should give every eligible source row a
-bounded causal decision before micro-ASR. A cheap first pass should reject obvious remote-only and
-ASR-noise rows, reserve the expensive residual/Target-Me/ASR stage for plausible local speech and
-replay the same immutable holdout until:
+Causal Candidate Coverage and Cheap Negative Prefilter v1 reused this immutable corpus and completed
+with a second `DO_NOT_PROMOTE` decision. The existing generalization directory was not overwritten.
 
-- eligible decision coverage is `100%`;
-- accepted negative controls remain `0`;
-- all three recording-time replays have p95 at most `30s` and final lag `0`;
-- no session regresses order, remote-like `Me`, token F1 or review burden.
+The shared selection function assigns every eligible source row exactly one past-only route:
 
-No additional real recordings are required to start that experiment.
+```text
+eligible remote-active row
+  -> cheap_reject        48
+  -> expensive_candidate 159
+  -> unresolved          576
+```
 
-The implementation sequence is:
+All `783/783` rows have reasons and a deterministic fingerprint. Selection reads current/past live
+ASR, committed PCM evidence and past Target-Me enrollment; it cannot read authoritative batch text,
+future chunks or evaluation references. Cheap rejection removed no frozen genuine-double-talk row.
 
-1. freeze the current `963` rows, outcome fingerprint and `832` input hashes as the comparison
-   baseline;
-2. compute cheap current/past-only audio, state, boundary and text evidence for all `783` eligible
-   source rows;
-3. assign every row to `cheap_reject`, `expensive_candidate` or `unresolved`, with explicit reasons;
-4. run residual/Target-Me/micro-ASR only for `expensive_candidate` rows under the existing timeout
-   and fail-open contract;
-5. replay all three holdouts and publish a new binary promotion-readiness decision.
+The expensive stage accepted `39/87` candidates / `191.26s`. It preserves the original `4` fixed
+recoveries / `11.56s` and passes all ten per-session no-regression checks. All `65` frozen negative
+controls remain rejected, but one new accepted candidate is post-hoc probable ASR noise.
 
-Planned reports must separate source-row decision coverage from expensive-stage coverage and show
-why every row did or did not consume expensive work. The existing generalization report remains
-immutable evidence and must not be overwritten by the next experiment.
+Runtime routing matches offline routing for all `643` holdout rows. Final lag is zero, but none of
+the three holdouts passes every gate. There are `20` fail-open expensive-stage timeouts and maximum
+overall p95 is `42.634s`, above the `30s` limit. The cheap watermark is persisted before expensive
+work, so a timeout is not retried at each later cutoff.
+
+This closes the current promotion branch. Normal preview stays unchanged and batch stays
+authoritative. A persistent local faster-whisper process may later test whether model reuse removes
+the cold-start cost, but it must use this same corpus and cannot become product work until both
+negative acceptance and runtime gates are solved. The current product focus returns to authoritative
+batch order/boundary review closure.
