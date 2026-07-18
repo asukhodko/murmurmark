@@ -784,6 +784,87 @@ corpus report and the current profile files against the promoted output fingerpr
 source-profile regeneration or partial/stale output therefore fails open to the previous selected profile.
 Generated files alone are insufficient evidence of promotion.
 
+### Residual Me Evidence Closure
+
+`scripts/residual-me-evidence.py` freezes the finite queue left by the promoted boundary profile:
+
+```text
+sessions/_reports/residual-me-evidence-v1/
+  baseline_manifest.json
+  residual_queue.jsonl
+  evidence_corpus_report.json
+  residual_me_corpus_report.json
+  residual_me_corpus_report.md
+```
+
+The baseline and queue schemas are `murmurmark.residual_me_evidence_baseline/v1` and
+`murmurmark.residual_me_queue_item/v1`. Stable queue rows preserve the source audit ID, exact
+interval, utterance IDs, local and remote text, source family and frozen input hashes.
+
+Evidence is built per session under:
+
+```text
+derived/audit/residual-me-evidence-v1/
+  residual_me_evidence.jsonl
+  residual_me_evidence_summary.json
+  residual_me_evidence_report.md
+  target-me/target_me_enrollment.json
+  clips/
+  micro-asr-cache/
+```
+
+Evidence rows use `murmurmark.residual_me_evidence/v1`; cached local-ASR results use
+`murmurmark.residual_micro_asr/v1`; the summary uses
+`murmurmark.residual_me_evidence_summary/v1`. Each row records exact and padded clip identities,
+speaker-state context, Target-Me evidence, mic/remote word-timestamp ASR, remote-forbidden checks and
+the proposed disposition. Missing models, clips or required fields produce `needs_review`.
+
+Applying safe dispositions writes an isolated transcript profile and audit:
+
+```text
+derived/transcript-simple/whisper-cpp/resolved/
+  clean_dialogue.residual_me_evidence_v1.json
+  transcript.residual_me_evidence_v1.md
+  transcript.simple.residual_me_evidence_v1.json
+  quality_report.residual_me_evidence_v1.json
+  overlaps.residual_me_evidence_v1.json
+
+derived/transcript-simple/whisper-cpp/residual-me-evidence-v1/
+  residual_me_review_queue.jsonl
+  residual_me_applied.jsonl
+  residual_me_dispositions.jsonl
+  residual_me_diff.json
+  residual_me_evidence_profile_report.json
+```
+
+Profile reports and dispositions use `murmurmark.residual_me_evidence_profile_report/v1` and
+`murmurmark.residual_me_disposition/v1`; the diff uses
+`murmurmark.residual_me_evidence_diff/v1`. Allowed effective actions are `keep_me`, `drop_me`,
+`insert_me`, `insert_me_partial`, `keep_me_covered`, `keep_me_overlap` and `needs_review`.
+Inserted fragments require local word timestamps outside existing `Me` coverage. Existing remote
+rows and existing utterance text are immutable; mixed, protected or contradictory evidence remains
+reviewable.
+
+The reproducible corpus flow is:
+
+```bash
+.venv/bin/python scripts/residual-me-evidence.py freeze
+.venv/bin/python scripts/residual-me-evidence.py evidence
+.venv/bin/python scripts/residual-me-evidence.py evaluate --apply --synthesize
+```
+
+Corpus evaluation uses `murmurmark.residual_me_evidence_corpus_report/v1`.
+`PROMOTE_RESIDUAL_ME_EVIDENCE_V1` requires outcomes for every frozen row, closure of at least 25% of
+both rows and seconds, unchanged frozen artifacts and raw CAF, deterministic output fingerprints,
+exact remote and existing-local text preservation, and no per-session verdict, local-recall, order,
+remote-like `Me`, review-burden, notes-evidence or export regression. The promoted result closes
+`31/124` rows and `170.589/478.272s`, leaving `93` rows / `307.683s` explicit.
+
+Synthesis, session quality, operational readiness and export may select this profile only when the
+corpus decision and session gates pass, the session is in `promoted_sessions`, all frozen source
+hashes match and both reports agree with the current output fingerprint. Any stale or incomplete
+result falls back to `authoritative_boundary_v1`.
+
 `murmurmark corpus order` aggregates per-session order audits into:
 
 ```text

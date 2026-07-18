@@ -127,11 +127,15 @@ decisions safely closed `213` rows / `1253.620s`. The promoted `authoritative_bo
 keeps the remaining `124` rows / `478.272s` explicit and passes every per-session remote-like `Me`,
 order, local-recall, local-content, notes and export gate.
 
-Residual Me Evidence Closure v1 is the current bounded step. It rebuilds exact local-island and
-whole-utterance clips for that residual queue, adds independent Target-Me, remote-forbidden and
-micro-ASR evidence, and applies only provenance-preserving decisions. Success means closing at least
-25% of both residual rows and seconds without a corpus regression; otherwise it publishes a
-reproducible `DO_NOT_PROMOTE` with exact blockers.
+Residual Me Evidence Closure v1 is complete with `PROMOTE_RESIDUAL_ME_EVIDENCE_V1`. It gives every
+residual row exact local evidence and safely closes another `31` rows / `170.589s`: `21`
+local-recall, `9` order and `1` audio-review row. The selected residual profile leaves `93` rows /
+`307.683s` explicit and passes every frozen-input, local-content, order, notes and export gate.
+
+Residual Audio Evidence Arbitration v1 is the recommended bounded step. It focuses on the largest
+remaining class, `66` audio-review rows / `196.920s`, and may apply only whole-utterance keep/drop
+decisions supported by calibrated Target-Me, exact local micro-ASR and remote-forbidden evidence.
+The remaining `13` local-recall and `14` order rows stay separate and explicit.
 
 This step does not change capture, Echo Guard, the primary ASR, live promotion or raw audio. The
 failed live-recovery profile remains diagnostic evidence rather than another user-facing branch.

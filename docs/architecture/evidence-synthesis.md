@@ -31,8 +31,9 @@ derived/synthesis-simple/extractive/
   review_items.jsonl
 ```
 
-The `auto` profile first prefers `authoritative_boundary_v1` when both its session gates and frozen
-corpus promotion report pass. Otherwise it follows the existing order: a material passing
+The `auto` profile first prefers `residual_me_evidence_v1` when its session gates, frozen source
+hashes, promoted corpus report and output fingerprints all pass. It then falls back to promoted
+`authoritative_boundary_v1`. Otherwise it follows the existing order: a material passing
 `audit_cleanup_v7`, `reviewed_v1`, `agent_reviewed_v1`, the remaining passing
 `audit_cleanup_v6..v1`, a compatible passing `order_repair_v1`, passing `shadow_v2`, then baseline
 `clean_dialogue.json`.
@@ -55,6 +56,7 @@ Current data flow:
 clean_dialogue.json
   -> optional audit_cleanup_v* profile
   -> optional corpus-gated authoritative_boundary_v1
+  -> optional corpus-gated residual_me_evidence_v1
   -> topic_blocks
   -> candidate_items
   -> scored_items

@@ -74,9 +74,12 @@ Current operating point, 2026-07-18:
 - Authoritative Transcript Boundary and Review Closure v1 is complete with
   `PROMOTE_AUTHORITATIVE_BOUNDARY_V1`: the evidence-backed batch profile closes `213/337` rows and
   `1253.620/1731.892s` while preserving explicit uncertainty, raw audio and selected-profile safety.
-- The current bounded goal is Residual Me Evidence Closure v1: build exact local audio and source
-  evidence for the remaining `124` rows / `478.272s`, then close a material safe subset or publish
-  a reproducible `DO_NOT_PROMOTE` without weakening corpus gates.
+- Residual Me Evidence Closure v1 is complete with `PROMOTE_RESIDUAL_ME_EVIDENCE_V1`: exact local
+  audio, Target-Me, remote-forbidden and micro-ASR evidence closes another `31/124` rows /
+  `170.589/478.272s` without weakening corpus gates.
+- The recommended bounded goal is Residual Audio Evidence Arbitration v1: classify the remaining
+  `66` audio-review rows / `196.920s` and apply only whole-utterance decisions supported by calibrated
+  local-speaker, local ASR and remote-forbidden evidence.
 
 Still future:
 

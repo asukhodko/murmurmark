@@ -4,48 +4,68 @@ This file keeps the latest goal context and the most relevant completed goals. T
 path remains non-live `record -> process`. Live output stays shadow-only and batch transcript remains
 authoritative.
 
-This file is authoritative for the active executable goal. Roadmap status and dependency truth live
-in `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`; the Markdown roadmap explains the same route for
-humans. Completed sections below are historical evidence and cannot redefine the active scope.
+This file records the recommended executable goal and the evidence from recently completed goals.
+Roadmap status and dependency truth live in `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`; the
+Markdown roadmap explains the same route for humans. Completed sections below are historical
+evidence and cannot redefine the recommended scope.
 
-## Current Goal: Residual Me Evidence Closure v1
+## Recommended Next Goal: Residual Audio Evidence Arbitration v1
 
-Status, 2026-07-18: selected from the residual queue left by the promoted
-`authoritative_boundary_v1` profile. The next useful work is in authoritative batch evidence, not in
-reopening the failed live-promotion branch.
+The promoted residual profile leaves `93` explicit evidence rows / `307.683s`. The largest coherent
+class is `66` audio-review rows / `196.920s`; the other `13` local-recall rows / `48.073s` and `14`
+order rows / `62.690s` remain separate problems with different safety contracts.
 
-Objective: safely reduce the remaining `124` mandatory rows / `478.272s` without asking the user to
-listen to every clip. The fixed scope is `67` audio-review rows / `203.620s`, `34` local-recall rows /
-`128.002s` and `23` order rows / `146.650s`.
+Objective: decide which remaining audio-review `Me` utterances are genuine local speech, remote
+duplicates/leakage, ASR noise or real double-talk, without asking the user to listen to every clip and
+without weakening the promoted transcript.
 
 Implementation sequence:
 
-1. Freeze the promoted boundary outputs, residual queue, evidence files and per-session metrics.
-2. Rebuild exact whole-utterance and local-island audio spans instead of reusing broad overlapping
-   clips whose evidence conflicts.
-3. Add independent local-speaker and remote-forbidden checks to the stronger local ASR judge.
-4. Recover a local utterance only when local-only state, Target-Me/audio evidence and local micro-ASR
-   agree; preserve the exact source text and interval provenance.
-5. Split an order row only when source segments or bounded micro-ASR prove both local sides and no
-   unique local content is discarded.
-6. Keep protected work phrases and every conflict as `needs_review`; do not lower thresholds merely
-   to improve the closure count.
-7. Publish an isolated candidate profile and promote it only through the same corpus-wide
-   no-regression contract as `authoritative_boundary_v1`.
+1. Freeze the promoted `residual_me_evidence_v1` outputs and the exact 66-row audio-review queue.
+2. Build per-session Target-Me calibration from strong local-only references and explicit negative
+   remote references; record calibration quality instead of treating one global threshold as truth.
+3. Compare exact and speaker-bounded mic raw/clean/role-masked clips with remote using local
+   faster-whisper word timestamps, speaker embeddings, remote-forbidden text and audio similarity.
+4. Allow only whole-utterance `keep_me` or `drop_duplicate_or_noise` decisions. Protected work text,
+   unique local continuation, conflicting judges and weak enrollment stay `needs_review`.
+5. Publish an isolated `residual_audio_arbitration_v1` profile with full evidence provenance and the
+   previous profile as an immutable fallback.
+6. Promote only through deterministic corpus-wide local-recall, order, remote-like `Me`, notes,
+   review-burden and export gates.
 
 Definition of Done:
 
-- every residual row has a reproducible evidence outcome and immutable evidence IDs;
-- at least 25% of the residual rows and seconds are closed safely, or a reproducible
-  `DO_NOT_PROMOTE` names the exact unsolved classes;
-- no session regresses verdict, local recall, local content, remote-like `Me`, order, notes evidence,
-  review burden or guarded export;
-- missing/corrupt models, clips or evidence fail open to `needs_review`;
-- repeated runs are byte-deterministic and preserve raw CAF plus every frozen input profile;
-- README, contracts, runbook, roadmap and OpsKarta record the result, next goal, commits and push.
+- all 66 rows have stable outcomes and explicit reasons;
+- at least 20% of both rows and seconds close safely, or a reproducible `DO_NOT_PROMOTE` identifies
+  the evidence ceiling and exact blockers;
+- no local utterance is dropped from audio similarity alone, and no protected or unique local text is
+  removed;
+- the remaining local-recall and order queues are byte-preserved and remain explicit;
+- raw CAF, frozen inputs and promoted profiles are unchanged; missing models or evidence fail open;
+- implementation, tests, corpus report, documentation, roadmap, commit and push form one completed
+  change.
 
 Out of scope: capture, Echo Guard, primary ASR replacement, live promotion, cloud processing,
 individual `Colleagues` diarization and UI work.
+
+## Completed Goal: Residual Me Evidence Closure v1
+
+Completed, 2026-07-18, with decision `PROMOTE_RESIDUAL_ME_EVIDENCE_V1`.
+
+The immutable input is the `124`-row / `478.272s` queue left by `authoritative_boundary_v1`.
+Exact and speaker-bounded clips, Target-Me enrollment, remote-forbidden checks and local
+faster-whisper word timestamps give every row a stable evidence outcome. The isolated
+`residual_me_evidence_v1` profile safely closes `31` rows / `170.589s`: `21` local-recall rows,
+`9` order rows and `1` audio-review row. The remaining queue is `93` rows / `307.683s`.
+
+The closure ratio is `25.00%` by rows and `35.67%` by seconds. All frozen-input, raw CAF,
+remote-text, existing local-text, local-recall, order, remote-like `Me`, notes-evidence,
+review-burden, export and deterministic-output gates pass. Missing or conflicting evidence remains
+`needs_review`; generated artifacts alone cannot trigger profile selection.
+
+Reports are under `sessions/_reports/residual-me-evidence-v1/`. Per-session evidence and disposition
+records live under `derived/audit/residual-me-evidence-v1/` and
+`derived/transcript-simple/whisper-cpp/residual-me-evidence-v1/`.
 
 ## Completed Goal: Authoritative Transcript Boundary and Review Closure v1
 

@@ -9,7 +9,7 @@ This roadmap is mirrored as an opskarta v3 plan:
 
 Planning authority:
 
-- `docs/project/current-goal.md` defines the active executable scope and acceptance gates;
+- `docs/project/current-goal.md` defines the recommended executable scope and acceptance gates;
 - `docs/roadmap/murmurmark-cli-roadmap.plan.yaml` defines statuses, dependencies and views;
 - this Markdown file explains the same route and must not introduce an independent priority;
 - historical snapshots remain evidence, not current planning state.
@@ -83,8 +83,10 @@ post-hoc probable ASR noise; `0/3` holdouts passed runtime gates (`20` fail-open
 Authoritative Transcript Boundary and Review Closure v1 then completed with
 `PROMOTE_AUTHORITATIVE_BOUNDARY_V1`: `213/337` frozen rows / `1253.620s` are closed safely and the
 remaining queue is `124` rows / `478.272s`, with no per-session gate regressions.
-The nearest product goal is Residual Me Evidence Closure v1: improve exact local-audio and source
-provenance for those residual rows without guessing or changing live promotion.
+Residual Me Evidence Closure v1 then completed with `PROMOTE_RESIDUAL_ME_EVIDENCE_V1`: exact local
+audio and source provenance safely close another `31` rows / `170.589s`; `93` rows / `307.683s`
+remain explicit. The nearest product goal is Residual Audio Evidence Arbitration v1, focused on the
+largest coherent remainder of `66` audio-review rows / `196.920s`.
 Near-Realtime Live Parity Coverage v1 already proved complete raw capture, pre-stop preview,
 terminal workers, zero final lag and successful batch output on three fresh real sessions. Live
 promotion remains blocked.
@@ -392,13 +394,14 @@ flowchart LR
 
 ### Next
 
-- Residual Me Evidence Closure v1:
-  - freeze the promoted boundary profile and its `124` residual rows / `478.272s`;
-  - rebuild exact whole-utterance and local-island evidence for `67` audio, `34` local-recall and
-    `23` order rows;
-  - use local-speaker, remote-forbidden and micro-ASR agreement before keep/drop/insert/split;
-  - close at least 25% of residual rows and seconds without per-session verdict, order, local-recall,
-    local-content, notes or export regression, or publish exact `DO_NOT_PROMOTE` blockers;
+- Residual Audio Evidence Arbitration v1:
+  - freeze the promoted residual profile and its `66` remaining audio-review rows / `196.920s`;
+  - calibrate per-session local-speaker evidence and compare exact mic/remote clips with local
+    word-timestamp ASR and remote-forbidden checks;
+  - allow only evidence-backed whole-utterance keep/drop decisions; preserve protected, unique and
+    conflicting local content as `needs_review`;
+  - close a material safe subset without changing the separate `13` local-recall or `14` order rows,
+    or publish exact `DO_NOT_PROMOTE` blockers;
   - keep live recovery diagnostic after its reproducible `DO_NOT_PROMOTE` result;
 - keep `--live-pipeline` disabled by default; all new evidence should go through
   `record --experiment live-shadow-v1`.
@@ -551,22 +554,26 @@ Recently completed:
 
 ## Goal Sequence
 
-Recommended nearest goal: **Residual Me Evidence Closure v1**. Boundary closure already promoted a
-measurable improvement; the remaining queue now names the exact evidence gaps. Extending the failed
-live-prefilter branch would not improve the authoritative user result.
+Recommended nearest goal: **Residual Audio Evidence Arbitration v1**. Residual Me Evidence Closure
+already promoted a measurable improvement; the largest remaining class is now a finite 66-row audio
+decision problem. Extending the failed live-prefilter branch would not improve the authoritative
+user result.
 
-1. **Residual Me Evidence Closure v1.** Rebuild exact local-audio/source evidence for the `124`
-   residual rows and close a material safe subset without weakening the promoted boundary gates.
-2. **Operational corpus and export closure.** Recompute selected notes, verdict, review burden and
+1. **Residual Audio Evidence Arbitration v1.** Calibrate exact local/remote evidence for the `66`
+   audio-review rows and close a material safe subset without weakening the promoted residual gates.
+2. **Residual local-recall and chronology follow-up.** Treat the remaining `13` local-recall and
+   `14` order rows under their own insertion and boundary contracts; do not mix them into audio-only
+   keep/drop policy.
+3. **Operational corpus and export closure.** Recompute selected notes, verdict, review burden and
    guarded export after the residual profile; unresolved content must remain explicit.
-3. **Persistent causal expensive worker, optional lab.** Only if live recovery is reopened, reuse one
+4. **Persistent causal expensive worker, optional lab.** Only if live recovery is reopened, reuse one
    loaded local faster-whisper model against the same immutable corpus. Do not change route decisions,
    the `28s` timeout, normal preview or batch authority.
-4. **ASR-positive Echo promotion readiness.** Expand `coverage_v2_remote_gate_local_fir` validation
+5. **ASR-positive Echo promotion readiness.** Expand `coverage_v2_remote_gate_local_fir` validation
    beyond the current six sessions, add rollback/inspection criteria, compare review burden and
    local recall more broadly, and only then decide whether a non-default promoted bundle is worth
    testing.
-5. **Target-Me evidence follow-up.** Keep integrating `resemblyzer_dvector_v0` with review-lane
+6. **Target-Me evidence follow-up.** Keep integrating `resemblyzer_dvector_v0` with review-lane
    suggestions, live local-recall diagnostics and corpus reports. The new live Target-Me audit shows
    that suppressed live mic chunks contain a large recoverable local slice: `287.98s` of `295.34s`
    audited local/mixed seconds are possible or confirmed Target-Me. The first policy candidate,

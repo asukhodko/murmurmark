@@ -687,6 +687,43 @@ less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.authori
 If evidence is missing or changed, the row fails open; repair never falls back to a text guess. A
 failed corpus decision leaves all previous profile selection unchanged.
 
+### Residual Me evidence closure
+
+After boundary promotion, the residual corpus pass adds exact local audio, Target-Me,
+remote-forbidden and local micro-ASR evidence without rerunning primary ASR:
+
+```bash
+.venv/bin/python scripts/residual-me-evidence.py freeze
+.venv/bin/python scripts/residual-me-evidence.py evidence
+.venv/bin/python scripts/residual-me-evidence.py evaluate --apply --synthesize
+
+jq '{decision, summary, gates}' \
+  sessions/_reports/residual-me-evidence-v1/residual_me_corpus_report.json
+less sessions/_reports/residual-me-evidence-v1/residual_me_corpus_report.md
+```
+
+Use `freeze --force` only when intentionally replacing the immutable baseline. Normal reruns verify
+the existing queue. `evidence` uses the local faster-whisper `large-v3` model and Target-Me
+enrollment; absent models or unusable clips remain `needs_review` instead of failing the batch
+profile.
+
+The promoted run closes `31/124` rows / `170.589/478.272s`. It can keep a proven local utterance,
+drop a proven whole remote duplicate/noise row, insert only word-timestamp-backed missing local
+fragments, or record existing `Me` coverage/overlap. Existing remote rows and existing utterance text
+remain exact. The per-session audit is available at:
+
+```bash
+jq '{input_profile, summary, gates}' \
+  "$SESSION/derived/transcript-simple/whisper-cpp/residual-me-evidence-v1/residual_me_evidence_profile_report.json"
+less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.residual_me_evidence_v1.md"
+```
+
+`auto`, status, readiness, notes and export prefer `residual_me_evidence_v1` only after the global
+`PROMOTE_RESIDUAL_ME_EVIDENCE_V1` decision, per-session gates, promoted-session membership, frozen
+source hashes and output fingerprints all match. Otherwise selection falls back to
+`authoritative_boundary_v1`. This command is a frozen-corpus maintenance path; process new sessions
+with the normal `murmurmark process` command.
+
 ## Remote Leak Segment Plan
 
 Remote leak and partial remote duplicates need a different safety shape. A `remote_leak` region or
@@ -1944,7 +1981,7 @@ does not call an LLM, and does not read raw audio.
 Profile selection:
 
 ```text
-auto      -> promoted authoritative_boundary_v1 for listed passing sessions; otherwise audit_cleanup_v7 when it passed and applied material segment repair, then reviewed_v1 when review gates pass, then agent_reviewed_v1 when agent gates pass, then audit_cleanup_v6/v5/v4/v3/v2/v1 with passing cleanup gates, but may select order_repair_v1 over any of those bases when order repair gates pass and at least one repair was applied; then shadow_v2 if repair_comparison.json passes, otherwise current
+auto      -> promoted residual_me_evidence_v1 for listed passing sessions; otherwise promoted authoritative_boundary_v1; then audit_cleanup_v7 when it passed and applied material segment repair, reviewed_v1 when review gates pass, agent_reviewed_v1 when agent gates pass, audit_cleanup_v6/v5/v4/v3/v2/v1 with passing cleanup gates, a compatible passing order_repair_v1, passing shadow_v2, then current
 current   -> baseline clean_dialogue.json
 shadow_v2 -> shadow clean_dialogue.shadow_v2.json, marked risky if comparison failed
 audit_cleanup_v1..v7 -> audit-cleaned dialogue, marked risky if cleanup gates failed
@@ -1953,6 +1990,7 @@ agent_reviewed_v1 -> agent-reviewed dialogue, marked risky if review gates faile
 suggested_review_v1 -> machine-suggested review candidate, explicit only, never selected by auto
 order_repair_v1 -> transcript-order repair candidate, eligible for auto only when built over the selected base profile, gates passed and at least one repair was applied; marked risky if requested explicitly and gates failed
 authoritative_boundary_v1 -> frozen corpus boundary profile; eligible for auto only after global PROMOTE, per-session gates and promoted-session membership all pass
+residual_me_evidence_v1 -> frozen residual evidence profile; eligible for auto only after global PROMOTE, per-session gates, promoted-session membership, frozen source hashes and output fingerprints all pass
 ```
 
 The script writes a quality verdict and a conservative `notes.md`. The v3 notes path is extractive

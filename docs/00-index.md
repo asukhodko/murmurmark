@@ -41,14 +41,14 @@ Read in this order:
 ## Current Planning Entry Points
 
 - Start with [README](../README.md) for the current command-line workflow and latest corpus snapshot.
-- [Current goal notes](project/current-goal.md) are authoritative for the active executable scope,
+- [Current goal notes](project/current-goal.md) define the recommended executable scope,
   implementation sequence and acceptance gates.
 - Route design: [Reliable transcription route](project/reliable-transcription-route.md).
 - Use [CLI MVP Definition of Done](project/cli-mvp-definition-of-done.md) to check whether the command-line product gate still holds.
 - The [OpsKarta v3 plan](roadmap/murmurmark-cli-roadmap.plan.yaml) is authoritative for statuses,
   dependencies and roadmap views. The [CLI roadmap](roadmap/murmurmark-cli-roadmap.md) is its
   readable narrative.
-- Historical goal and experiment sections are evidence records. They do not override the current
+- Historical goal and experiment sections are evidence records. They do not override the recommended
   goal or OpsKarta statuses.
 
 ## v1 Completeness Checklist

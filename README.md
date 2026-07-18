@@ -97,12 +97,16 @@ Authoritative operating point, 2026-07-18:
   `1253.620s` (`63.20%`). The promoted `authoritative_boundary_v1` leaves `124` explicit rows /
   `478.272s`, preserves every frozen baseline artifact and passes per-session verdict, local-recall,
   local-content, duplicate, review-queue, notes-evidence and output-fingerprint gates;
-- the next product goal is Residual Me Evidence Closure v1: resolve the remaining local-recall,
-  audio-ambiguity and unsplittable order rows using exact local audio and source provenance. Live
-  recovery remains a diagnostic branch.
+- Residual Me Evidence Closure v1 is complete with `PROMOTE_RESIDUAL_ME_EVIDENCE_V1`. Exact clips,
+  Target-Me, remote-forbidden and local micro-ASR evidence safely close another `31/124` rows /
+  `170.589/478.272s`; `residual_me_evidence_v1` leaves `93` explicit rows / `307.683s`. Across the
+  original queue, `244/337` rows and `1424.209/1731.892s` are now closed without a corpus regression;
+- the recommended next goal is Residual Audio Evidence Arbitration v1: resolve the largest coherent
+  remainder, `66` audio-review rows / `196.920s`, while keeping the `13` local-recall and `14` order
+  rows as separate explicit problems. Live recovery remains a diagnostic branch.
 
 Planning authority is intentionally split by purpose: [current-goal.md](docs/project/current-goal.md)
-defines the active executable goal and its acceptance gates, the
+defines the recommended executable goal and its acceptance gates, the
 [opskarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml) owns roadmap statuses and
 dependencies, and the [Markdown roadmap](docs/roadmap/murmurmark-cli-roadmap.md) is the readable
 explanation of that plan. Historical experiment logs preserve evidence but do not override these
@@ -1383,6 +1387,23 @@ session is in `promoted_sessions` and its own gates pass. A missing or changed e
 the affected row as `needs_review`; it never mutates raw CAF, Echo Guard, ASR or the frozen input
 profile. For one already-frozen session, use `murmurmark repair boundary "$SESSION"`.
 
+The promoted residual evidence pass is reproducible with:
+
+```bash
+.venv/bin/python scripts/residual-me-evidence.py freeze
+.venv/bin/python scripts/residual-me-evidence.py evidence
+.venv/bin/python scripts/residual-me-evidence.py evaluate --apply --synthesize
+
+jq '{decision, summary, gates}' \
+  sessions/_reports/residual-me-evidence-v1/residual_me_corpus_report.json
+```
+
+This pass writes the isolated `residual_me_evidence_v1` profile. `auto`, status, readiness, notes and
+export prefer it only when the frozen corpus decision, per-session gates, source hashes and output
+fingerprints all match. Missing models, clips or evidence fail open to the previous promoted profile.
+The script is a frozen-corpus maintenance tool; ordinary new sessions continue through the normal
+`murmurmark process` route.
+
 `corpus gate` now treats the review queue as a hard product signal: by default it allows at most
 `15` packed mandatory review actions and `25` queue rows across the operational corpus. The current
 corpus is below that line (`9` actions / `12` rows), so future cleanup must preserve the shorter
@@ -1682,9 +1703,12 @@ state is:
     produce a second reproducible `DO_NOT_PROMOTE`; normal preview and batch stay unchanged.
 13. **Completed boundary closure:** `authoritative_boundary_v1` safely closes `213/337` frozen rows
     and reduces mandatory review from `1731.892s` to `478.272s`; all promotion gates pass.
-14. **Current goal:** Residual Me Evidence Closure v1. Address the remaining `67` audio-review,
-    `34` local-recall and `23` order rows with exact local-audio/source evidence, while every
-    unresolved or conflicting case remains explicit. UI remains optional and late.
+14. **Completed residual closure:** `residual_me_evidence_v1` safely closes another `31` rows /
+    `170.589s`; all `124` rows have outcomes, the promotion gates pass and `93` rows / `307.683s`
+    remain explicit.
+15. **Recommended next goal:** Residual Audio Evidence Arbitration v1. Concentrate on the `66`
+    remaining audio-review rows / `196.920s`; preserve local-recall and chronology uncertainty as
+    separate queues. UI remains optional and late.
 
 <details>
 <summary>Historical implementation log (non-authoritative)</summary>

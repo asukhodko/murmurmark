@@ -55,7 +55,9 @@ Implemented now:
 - `shadow_v2` no-regression profile with audit artifacts;
 - start-of-call repair for short opening turns such as `Привет`, `Меня слышно?`, `Привет, да`;
 - corpus-gated `authoritative_boundary_v1`, which freezes selected batch inputs and closes only
-  order/boundary rows supported by existing source segments or independent audio evidence.
+  order/boundary rows supported by existing source segments or independent audio evidence;
+- corpus-gated `residual_me_evidence_v1`, which applies exact Target-Me, remote-forbidden and local
+  micro-ASR evidence to the finite residual queue without rerunning primary ASR.
 
 `Colleagues` has a strict provenance invariant: its text may only come from ASR over the `remote`
 track. The microphone may provide timing, echo, overlap and confidence evidence, but its recognized
@@ -111,6 +113,19 @@ utterance, no protected work marker and no unique `Me` content. Missing or confl
 The profile is selected only after the corpus report says `PROMOTE_AUTHORITATIVE_BOUNDARY_V1`, the
 session is listed in `promoted_sessions`, its own gates pass and all profile artifacts exist. This
 keeps stale or partial experimental outputs from becoming authoritative.
+
+### Residual Me evidence profile
+
+`residual_me_evidence_v1` is an isolated derivative of `authoritative_boundary_v1`. It freezes all
+`124` remaining rows and gives each one an exact evidence outcome from short mic/remote clips,
+speaker-state context, Target-Me enrollment, local faster-whisper word timestamps and
+remote-forbidden checks. Safe actions are `keep_me`, `drop_me`, `insert_me`,
+`insert_me_partial`, `keep_me_covered` and `keep_me_overlap`; every conflict is `needs_review`.
+
+The promoted result closes `31` rows / `170.589s` and leaves `93` rows / `307.683s`. Selection is
+allowed only when the global decision is `PROMOTE_RESIDUAL_ME_EVIDENCE_V1`, the session is listed,
+the frozen source hashes still match and the current profile fingerprint equals both per-session and
+corpus reports. Any stale or incomplete evidence falls back to `authoritative_boundary_v1`.
 
 ## Input
 

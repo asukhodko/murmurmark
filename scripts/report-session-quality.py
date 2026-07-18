@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.4.8"
+SCRIPT_VERSION = "0.4.9"
 SCHEMA = "murmurmark.session_quality_report/v1"
 READINESS_SCHEMA = "murmurmark.session_readiness/v1"
 CLEANUP_PROFILES = {
@@ -29,6 +29,7 @@ CLEANUP_PROFILES = {
     "agent_reviewed_v1",
     "local_recall_repair_v1",
     "authoritative_boundary_v1",
+    "residual_me_evidence_v1",
 }
 
 
@@ -203,17 +204,21 @@ def sha256_file(path: Path) -> str | None:
     return digest.hexdigest()
 
 
-def authoritative_boundary_output_fingerprint(resolved: Path) -> str:
+def profile_output_fingerprint(resolved: Path, profile: str) -> str:
     paths = {
-        "dialogue": resolved / "clean_dialogue.authoritative_boundary_v1.json",
-        "quality": resolved / "quality_report.authoritative_boundary_v1.json",
-        "overlaps": resolved / "overlaps.authoritative_boundary_v1.json",
-        "transcript": resolved / "transcript.authoritative_boundary_v1.md",
-        "transcript_json": resolved / "transcript.simple.authoritative_boundary_v1.json",
+        "dialogue": resolved / f"clean_dialogue.{profile}.json",
+        "quality": resolved / f"quality_report.{profile}.json",
+        "overlaps": resolved / f"overlaps.{profile}.json",
+        "transcript": resolved / f"transcript.{profile}.md",
+        "transcript_json": resolved / f"transcript.simple.{profile}.json",
     }
     values = {name: sha256_file(path) for name, path in paths.items()}
     canonical = json.dumps(values, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(canonical).hexdigest()
+
+
+def authoritative_boundary_output_fingerprint(resolved: Path) -> str:
+    return profile_output_fingerprint(resolved, "authoritative_boundary_v1")
 
 
 def frozen_boundary_inputs_match(baseline: dict[str, Any] | None, session: Path) -> bool:
@@ -279,7 +284,45 @@ def authoritative_boundary_usable(session: Path) -> bool:
     )
 
 
+def residual_me_evidence_usable(session: Path) -> bool:
+    resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
+    profile_dir = session / "derived/transcript-simple/whisper-cpp/residual-me-evidence-v1"
+    report = read_json(profile_dir / "residual_me_evidence_profile_report.json")
+    corpus_dir = session.parent / "_reports/residual-me-evidence-v1"
+    corpus = read_json(corpus_dir / "residual_me_corpus_report.json")
+    baseline = read_json(corpus_dir / "baseline_manifest.json")
+    inputs = report.get("inputs") if isinstance(report, dict) and isinstance(report.get("inputs"), dict) else {}
+    output_fingerprint = profile_output_fingerprint(resolved, "residual_me_evidence_v1")
+    corpus_session = next(
+        (
+            row
+            for row in (corpus.get("sessions") or [])
+            if isinstance(row, dict) and str(row.get("session_id") or "") == session.name
+        ),
+        None,
+    ) if isinstance(corpus, dict) else None
+    return bool(
+        isinstance(report, dict)
+        and isinstance(report.get("gates"), dict)
+        and report["gates"].get("passed") is True
+        and report.get("output_profile") == "residual_me_evidence_v1"
+        and isinstance(corpus, dict)
+        and corpus.get("decision") == "PROMOTE_RESIDUAL_ME_EVIDENCE_V1"
+        and isinstance(corpus.get("gates"), dict)
+        and corpus["gates"].get("passed") is True
+        and sha256_file(corpus_dir / "baseline_manifest.json") == corpus.get("baseline_manifest_sha256")
+        and frozen_boundary_inputs_match(baseline, session)
+        and session.name in {str(value) for value in corpus.get("promoted_sessions") or []}
+        and inputs.get("frozen_dialogue_sha256") == inputs.get("actual_dialogue_sha256")
+        and report.get("output_fingerprint") == output_fingerprint
+        and isinstance(corpus_session, dict)
+        and corpus_session.get("output_fingerprint") == output_fingerprint
+    )
+
+
 def selected_profile(session: Path) -> str:
+    if residual_me_evidence_usable(session):
+        return "residual_me_evidence_v1"
     if authoritative_boundary_usable(session):
         return "authoritative_boundary_v1"
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
@@ -477,6 +520,7 @@ def stage_status(session: Path) -> dict[str, bool]:
     order_repair = session / "derived/transcript-simple/whisper-cpp/order-repair"
     local_recall_repair = session / "derived/transcript-simple/whisper-cpp/local-recall-repair"
     authoritative_boundary = session / "derived/transcript-simple/whisper-cpp/authoritative-boundary-v1"
+    residual_me_evidence = session / "derived/transcript-simple/whisper-cpp/residual-me-evidence-v1"
     remote_leak_repair = session / "derived/transcript-simple/whisper-cpp/remote-leak-repair"
     remote_forbidden = session / "derived/audit/remote-forbidden"
     return {
@@ -534,6 +578,9 @@ def stage_status(session: Path) -> dict[str, bool]:
         "authoritative_boundary_v1": (resolved / "quality_report.authoritative_boundary_v1.json").exists()
         and (resolved / "clean_dialogue.authoritative_boundary_v1.json").exists()
         and (authoritative_boundary / "boundary_repair_report.json").exists(),
+        "residual_me_evidence_v1": (resolved / "quality_report.residual_me_evidence_v1.json").exists()
+        and (resolved / "clean_dialogue.residual_me_evidence_v1.json").exists()
+        and (residual_me_evidence / "residual_me_evidence_profile_report.json").exists(),
         "synthesis": (synthesis / "quality_verdict.json").exists() and (synthesis / "evidence_notes.json").exists(),
         "synthesis_audit_cleanup_v1": (synthesis / "quality_verdict.audit_cleanup_v1.json").exists()
         and (synthesis / "evidence_notes.audit_cleanup_v1.json").exists(),
@@ -561,6 +608,8 @@ def stage_status(session: Path) -> dict[str, bool]:
         and (synthesis / "evidence_notes.local_recall_repair_v1.json").exists(),
         "synthesis_authoritative_boundary_v1": (synthesis / "quality_verdict.authoritative_boundary_v1.json").exists()
         and (synthesis / "evidence_notes.authoritative_boundary_v1.json").exists(),
+        "synthesis_residual_me_evidence_v1": (synthesis / "quality_verdict.residual_me_evidence_v1.json").exists()
+        and (synthesis / "evidence_notes.residual_me_evidence_v1.json").exists(),
         "audio_review_pack": (audio_review / "review_pack_summary.json").exists()
         and (audio_review / "review_pack_items.jsonl").exists(),
         "audio_review_audit": (audio_review / "audio_review_summary.json").exists()
@@ -687,6 +736,37 @@ def cleanup_input_profile(session: Path, profile: str) -> str | None:
     return str(value) if value else None
 
 
+def residual_me_evidence_input_profile(session: Path, profile: str) -> str | None:
+    if profile != "residual_me_evidence_v1":
+        return None
+    report = read_json(
+        session
+        / "derived/transcript-simple/whisper-cpp/residual-me-evidence-v1"
+        / "residual_me_evidence_profile_report.json"
+    )
+    if not isinstance(report, dict):
+        return None
+    value = report.get("input_profile")
+    return str(value) if value and str(value) != profile else None
+
+
+def residual_me_evidence_resolved_ids(session: Path, profile: str, sources: set[str]) -> set[str]:
+    if profile != "residual_me_evidence_v1":
+        return set()
+    path = (
+        session
+        / "derived/transcript-simple/whisper-cpp/residual-me-evidence-v1"
+        / "residual_me_applied.jsonl"
+    )
+    return {
+        str(row.get("source_audit_id"))
+        for row in read_jsonl(path)
+        if str(row.get("source") or "") in sources
+        and row.get("closed") is True
+        and row.get("source_audit_id")
+    }
+
+
 def pending_review_decision_rows(session: Path, profile: str) -> list[dict[str, Any]]:
     path = session / "derived/readiness/review-plan/review_decisions.jsonl"
     rows: list[dict[str, Any]] = []
@@ -703,9 +783,10 @@ def review_resolved_audio_ids(session: Path, profile: str, seen: set[str] | None
     if profile in seen:
         return set()
     seen.add(profile)
-    inherited_profile = cleanup_input_profile(session, profile)
+    inherited_profile = cleanup_input_profile(session, profile) or residual_me_evidence_input_profile(session, profile)
     inherited = review_resolved_audio_ids(session, inherited_profile, seen) if inherited_profile else set()
     resolved: set[str] = set(inherited)
+    resolved.update(residual_me_evidence_resolved_ids(session, profile, {"audio_review"}))
     for row in pending_review_decision_rows(session, profile):
         if str(row.get("status") or "") != "reviewed":
             continue
@@ -1867,7 +1948,15 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
             session
             / "derived/transcript-simple/whisper-cpp/authoritative-boundary-v1/boundary_repair_report.json"
         )
-        if profile == "authoritative_boundary_v1"
+        if profile in {"authoritative_boundary_v1", "residual_me_evidence_v1"}
+        else None
+    )
+    residual_me_report = (
+        read_json(
+            session
+            / "derived/transcript-simple/whisper-cpp/residual-me-evidence-v1/residual_me_evidence_profile_report.json"
+        )
+        if profile == "residual_me_evidence_v1"
         else None
     )
     session_json = read_json(session / "session.json") or {}
@@ -1995,6 +2084,46 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
                 "transcript_order_blocking_order_risk": remaining_order_seconds > 0.0,
                 "transcript_order_recommended_next_step": (
                     "review_transcript_order_items" if remaining_order_seconds > 0.0 else "authoritative_boundary_order_clear"
+                ),
+            }
+        )
+    if isinstance(residual_me_report, dict) and (residual_me_report.get("gates") or {}).get("passed") is True:
+        profile_dir = session / "derived/transcript-simple/whisper-cpp/residual-me-evidence-v1"
+        remaining_rows = read_jsonl(profile_dir / "residual_me_review_queue.jsonl")
+        applied_rows = read_jsonl(profile_dir / "residual_me_applied.jsonl")
+
+        def source_summary(rows: list[dict[str, Any]], source: str) -> tuple[int, float]:
+            selected = [row for row in rows if str(row.get("source") or "") == source]
+            intervals = [audio_review_interval(row) for row in selected]
+            return len(selected), union_seconds(intervals)
+
+        remaining_local_count, remaining_local_seconds = source_summary(remaining_rows, "local_recall")
+        remaining_order_count, remaining_order_seconds = source_summary(remaining_rows, "transcript_order")
+        residual_summary = residual_me_report.get("summary") if isinstance(residual_me_report.get("summary"), dict) else {}
+        row.update(
+            {
+                "residual_me_evidence_gates_passed": True,
+                "residual_me_evidence_closed_items": len(applied_rows),
+                "residual_me_evidence_closed_seconds": round_or_none(residual_summary.get("closed_seconds")),
+                "residual_me_evidence_remaining_items": len(remaining_rows),
+                "residual_me_evidence_remaining_seconds": round_or_none(residual_summary.get("remaining_seconds")),
+                "local_recall_possible_lost_me_count": remaining_local_count,
+                "local_recall_possible_lost_me_seconds": remaining_local_seconds,
+                "local_recall_needs_review_count": 0,
+                "local_recall_needs_review_seconds": 0.0,
+                "local_recall_meaningful_review_seconds": remaining_local_seconds,
+                "local_recall_blocking_low_local_recall": remaining_local_seconds > 0.0,
+                "local_recall_recommended_next_step": (
+                    "review_local_recall_items" if remaining_local_seconds > 0.0 else "residual_me_evidence_local_recall_clear"
+                ),
+                "transcript_order_probable_order_risk_count": remaining_order_count,
+                "transcript_order_probable_order_risk_seconds": remaining_order_seconds,
+                "transcript_order_needs_review_count": 0,
+                "transcript_order_needs_review_seconds": 0.0,
+                "transcript_order_review_seconds": remaining_order_seconds,
+                "transcript_order_blocking_order_risk": remaining_order_seconds > 0.0,
+                "transcript_order_recommended_next_step": (
+                    "review_transcript_order_items" if remaining_order_seconds > 0.0 else "residual_me_evidence_order_clear"
                 ),
             }
         )
