@@ -91,6 +91,13 @@ Raw CAF files and the selected batch transcript are authoritative. The optional 
 only copied PCM after durable raw writes, can fail independently and cannot mutate batch outputs.
 Live promotion remains blocked until all corpus parity gates pass.
 
+The current causal-recovery decision is `DO_NOT_PROMOTE`. Transport safety is established, but only
+`268/783` eligible remote-active rows reached the expensive recovery stage, all three holdout runtime
+replays timed out fail-open and one holdout regressed effective order. The next architecture change
+is Causal Candidate Coverage and Cheap Negative Prefilter v1 in the sidecar recovery branch. Its
+cheap past-only pass must reject obvious remote/noise rows before residual/Target-Me/micro-ASR work;
+it cannot affect the raw writer, normal preview or authoritative batch path.
+
 The post-stop pipeline has two explicit phases. `murmurmark process SESSION` stops after the first
 safe handoff. `murmurmark enrich SESSION` runs bounded optional diagnostics and may be interrupted
 or resumed independently. `murmurmark process SESSION --full` runs both for compatibility. CLI

@@ -7,6 +7,13 @@ This roadmap is mirrored as an opskarta v3 plan:
 - dependencies, statuses and effort instead of delivery promises;
 - CLI-first, local-first, evidence-backed.
 
+Planning authority:
+
+- `docs/project/current-goal.md` defines the active executable scope and acceptance gates;
+- `docs/roadmap/murmurmark-cli-roadmap.plan.yaml` defines statuses, dependencies and views;
+- this Markdown file explains the same route and must not introduce an independent priority;
+- historical snapshots remain evidence, not current planning state.
+
 ## Product Direction
 
 MurmurMark should become a dependable local CLI transcription pipeline for sensitive meetings:
@@ -131,8 +138,8 @@ roadmap point it means:
   seven sessions; it remains an explicit-only `_runtime_v1` shadow;
 - incremental runtime efficiency is implemented, passes the `p95 <= 30s` source-time gate and the
   strict fresh-session aggregate `3/3`; Fast Authoritative Handoff has since separated the first
-  usable result from deferred enrichment, and the next bounded work is causal recovery
-  generalization/promotion readiness;
+  usable result from deferred enrichment; generalization has since returned `DO_NOT_PROMOTE`, and
+  the next bounded work is full cheap-prefilter decision coverage before expensive recovery;
 - `status`, `next`, `finish`, session report and corpus report agree;
 - safe review suggestions are applied before asking for manual listening;
 - remaining review is short, explicit and backed by audio/transcript evidence;
@@ -545,8 +552,10 @@ the measured coverage/runtime/order blockers on the same frozen corpus.
 1. **Causal Candidate Coverage and Cheap Negative Prefilter v1.** Give all eligible remote-active
    rows bounded decisions, filter cheap negatives before micro-ASR and pass the existing three
    holdout recording-time/no-regression gates.
-2. **Causal recovery promotion reconsideration.** Reissue a promote/no-promote decision only after
-   the coverage experiment passes; do not alter normal preview beforehand.
+2. **Causal recovery promotion reconsideration.** This node is blocked by the current goal. If all
+   coverage/runtime/no-regression gates pass, decide a guarded rollout and rollback contract. If any
+   gate fails, close the branch with a reproducible `DO_NOT_PROMOTE` decision and keep normal preview
+   unchanged.
 3. **Live review/notes/boundary readiness.** After generalized recovery remains safe, close review burden,
    selected-notes readiness and chunk-boundary gates without weakening batch authority.
 4. **ASR-positive Echo promotion readiness.** Expand `coverage_v2_remote_gate_local_fir` validation

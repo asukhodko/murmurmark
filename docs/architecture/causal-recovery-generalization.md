@@ -38,10 +38,11 @@ The frozen result contains:
 - three holdout meetings, including a group call and two 1x1 calls, totalling `9105.631s`;
 - `832` raw, Echo Guard, live, runtime and authoritative input files with SHA-256.
 
-Every row has a stable outcome. Evaluation classified `284` rows as genuine double-talk, `549` as
-probable remote leak, `28` as probable ASR noise, `11` as timing overlap and `91` as insufficient
-evidence. The corpus includes `65` adversarial negative candidate controls. None of the negative
-controls was accepted.
+Every row has a stable corpus/evaluation outcome. That does not mean every eligible source row
+received an expensive causal recovery decision: only `268/783` reached that stage. Evaluation
+classified `284` rows as genuine double-talk, `549` as probable remote leak, `28` as probable ASR
+noise, `11` as timing overlap and `91` as insufficient evidence. The corpus includes `65`
+adversarial negative candidate controls. None of the negative controls was accepted.
 
 ## Promotion Decision
 
@@ -78,3 +79,18 @@ replay the same immutable holdout until:
 - no session regresses order, remote-like `Me`, token F1 or review burden.
 
 No additional real recordings are required to start that experiment.
+
+The implementation sequence is:
+
+1. freeze the current `963` rows, outcome fingerprint and `832` input hashes as the comparison
+   baseline;
+2. compute cheap current/past-only audio, state, boundary and text evidence for all `783` eligible
+   source rows;
+3. assign every row to `cheap_reject`, `expensive_candidate` or `unresolved`, with explicit reasons;
+4. run residual/Target-Me/micro-ASR only for `expensive_candidate` rows under the existing timeout
+   and fail-open contract;
+5. replay all three holdouts and publish a new binary promotion-readiness decision.
+
+Planned reports must separate source-row decision coverage from expensive-stage coverage and show
+why every row did or did not consume expensive work. The existing generalization report remains
+immutable evidence and must not be overwritten by the next experiment.

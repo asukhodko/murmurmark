@@ -2,7 +2,8 @@
 
 Status: active product route; stable batch capture/processing, live transport evidence, order/role
 reconciliation, causal local-island, remote-active and double-talk recovery, bounded recording-time
-runtime and fast authoritative handoff complete; generalization/promotion evidence is current
+runtime and fast authoritative handoff complete; generalization is complete with `DO_NOT_PROMOTE`;
+cheap causal candidate coverage is current
 Date: 2026-07-18
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
@@ -27,9 +28,12 @@ maximum `19.16s`. Three fresh real sessions subsequently proved pre-stop executi
 lag. Causal Double-Talk Me Recovery v1 now gives all `16` fixed overlap rows stable outcomes and
 safely recovers `4` rows / `11.56s`; aggregate missing `Me` falls to `1639.73s`, remote-like `Me`
 stays `108.42s`, order blockers stay `0`, review burden falls to `478.82s`, and runtime p95 is
-`23.473s` with final lag `0`. The remaining bounded question is generalization: whether this narrow
-explicit-only success survives broader remote-only controls and fresh recording-time sessions well
-enough to enter the normal advisory live preview.
+`23.473s` with final lag `0`. Generalization then produced `963` stable outcomes, preserved all
+`832` frozen input hashes and accepted zero of `65` adversarial negative controls. It still returned
+`DO_NOT_PROMOTE`: only `268/783` eligible rows reached the expensive candidate stage, all three
+holdout runtime replays timed out fail-open, and one holdout gained an effective order blocker. The
+remaining bounded question is now whether a cheap causal negative prefilter can classify every
+eligible row before micro-ASR and make the same frozen holdouts finish without quality regression.
 Near-realtime output remains shadow-only.
 
 ## Why This Exists
@@ -102,6 +106,26 @@ The main remaining blockers are consistent across recent sessions:
 - suggested review can reduce the queue, but not all rows are closable by current local evidence;
 - `process` is batch-first and expensive for long meetings;
 - several diagnostics exist, but their implications are still scattered across reports.
+
+The current live-recovery bottleneck is narrower and measurable:
+
+- only `268/783` eligible remote-active rows reach the expensive residual/Target-Me/micro-ASR stage;
+- obvious remote-only and ASR-noise rows consume or prevent bounded runtime coverage;
+- all three holdout runtime replays time out fail-open;
+- one holdout still has an effective order regression (`3 -> 4`).
+
+## Current Bounded Step
+
+Causal Candidate Coverage and Cheap Negative Prefilter v1 runs on the existing immutable corpus.
+It must give `783/783` eligible rows a past-only decision, reject cheap remote/noise negatives before
+micro-ASR and preserve the strict remote-forbidden contract. Expensive recovery is reserved for rows
+with positive local evidence. Completion requires the fixed `4` recoveries / `11.56s`, zero accepted
+negative controls, deterministic offline/runtime agreement, runtime p95 at most `30s`, final lag
+`0`, and no per-session order, remote-like `Me`, token-F1 or review-burden regression.
+
+This step does not change capture, Echo Guard, the primary ASR, normal live preview or batch
+authority. It also does not require another meeting recording before implementation and frozen-corpus
+replay are complete.
 
 ## Route To Reliability
 

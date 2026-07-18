@@ -74,3 +74,22 @@ The current three holdouts are deliberately replayed into isolated output direct
 
 A failed replay is valid evidence when the child fails open and raw/batch artifacts remain usable.
 Do not increase timeout or weaken remote-forbidden guards merely to turn the report green.
+
+## Handoff To The Current Goal
+
+This runbook freezes the `DO_NOT_PROMOTE` baseline. Causal Candidate Coverage and Cheap Negative
+Prefilter v1 must use the same corpus membership, input SHA-256 manifest, fixed `4` recoveries /
+`11.56s`, `65` adversarial controls and three holdouts. It must write a separate report namespace;
+do not refresh or overwrite `causal-recovery-generalization-v1` merely to improve its decision.
+
+The next acceptance run must prove:
+
+- cheap causal decisions for `783/783` eligible rows;
+- explicit routing counts for `cheap_reject`, `expensive_candidate` and `unresolved`;
+- zero accepted remote-only, ASR-noise and adversarial controls;
+- deterministic offline/runtime outcomes;
+- holdout runtime p95 at most `30s` and final lag `0`;
+- no per-session order, remote-like `Me`, token-F1 or mandatory-review regression.
+
+Until those checks exist and pass, keep the current `DO_NOT_PROMOTE` decision and normal preview
+unchanged.

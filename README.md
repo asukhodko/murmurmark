@@ -88,6 +88,13 @@ Authoritative operating point, 2026-07-18:
   eligible row a cheap causal decision, reserve expensive micro-ASR for plausible local speech and
   repeat the same immutable holdout without collecting more meetings first.
 
+Planning authority is intentionally split by purpose: [current-goal.md](docs/project/current-goal.md)
+defines the active executable goal and its acceptance gates, the
+[opskarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml) owns roadmap statuses and
+dependencies, and the [Markdown roadmap](docs/roadmap/murmurmark-cli-roadmap.md) is the readable
+explanation of that plan. Historical experiment logs preserve evidence but do not override these
+three current sources.
+
 The system deliberately keeps unresolved uncertainty visible. Suggested review decisions may close
 only rows supported by local audio and audit evidence. `finish` and guarded `export` remain blocked
 when transcript-only blockers survive.
@@ -1587,8 +1594,10 @@ rule and need corpus gates before any automatic review decision.
 
 ## Documentation Map
 
+- [Documentation index and planning authority](docs/00-index.md)
 - [Mission and vision](docs/product/vision.md)
 - [Product requirements](docs/product/prd-v1.md)
+- [Reliable transcription route](docs/project/reliable-transcription-route.md)
 - [CLI roadmap](docs/roadmap/murmurmark-cli-roadmap.md)
 - [Roadmap plan, opskarta v3](docs/roadmap/murmurmark-cli-roadmap.plan.yaml)
 - [Experimental sidecar architecture](docs/architecture/experimental-sidecar.md)

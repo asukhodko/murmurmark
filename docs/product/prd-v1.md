@@ -28,7 +28,7 @@ Working now:
 - live-ASR cache bridge exists as a diagnostic/future acceleration layer; incompatible or unsafe
   chunks fall back to batch ASR.
 
-Current operating point, 2026-07-17:
+Current operating point, 2026-07-18:
 
 - the stable batch route is usable for working transcripts and evidence-backed notes, with guarded
   review/export when unresolved risks remain;
@@ -63,15 +63,20 @@ Current operating point, 2026-07-17:
   stable outcomes; `4` rows / `11.56s` are recovered, aggregate missing `Me` falls to `1639.73s`,
   remote-like `Me` remains `108.42s`, order blockers remain `0`, and every per-session/runtime/SHA
   gate passes. The result remains explicit-only and batch-authoritative.
-- Causal Recovery Generalization and Promotion Readiness v1 is current. It must expand the proof to
-  a broader positive/adversarial-negative corpus and fresh recording-time evidence before any normal
-  live preview wiring changes.
+- Causal Recovery Generalization and Promotion Readiness v1 is complete with `DO_NOT_PROMOTE`:
+  `963` stable outcomes, `832` unchanged input hashes, three independent holdouts and zero accepted
+  negative controls. Promotion is blocked by `268/783` expensive-stage coverage, three bounded
+  runtime timeouts and one holdout order regression.
+- The current bounded goal is Causal Candidate Coverage and Cheap Negative Prefilter v1. It must give
+  all `783` eligible rows a cheap causal decision, keep expensive residual/Target-Me/micro-ASR work
+  for plausible local speech, preserve the fixed `4` recoveries / `11.56s` and zero accepted
+  negatives, and replay the same frozen holdouts without per-session quality regressions. No new
+  meeting recording is required to start.
 
 Still future:
 
-- near-realtime promotion beyond shadow: local-recall recovery, remote-leakage reduction, stronger
-  per-segment Echo Guard and strict live-ASR cache compatibility before it can shorten the
-  authoritative post-meeting path;
+- near-realtime promotion beyond shadow, conditional on full cheap-prefilter coverage, bounded
+  runtime, zero accepted negatives and no per-session order/local-recall/remote-leak regression;
 - signed menubar app;
 - remote speaker diarization inside `Colleagues`;
 - heavy-local ASR stack with specialized models;

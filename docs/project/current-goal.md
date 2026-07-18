@@ -4,6 +4,10 @@ This file keeps the latest goal context and the most relevant completed goals. T
 path remains non-live `record -> process`. Live output stays shadow-only and batch transcript remains
 authoritative.
 
+This file is authoritative for the active executable goal. Roadmap status and dependency truth live
+in `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`; the Markdown roadmap explains the same route for
+humans. Completed sections below are historical evidence and cannot redefine the active scope.
+
 ## Current Goal: Causal Candidate Coverage and Cheap Negative Prefilter v1
 
 Status, 2026-07-18: selected after the generalization corpus produced a reproducible
@@ -16,6 +20,47 @@ micro-ASR. A cheap first pass should reject obvious remote-only and ASR-noise ro
 plausible local speech for the strict residual/Target-Me/ASR stage and make the recording-time
 worker complete inside its existing budget. Use the existing immutable corpus first; no new real
 recordings are required to begin.
+
+Why this is the shortest path:
+
+- the strict safety contract already rejects all `65` adversarial negative controls;
+- the fixed positive result is reproducible, so a new recovery family is not the first bottleneck;
+- only `34.2273%` of eligible source rows reach the expensive stage;
+- increasing the timeout would hide the coverage problem and weaken the live lag contract;
+- collecting more meetings before fixing deterministic coverage would add data without changing the
+  known failure mode.
+
+Implementation sequence:
+
+1. Preserve the existing `963`-row corpus, `832` input hashes and outcome fingerprint as immutable
+   baseline evidence.
+2. Add a cheap feature pass using only current/past committed PCM, current/past live ASR, speaker
+   state, boundary timing and past-only Target-Me enrollment.
+3. Give every eligible row one explainable routing outcome: `cheap_reject`,
+   `expensive_candidate` or `unresolved`.
+4. Run residual separation, Target-Me and micro-ASR only for `expensive_candidate`; keep all other
+   rows bounded without starting expensive work.
+5. Reuse the same decision logic offline and in recording-time replay, then compare exact row-level
+   outcomes and fingerprints.
+6. Replay all three frozen holdouts and publish a new binary promotion-readiness decision.
+
+Planned evidence outputs, under a new report namespace rather than the immutable v1 directory:
+
+- row-level cheap-prefilter decisions and reasons;
+- source-row and expensive-stage coverage summary;
+- expensive-work budget and timing distribution;
+- offline/runtime agreement and determinism report;
+- per-session order, remote-like `Me`, token-F1 and review-burden deltas;
+- final `READY_FOR_PROMOTION_RECONSIDERATION` or `DO_NOT_PROMOTE` decision with blockers.
+
+Out of scope:
+
+- changing capture, raw CAF, Echo Guard or the primary ASR;
+- using authoritative batch text, future chunks or future enrollment for selection;
+- raising timeouts to make a failing replay appear successful;
+- changing normal live preview, transcript, notes, export or retention before a separate promotion
+  decision passes;
+- collecting new real meetings before the frozen-corpus implementation pass is complete.
 
 Definition of Done:
 
@@ -31,6 +76,11 @@ Definition of Done:
   review burden no worse in every session;
 - publish a new binary promotion-readiness decision without changing normal preview unless every
   gate passes.
+
+Completion has two valid outcomes. If every gate passes, the next separate goal is guarded causal
+recovery promotion reconsideration with rollback. If any gate fails, publish a reproducible
+`DO_NOT_PROMOTE` report, keep the live branch diagnostic and move product effort back to the
+authoritative batch/review route instead of extending this experiment indefinitely.
 
 ## Completed Goal: Causal Recovery Generalization and Promotion Readiness v1
 

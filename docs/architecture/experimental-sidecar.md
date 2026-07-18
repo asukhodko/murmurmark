@@ -112,7 +112,13 @@ shadow remains disconnected from normal preview and promotion. Causal Double-Tal
 then evaluates multiple residual families over a fixed `16`-row corpus, recovers `4` rows /
 `11.56s`, reduces aggregate missing `Me` to `1639.73s`, and keeps remote-like `Me=108.42s`, order
 blockers `0`, runtime p95 `23.473s` and final lag `0`. Generalization and fresh evidence for this new
-layer are required before any normal preview wiring changes.
+layer are now complete. The immutable generalization corpus produced `963` stable outcomes, zero
+accepted negative controls and decision `DO_NOT_PROMOTE`. Only `268/783` eligible rows reached the
+expensive candidate stage, every holdout runtime replay timed out fail-open and one holdout gained an
+effective order blocker. The current bounded change is a cheap causal negative prefilter before
+residual/Target-Me/micro-ASR: Causal Candidate Coverage and Cheap Negative Prefilter v1. It remains
+inside the isolated recovery shadow and cannot change normal preview until a later binary promotion
+decision passes every gate.
 
 The worker path is:
 
@@ -128,6 +134,20 @@ closed base chunk + normal preview already durable
 Only one child and one latest pending cutoff are retained. A child timeout, lag-budget violation,
 coalesced cutoff or stop-wait timeout affects only the diagnostic shadow. Base live output, raw CAF
 and authoritative batch processing do not wait for recovery.
+
+Planned recovery routing for the current goal:
+
+```text
+eligible remote-active row
+  -> cheap past-only evidence
+       -> reject remote/noise
+       -> unresolved without expensive work
+       -> plausible local speech -> residual + Target-Me + micro-ASR
+  -> bounded explainable outcome
+```
+
+The cheap pass may use committed current/past PCM, current/past live ASR, speaker state and past-only
+Target-Me enrollment. Batch text, future chunks and future enrollment remain evaluation-only.
 
 Implemented v1 contract:
 

@@ -343,8 +343,12 @@ nodes:
       безопасно восстановил 678.32s aggregate missing Me. Causal Local-Island Micro-ASR v2 дал
       outcomes всем 40 unresolved rows и восстановил ещё 255.77s без per-session регрессий.
       Causal Remote-Active Me Separation v1 обработал 19 speaker-supported rows и восстановил ещё
-      252.90s без per-session регрессий. Ближайший bounded quality-шаг — перенести replay-proven
-      causal recovery в recording-time committed-PCM worker с bounded lag и fail-open fallback.
+      252.90s без per-session регрессий. Recording-time integration, incremental runtime, fresh
+      evidence 3/3, Fast Authoritative Handoff и Causal Double-Talk Recovery уже завершены.
+      Generalization дала DO_NOT_PROMOTE: candidate stage покрывает только 268/783 eligible rows,
+      три holdout replay timed out fail-open и один holdout получил order regression. Текущий
+      bounded quality-шаг — cheap causal negative prefilter и 783/783 explainable decisions на том
+      же frozen corpus без изменения normal preview.
 
   current-pipeline-stabilization-v1:
     title: "Current Pipeline Stabilization v1"
@@ -1178,6 +1182,25 @@ nodes:
       добиться 100% decision coverage, runtime p95 <= 30s, final lag 0, deterministic
       offline/runtime agreement и no per-session order/remote/F1/review regression. Новые записи
       для старта не требуются; normal preview не менять до отдельного passing promotion decision.
+      Последовательность: frozen baseline -> cheap current/past-only features -> routing
+      cheap_reject/expensive_candidate/unresolved -> expensive stage только для positive local
+      evidence -> три holdout replay -> новый binary decision. Отчёт обязан разделять source-row
+      decision coverage и expensive-stage coverage, объяснять каждую строку и сохранять старый
+      generalization-v1 namespace неизменным.
+
+  live-causal-recovery-promotion-reconsideration:
+    title: "Causal Recovery Promotion Reconsideration"
+    kind: task
+    parent: near-realtime-pipeline
+    deps: [live-causal-candidate-coverage-cheap-negative-prefilter-v1, corpus-regression]
+    status: blocked
+    effort: 3
+    notes: |
+      Нельзя начинать до завершения cheap-prefilter goal. Если все coverage/runtime/determinism/
+      per-session no-regression gates проходят, определить ограниченное включение, rollback и
+      inspection contract отдельным решением. Если хотя бы один gate не проходит, зафиксировать
+      воспроизводимый DO_NOT_PROMOTE и оставить normal preview неизменным; бесконечно продлевать
+      эксперимент новыми thresholds или записями нельзя.
 
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"
@@ -1986,6 +2009,21 @@ views:
       status: [current, next]
     order_by: status
 
+  causal-recovery-path:
+    title: "Текущий causal recovery path"
+    lanes:
+      completed-evidence:
+        title: "Зафиксированное доказательство"
+        nodes:
+          - live-causal-double-talk-me-recovery-v1
+          - live-causal-recovery-generalization-promotion-readiness-v1
+      current-goal:
+        title: "Текущая цель"
+        nodes: [live-causal-candidate-coverage-cheap-negative-prefilter-v1]
+      conditional-decision:
+        title: "Условное следующее решение"
+        nodes: [live-causal-recovery-promotion-reconsideration]
+
   cli-mvp:
     title: "Путь к CLI MVP"
     lanes:
@@ -2082,7 +2120,7 @@ x:
         mgmt:
           health: yellow
           sync_note: "CLI MVP, committed-PCM transport и Fast Authoritative Handoff закрыты. Generalization corpus дал 963 stable outcomes и DO_NOT_PROMOTE: negatives safe, но candidate coverage 268/783, три runtime timeout и один order regression. Production output остаётся batch."
-          next_sync_goal: "Добавить cheap causal negative prefilter, получить 783/783 bounded decisions и повторить frozen holdout runtime/no-regression gates."
+          next_sync_goal: "На frozen corpus добавить cheap causal negative prefilter, получить 783/783 bounded decisions и повторить holdout runtime/no-regression gates без новых записей и без изменения normal preview."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening, reliable-transcription-route]
