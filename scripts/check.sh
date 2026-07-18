@@ -22,6 +22,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-live-causal-remote-active-me-separation-v1.py
 "$python_bin" scripts/check-live-causal-double-talk-me-recovery-v1.py
 "$python_bin" scripts/check-causal-recovery-generalization-unit.py
+"$python_bin" scripts/check-causal-candidate-prefilter-v1.py
 "$python_bin" scripts/check-live-causal-me-recovery-runtime.py
 "$python_bin" scripts/check-live-recovery-incremental-cache.py
 "$python_bin" scripts/check-live-asr-cache-compatibility.py
@@ -43,6 +44,10 @@ scripts/smoke-raw-sidecar-worker.sh
 scripts/smoke-process-chunk-resume.sh
 if [[ -f sessions/_reports/session-quality/session_quality_report.json ]]; then
   scripts/check-current-pipeline-stabilization.py
+fi
+prefilter_report="sessions/_reports/live-pipeline/causal-candidate-coverage-cheap-negative-prefilter-v1/coverage_report_v1.json"
+if [[ -f "$prefilter_report" ]]; then
+  "$python_bin" scripts/check-causal-candidate-prefilter-acceptance-v1.py
 fi
 if command -v cargo >/dev/null 2>&1; then
   cargo fmt --manifest-path tools/murmurmark-aec-webrtc/Cargo.toml --check

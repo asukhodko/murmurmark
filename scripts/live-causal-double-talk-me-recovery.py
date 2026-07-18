@@ -28,8 +28,21 @@ import soundfile as sf
 from scipy import signal
 
 
+_PREFILTER_PATH = Path(__file__).with_name("causal_candidate_prefilter.py")
+_PREFILTER_SPEC = importlib.util.spec_from_file_location(
+    "murmurmark_causal_candidate_prefilter", _PREFILTER_PATH
+)
+if _PREFILTER_SPEC is None or _PREFILTER_SPEC.loader is None:
+    raise RuntimeError(f"cannot load helper: {_PREFILTER_PATH}")
+_PREFILTER = importlib.util.module_from_spec(_PREFILTER_SPEC)
+sys.modules[_PREFILTER_SPEC.name] = _PREFILTER
+_PREFILTER_SPEC.loader.exec_module(_PREFILTER)
+cheap_prefilter_fingerprint = _PREFILTER.decision_set_fingerprint
+cheap_prefilter_route_rows = _PREFILTER.route_rows
+
+
 SCHEMA = "murmurmark.causal_double_talk_me_recovery/v1"
-SCRIPT_VERSION = "1.1.0"
+SCRIPT_VERSION = "1.2.0"
 PROFILE = "causal_double_talk_me_recovery_v1"
 OUTPUT_RELATIVE = Path("derived/live/causal-double-talk-me-recovery-v1")
 SAMPLE_RATE = 16_000
@@ -457,6 +470,7 @@ def build_echo_model(
     audio: Any,
     progressive: ModuleType,
     separation: ModuleType,
+    fir_configs: tuple[tuple[str, int, float], ...] = FIR_CONFIGS,
 ) -> CausalEchoModel | None:
     rows = [
         row for row in evaluations
@@ -483,7 +497,7 @@ def build_echo_model(
     delay, delay_evidence = separation.estimate_delay(windows)
     fir_filters = {
         name: separation.fit_fir(windows, delay, taps=taps, regularization=regularization)
-        for name, taps, regularization in FIR_CONFIGS
+        for name, taps, regularization in fir_configs
     }
     return CausalEchoModel(
         target_start=target_start,
@@ -528,6 +542,8 @@ def residual_views(
     remote: np.ndarray,
     mic: np.ndarray,
     separation: ModuleType,
+    *,
+    view_profile: str = "full",
 ) -> list[dict[str, Any]]:
     count = min(remote.size, mic.size)
     remote = remote[:count]
@@ -535,7 +551,12 @@ def residual_views(
     aligned = separation.shift_reference(remote, model.delay_samples).astype(np.float64)
     views: list[dict[str, Any]] = []
     fir_echoes: dict[str, np.ndarray] = {}
-    for name, _, _ in FIR_CONFIGS:
+    fir_configs = (
+        (next(config for config in FIR_CONFIGS if config[0] == "fir_80ms_reg_2e2"),)
+        if view_profile == "runtime"
+        else FIR_CONFIGS
+    )
+    for name, _, _ in fir_configs:
         echo_hat = signal.lfilter(model.fir_filters[name], [1.0], aligned)
         fir_echoes[name] = echo_hat
         views.append({"method": name, "family": "fir", "residual": source - echo_hat, "echo_hat": echo_hat})
@@ -546,7 +567,8 @@ def residual_views(
     hybrid_echo = 0.65 * fir_echoes["fir_80ms_reg_2e2"] + 0.35 * spectral_echo
     hybrid = source - hybrid_echo
     views.append({"method": "hybrid_fir_spectral", "family": "hybrid", "residual": hybrid, "echo_hat": hybrid_echo})
-    for suffix, strength in (("mild", 0.85), ("strict", 1.20)):
+    ratio_configs = (("strict", 1.20),) if view_profile == "runtime" else (("mild", 0.85), ("strict", 1.20))
+    for suffix, strength in ratio_configs:
         residual = ratio_mask_residual(hybrid, hybrid_echo, strength=strength)
         views.append(
             {
@@ -1224,6 +1246,11 @@ def process_group(
         audio=audio,
         progressive=progressive,
         separation=separation,
+        fir_configs=(
+            (next(config for config in FIR_CONFIGS if config[0] == "fir_80ms_reg_2e2"),)
+            if view_profile == "runtime"
+            else FIR_CONFIGS
+        ),
     )
     if model is None:
         return {
@@ -1249,7 +1276,13 @@ def process_group(
             "view_count": 0,
         }, []
     remote, mic = pair
-    generated_views = residual_views(model, remote, mic, separation)
+    generated_views = residual_views(
+        model,
+        remote,
+        mic,
+        separation,
+        view_profile=view_profile,
+    )
     if view_profile == "runtime":
         generated_views = [
             row for row in generated_views if row.get("method") in RUNTIME_VIEW_METHODS
@@ -1283,7 +1316,13 @@ def process_group(
         localized_pair = audio.pair(chunk_index, extraction_start, extraction_end)
         if localized_pair is not None:
             remote, mic = localized_pair
-            generated_views = residual_views(model, remote, mic, separation)
+            generated_views = residual_views(
+                model,
+                remote,
+                mic,
+                separation,
+                view_profile=view_profile,
+            )
             if view_profile == "runtime":
                 generated_views = [
                     row for row in generated_views if row.get("method") in RUNTIME_VIEW_METHODS
@@ -1529,6 +1568,16 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--view-profile", choices=("full", "runtime"), default="full")
     parser.add_argument("--runtime-shadow", action="store_true")
+    parser.add_argument(
+        "--cheap-prefilter-v1",
+        action="store_true",
+        help="Route every eligible source row before expensive residual and micro-ASR work.",
+    )
+    parser.add_argument(
+        "--cheap-prefilter-decision-only",
+        action="store_true",
+        help="Write routing evidence without starting residual, Target-Me or micro-ASR work.",
+    )
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--output-dir", type=Path)
     return parser.parse_args()
@@ -1577,16 +1626,39 @@ def main() -> int:
     chunks = {safe_int(row.get("index")): row for row in chunks_rows}
     allowed = allowed_selection_ids(args.corpus_rows, session.name)
     selected, decisions = eligible_selections(selections, allowed)
+    contract_eligible_count = len(selected)
+    cheap_prefilter_decisions: list[dict[str, Any]] = []
     runtime_prefilter_rejected_count = 0
-    if args.runtime_shadow:
+    if args.cheap_prefilter_v1:
+        remote_text_by_id = {
+            str(row.get("id")): remote_text_for_interval(
+                session,
+                chunks.get(safe_int(row.get("chunk_index"))) or {},
+                safe_float(row.get("start")),
+                safe_float(row.get("end")),
+                progressive,
+            )
+            for row in selected
+        }
+        selected, cheap_prefilter_decisions = cheap_prefilter_route_rows(
+            selected,
+            remote_text_by_id=remote_text_by_id,
+            session=session.name,
+        )
+        runtime_prefilter_rejected_count = contract_eligible_count - len(selected)
+    elif args.runtime_shadow:
         processable = runtime_selection_scope(selected)
         runtime_prefilter_rejected_count = len(selected) - len(processable)
         selected = processable
-    process_selected = [
-        row
-        for row in selected
-        if safe_int(row.get("chunk_index")) >= max(1, args.from_chunk_index)
-    ]
+    process_selected = (
+        []
+        if args.cheap_prefilter_decision_only
+        else [
+            row
+            for row in selected
+            if safe_int(row.get("chunk_index")) >= max(1, args.from_chunk_index)
+        ]
+    )
     groups = group_selections(process_selected)
     runtime_budget_skipped_group_count = 0
     if args.runtime_shadow:
@@ -1677,6 +1749,12 @@ def main() -> int:
             candidates,
             key="id",
         )
+        if args.cheap_prefilter_v1:
+            cheap_prefilter_decisions = merge_rows(
+                read_jsonl(output / "cheap_prefilter_decisions.jsonl"),
+                cheap_prefilter_decisions,
+                key="id",
+            )
 
     accepted = [row for row in candidates if row.get("status") == "accepted"]
     classifications: dict[str, int] = {}
@@ -1691,7 +1769,8 @@ def main() -> int:
         "profile": PROFILE,
         "session": session.name,
         "source_selection_count": len(selections),
-        "eligible_source_selection_count": len(selected),
+        "eligible_source_selection_count": contract_eligible_count,
+        "expensive_source_selection_count": len(selected),
         "runtime_prefilter_rejected_count": runtime_prefilter_rejected_count,
         "runtime_budget_skipped_group_count": runtime_budget_skipped_group_count,
         "source_group_count": len(groups),
@@ -1709,6 +1788,22 @@ def main() -> int:
         "micro_asr": micro_asr_state,
         "view_profile": args.view_profile,
         "runtime_shadow": args.runtime_shadow,
+        "cheap_prefilter_v1": args.cheap_prefilter_v1,
+        "cheap_prefilter_decision_only": args.cheap_prefilter_decision_only,
+        "cheap_prefilter": {
+            "decision_count": len(cheap_prefilter_decisions),
+            "decision_fingerprint_sha256": (
+                cheap_prefilter_fingerprint(cheap_prefilter_decisions)
+                if cheap_prefilter_decisions
+                else None
+            ),
+            "routes": {
+                route: sum(row.get("route") == route for row in cheap_prefilter_decisions)
+                for route in ("cheap_reject", "expensive_candidate", "unresolved")
+            },
+            "same_logic_offline_and_runtime": True,
+            "evaluation_fields_used": False,
+        },
         "through_chunk_index": args.through_chunk_index or max(chunks, default=0),
         "source_selection": str(selection_path),
         "recording_time_evaluations": str(evaluations_path),
@@ -1735,12 +1830,15 @@ def main() -> int:
         "promotion_allowed": False,
         "outputs": {
             "source_decisions": str(output / "source_decisions.jsonl"),
+            "cheap_prefilter_decisions": str(output / "cheap_prefilter_decisions.jsonl"),
             "residual_views": str(output / "residual_views.jsonl"),
             "candidates": str(output / "candidates.jsonl"),
             "report": str(output / "report.md"),
         },
     }
     write_jsonl(output / "source_decisions.jsonl", decisions)
+    if args.cheap_prefilter_v1:
+        write_jsonl(output / "cheap_prefilter_decisions.jsonl", cheap_prefilter_decisions)
     write_jsonl(output / "residual_views.jsonl", views)
     write_jsonl(output / "candidates.jsonl", candidates)
     write_json(output / "state.json", state)

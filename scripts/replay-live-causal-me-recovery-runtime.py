@@ -191,6 +191,32 @@ def equivalent_double_talk_candidates(
     }
 
 
+def equivalent_prefilter_decisions(
+    offline_rows: list[dict[str, Any]],
+    runtime_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    offline = {str(row.get("id")): str(row.get("route")) for row in offline_rows if row.get("id")}
+    runtime = {str(row.get("id")): str(row.get("route")) for row in runtime_rows if row.get("id")}
+    common = sorted(set(offline) & set(runtime))
+    mismatched = [
+        {"id": row_id, "offline": offline[row_id], "runtime": runtime[row_id]}
+        for row_id in common
+        if offline[row_id] != runtime[row_id]
+    ]
+    missing = sorted(set(offline) - set(runtime))
+    extra = sorted(set(runtime) - set(offline))
+    return {
+        "comparison": "source_id_and_route",
+        "offline_count": len(offline),
+        "runtime_count": len(runtime),
+        "common_count": len(common),
+        "missing_in_runtime": missing,
+        "additional_in_runtime": extra,
+        "mismatched_routes": mismatched,
+        "passed": bool(offline) and not missing and not extra and not mismatched,
+    }
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Paced causal Me recovery replay over closed chunk cutoffs.")
     parser.add_argument("session", type=Path)
@@ -206,6 +232,11 @@ def parse_args() -> argparse.Namespace:
         "--output-dir",
         type=Path,
         help="Isolated runtime output; defaults to the canonical diagnostic namespace.",
+    )
+    parser.add_argument(
+        "--offline-dir",
+        type=Path,
+        help="Expected offline recovery output used for causal candidate agreement.",
     )
     parser.add_argument(
         "--max-captured-sec",
@@ -224,6 +255,11 @@ def parse_args() -> argparse.Namespace:
         choices=("all", "double-talk"),
         default="all",
         help="Keep legacy all-stage parity, or gate only the new double-talk stage.",
+    )
+    parser.add_argument(
+        "--recompute-report-only",
+        action="store_true",
+        help="Recompute candidate agreement from an existing replay without rerunning stages.",
     )
     return parser.parse_args()
 
@@ -260,6 +296,66 @@ def main() -> int:
     cutoffs = indexes[stride - 1 :: stride]
     if indexes[-1] not in cutoffs:
         cutoffs.append(indexes[-1])
+    if args.recompute_report_only:
+        report_path = output / "paced_replay.json"
+        report = read_json(report_path)
+        if not report:
+            print("error: existing paced replay report missing", file=sys.stderr)
+            return 2
+        final_cutoff = cutoffs[-1]
+        offline_dir = (
+            args.offline_dir.expanduser().resolve()
+            if args.offline_dir
+            else session / "derived/live/causal-double-talk-me-recovery-v1"
+        )
+        double_agreement = equivalent_double_talk_candidates(
+            accepted_rows(
+                offline_dir / "candidates.jsonl",
+                runtime=False,
+                through_chunk_index=final_cutoff,
+            ),
+            accepted_rows(
+                output / "double-talk-v1/candidates.jsonl",
+                runtime=False,
+                through_chunk_index=final_cutoff,
+            ),
+        )
+        prefilter_agreement = equivalent_prefilter_decisions(
+            [
+                row
+                for row in read_jsonl(offline_dir / "cheap_prefilter_decisions.jsonl")
+                if safe_int(row.get("chunk_index")) <= final_cutoff
+            ],
+            read_jsonl(output / "double-talk-v1/cheap_prefilter_decisions.jsonl"),
+        )
+        agreement = report.get("candidate_agreement") or {}
+        agreement["double_talk"] = double_agreement
+        agreement["cheap_prefilter"] = prefilter_agreement
+        report["candidate_agreement"] = agreement
+        invocations = report.get("invocations") or []
+        warm = report.get("warm_cache_verification") or {}
+        runtime_state = report.get("runtime_state") or {}
+        required = (
+            [double_agreement, prefilter_agreement]
+            if args.agreement_scope == "double-talk"
+            else list(agreement.values())
+        )
+        passed = bool(
+            invocations
+            and all(row.get("returncode") == 0 for row in invocations)
+            and all(row.get("passed") is True for row in required)
+            and runtime_state.get("completed_before_stop") is True
+            and (not args.verify_warm_final or warm.get("status") == "passed")
+        )
+        report["status"] = "passed" if passed else "failed"
+        report["agreement_scope"] = args.agreement_scope
+        report["report_recomputed_at"] = now_iso()
+        write_json(report_path, report)
+        print(f"status: {report['status']}")
+        print(f"double_talk_agreement: {double_agreement['passed']}")
+        print(f"cheap_prefilter_agreement: {prefilter_agreement['passed']}")
+        print(f"report: {report_path}")
+        return 0 if passed else 1
     runtime_script = Path(__file__).with_name("live-causal-me-recovery-runtime.py")
     invocations: list[dict[str, Any]] = []
     previous_end = 0.0
@@ -399,19 +495,32 @@ def main() -> int:
         runtime=True,
         through_chunk_index=final_cutoff,
     )
+    offline_dir = (
+        args.offline_dir.expanduser().resolve()
+        if args.offline_dir
+        else session / "derived/live/causal-double-talk-me-recovery-v1"
+    )
     replay_double_rows = accepted_rows(
-        session / "derived/live/causal-double-talk-me-recovery-v1/candidates.jsonl",
+        offline_dir / "candidates.jsonl",
         runtime=False,
         through_chunk_index=final_cutoff,
     )
     runtime_double_rows = accepted_rows(
         output / "double-talk-v1/candidates.jsonl",
-        runtime=True,
+        runtime=args.offline_dir is None,
         through_chunk_index=final_cutoff,
     )
     double_agreement = equivalent_double_talk_candidates(
         replay_double_rows,
         runtime_double_rows,
+    )
+    prefilter_agreement = equivalent_prefilter_decisions(
+        [
+            row
+            for row in read_jsonl(offline_dir / "cheap_prefilter_decisions.jsonl")
+            if safe_int(row.get("chunk_index")) <= final_cutoff
+        ],
+        read_jsonl(output / "double-talk-v1/cheap_prefilter_decisions.jsonl"),
     )
     agreement = {
         "local_island": {
@@ -429,10 +538,11 @@ def main() -> int:
             "passed": replay_remote == runtime_remote,
         },
         "double_talk": double_agreement,
+        "cheap_prefilter": prefilter_agreement,
     }
     state = read_json(output / "state.json")
     required_agreements = (
-        [agreement["double_talk"]]
+        [agreement["double_talk"], agreement["cheap_prefilter"]]
         if args.agreement_scope == "double-talk"
         else list(agreement.values())
     )

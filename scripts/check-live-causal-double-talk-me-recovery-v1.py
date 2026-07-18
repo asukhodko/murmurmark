@@ -431,6 +431,39 @@ def check_stage_timeout_fail_open(runtime: ModuleType) -> None:
         assert result["timed_out"] is True, result
 
 
+def check_prefilter_watermark_survives_expensive_timeout(runtime: ModuleType) -> None:
+    with tempfile.TemporaryDirectory(prefix="murmurmark-double-talk-watermark-") as temporary:
+        state_path = Path(temporary) / "state.json"
+        calls: list[tuple[list[str], float]] = []
+
+        def fake_runner(command: list[str], *, timeout_sec: float = 0.0) -> dict[str, Any]:
+            calls.append((command, timeout_sec))
+            if "--cheap-prefilter-decision-only" in command:
+                state_path.write_text(
+                    json.dumps({"through_chunk_index": 22}) + "\n",
+                    encoding="utf-8",
+                )
+                return {"status": "passed", "elapsed_sec": 0.01}
+            return {
+                "status": "timed_out_fail_open",
+                "elapsed_sec": timeout_sec,
+                "timed_out": True,
+            }
+
+        prefilter, expensive = runtime.run_double_talk_stages(
+            ["fake-double-talk", "--from-chunk-index", "22"],
+            state_path=state_path,
+            through_chunk_index=22,
+            runner=fake_runner,
+        )
+        assert prefilter["watermark_persisted"] is True, prefilter
+        assert prefilter["persisted_through_chunk_index"] == 22, prefilter
+        assert expensive["status"] == "timed_out_fail_open", expensive
+        assert calls[0][1] == 0.0 and calls[1][1] == runtime.DOUBLE_TALK_STAGE_TIMEOUT_SEC
+        assert runtime.next_double_talk_chunk(state_path, force=False) == 23
+        assert runtime.next_double_talk_chunk(state_path, force=True) == 1
+
+
 def main() -> int:
     module = load_module(
         "live-causal-double-talk-me-recovery.py",
@@ -450,6 +483,7 @@ def main() -> int:
     check_corrupt_whisper_cache(module)
     check_missing_model_fail_open(module)
     check_stage_timeout_fail_open(runtime)
+    check_prefilter_watermark_survives_expensive_timeout(runtime)
     print("live causal double-talk Me recovery v1 checks ok")
     return 0
 

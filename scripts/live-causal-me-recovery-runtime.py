@@ -22,7 +22,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_causal_me_recovery_runtime/v1"
-SCRIPT_VERSION = "1.2.0"
+SCRIPT_VERSION = "1.3.0"
 BASE_PROFILE = (
     "online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_"
     "local_island_micro_asr_v2_causal_remote_active_me_separation_v1_runtime_v1"
@@ -164,13 +164,49 @@ def candidate_turn(row: dict[str, Any], source: str) -> dict[str, Any]:
         "chunk_index": row.get("chunk_index"),
         "source": source,
         "role": "Me",
-        "start": safe_float(row.get("start")),
+        "start": safe_float(row.get("runtime_publication_start"), safe_float(row.get("start"))),
         "end": safe_float(row.get("end")),
         "text": clean_text(row.get("text")),
         "candidate_source": source,
         "timeline_causal": True,
         "used_batch_fields_for_selection": False,
         "runtime_evidence": row.get("runtime_evidence") or {},
+        "runtime_publication_retime": row.get("runtime_publication_retime"),
+    }
+
+
+def apply_next_chunk_overlap_publication_retime(
+    row: dict[str, Any],
+    baseline_turns: list[dict[str, Any]],
+) -> None:
+    """Order an older-chunk candidate before overlap context copied into the next chunk."""
+    chunk_index = safe_int(row.get("chunk_index"))
+    start = safe_float(row.get("start"))
+    end = safe_float(row.get("end"), start)
+    counterparts = [
+        turn
+        for turn in baseline_turns
+        if turn.get("role") == "Colleagues"
+        and safe_int(turn.get("chunk_index")) == chunk_index + 1
+        and safe_float(turn.get("start")) <= start
+        and safe_float(turn.get("end"), safe_float(turn.get("start"))) > start
+        and start - safe_float(turn.get("start")) <= 5.5
+    ]
+    if not counterparts:
+        return
+    counterpart = max(counterparts, key=lambda turn: safe_float(turn.get("start")))
+    publication_start = max(0.0, min(start, safe_float(counterpart.get("start")) - 0.001))
+    if publication_start >= end or start - publication_start > 5.5:
+        return
+    row["runtime_publication_start"] = round(publication_start, 3)
+    row["runtime_publication_retime"] = {
+        "reason": "older_chunk_candidate_before_next_chunk_overlap_context",
+        "original_start": round(start, 3),
+        "publication_start": round(publication_start, 3),
+        "counterpart_id": counterpart.get("id"),
+        "counterpart_chunk_index": counterpart.get("chunk_index"),
+        "counterpart_start": round(safe_float(counterpart.get("start")), 3),
+        "batch_fields_used": False,
     }
 
 
@@ -220,6 +256,7 @@ def mark_superseded_candidates(
         row_id = str(row.get("id") or "")
         if row_id in kept_ids:
             row["runtime_publication_status"] = "effective_candidate"
+            apply_next_chunk_overlap_publication_retime(row, baseline_turns)
             effective.append(row)
         else:
             row["runtime_publication_status"] = "superseded_by_later_base_turn"
@@ -271,6 +308,44 @@ def run_stage(command: list[str], *, timeout_sec: float = 0.0) -> dict[str, Any]
         "stdout_tail": stdout[-2000:],
         "stderr_tail": stderr[-2000:],
     }
+
+
+def next_double_talk_chunk(state_path: Path, *, force: bool) -> int:
+    if force:
+        return 1
+    return max(1, safe_int(read_json(state_path).get("through_chunk_index")) + 1)
+
+
+def run_double_talk_stages(
+    command: list[str],
+    *,
+    state_path: Path,
+    through_chunk_index: int,
+    runner: Any = run_stage,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Persist cheap routes before disposable expensive work starts."""
+    prefilter = runner([*command, "--cheap-prefilter-decision-only"])
+    persisted_cutoff = safe_int(read_json(state_path).get("through_chunk_index"))
+    prefilter["persisted_through_chunk_index"] = persisted_cutoff
+    prefilter["watermark_persisted"] = persisted_cutoff >= through_chunk_index
+    if prefilter.get("status") == "passed" and prefilter["watermark_persisted"]:
+        expensive = runner(command, timeout_sec=DOUBLE_TALK_STAGE_TIMEOUT_SEC)
+    else:
+        expensive = {
+            "status": "skipped_prefilter_failed_open",
+            "returncode": None,
+            "timeout_sec": DOUBLE_TALK_STAGE_TIMEOUT_SEC,
+            "timed_out": False,
+            "elapsed_sec": 0.0,
+            "stdout_tail": "",
+            "stderr_tail": "",
+            "reason": (
+                "prefilter_failed"
+                if prefilter.get("status") != "passed"
+                else "prefilter_watermark_not_persisted"
+            ),
+        }
+    return prefilter, expensive
 
 
 def add_runtime_evidence(
@@ -478,18 +553,17 @@ def main() -> int:
         "--through-chunk-index",
         str(args.through_chunk_index),
         "--from-chunk-index",
-        str(1 if args.force else max(1, previous_double_cutoff + 1)),
+        str(next_double_talk_chunk(double_output / "state.json", force=args.force)),
         "--source-selection",
         str(local_output / "selection.jsonl"),
         "--output-dir",
         str(double_output),
         "--runtime-shadow",
+        "--cheap-prefilter-v1",
         "--view-profile",
         "runtime",
         "--micro-asr-backend",
-        "whisper-cpp-cpu",
-        "--model",
-        args.model,
+        "faster-whisper",
         "--language",
         args.language,
         "--whisper-cli",
@@ -497,7 +571,14 @@ def main() -> int:
     ]
     if args.force:
         double_command.append("--force")
-    double_stage = run_stage(double_command, timeout_sec=DOUBLE_TALK_STAGE_TIMEOUT_SEC)
+    # Persist every cheap causal route before starting disposable expensive work. If the latter
+    # times out, the decision-only state advances the watermark and prevents the same candidate
+    # from consuming the full timeout on every later chunk.
+    double_prefilter_stage, double_stage = run_double_talk_stages(
+        double_command,
+        state_path=double_output / "state.json",
+        through_chunk_index=args.through_chunk_index,
+    )
     double_rows = add_runtime_evidence(
         double_output / "candidates.jsonl",
         invocation=invocation,
@@ -596,6 +677,12 @@ def main() -> int:
     double_incremental = {
         "stage": "causal_double_talk_me_recovery_v1",
         "status": double_stage.get("status"),
+        "prefilter_status": double_prefilter_stage.get("status"),
+        "prefilter_elapsed_sec": double_prefilter_stage.get("elapsed_sec"),
+        "prefilter_watermark_chunk_index": double_prefilter_stage.get(
+            "persisted_through_chunk_index"
+        ),
+        "prefilter_watermark_persisted": double_prefilter_stage.get("watermark_persisted"),
         "through_chunk_index": args.through_chunk_index,
         "previous_through_chunk_index": previous_double_cutoff,
         "new_chunk_count": max(0, args.through_chunk_index - previous_double_cutoff),
@@ -637,6 +724,7 @@ def main() -> int:
         "stages": {
             "local_island_v2": local_stage,
             "remote_active_v1": remote_stage,
+            "double_talk_prefilter_v1": double_prefilter_stage,
             "double_talk_v1": double_stage,
         },
         "incremental_runtime": {
