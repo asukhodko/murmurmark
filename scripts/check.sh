@@ -21,6 +21,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-live-causal-local-island-micro-asr-v2.py
 "$python_bin" scripts/check-live-causal-remote-active-me-separation-v1.py
 "$python_bin" scripts/check-live-causal-double-talk-me-recovery-v1.py
+"$python_bin" scripts/check-causal-recovery-generalization-unit.py
 "$python_bin" scripts/check-live-causal-me-recovery-runtime.py
 "$python_bin" scripts/check-live-recovery-incremental-cache.py
 "$python_bin" scripts/check-live-asr-cache-compatibility.py
