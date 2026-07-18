@@ -121,11 +121,17 @@ The completed live-recovery experiment is narrower and measurable:
 
 ## Current Bounded Step
 
-Authoritative Transcript Boundary and Review Closure v1 works on the selected batch transcript and
-the existing operational corpus. It builds a finite queue of order and start/end-boundary risks,
-uses source ASR segments, speaker state, review audio and prior decisions to classify each row, and
-applies only explainable safe edits in a new profile. Success means lower mandatory review without
-per-session remote-like `Me`, order, local-recall, token-F1, notes or export regression.
+Authoritative Transcript Boundary and Review Closure v1 is complete. Its frozen operational queue
+contained `337` rows / `1731.892s`; source ASR segments, speaker state, review audio and prior
+decisions safely closed `213` rows / `1253.620s`. The promoted `authoritative_boundary_v1` profile
+keeps the remaining `124` rows / `478.272s` explicit and passes every per-session remote-like `Me`,
+order, local-recall, local-content, notes and export gate.
+
+Residual Me Evidence Closure v1 is the current bounded step. It rebuilds exact local-island and
+whole-utterance clips for that residual queue, adds independent Target-Me, remote-forbidden and
+micro-ASR evidence, and applies only provenance-preserving decisions. Success means closing at least
+25% of both residual rows and seconds without a corpus regression; otherwise it publishes a
+reproducible `DO_NOT_PROMOTE` with exact blockers.
 
 This step does not change capture, Echo Guard, the primary ASR, live promotion or raw audio. The
 failed live-recovery profile remains diagnostic evidence rather than another user-facing branch.

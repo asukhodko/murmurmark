@@ -8,43 +8,64 @@ This file is authoritative for the active executable goal. Roadmap status and de
 in `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`; the Markdown roadmap explains the same route for
 humans. Completed sections below are historical evidence and cannot redefine the active scope.
 
-## Current Goal: Authoritative Transcript Boundary and Review Closure v1
+## Current Goal: Residual Me Evidence Closure v1
 
-Status, 2026-07-18: selected after the second causal-recovery promotion experiment completed with
-`DO_NOT_PROMOTE`. Live recovery stays useful as diagnostic evidence, but it is not the shortest path
-to a more dependable user result.
+Status, 2026-07-18: selected from the residual queue left by the promoted
+`authoritative_boundary_v1` profile. The next useful work is in authoritative batch evidence, not in
+reopening the failed live-promotion branch.
 
-Objective: reduce the mandatory review queue of the authoritative batch transcript by repairing only
-proven order and start/end-boundary errors. Reuse existing source ASR segments, audio-review clips,
-speaker state and review decisions; keep uncertain rows explicit instead of guessing.
+Objective: safely reduce the remaining `124` mandatory rows / `478.272s` without asking the user to
+listen to every clip. The fixed scope is `67` audio-review rows / `203.620s`, `34` local-recall rows /
+`128.002s` and `23` order rows / `146.650s`.
 
 Implementation sequence:
 
-1. Freeze the current operational corpus, selected transcript fingerprints and review burden.
-2. Build one finite queue of unresolved batch order and boundary rows, including opening/closing
-   phrases and mixed long `Me` turns.
-3. Classify each row as safe repair, safe keep, duplicate/noise drop or manual review using existing
-   audio and source-segment evidence.
-4. Apply only whole, explainable edits in a new transcript profile; never rewrite raw CAF, Echo Guard
-   output, primary ASR or existing profiles.
-5. Recompute transcript order, remote-like `Me`, token F1, selected notes, review burden and guarded
-   export readiness per session.
-6. Promote the profile only if every corpus gate passes; otherwise retain the useful subset as review
-   suggestions and publish exact blockers.
+1. Freeze the promoted boundary outputs, residual queue, evidence files and per-session metrics.
+2. Rebuild exact whole-utterance and local-island audio spans instead of reusing broad overlapping
+   clips whose evidence conflicts.
+3. Add independent local-speaker and remote-forbidden checks to the stronger local ASR judge.
+4. Recover a local utterance only when local-only state, Target-Me/audio evidence and local micro-ASR
+   agree; preserve the exact source text and interval provenance.
+5. Split an order row only when source segments or bounded micro-ASR prove both local sides and no
+   unique local content is discarded.
+6. Keep protected work phrases and every conflict as `needs_review`; do not lower thresholds merely
+   to improve the closure count.
+7. Publish an isolated candidate profile and promote it only through the same corpus-wide
+   no-regression contract as `authoritative_boundary_v1`.
 
 Definition of Done:
 
-- every selected order/boundary row has one stable machine-readable disposition and evidence IDs;
-- mandatory review actions and seconds decrease on the frozen operational corpus;
-- no session regresses remote-like `Me`, contentful order, local recall, token F1, notes evidence or
-  export safety;
-- unresolved content remains in the review queue;
-- normal `record -> process -> next -> finish` behavior, raw audio and current selected profile stay
-  unchanged until a separate passing promotion decision;
-- tests, documentation, roadmap and OpsKarta describe the same result and next action.
+- every residual row has a reproducible evidence outcome and immutable evidence IDs;
+- at least 25% of the residual rows and seconds are closed safely, or a reproducible
+  `DO_NOT_PROMOTE` names the exact unsolved classes;
+- no session regresses verdict, local recall, local content, remote-like `Me`, order, notes evidence,
+  review burden or guarded export;
+- missing/corrupt models, clips or evidence fail open to `needs_review`;
+- repeated runs are byte-deterministic and preserve raw CAF plus every frozen input profile;
+- README, contracts, runbook, roadmap and OpsKarta record the result, next goal, commits and push.
 
-Out of scope: capture, Echo Guard, default ASR, live promotion, timeout increases, cloud processing,
-speaker diarization and UI work.
+Out of scope: capture, Echo Guard, primary ASR replacement, live promotion, cloud processing,
+individual `Colleagues` diarization and UI work.
+
+## Completed Goal: Authoritative Transcript Boundary and Review Closure v1
+
+Completed, 2026-07-18, with decision `PROMOTE_AUTHORITATIVE_BOUNDARY_V1`.
+
+The baseline freezes `26` operational sessions and `337` mandatory rows / `1731.892s`. The
+evidence-only profile safely closes `213` rows / `1253.620s` (`63.20%`) and leaves `124` rows /
+`478.272s` explicit. The residual split is `67` audio-review, `34` local-recall and `23` order rows.
+
+`authoritative_boundary_v1` changes no frozen profile or raw input. It uses source ASR segments,
+speaker state, group-overlap, audio-review and faster-whisper judge artifacts to choose only
+`keep`, `drop_duplicate_or_noise`, `split_at_proven_boundary` or `needs_review`. Missing evidence
+fails open. The corpus gate verifies baseline hashes, exact remote preservation, unchanged text
+outside target intervals, local-content preservation, local-recall and verdict no-regression,
+profile-specific notes evidence IDs and deterministic output fingerprints.
+
+The user-facing selector promotes the profile only when the corpus report and per-session report
+both pass. `status`, review, notes and export therefore share one promotion decision. The reports are
+under `sessions/_reports/authoritative-boundary-v1/`; per-session applied/rejected decisions are
+under `derived/transcript-simple/whisper-cpp/authoritative-boundary-v1/`.
 
 ## Completed Goal: Causal Candidate Coverage and Cheap Negative Prefilter v1
 

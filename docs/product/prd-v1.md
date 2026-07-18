@@ -71,9 +71,12 @@ Current operating point, 2026-07-18:
   It routes all `783` eligible rows and removes the previous order regression. All `65` frozen
   negative controls remain rejected, but one post-hoc ASR-noise candidate and runtime gates (`0/3`
   holdouts, p95 up to `42.634s`) keep it diagnostic.
-- The current bounded goal is Authoritative Transcript Boundary and Review Closure v1: repair only
-  evidence-backed batch order/start/end errors, reduce mandatory review and preserve explicit
-  uncertainty, raw audio and selected-profile safety.
+- Authoritative Transcript Boundary and Review Closure v1 is complete with
+  `PROMOTE_AUTHORITATIVE_BOUNDARY_V1`: the evidence-backed batch profile closes `213/337` rows and
+  `1253.620/1731.892s` while preserving explicit uncertainty, raw audio and selected-profile safety.
+- The current bounded goal is Residual Me Evidence Closure v1: build exact local audio and source
+  evidence for the remaining `124` rows / `478.272s`, then close a material safe subset or publish
+  a reproducible `DO_NOT_PROMOTE` without weakening corpus gates.
 
 Still future:
 

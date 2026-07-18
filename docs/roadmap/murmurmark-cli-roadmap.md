@@ -80,8 +80,11 @@ and Cheap Negative Prefilter v1 then routed all `783` eligible rows (`48/159/576
 order regression. All `65` frozen negative controls remain rejected, but one new candidate is
 post-hoc probable ASR noise; `0/3` holdouts passed runtime gates (`20` fail-open timeouts, p95 up to
 `42.634s`). Its decision is also `DO_NOT_PROMOTE`.
-The nearest product goal is Authoritative Transcript Boundary and Review Closure v1: use existing
-batch evidence to reduce the explicit review queue without guessing or changing live promotion.
+Authoritative Transcript Boundary and Review Closure v1 then completed with
+`PROMOTE_AUTHORITATIVE_BOUNDARY_V1`: `213/337` frozen rows / `1253.620s` are closed safely and the
+remaining queue is `124` rows / `478.272s`, with no per-session gate regressions.
+The nearest product goal is Residual Me Evidence Closure v1: improve exact local-audio and source
+provenance for those residual rows without guessing or changing live promotion.
 Near-Realtime Live Parity Coverage v1 already proved complete raw capture, pre-stop preview,
 terminal workers, zero final lag and successful batch output on three fresh real sessions. Live
 promotion remains blocked.
@@ -389,13 +392,13 @@ flowchart LR
 
 ### Next
 
-- Authoritative Transcript Boundary and Review Closure v1:
-  - freeze the current operational batch corpus and review burden;
-  - classify every selected order/start/end-boundary row from source ASR, speaker state, audio clips
-    and existing review decisions;
-  - apply only evidence-backed edits in a new profile and keep uncertainty explicit;
-  - reduce mandatory review actions/seconds without per-session remote-like `Me`, order, local-recall,
-    token-F1, notes or export regression;
+- Residual Me Evidence Closure v1:
+  - freeze the promoted boundary profile and its `124` residual rows / `478.272s`;
+  - rebuild exact whole-utterance and local-island evidence for `67` audio, `34` local-recall and
+    `23` order rows;
+  - use local-speaker, remote-forbidden and micro-ASR agreement before keep/drop/insert/split;
+  - close at least 25% of residual rows and seconds without per-session verdict, order, local-recall,
+    local-content, notes or export regression, or publish exact `DO_NOT_PROMOTE` blockers;
   - keep live recovery diagnostic after its reproducible `DO_NOT_PROMOTE` result;
 - keep `--live-pipeline` disabled by default; all new evidence should go through
   `record --experiment live-shadow-v1`.
@@ -548,15 +551,14 @@ Recently completed:
 
 ## Goal Sequence
 
-Recommended nearest goal: **Authoritative Transcript Boundary and Review Closure v1**. The
-cheap-prefilter branch is complete with a second `DO_NOT_PROMOTE`; extending it now would spend more
-compute without improving the authoritative user result.
+Recommended nearest goal: **Residual Me Evidence Closure v1**. Boundary closure already promoted a
+measurable improvement; the remaining queue now names the exact evidence gaps. Extending the failed
+live-prefilter branch would not improve the authoritative user result.
 
-1. **Authoritative Transcript Boundary and Review Closure v1.** Build a finite evidence-backed queue
-   of batch order/start/end errors, apply only safe repairs in a new profile and reduce mandatory
-   review without per-session regressions.
+1. **Residual Me Evidence Closure v1.** Rebuild exact local-audio/source evidence for the `124`
+   residual rows and close a material safe subset without weakening the promoted boundary gates.
 2. **Operational corpus and export closure.** Recompute selected notes, verdict, review burden and
-   guarded export after the boundary profile; unresolved content must remain explicit.
+   guarded export after the residual profile; unresolved content must remain explicit.
 3. **Persistent causal expensive worker, optional lab.** Only if live recovery is reopened, reuse one
    loaded local faster-whisper model against the same immutable corpus. Do not change route decisions,
    the `28s` timeout, normal preview or batch authority.

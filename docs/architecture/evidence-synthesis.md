@@ -31,11 +31,10 @@ derived/synthesis-simple/extractive/
   review_items.jsonl
 ```
 
-The `auto` profile first prefers `audit_cleanup_v7` when its gates pass and it applied a material
-segment repair. Then it tries `reviewed_v1`, `agent_reviewed_v1`, and the remaining passing
-`audit_cleanup_v6..v1` profiles. If `order_repair_v1` was built over the selected base, passed its
-gates and applied at least one repair, `auto` selects the repaired order profile. Otherwise it falls
-back to `shadow_v2` only when `repair_comparison.json` passes, and finally the baseline
+The `auto` profile first prefers `authoritative_boundary_v1` when both its session gates and frozen
+corpus promotion report pass. Otherwise it follows the existing order: a material passing
+`audit_cleanup_v7`, `reviewed_v1`, `agent_reviewed_v1`, the remaining passing
+`audit_cleanup_v6..v1`, a compatible passing `order_repair_v1`, passing `shadow_v2`, then baseline
 `clean_dialogue.json`.
 The script reads only derived transcript and audit JSON; it never reads raw audio.
 
@@ -55,6 +54,7 @@ Current data flow:
 ```text
 clean_dialogue.json
   -> optional audit_cleanup_v* profile
+  -> optional corpus-gated authoritative_boundary_v1
   -> topic_blocks
   -> candidate_items
   -> scored_items

@@ -53,7 +53,9 @@ Implemented now:
 - timeline repair for long mic segments crossing remote intervals;
 - micro-ASR on short local islands;
 - `shadow_v2` no-regression profile with audit artifacts;
-- start-of-call repair for short opening turns such as `Привет`, `Меня слышно?`, `Привет, да`.
+- start-of-call repair for short opening turns such as `Привет`, `Меня слышно?`, `Привет, да`;
+- corpus-gated `authoritative_boundary_v1`, which freezes selected batch inputs and closes only
+  order/boundary rows supported by existing source segments or independent audio evidence.
 
 `Colleagues` has a strict provenance invariant: its text may only come from ASR over the `remote`
 track. The microphone may provide timing, echo, overlap and confidence evidence, but its recognized
@@ -88,6 +90,27 @@ Limitations:
 - some long overlaps remain audit risks;
 - `transcript.rich.json` and `speaker_map.json` are not emitted yet;
 - Markdown is useful for reading, but JSON remains the safer processing target.
+
+### Authoritative boundary profile
+
+`authoritative_boundary_v1` is an isolated derivative of the profile selected at corpus freeze. It
+does not rerun ASR and cannot edit `remote` text. Every frozen row receives one disposition:
+
+```text
+keep
+drop_duplicate_or_noise
+split_at_proven_boundary
+needs_review
+```
+
+A split requires saved mic ASR segments on the proven local sides of a remote turn and zero unique
+local-content loss. A drop requires two independent high-confidence audio judges, a whole `Me`
+utterance, no protected work marker and no unique `Me` content. Missing or conflicting evidence is
+`needs_review`.
+
+The profile is selected only after the corpus report says `PROMOTE_AUTHORITATIVE_BOUNDARY_V1`, the
+session is listed in `promoted_sessions`, its own gates pass and all profile artifacts exist. This
+keeps stale or partial experimental outputs from becoming authoritative.
 
 ## Input
 

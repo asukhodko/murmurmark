@@ -643,6 +643,50 @@ review material without blocking the operational gate. `check-corpus-gates.py` a
 aggregate report itself and fails `transcript_order.no_complete_blocking_sessions` only when a
 selected operational session remains blocked by chronology risk.
 
+### Authoritative boundary closure
+
+Use this corpus step after order, local-recall and audio-review evidence has been built. It freezes
+the currently selected operational profiles; do not use `--force` merely to pick up later generated
+candidates.
+
+```bash
+murmurmark report corpus
+murmurmark corpus boundary freeze
+murmurmark corpus boundary run
+murmurmark report corpus
+
+jq '{decision, summary, gates}' \
+  sessions/_reports/authoritative-boundary-v1/boundary_corpus_report.json
+less sessions/_reports/authoritative-boundary-v1/boundary_corpus_report.md
+```
+
+For a single session already present in the frozen scope:
+
+```bash
+murmurmark repair boundary "$SESSION"
+murmurmark synthesize "$SESSION" --transcript-profile authoritative_boundary_v1
+murmurmark report "$SESSION"
+```
+
+The command does not rerun ASR. It can keep an evidence-confirmed overlap, drop a two-judge whole
+duplicate/noise `Me` utterance or split a long `Me` turn at source-segment boundaries. Every other
+row remains `needs_review`. `auto`, `status`, notes and export use the profile only after the global
+decision is `PROMOTE_AUTHORITATIVE_BOUNDARY_V1`, the session is in `promoted_sessions`, the frozen
+input SHA values still match and the promoted output fingerprint is current. Reprocessing a source
+profile makes the boundary result stale by design; rerun the corpus boundary command before relying
+on it again.
+
+Useful per-session artifacts:
+
+```bash
+jq '{input_profile, summary, gates}' \
+  "$SESSION/derived/transcript-simple/whisper-cpp/authoritative-boundary-v1/boundary_repair_report.json"
+less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.authoritative_boundary_v1.md"
+```
+
+If evidence is missing or changed, the row fails open; repair never falls back to a text guess. A
+failed corpus decision leaves all previous profile selection unchanged.
+
 ## Remote Leak Segment Plan
 
 Remote leak and partial remote duplicates need a different safety shape. A `remote_leak` region or
@@ -1900,7 +1944,7 @@ does not call an LLM, and does not read raw audio.
 Profile selection:
 
 ```text
-auto      -> audit_cleanup_v7 when it passed and applied material segment repair, then reviewed_v1 when review gates pass, then agent_reviewed_v1 when agent gates pass, then audit_cleanup_v6/v5/v4/v3/v2/v1 with passing cleanup gates, but may select order_repair_v1 over any of those bases when order repair gates pass and at least one repair was applied; then shadow_v2 if repair_comparison.json passes, otherwise current
+auto      -> promoted authoritative_boundary_v1 for listed passing sessions; otherwise audit_cleanup_v7 when it passed and applied material segment repair, then reviewed_v1 when review gates pass, then agent_reviewed_v1 when agent gates pass, then audit_cleanup_v6/v5/v4/v3/v2/v1 with passing cleanup gates, but may select order_repair_v1 over any of those bases when order repair gates pass and at least one repair was applied; then shadow_v2 if repair_comparison.json passes, otherwise current
 current   -> baseline clean_dialogue.json
 shadow_v2 -> shadow clean_dialogue.shadow_v2.json, marked risky if comparison failed
 audit_cleanup_v1..v7 -> audit-cleaned dialogue, marked risky if cleanup gates failed
@@ -1908,6 +1952,7 @@ reviewed_v1 -> human-reviewed dialogue, marked risky if review gates failed
 agent_reviewed_v1 -> agent-reviewed dialogue, marked risky if review gates failed
 suggested_review_v1 -> machine-suggested review candidate, explicit only, never selected by auto
 order_repair_v1 -> transcript-order repair candidate, eligible for auto only when built over the selected base profile, gates passed and at least one repair was applied; marked risky if requested explicitly and gates failed
+authoritative_boundary_v1 -> frozen corpus boundary profile; eligible for auto only after global PROMOTE, per-session gates and promoted-session membership all pass
 ```
 
 The script writes a quality verdict and a conservative `notes.md`. The v3 notes path is extractive

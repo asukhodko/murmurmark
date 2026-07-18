@@ -721,6 +721,69 @@ When `order_repair_v1` gates pass, `report-session-quality.py` may select this p
 `unrepaired_order_risks == 0`. Otherwise it keeps `review_transcript_order_items` and counts the
 remaining seconds in `transcript_order_review_seconds`.
 
+### Authoritative Boundary Closure
+
+`murmurmark corpus boundary freeze` creates an immutable operational baseline and a complete finite
+review queue:
+
+```text
+sessions/_reports/authoritative-boundary-v1/
+  baseline_manifest.json
+  boundary_review_queue.jsonl
+```
+
+The manifest schema is `murmurmark.authoritative_boundary_baseline/v1`. It records each selected
+input profile, SHA-256 for transcript/quality/notes/export inputs, utterance and token fingerprints,
+review metrics, queue count/seconds and the queue hash. Queue rows use
+`murmurmark.authoritative_boundary_queue_item/v1` and have a stable `boundary_queue_id`, interval,
+utterance IDs, source audit ID, review lane and allowed decisions.
+
+`murmurmark corpus boundary run` applies the frozen queue and writes an isolated profile:
+
+```text
+derived/transcript-simple/whisper-cpp/resolved/
+  clean_dialogue.authoritative_boundary_v1.json
+  transcript.authoritative_boundary_v1.md
+  transcript.simple.authoritative_boundary_v1.json
+  quality_report.authoritative_boundary_v1.json
+  overlaps.authoritative_boundary_v1.json
+
+derived/transcript-simple/whisper-cpp/authoritative-boundary-v1/
+  boundary_repair_report.json
+  boundary_repair_applied.jsonl
+  boundary_repair_rejected.jsonl
+  boundary_repair_diff.json
+  boundary_review_queue.jsonl
+```
+
+The report uses `murmurmark.authoritative_boundary_report/v1`; each applied or rejected row uses
+`murmurmark.authoritative_boundary_disposition/v1`. Allowed dispositions are `keep`,
+`drop_duplicate_or_noise`, `split_at_proven_boundary` and `needs_review`. A missing source field is
+normalized from the frozen review lane, but the frozen queue ID remains unchanged.
+
+Safety rules:
+
+- `Colleagues` tuples and text outside target intervals must remain exact;
+- a split must preserve every content token not already supported by the crossed remote utterance;
+- a drop requires a whole `Me` utterance, two independent high-confidence duplicate/noise judges,
+  no protected work marker and no unique local content;
+- missing, corrupt or conflicting evidence is `needs_review`;
+- the source profile and all frozen artifacts are read-only.
+
+Corpus evaluation writes `murmurmark.authoritative_boundary_corpus_report/v1` as
+`boundary_corpus_report.json` plus a Markdown view. `PROMOTE_AUTHORITATIVE_BOUNDARY_V1` requires at
+least 20% safe queue closure, fewer mandatory actions and seconds, complete dispositions, unchanged
+baseline hashes, no per-session verdict/local-recall/local-content/duplicate/review regression,
+valid notes evidence IDs and matching deterministic output fingerprints. Otherwise the decision is
+`DO_NOT_PROMOTE` and `auto` must ignore the candidate profile.
+
+When promoted, `report-session-quality.py`, synthesis, review readiness and export select the
+profile only for sessions listed in `promoted_sessions` whose own gates pass. Selection also checks
+all source artifact SHA values against the frozen manifest, the baseline-manifest SHA against the
+corpus report and the current profile files against the promoted output fingerprint. A later
+source-profile regeneration or partial/stale output therefore fails open to the previous selected profile.
+Generated files alone are insufficient evidence of promotion.
+
 `murmurmark corpus order` aggregates per-session order audits into:
 
 ```text

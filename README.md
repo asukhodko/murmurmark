@@ -91,9 +91,15 @@ Authoritative operating point, 2026-07-18:
   post-hoc as probable ASR noise. No holdout passes all runtime gates (`0/3`): `20` expensive-stage
   attempts time out fail-open and maximum overall p95 is `42.634s`. Offline/runtime routing still
   agrees for all `643` holdout rows and final lag is `0`;
-- the next product goal is Authoritative Transcript Boundary and Review Closure v1: reduce the
-  batch transcript's explicit review queue using existing source segments and audio evidence while
-  keeping uncertain content visible. Live recovery remains a diagnostic branch.
+- Authoritative Transcript Boundary and Review Closure v1 is complete with
+  `PROMOTE_AUTHORITATIVE_BOUNDARY_V1`. The frozen operational queue contains `337` rows /
+  `1731.892s`; existing source segments and independent audio evidence safely close `213` rows /
+  `1253.620s` (`63.20%`). The promoted `authoritative_boundary_v1` leaves `124` explicit rows /
+  `478.272s`, preserves every frozen baseline artifact and passes per-session verdict, local-recall,
+  local-content, duplicate, review-queue, notes-evidence and output-fingerprint gates;
+- the next product goal is Residual Me Evidence Closure v1: resolve the remaining local-recall,
+  audio-ambiguity and unsplittable order rows using exact local audio and source provenance. Live
+  recovery remains a diagnostic branch.
 
 Planning authority is intentionally split by purpose: [current-goal.md](docs/project/current-goal.md)
 defines the active executable goal and its acceptance gates, the
@@ -1359,6 +1365,24 @@ murmurmark next corpus --refresh
 murmurmark report corpus
 ```
 
+To freeze the current operational transcript profiles and close only evidence-backed boundary rows:
+
+```bash
+murmurmark report corpus
+murmurmark corpus boundary freeze
+murmurmark corpus boundary run
+murmurmark report corpus
+
+jq '{decision, summary, gates}' \
+  sessions/_reports/authoritative-boundary-v1/boundary_corpus_report.json
+```
+
+`boundary run` writes the isolated `authoritative_boundary_v1` profile. `auto`, `status`, notes and
+export select it only when the global corpus decision is `PROMOTE_AUTHORITATIVE_BOUNDARY_V1`, the
+session is in `promoted_sessions` and its own gates pass. A missing or changed evidence file leaves
+the affected row as `needs_review`; it never mutates raw CAF, Echo Guard, ASR or the frozen input
+profile. For one already-frozen session, use `murmurmark repair boundary "$SESSION"`.
+
 `corpus gate` now treats the review queue as a hard product signal: by default it allows at most
 `15` packed mandatory review actions and `25` queue rows across the operational corpus. The current
 corpus is below that line (`9` actions / `12` rows), so future cleanup must preserve the shorter
@@ -1656,9 +1680,11 @@ state is:
 12. **Completed prefilter decision:** all `783` eligible rows have causal routes and the previous
     order regression is removed. One post-hoc ASR-noise false positive and a `0/3` runtime result
     produce a second reproducible `DO_NOT_PROMOTE`; normal preview and batch stay unchanged.
-13. **Current goal:** Authoritative Transcript Boundary and Review Closure v1. Repair only proven
-    batch order/boundary errors, reduce the mandatory review queue and leave every uncertain row
-    explicit. UI remains optional and late.
+13. **Completed boundary closure:** `authoritative_boundary_v1` safely closes `213/337` frozen rows
+    and reduces mandatory review from `1731.892s` to `478.272s`; all promotion gates pass.
+14. **Current goal:** Residual Me Evidence Closure v1. Address the remaining `67` audio-review,
+    `34` local-recall and `23` order rows with exact local-audio/source evidence, while every
+    unresolved or conflicting case remains explicit. UI remains optional and late.
 
 <details>
 <summary>Historical implementation log (non-authoritative)</summary>
