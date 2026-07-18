@@ -122,6 +122,9 @@ def check_selection_contract(module: ModuleType) -> None:
     selected, decisions = module.eligible_selections([selection()], None)
     assert len(selected) == 1 and decisions[0]["status"] == "selected", decisions
     assert decisions[0]["used_batch_fields_for_selection"] is False
+    selected_repeat, decisions_repeat = module.eligible_selections([selection()], None)
+    assert selected_repeat == selected
+    assert decisions_repeat == decisions
 
     mutated = selection(batch_text="future authoritative answer", batch_start=-900.0)
     selected_mutated, decisions_mutated = module.eligible_selections([mutated], None)
@@ -261,6 +264,48 @@ def check_residual_families(module: ModuleType) -> None:
     assert np.sqrt(np.mean(np.square(remote_only_fir["residual"]))) < 1.0e-8
 
 
+def check_rejection_classification(module: ModuleType) -> None:
+    remote_leak = [
+        {
+            "text": "это удаленная реплика",
+            "text_evidence": {"remote_guard_status": "rejected"},
+            "audio_metrics": {"after": {"remote_strength": 0.7}},
+        }
+    ]
+    assert module.classify_rejection(remote_leak, []) == "probable_remote_leak"
+
+    asr_noise = [
+        {
+            "text": "да",
+            "text_evidence": {"remote_guard_status": "passed"},
+            "audio_metrics": {"after": {"remote_strength": 0.5}},
+        }
+    ]
+    assert module.classify_rejection(asr_noise, []) == "probable_asr_noise"
+
+    insufficient = [
+        {
+            "text": "локальная фраза",
+            "text_evidence": {"remote_guard_status": "passed"},
+            "audio_metrics": {"after": {"remote_strength": 0.5}},
+        }
+    ]
+    assert (
+        module.classify_rejection(insufficient, ["insufficient_causal_echo_training"])
+        == "insufficient_evidence"
+    )
+
+    timing = [
+        {
+            "text": "локальная фраза",
+            "text_evidence": {"remote_guard_status": "passed"},
+            "audio_metrics": {"after": {"remote_strength": 0.08}},
+        }
+    ]
+    assert module.classify_rejection(timing, []) == "probable_timing_overlap"
+    assert module.classify_rejection(insufficient, []) == "insufficient_evidence"
+
+
 def check_shadow_contract(compare: ModuleType) -> None:
     policy = compare.CAUSAL_DOUBLE_TALK_ME_RECOVERY_V1_PROFILE_POLICY
     assert policy in compare.MATERIALIZED_TARGET_ME_SHADOW_POLICIES
@@ -287,6 +332,17 @@ def check_shadow_contract(compare: ModuleType) -> None:
         turns, rejected = compare.causal_double_talk_me_recovery_v1_shadow_turns(session)
         assert not turns
         assert "remote_text_forbidden" in rejected[0]["failed_checks"]
+
+        unsafe_audio = accepted_candidate(
+            independent_evidence={
+                **accepted_candidate()["independent_evidence"],
+                "remote_audio_forbiddance": False,
+            }
+        )
+        write_jsonl(candidates, [unsafe_audio])
+        turns, rejected = compare.causal_double_talk_me_recovery_v1_shadow_turns(session)
+        assert not turns
+        assert "remote_audio_forbidden" in rejected[0]["failed_checks"]
 
 
 def check_corrupt_whisper_cache(module: ModuleType) -> None:
@@ -349,6 +405,23 @@ def check_corrupt_whisper_cache(module: ModuleType) -> None:
         assert counter.read_text() == "1"
 
 
+def check_missing_model_fail_open(module: ModuleType) -> None:
+    with tempfile.TemporaryDirectory(prefix="murmurmark-double-talk-missing-model-") as temporary:
+        root = Path(temporary)
+        wav = root / "clip.wav"
+        sf.write(wav, np.zeros(1_600, dtype=np.float32), 16_000, subtype="PCM_16")
+        asr = module.WhisperCppCPUMicroASR(
+            root / "missing-model.bin",
+            language="ru",
+            whisper_cli=str(root / "missing-whisper-cli"),
+            progressive=ProgressiveStub(),
+        )
+        result = asr.run(wav, root / "asr/candidate", force=False)
+        assert result["status"] == "failed", result
+        assert result["reason"] == "model_missing", result
+        assert result["text"] == "", result
+
+
 def check_stage_timeout_fail_open(runtime: ModuleType) -> None:
     with tempfile.TemporaryDirectory(prefix="murmurmark-double-talk-timeout-") as temporary:
         sleeper = Path(temporary) / "sleep.py"
@@ -372,8 +445,10 @@ def main() -> int:
     check_runtime_scope_and_priority(module)
     check_past_only_training(module)
     check_residual_families(module)
+    check_rejection_classification(module)
     check_shadow_contract(compare)
     check_corrupt_whisper_cache(module)
+    check_missing_model_fail_open(module)
     check_stage_timeout_fail_open(runtime)
     print("live causal double-talk Me recovery v1 checks ok")
     return 0

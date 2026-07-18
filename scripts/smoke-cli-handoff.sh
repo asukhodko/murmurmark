@@ -516,6 +516,11 @@ echo "$status_output" | grep -q '^    minimum_step: murmurmark finish '
 echo "$status_output" | grep -q '^  authoritative_handoff:$'
 tail -1 <<<"$status_output" | grep -q '^next: murmurmark finish '
 
+handoff_next_output="$("$bin" next "$session")"
+echo "$handoff_next_output" | grep -q '^next:$'
+echo "$handoff_next_output" | grep -q '^  command: murmurmark finish '
+echo "$handoff_next_output" | grep -q '^  source: authoritative_handoff$'
+
 outcome_output="$("$bin" outcome "$session")"
 echo "$outcome_output" | grep -q '^outcome:$'
 echo "$outcome_output" | grep -q '^  status: ready_for_notes$'
@@ -537,7 +542,7 @@ tail -1 <<<"$report_output" | grep -q '^next: murmurmark finish '
 next_output="$("$bin" next "$session")"
 echo "$next_output" | grep -q '^next:$'
 echo "$next_output" | grep -q '^  command: murmurmark finish '
-echo "$next_output" | grep -q '^  source: authoritative_handoff$'
+echo "$next_output" | grep -q '^  source: outcome$'
 
 review_session="$workdir/sessions/review-handoff"
 mkdir -p \

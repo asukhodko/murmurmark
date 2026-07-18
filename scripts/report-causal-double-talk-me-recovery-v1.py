@@ -17,7 +17,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.causal_double_talk_me_recovery_report/v1"
-SCRIPT_VERSION = "1.1.0"
+SCRIPT_VERSION = "1.2.0"
 PREVIOUS_PROFILE = (
     "online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_"
     "local_island_micro_asr_v2_causal_remote_active_me_separation_v1"
@@ -253,6 +253,149 @@ def runtime_acceptance(paths: list[Path]) -> dict[str, Any]:
     }
 
 
+def manifest_contract_evidence(manifest: dict[str, Any]) -> dict[str, Any]:
+    checks = manifest.get("checks") if isinstance(manifest.get("checks"), dict) else {}
+    contract = manifest.get("contract") if isinstance(manifest.get("contract"), dict) else {}
+    forbidden = {clean_text(value).lower() for value in contract.get("selection_forbidden") or []}
+    required_forbidden = {
+        "evaluation_reference",
+        "authoritative batch text",
+        "authoritative batch timestamps",
+        "future chunks or future enrollment",
+    }
+    evidence_checks = {
+        "manifest_checks_pass": bool(checks) and all(value is True for value in checks.values()),
+        "causal_inputs_frozen": bool(manifest.get("causal_input_manifest")),
+        "evaluation_and_batch_fields_forbidden": required_forbidden.issubset(forbidden),
+        "batch_fields_are_evaluation_only": contract.get("batch_fields_use") == "evaluation_only",
+        "publication_is_explicit_shadow_only": contract.get("publication") == "explicit shadow only",
+    }
+    return {
+        "status": "passed" if all(evidence_checks.values()) else "failed",
+        "checks": evidence_checks,
+        "selection_allowed": contract.get("selection_allowed") or [],
+        "selection_forbidden": contract.get("selection_forbidden") or [],
+        "causal_input_count": len(manifest.get("causal_input_manifest") or []),
+    }
+
+
+def boundary_evidence(candidate: dict[str, Any], reference: dict[str, Any]) -> dict[str, Any]:
+    reference_start = safe_float(reference.get("start"))
+    reference_end = safe_float(reference.get("end"), reference_start)
+    candidate_start = safe_float(candidate.get("start"))
+    candidate_end = safe_float(candidate.get("end"), candidate_start)
+    reference_duration = max(0.0, reference_end - reference_start)
+    candidate_duration = max(0.0, candidate_end - candidate_start)
+    overlap = interval_overlap(reference_start, reference_end, candidate_start, candidate_end)
+    return {
+        "evaluated": reference_duration > 0.0 and candidate_duration > 0.0,
+        "reference_start_sec": round(reference_start, 3),
+        "reference_end_sec": round(reference_end, 3),
+        "candidate_start_sec": round(candidate_start, 3),
+        "candidate_end_sec": round(candidate_end, 3),
+        "candidate_duration_sec": round(candidate_duration, 3),
+        "overlap_sec": round(overlap, 3),
+        "reference_coverage_ratio": round(overlap / reference_duration, 6) if reference_duration else 0.0,
+        "candidate_precision_ratio": round(overlap / candidate_duration, 6) if candidate_duration else 0.0,
+        "start_delta_sec": round(candidate_start - reference_start, 3),
+        "end_delta_sec": round(candidate_end - reference_end, 3),
+        "leading_spill_sec": round(max(0.0, reference_start - candidate_start), 3),
+        "trailing_spill_sec": round(max(0.0, candidate_end - reference_end), 3),
+        "bounded_candidate_duration": 0.0 < candidate_duration <= 12.0,
+        "evaluation_only": True,
+    }
+
+
+def strict_candidate_contract(candidate: dict[str, Any]) -> bool:
+    evidence = (
+        candidate.get("independent_evidence")
+        if isinstance(candidate.get("independent_evidence"), dict)
+        else {}
+    )
+    training = (
+        candidate.get("causal_echo_training")
+        if isinstance(candidate.get("causal_echo_training"), dict)
+        else {}
+    )
+    return all(
+        (
+            candidate.get("status") == "accepted",
+            candidate.get("classification") == "genuine_double_talk",
+            candidate.get("timeline_causal") is True,
+            candidate.get("used_batch_fields_for_selection") is False,
+            candidate.get("selection_mode")
+            == "recording_time_causal_double_talk_me_recovery_v1",
+            training.get("status") == "passed",
+            training.get("past_only") is True,
+            evidence.get("acceptance_mode")
+            in {
+                "multi_residual_family_consensus",
+                "single_residual_plus_independent_voice_asr",
+            },
+            safe_float(evidence.get("target_me_family_count")) >= 1,
+            evidence.get("local_asr_consensus") is True,
+            evidence.get("remote_text_forbiddance") is True,
+            evidence.get("remote_audio_forbiddance") is True,
+            candidate.get("publication_allowed") is False,
+            candidate.get("promotion_allowed") is False,
+            candidate.get("batch_authoritative") is True,
+        )
+    )
+
+
+def lab_evidence(
+    sessions_root: Path,
+    session_names: list[str],
+    candidates: list[dict[str, Any]],
+) -> dict[str, Any]:
+    views: list[dict[str, Any]] = []
+    sources: list[str] = []
+    for session_name in session_names:
+        path = (
+            sessions_root
+            / session_name
+            / "derived/live/causal-double-talk-me-recovery-v1/residual_views.jsonl"
+        )
+        rows = read_jsonl(path)
+        if rows:
+            sources.append(str(path))
+            views.extend(rows)
+    families = sorted({str(row.get("family")) for row in views if row.get("family")})
+    methods = sorted({str(row.get("method")) for row in views if row.get("method")})
+    rejected_views = [row for row in views if row.get("view_status") != "eligible"]
+    accepted_candidates = [row for row in candidates if row.get("status") == "accepted"]
+    allowed_classifications = {
+        "genuine_double_talk",
+        "probable_remote_leak",
+        "probable_timing_overlap",
+        "probable_asr_noise",
+        "insufficient_evidence",
+    }
+    classifications = Counter(str(row.get("classification") or "missing") for row in candidates)
+    checks = {
+        "at_least_three_residual_families": len(families) >= 3,
+        "residual_views_present": bool(views),
+        "all_rejected_views_explained": bool(rejected_views)
+        and all(bool(row.get("reasons")) for row in rejected_views),
+        "all_candidates_classified": bool(candidates)
+        and all(row.get("classification") in allowed_classifications for row in candidates),
+        "accepted_candidates_pass_strict_contract": bool(accepted_candidates)
+        and all(strict_candidate_contract(row) for row in accepted_candidates),
+    }
+    return {
+        "status": "passed" if all(checks.values()) else "failed",
+        "checks": checks,
+        "source_files": sources,
+        "view_count": len(views),
+        "eligible_view_count": sum(row.get("view_status") == "eligible" for row in views),
+        "rejected_view_count": len(rejected_views),
+        "families": families,
+        "methods": methods,
+        "candidate_classifications": dict(sorted(classifications.items())),
+        "accepted_candidate_count": len(accepted_candidates),
+    }
+
+
 def evaluate_row(
     row: dict[str, Any],
     candidates: list[dict[str, Any]],
@@ -332,6 +475,16 @@ def evaluate_row(
                 "metrics": best.get("metrics"),
                 "reasons": best["candidate"].get("reasons") or [],
                 "independent_evidence": best["candidate"].get("independent_evidence") or {},
+                "causal_echo_training": best["candidate"].get("causal_echo_training") or {},
+                "timeline_causal": best["candidate"].get("timeline_causal"),
+                "used_batch_fields_for_selection": best["candidate"].get(
+                    "used_batch_fields_for_selection"
+                ),
+                "selection_mode": best["candidate"].get("selection_mode"),
+                "publication_allowed": best["candidate"].get("publication_allowed"),
+                "promotion_allowed": best["candidate"].get("promotion_allowed"),
+                "batch_authoritative": best["candidate"].get("batch_authoritative"),
+                "boundary_evidence": boundary_evidence(best["candidate"], reference),
             }
             if best
             else None
@@ -356,6 +509,8 @@ def render_markdown(report: dict[str, Any], outcomes: list[dict[str, Any]]) -> s
         f"- Frozen inputs: `{(report.get('frozen_inputs') or {}).get('status')}`",
         f"- Per-session gates: `{sum(row.get('status') == 'passed' for row in report.get('session_gates') or [])}/{len(report.get('session_gates') or [])}`",
         f"- Runtime replay: `{(report.get('runtime_acceptance') or {}).get('status')}`",
+        f"- Corpus contract: `{(report.get('manifest_contract') or {}).get('status')}`",
+        f"- Residual/evidence lab: `{(report.get('lab_evidence') or {}).get('status')}`",
         "",
         "## Fixed Corpus Outcomes",
         "",
@@ -371,6 +526,17 @@ def render_markdown(report: dict[str, Any], outcomes: list[dict[str, Any]]) -> s
             lines.append(f"  Candidate: {clean_text(best.get('text')) or '(no text)'}")
         if row.get("status") != "accepted":
             lines.append(f"  Reason: `{row.get('reason')}`")
+    lines.extend(
+        [
+            "",
+            "## Completion Evidence",
+            "",
+            f"- Residual families: `{', '.join((report.get('lab_evidence') or {}).get('families') or [])}`",
+            f"- Residual views: `{(report.get('lab_evidence') or {}).get('view_count')}`",
+            f"- Explained rejected views: `{str(((report.get('lab_evidence') or {}).get('checks') or {}).get('all_rejected_views_explained')).lower()}`",
+            f"- Recovered rows with boundary evidence: `{str(((report.get('acceptance') or {}).get('checks') or {}).get('recovered_rows_have_boundary_evidence')).lower()}`",
+        ]
+    )
     return "\n".join(lines) + "\n"
 
 
@@ -402,7 +568,8 @@ def main() -> int:
     corpus_rows = read_jsonl(corpus_dir / "corpus_rows_v1.jsonl")
     progressive = load_script("live-progressive-target-me.py", "murmurmark_cdt_report_progressive")
     session_candidates: dict[str, list[dict[str, Any]]] = {}
-    for session_name in sorted({str(row.get("session")) for row in corpus_rows}):
+    session_names = sorted({str(row.get("session")) for row in corpus_rows})
+    for session_name in session_names:
         session_candidates[session_name] = read_jsonl(
             sessions_root
             / session_name
@@ -426,6 +593,13 @@ def main() -> int:
         for row in outcomes
     ]
     frozen_inputs = verify_frozen_inputs(manifest, repo_root)
+    manifest_contract = manifest_contract_evidence(manifest)
+    all_candidates = [
+        candidate
+        for session_name in session_names
+        for candidate in session_candidates.get(session_name, [])
+    ]
+    lab = lab_evidence(sessions_root, session_names, all_candidates)
     previous_report = read_json(args.previous_report.expanduser().resolve())
     gates = session_gate_rows(previous_report, sessions_root)
     runtime_paths = [path.expanduser().resolve() for path in args.runtime_replay]
@@ -459,6 +633,36 @@ def main() -> int:
         "selection_is_batch_free": all(row.get("used_batch_fields_for_selection") is False for row in outcomes),
         "frozen_raw_echo_preview_authoritative_inputs_unchanged": frozen_inputs.get("status") == "passed",
         "runtime_p95_within_30s_and_final_lag_zero": runtime.get("status") == "passed",
+        "manifest_contract_passed": manifest_contract.get("status") == "passed",
+        "at_least_three_residual_families_evaluated": (
+            (lab.get("checks") or {}).get("at_least_three_residual_families") is True
+        ),
+        "all_outcomes_explained_and_classified": len(outcomes) == 16
+        and all(
+            bool(row.get("reason"))
+            and (row.get("best_candidate") or {}).get("classification")
+            in {
+                "genuine_double_talk",
+                "probable_remote_leak",
+                "probable_timing_overlap",
+                "probable_asr_noise",
+                "insufficient_evidence",
+            }
+            for row in outcomes
+        ),
+        "accepted_candidates_pass_strict_evidence": (
+            (lab.get("checks") or {}).get("accepted_candidates_pass_strict_contract") is True
+        ),
+        "recovered_rows_have_boundary_evidence": bool(recovered)
+        and all(
+            ((row.get("best_candidate") or {}).get("boundary_evidence") or {}).get("evaluated")
+            is True
+            and ((row.get("best_candidate") or {}).get("boundary_evidence") or {}).get(
+                "bounded_candidate_duration"
+            )
+            is True
+            for row in recovered
+        ),
     }
     summary = {
         "corpus_row_count": len(outcomes),
@@ -484,6 +688,8 @@ def main() -> int:
         "profile": PROFILE,
         "previous_profile": PREVIOUS_PROFILE,
         "frozen_inputs": frozen_inputs,
+        "manifest_contract": manifest_contract,
+        "lab_evidence": lab,
         "session_gates": gates,
         "runtime_acceptance": runtime,
         "acceptance": {
@@ -495,6 +701,22 @@ def main() -> int:
             "timeline_causal": True,
             "batch_fields_forbidden": True,
             "evaluation_reference_used_post_selection_only": True,
+        },
+        "completion_evidence": {
+            "corpus_contract": manifest_contract.get("status"),
+            "residual_and_fusion_lab": lab.get("status"),
+            "fixed_outcome_count": len(outcomes),
+            "recovered_boundary_evidence_count": sum(
+                ((row.get("best_candidate") or {}).get("boundary_evidence") or {}).get(
+                    "evaluated"
+                )
+                is True
+                for row in recovered
+            ),
+            "runtime_replay": runtime.get("status"),
+            "frozen_inputs": frozen_inputs.get("status"),
+            "normal_preview_and_authoritative_outputs_preserved": frozen_inputs.get("status")
+            == "passed",
         },
         "hypotheses": {
             "accepted": [
