@@ -4,31 +4,62 @@ This file keeps the latest goal context and the most relevant completed goals. T
 path remains non-live `record -> process`. Live output stays shadow-only and batch transcript remains
 authoritative.
 
-## Current Goal: Causal Recovery Generalization and Promotion Readiness v1
+## Current Goal: Causal Candidate Coverage and Cheap Negative Prefilter v1
 
-Status, 2026-07-18: selected after Causal Double-Talk Me Recovery v1 passed every fixed-corpus and
-runtime gate. The new double-talk layer is useful, but it is still an explicit-only shadow tested on
-a narrow, deliberately selected corpus. The next task is to decide whether the combined causal
-recovery stack generalizes well enough to enter the normal live preview path.
+Status, 2026-07-18: selected after the generalization corpus produced a reproducible
+`DO_NOT_PROMOTE` decision. The strict recovery contract rejected every negative control, but the
+expensive stage covered only `268/783` eligible source rows, timed out in all three holdout replays
+and added one effective order blocker on one holdout.
 
-Objective: expand evaluation from the fixed `16` double-talk rows to every eligible remote-active
-candidate and a deliberate remote-only/adversarial negative set, prove recording-time behavior on
-fresh sessions, and make one evidence-backed promotion decision. Batch remains authoritative in
-either outcome.
+Objective: give every eligible remote-active source row a bounded causal decision before expensive
+micro-ASR. A cheap first pass should reject obvious remote-only and ASR-noise rows, preserve
+plausible local speech for the strict residual/Target-Me/ASR stage and make the recording-time
+worker complete inside its existing budget. Use the existing immutable corpus first; no new real
+recordings are required to begin.
 
 Definition of Done:
 
-- build an immutable generalization corpus that includes accepted, rejected, runtime-only and
-  remote-only controls without using batch fields for candidate selection;
-- explain the extra runtime candidates that do not map to the original `16` rows and classify each
-  as genuine recovery, duplicate, remote leak, timing overlap, ASR noise or insufficient evidence;
-- reproduce offline and recording-time outcomes, with bounded p95, zero final lag and fail-open
-  behavior under timeout, corrupt cache and backpressure;
-- require per-session no-regression for remote-like `Me`, effective order blockers, token F1 and
-  mandatory review burden, plus unchanged raw/Echo Guard/authoritative SHA-256 inputs;
-- collect fresh real-session evidence before changing normal preview wiring;
-- either promote the combined causal layer to the normal advisory live preview behind a rollback
-  switch, or publish a reproducible no-promotion report with the exact blocker and next experiment.
+- produce a causal cheap-prefilter decision for `783/783` eligible source rows;
+- keep authoritative batch fields, future chunks and future Target-Me enrollment unavailable to
+  selection;
+- preserve the original `4` fixed recoveries / `11.56s` and accept zero remote-only, ASR-noise or
+  adversarial negative controls;
+- reserve expensive residual/Target-Me/micro-ASR processing for rows with positive local evidence;
+- make all three frozen holdout replays deterministic with runtime p95 at most `30s`, final lag `0`
+  and fail-open behavior unchanged;
+- remove the `3 -> 4` holdout order regression and keep remote-like `Me`, token F1 and mandatory
+  review burden no worse in every session;
+- publish a new binary promotion-readiness decision without changing normal preview unless every
+  gate passes.
+
+## Completed Goal: Causal Recovery Generalization and Promotion Readiness v1
+
+Completed, 2026-07-18, with decision `DO_NOT_PROMOTE`.
+
+The immutable corpus contains `963` rows from ten sessions: the original `16` fixed positives,
+`783` eligible remote-active source rows and `164` offline candidates. Three independent holdouts
+cover `9105.631s` and include a group meeting plus two 1x1 calls. The manifest freezes `832` raw,
+Echo Guard, live/runtime and authoritative files; all SHA-256 values verify unchanged.
+
+All rows have stable evaluation-only outcomes: `284` genuine double-talk, `549` probable remote
+leak, `28` probable ASR noise, `11` timing overlap and `91` insufficient evidence. There are `65`
+adversarial negative candidate controls, and none was accepted. The original `4` rows / `11.56s`
+remain recovered.
+
+Promotion stays blocked for three reasons:
+
+- only `268/783` eligible source rows reached the expensive candidate stage;
+- all three bounded recording-time replays exhausted the `28s` stage timeout and completed
+  fail-open without final equivalence/lag proof;
+- on one 75-minute 1x1 holdout, missing `Me` and token F1 improve but effective order blockers
+  regress from `3` to `4`.
+
+Fail-open checks for missing model, corrupt caches, timeout and backpressure pass. Two complete
+evaluation runs produce the same outcome fingerprint
+`550a6eb71cf3defdf2b5ed29659cfce0da2a900c846e7f50c9548f51d15fe147`.
+Normal preview is byte-preserved, remote-forbidden guards are unchanged and batch remains
+authoritative. Reports are under
+`sessions/_reports/live-pipeline/causal-recovery-generalization-v1/`.
 
 ## Completed Goal: Causal Double-Talk Me Recovery v1
 

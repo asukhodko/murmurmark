@@ -376,6 +376,33 @@ derived/experiments/live-shadow-v1/fallback/
 Fallback must not read still-open raw CAF files, overwrite `derived/live/`, or be counted as
 recording-time evidence. Every fallback row carries `provenance: post_stop_raw_commit_recovery`.
 
+## Causal Recovery Generalization Contract
+
+The explicit-only generalization lab writes these schemas under
+`sessions/_reports/live-pipeline/causal-recovery-generalization-v1/`:
+
+- `murmurmark.causal_recovery_generalization_corpus/v1`;
+- `murmurmark.causal_recovery_generalization_corpus_row/v1`;
+- `murmurmark.causal_recovery_generalization_outcome/v1`;
+- `murmurmark.causal_recovery_generalization_report/v1`;
+- `murmurmark.causal_recovery_promotion_decision/v1`;
+- `murmurmark.causal_recovery_fail_open_report/v1`;
+- `murmurmark.causal_recovery_generalization_acceptance/v1`.
+
+Every corpus row separates `causal_selection` from `evaluation_reference`. Selection code may not
+read `evaluation_reference`; reporters may use it only after the causal decision is fixed. Each row
+has a stable fingerprint, and the manifest fingerprint covers rows, thresholds, input hashes,
+regression/holdout membership and the causal evidence contract.
+
+`promotion_decision.status: passed` means a reproducible binary decision exists. The `decision`
+field is independently `PROMOTE` or `DO_NOT_PROMOTE`. A completed `DO_NOT_PROMOTE` report must name
+all blockers and one concrete next experiment. It leaves `normal_live_preview_changed: false`,
+`batch_authoritative: true` and `remote_forbidden_guards_weakened: false`.
+
+Current v1 decision is `DO_NOT_PROMOTE`: candidate-stage coverage is incomplete, three holdout
+recording-time replays time out fail-open, and one holdout gains an effective order blocker. The
+fixed positive result and all authoritative hashes remain intact.
+
 ## Report
 
 `report.json` and `report.md` are readable summaries of the manifest and state. They are not

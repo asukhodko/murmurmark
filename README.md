@@ -77,9 +77,16 @@ Authoritative operating point, 2026-07-18:
   All `356` frozen raw/Echo Guard/preview/authoritative input hashes remain unchanged. The final
   completion audit covers `161` FIR/spectral/hybrid/ratio-mask views, explains every rejected view
   and records evaluation-only boundary evidence for every recovered row;
-- the current bounded goal is Causal Recovery Generalization and Promotion Readiness v1: expand the
-  narrow success to a broader negative/positive corpus and fresh recording-time evidence before
-  deciding whether the combined recovery may enter the normal advisory live preview.
+- Causal Recovery Generalization and Promotion Readiness v1 is complete with `DO_NOT_PROMOTE`.
+  Its immutable corpus contains `963` outcomes from ten sessions, three holdouts / `9105.631s`,
+  `832` unchanged input hashes and all required negative-control families. The original `4` rows /
+  `11.56s` remain recovered and no negative control is accepted;
+- promotion is blocked because only `268/783` eligible source rows reached the expensive candidate
+  stage, all three holdout runtime replays timed out fail-open, and one holdout gains an effective
+  order blocker (`3 -> 4`). Normal preview remains unchanged and batch remains authoritative;
+- the next bounded goal is Causal Candidate Coverage and Cheap Negative Prefilter v1: give every
+  eligible row a cheap causal decision, reserve expensive micro-ASR for plausible local speech and
+  repeat the same immutable holdout without collecting more meetings first.
 
 The system deliberately keeps unresolved uncertainty visible. Suggested review decisions may close
 only rows supported by local audio and audit evidence. `finish` and guarded `export` remain blocked
@@ -90,7 +97,10 @@ Current reliability route:
 review and final handoff are implemented. Live Local Recall and Remote Leakage Hardening v1 and
 Causal Local-Island Micro-ASR v2, Causal Remote-Active Me Separation v1 and their bounded
 recording-time integration are complete. Causal Double-Talk Me Recovery v1 adds another strictly
-guarded explicit-only layer. The replay-proven capture-safe base shadow is
+guarded explicit-only layer. Generalization keeps that layer explicit-only; see
+[the architecture note](docs/architecture/causal-recovery-generalization.md) and
+[the reproducibility runbook](docs/runbooks/causal-recovery-generalization.md). The replay-proven
+capture-safe base shadow is
 `online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_local_island_micro_asr_v2_causal_remote_active_me_separation_v1`.
 Its runtime-only counterpart ends in `_runtime_v1` and remains disconnected from normal preview.
 The [current goal context](docs/project/current-goal.md) tracks the next bounded hardening step.
@@ -1582,8 +1592,10 @@ rule and need corpus gates before any automatic review decision.
 - [CLI roadmap](docs/roadmap/murmurmark-cli-roadmap.md)
 - [Roadmap plan, opskarta v3](docs/roadmap/murmurmark-cli-roadmap.plan.yaml)
 - [Experimental sidecar architecture](docs/architecture/experimental-sidecar.md)
+- [Causal recovery generalization](docs/architecture/causal-recovery-generalization.md)
 - [First recording runbook](docs/runbooks/first-recording.md)
 - [Transcription and review runbook](docs/runbooks/transcribe-simple-whispercpp.md)
+- [Causal recovery generalization runbook](docs/runbooks/causal-recovery-generalization.md)
 - [Transcript and evidence contracts](docs/contracts/transcript-and-evidence.md)
 - [Evidence synthesis architecture](docs/architecture/evidence-synthesis.md)
 - [Open-source readiness](docs/project/open-source-readiness.md)
@@ -1622,10 +1634,13 @@ state is:
 10. **Completed double-talk recovery:** all `16` fixed rows have stable outcomes; `4` rows /
     `11.56s` are recovered, missing `Me` falls to `1639.73s`, all no-regression gates and the bounded
     runtime gate pass, and normal preview/batch remain unchanged.
-11. **Current goal:** Causal Recovery Generalization and Promotion Readiness v1. Expand the proof to
-    broad positive and remote-only controls plus fresh recording-time sessions, then either promote
-    the combined recovery to advisory live preview behind rollback or publish a precise no-promotion
-    verdict. UI remains optional and late.
+11. **Completed generalization decision:** `963` stable outcomes, `832` unchanged input hashes,
+    three independent holdout replays and deterministic acceptance produce `DO_NOT_PROMOTE`.
+    Coverage, runtime timeout and one order regression keep the layer explicit-only.
+12. **Current goal:** Causal Candidate Coverage and Cheap Negative Prefilter v1. Give all `783`
+    eligible source rows bounded causal outcomes, reject obvious remote/noise before expensive ASR,
+    and rerun the same immutable holdout under the existing safety gates. UI remains optional and
+    late.
 
 <details>
 <summary>Historical implementation log (non-authoritative)</summary>

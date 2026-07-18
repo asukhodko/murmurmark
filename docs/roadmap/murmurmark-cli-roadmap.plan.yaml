@@ -60,8 +60,10 @@ nodes:
       reuse. Causal Double-Talk Me Recovery v1 завершён: 16/16 rows имеют stable outcomes, 4 rows /
       11.56s восстановлены, aggregate missing Me снизился 1657.89s -> 1639.73s, remote-like Me
       остался 108.42s, order blockers 0, runtime p95 23.473s, final lag 0, 356 frozen inputs не
-      изменились. Текущая цель — Causal Recovery Generalization and Promotion Readiness v1:
-      расширить доказательство и принять gated promote/no-promote решение для normal live preview.
+      изменились. Causal Recovery Generalization and Promotion Readiness v1 завершён решением
+      DO_NOT_PROMOTE: 963 outcomes, 832 unchanged inputs, 0 accepted negatives; blockers — 268/783
+      candidate coverage, три runtime timeout и один order regression. Текущая цель — Causal
+      Candidate Coverage and Cheap Negative Prefilter v1 на том же frozen corpus.
 
       Historical operational snapshot, 2026-07-02:
 
@@ -572,8 +574,10 @@ nodes:
       7/7. Incremental runtime и fresh evidence 3/3 завершены. Causal Double-Talk Me Recovery v1
       дополнительно снижает missing Me 1657.89s -> 1639.73s при remote-like Me 108.42s, blockers 0,
       review burden 478.82s, runtime p95 23.473s и final lag 0. Runtime shadow не подключён к normal
-      preview/export/promotion. Следующий фокус — generalization corpus, fresh evidence и gated
-      promote/no-promote решение.
+      preview/export/promotion. Generalization decision — DO_NOT_PROMOTE: negatives остаются safe,
+      но candidate-stage coverage 268/783, три holdout replay timed out fail-open и один holdout
+      получает order regression. Следующий фокус — cheap causal negative prefilter и 100% bounded
+      decision coverage на том же frozen corpus.
 
   realtime-segment-writer:
     title: "Durable committed PCM sidecar"
@@ -1147,16 +1151,33 @@ nodes:
     kind: task
     parent: near-realtime-pipeline
     deps: [live-causal-double-talk-me-recovery-v1, corpus-regression]
+    status: done
+    effort: 8
+    notes: |
+      Завершено 2026-07-18 решением DO_NOT_PROMOTE. Immutable corpus: 963 outcomes / 10 sessions,
+      3 holdout meetings / 9105.631s, 832 unchanged input SHA. Original 16 rows сохранены; 4 rows /
+      11.56s остаются recovered. Evaluation: 284 genuine double-talk, 549 remote leak, 28 ASR noise,
+      11 timing overlap, 91 insufficient; 65 adversarial negative controls, accepted negatives 0.
+      Blockers: expensive candidate stage покрывает 268/783 eligible rows, все три holdout runtime
+      replay завершаются timed_out_fail_open, один holdout увеличивает effective order blockers
+      3 -> 4. Deterministic outcome fingerprint повторён, fail-open и 832 SHA checks pass. Normal
+      preview unchanged, batch authoritative, remote-forbidden guards unchanged.
+
+  live-causal-candidate-coverage-cheap-negative-prefilter-v1:
+    title: "Causal Candidate Coverage and Cheap Negative Prefilter v1"
+    kind: task
+    parent: near-realtime-pipeline
+    deps: [live-causal-recovery-generalization-promotion-readiness-v1, corpus-regression]
     status: current
     effort: 8
     notes: |
-      Расширить узкий double-talk proof до immutable generalization corpus: accepted, rejected,
-      runtime-only и adversarial remote-only controls. Объяснить extra runtime candidates, повторить
-      offline/recording-time outcomes и собрать fresh real-session evidence. Promotion в normal
-      advisory live preview допускается только с per-session no-regression по remote-like Me,
-      effective order, token F1 и review burden, unchanged raw/Echo Guard/authoritative hashes,
-      bounded p95, final lag 0, fail-open и rollback switch. Иначе выпустить точный no-promotion
-      report; batch остаётся authoritative в обоих исходах.
+      Дать causal cheap-prefilter outcome всем 783 eligible remote-active source rows до дорогого
+      residual/Target-Me/micro-ASR stage. Cheap pass должен отсеивать remote-only и ASR-noise без
+      batch/future evidence и без ослабления remote-forbidden guards. Переиспользовать frozen
+      963-row corpus и три holdout, сохранить 4 rows / 11.56s fixed recall и accepted negatives 0,
+      добиться 100% decision coverage, runtime p95 <= 30s, final lag 0, deterministic
+      offline/runtime agreement и no per-session order/remote/F1/review regression. Новые записи
+      для старта не требуются; normal preview не менять до отдельного passing promotion decision.
 
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"
@@ -2033,8 +2054,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Causal Recovery Generalization and Promotion Readiness v1: расширить causal recovery proof и принять gated promote/no-promote решение для normal advisory live preview."
-      success_by_next_sync: "Есть immutable generalization corpus, объяснены runtime-only candidates, fresh recording-time evidence проходит gates, и promotion либо безопасно включён за rollback switch, либо отклонён с точным воспроизводимым blocker report."
+      nearest_goal: "Causal Candidate Coverage and Cheap Negative Prefilter v1: закрыть измеренные coverage/runtime/order blockers на frozen generalization corpus без ослабления safety guards."
+      success_by_next_sync: "Все 783 eligible rows имеют bounded causal outcome; cheap negatives не запускают micro-ASR; три holdout replay проходят p95/final-lag/determinism/no-regression gates либо дают новый точный DO_NOT_PROMOTE report."
     defaults:
       status_progress:
         done: 1.0
@@ -2060,8 +2081,8 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "CLI MVP, committed-PCM transport и Fast Authoritative Handoff закрыты. Causal Double-Talk Me Recovery v1 проходит: 16/16 stable outcomes, 4 rows / 11.56s recovered, missing Me 1657.89s -> 1639.73s, remote/order/F1/runtime/SHA gates green. Production output остаётся batch."
-          next_sync_goal: "Расширить causal recovery proof до generalization corpus и fresh sessions, затем принять gated promote/no-promote решение для normal advisory live preview."
+          sync_note: "CLI MVP, committed-PCM transport и Fast Authoritative Handoff закрыты. Generalization corpus дал 963 stable outcomes и DO_NOT_PROMOTE: negatives safe, но candidate coverage 268/783, три runtime timeout и один order regression. Production output остаётся batch."
+          next_sync_goal: "Добавить cheap causal negative prefilter, получить 783/783 bounded decisions и повторить frozen holdout runtime/no-regression gates."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening, reliable-transcription-route]

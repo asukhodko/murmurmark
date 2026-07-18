@@ -65,10 +65,12 @@ Causal Double-Talk Me Recovery v1 is complete. Its immutable `16`-row / `65.07s`
 outcomes; `4` rows / `11.56s` are safely recovered, aggregate missing `Me` falls to `1639.73s`, and
 every per-session, runtime and frozen-input gate passes. Its completion audit covers `161` views
 from four residual families, explains all rejected views and records evaluation-only boundary
-evidence for every recovered row. Causal Recovery Generalization and
-Promotion Readiness v1 is now nearest: broaden the narrow success to positive and adversarial
-remote-only controls plus fresh recording-time evidence before deciding whether it may enter normal
-advisory live preview.
+evidence for every recovered row. Causal Recovery Generalization and Promotion Readiness v1 is now
+complete with `DO_NOT_PROMOTE`: `963` outcomes, three holdouts / `9105.631s`, `832` unchanged input
+hashes and zero accepted negative controls. Promotion is blocked by `268/783` expensive-stage
+coverage, three recording-time timeouts and one holdout order regression. The nearest goal is
+Causal Candidate Coverage and Cheap Negative Prefilter v1: reject cheap remote/noise negatives
+before micro-ASR and replay the same immutable corpus at full decision coverage.
 Near-Realtime Live Parity Coverage v1 already proved complete raw capture, pre-stop preview,
 terminal workers, zero final lag and successful batch output on three fresh real sessions. Live
 promotion remains blocked.
@@ -376,14 +378,15 @@ flowchart LR
 
 ### Next
 
-- Causal Recovery Generalization and Promotion Readiness v1:
-  - freeze a broader corpus of accepted, rejected, runtime-only and remote-only controls;
-  - explain additional runtime candidates outside the original `16` rows;
-  - reproduce offline/runtime outcomes with bounded p95, final lag `0` and fail-open behavior;
-  - collect fresh real-session evidence before changing normal preview wiring;
-  - require no per-session regression in remote-like `Me`, effective order blockers, token F1,
-    review burden or raw/Echo Guard/authoritative hashes;
-  - either promote behind an explicit rollback switch or publish a precise no-promotion verdict;
+- Causal Candidate Coverage and Cheap Negative Prefilter v1:
+  - reuse the immutable `963`-row generalization corpus; no new recording is initially required;
+  - give all `783` eligible source rows a cheap causal outcome before expensive residual/ASR work;
+  - reject obvious remote-only and ASR-noise rows without weakening remote-forbidden guards;
+  - preserve the fixed `4` recoveries / `11.56s` and zero accepted negative controls;
+  - make all three holdout replays finish with p95 at most `30s`, final lag `0` and deterministic
+    offline/runtime decisions;
+  - remove the holdout order regression while preserving remote-like `Me`, token F1 and review
+    burden per session;
 - keep `--live-pipeline` disabled by default; all new evidence should go through
   `record --experiment live-shadow-v1`.
 - Near-realtime shadow pipeline follow-up:
@@ -535,20 +538,22 @@ Recently completed:
 
 ## Goal Sequence
 
-Recommended nearest goal: **Causal Recovery Generalization and Promotion Readiness v1**. The fixed
-double-talk goal passed, but its explicit-only result is not yet broad enough to alter normal live
-preview. The next useful decision is whether the combined causal stack generalizes safely.
+Recommended nearest goal: **Causal Candidate Coverage and Cheap Negative Prefilter v1**. The
+generalization decision is complete and says `DO_NOT_PROMOTE`; the shortest path forward is to fix
+the measured coverage/runtime/order blockers on the same frozen corpus.
 
-1. **Causal Recovery Generalization and Promotion Readiness v1.** Expand positive and remote-only
-   controls, prove recording-time behavior on fresh sessions, and produce a gated promote/no-promote
-   decision with rollback and unchanged batch authority.
-2. **Live review/notes/boundary readiness.** After generalized recovery remains safe, close review burden,
+1. **Causal Candidate Coverage and Cheap Negative Prefilter v1.** Give all eligible remote-active
+   rows bounded decisions, filter cheap negatives before micro-ASR and pass the existing three
+   holdout recording-time/no-regression gates.
+2. **Causal recovery promotion reconsideration.** Reissue a promote/no-promote decision only after
+   the coverage experiment passes; do not alter normal preview beforehand.
+3. **Live review/notes/boundary readiness.** After generalized recovery remains safe, close review burden,
    selected-notes readiness and chunk-boundary gates without weakening batch authority.
-3. **ASR-positive Echo promotion readiness.** Expand `coverage_v2_remote_gate_local_fir` validation
+4. **ASR-positive Echo promotion readiness.** Expand `coverage_v2_remote_gate_local_fir` validation
    beyond the current six sessions, add rollback/inspection criteria, compare review burden and
    local recall more broadly, and only then decide whether a non-default promoted bundle is worth
    testing.
-4. **Target-Me evidence follow-up.** Keep integrating `resemblyzer_dvector_v0` with review-lane
+5. **Target-Me evidence follow-up.** Keep integrating `resemblyzer_dvector_v0` with review-lane
    suggestions, live local-recall diagnostics and corpus reports. The new live Target-Me audit shows
    that suppressed live mic chunks contain a large recoverable local slice: `287.98s` of `295.34s`
    audited local/mixed seconds are possible or confirmed Target-Me. The first policy candidate,
