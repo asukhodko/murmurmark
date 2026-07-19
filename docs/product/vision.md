@@ -33,6 +33,18 @@ The product should feel boring in the best way: clear permissions, visible healt
 processing, local files, no surprise network activity, no hidden recording routes, no magical claims
 about speaker identity.
 
+## Development Principle
+
+Development converges from evidence, not from adding output profiles. Each quality step freezes its
+input, changes one bounded error class, and either passes corpus-wide promotion gates or records a
+reproducible evidence limit. Failed promotion never weakens the selected transcript. The near-term
+order is: recover proven missing local speech, repair chronology under a separate contract,
+rebaseline the user-facing outcome, then reduce new remote leakage at the audio layer.
+
+Remote-speaker diarization is an independent research branch after base transcript quality closure.
+It starts with anonymous speaker intervals, then an evidence-backed speaker map and
+`transcript.rich.json`. It does not wait for complete Echo suppression and does not block the CLI.
+
 ## Primary User
 
 A technical person on macOS who participates in meetings and wants:

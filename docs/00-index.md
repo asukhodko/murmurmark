@@ -37,10 +37,14 @@ Read in this order:
 33. [Echo Guard Local FIR validation log](testing/2026-06-23-echo-guard-local-fir.md)
 34. [Mic remote bleed reduction](backlog/mic-remote-bleed-reduction.md)
 35. [Complete echo removal research](research/2026-06-30-complete-echo-removal.md)
+36. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
-- Start with [README](../README.md) for the current command-line workflow and latest corpus snapshot.
+Planning snapshot: 2026-07-19. The current executable goal is Residual Local Recall Closure v1;
+Residual Audio Evidence Arbitration v1 is completed with `DO_NOT_PROMOTE`.
+
+- Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,
   implementation sequence and acceptance gates.
 - Route design: [Reliable transcription route](project/reliable-transcription-route.md).
@@ -49,7 +53,7 @@ Read in this order:
   dependencies and roadmap views. The [CLI roadmap](roadmap/murmurmark-cli-roadmap.md) is its
   readable narrative.
 - Historical goal and experiment sections are evidence records. They do not override the recommended
-  goal or OpsKarta statuses.
+  goal or OpsKarta statuses. Detailed snapshots are indexed under [history](history/README.md).
 
 ## v1 Completeness Checklist
 

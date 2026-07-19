@@ -10,19 +10,19 @@ statuses:
     label: "Сделано"
     color: "#22c55e"
   current:
-    label: "Текущий фокус"
+    label: "В работе"
     color: "#0ea5e9"
   next:
-    label: "Ближайший этап"
+    label: "Следующая разблокированная цель"
     color: "#f59e0b"
   later:
-    label: "Позже"
+    label: "Зависимый этап"
     color: "#8b5cf6"
   idea:
-    label: "Идея"
+    label: "Исследовательская гипотеза"
     color: "#9ca3af"
   optional:
-    label: "Опционально"
+    label: "Необязательная возможность"
     color: "#94a3b8"
   blocked:
     label: "Заблокировано"
@@ -33,2036 +33,257 @@ nodes:
     title: "MurmurMark CLI"
     kind: summary
     status: current
-    effort: 305
+    effort: 120
     notes: |
-      Roadmap CLI-версии MurmurMark.
+      Активная CLI-first, local-first и evidence-backed программа. Batch transcript остаётся
+      authoritative. В работе одновременно может быть только одна исполнимая quality-цель.
+      Подробная история экспериментов сохранена в
+      docs/history/murmurmark-cli-roadmap-through-2026-07-19.plan.yaml.
 
-      CLI MVP закрыт: автоматический acceptance, release bundle, live-session gate,
-      export bundle и retention plan уже доказали, что pipeline можно использовать как
-      локальный инструмент, а не как набор лабораторных скриптов.
-
-      Authoritative status, 2026-07-18: stable batch route и committed-PCM live transport работают.
-      Live Order and Role Reconciliation v1 завершён: 23 audit rows классифицированы, 15 прежних
-      effective blockers сведены к 0 без transcript mutation. Live Local Recall and Remote Leakage
-      Hardening v1 также завершён: все 118 rows классифицированы, causal shadow восстановил 678.32s
-      aggregate missing Me, а 7/7 per-session no-regression gates прошли. Live promotion остаётся
-      blocked. Causal Local-Island Micro-ASR v2 завершён: все 40 unresolved rows получили outcomes,
-      aggregate missing Me уменьшился ещё на 255.77s, а remote-like Me, effective order, token F1 и
-      review burden не регрессировали ни в одной сессии. Causal Remote-Active Me Separation v1
-      завершён: 9/19 primary rows приняты, aggregate missing Me уменьшился ещё на 252.90s, а все 16
-      mixed/double-talk cross-check rows безопасно отклонены. Recording-Time Causal Me Recovery
-      Integration v1 завершён: replay-proven recovery перенесён в committed-PCM worker с bounded
-      lag и fail-open fallback. Live Recovery Runtime Efficiency and Real Evidence v1 тоже
-      завершён: persistent watermarks и content-addressed DSP/candidate/micro-ASR caches проходят
-      fixed-corpus gates, а strict fresh evidence aggregate достиг 3/3 с pre-stop candidates и zero
-      final lag. Fast Authoritative Handoff v1 завершён: первый authoritative transcript/verdict
-      отделён от необязательного enrichment, а strict live-cache gate не допускает приблизительный
-      reuse. Causal Double-Talk Me Recovery v1 завершён: 16/16 rows имеют stable outcomes, 4 rows /
-      11.56s восстановлены, aggregate missing Me снизился 1657.89s -> 1639.73s, remote-like Me
-      остался 108.42s, order blockers 0, runtime p95 23.473s, final lag 0, 356 frozen inputs не
-      изменились. Causal Recovery Generalization and Promotion Readiness v1 завершён решением
-      DO_NOT_PROMOTE: 963 outcomes, 832 unchanged inputs, 0 accepted negatives; blockers — 268/783
-      candidate coverage, три runtime timeout и один order regression. Follow-up prefilter завершён
-      вторым DO_NOT_PROMOTE: 783/783 строго past-only routes и order no-regression; все 65 frozen
-      negatives отвергнуты, но один новый candidate — post-hoc ASR noise, runtime 0/3.
-      Authoritative Transcript Boundary and Review Closure v1 завершён решением
-      PROMOTE_AUTHORITATIVE_BOUNDARY_V1: доказательно закрыты 213/337 строк и 1253.620/1731.892s
-      обязательной review-очереди без регрессий. Residual Me Evidence Closure v1 завершён решением
-      PROMOTE_RESIDUAL_ME_EVIDENCE_V1: ещё 31/124 строк и 170.589/478.272s безопасно закрыты;
-      остаток равен 93 строкам / 307.683s. Residual Audio Evidence Arbitration v1 завершён
-      воспроизводимым DO_NOT_PROMOTE: все 66 audio-review строк / 196.920s классифицированы, но
-      безопасно закрыта только 1 строка / 0.640s при требуемых 14 / 39.384s. Ближайшая цель —
-      Residual Local Recall Closure v1 для отдельных 13 строк / 48.073s; 14 chronology rows остаются
-      отдельным последующим контрактом.
-
-      Historical operational snapshot, 2026-07-02:
-
-      Review-loop stabilization завершён: `review_decisions.jsonl`, `review progress`, `status`,
-      `report` и `suggested_closure` показывают одну и ту же оставшуюся очередь, а
-      `review suggested apply` стал cumulative/key-based. После досчёта Target-Me/stronger evidence
-      текущий операционный корпус на 2026-07-02 удерживается в
-      `pilot_ready_with_review`: `24` рабочих сессии, `15/24 ready_for_notes`, `9/24 review_first`,
-      `0/24 do_not_use_without_manual_review`, `9` обязательных review actions,
-      `28` low-materiality rows / `70.95s` вне обязательной очереди, irreducible review gate
-      `irreducible_manual_review_queue_present`, notes review burden `1.32 min`, transcript/export
-      review surface `4.09 min`. Stronger audio judge теперь закрывает узкий keep-only класс
-      `probable_timing_overlap`, когда group-overlap evidence уже показывает сильную локальную
-      опору и слабую remote/leak опору; спорный double-talk остаётся ручным. Однословный `так`
-      без action/decision/risk markers и короткие exact partial duplicates без уникального `Me`
-      содержания учитываются как low-materiality, а не mandatory review. Один
-      `check_transcript_order` overlap уже закрыт через stronger-audio-judge как safe `keep_me`.
-      Это не отменяет более глубокую причину review burden: remote speech всё ещё просачивается в
-      mic и потом требует transcript repair, cleanup и ручной проверки. Echo Guard v0/vNext уже
-      дал repeatable shadow baseline и первый ASR-positive safety result. Remote-Forbidden Evidence
-      Hardening v1 уже превратил этот результат в доказательный review/status слой, Coverage v2
-      расширил выбор ASR-аудит окон до `4/6` safe improved sessions, а ASR-positive audio
-      candidate v2 добавил `coverage_v2_remote_gate_local_fir`: реальный shadow audio candidate,
-      который проходит ASR audio-candidate gate на `4/6` smoke sessions без local-recall
-      регрессий. Target-Me extraction spike уже дал promising d-vector evidence; первый hardening
-      pass подключил readiness review-plan rows к audio-review pack и закрыл две безопасные
-      `keep_me` строки. ASR-Positive Echo Candidate Hardening v1 сделал этот audio candidate явным
-      experimental profile: 5/6 safe improved, 1/6 not applicable, 0 local-recall regressions,
-      no default promotion. Reliable Transcription Route v1, Reliable Processing UX v1 и
-      Chunked/Resumable Processing v1 уже сделали outcome/next/export gate и ASR chunk-resume
-      честным пользовательским контрактом. Current Pipeline Stabilization v1 после этого был
-      завершён; stable production path остаётся regression baseline для текущей live quality work.
-
-      Философия:
-      - CLI-first: полезный исполнимый pipeline важнее UI.
-      - Local-first: запись, обработка и аудит по умолчанию локальные.
-      - Evidence-backed: transcript, notes и export должны ссылаться на ids реплик,
-        audit records и проверяемые артефакты.
-      - Raw CAF, baseline, текущий `local_fir` и основной ASR остаются воспроизводимыми и
-        неразрушаемыми; новые echo engines сначала работают только в shadow.
-      - Outcome-first: pipeline считается полезным только когда status/next/finish/report
-        согласованно объясняют, можно ли использовать transcript и что делать дальше.
-      - Batch remains authoritative: near-realtime processing остаётся diagnostic/shadow и не должен
-        ослаблять raw capture, batch processing, review gates или retention.
-      - Synthesis/export не пишут во внешние системы без review.
-      - UI App или menu bar не являются обязательным путём к полезному продукту.
-
-  foundation-done:
-    title: "Готовая основа"
+  working-capabilities:
+    title: "Работающие возможности"
     kind: phase
     parent: murmurmark-cli
     status: done
-    effort: 42
+    effort: 45
     notes: |
-      Уже собран рабочий CLI-пайплайн: запись двух дорожек, Echo Guard,
-      whisper.cpp, repair/audit слои, notes и readiness report.
+      Подтверждённая основа продукта. Эти возможности поддерживаются regression-тестами, но не
+      считаются активной разработкой только из-за постоянного использования.
 
-  foundation-two-track-capture:
-    title: "Two-track capture: mic и remote"
+  capability-durable-capture:
+    title: "Durable two-track capture и session package"
     kind: task
-    parent: foundation-done
+    parent: working-capabilities
     status: done
-    effort: 4
-    notes: "Запись локального микрофона и системного/remote звука в разные дорожки."
+    effort: 8
+    notes: "Raw mic/remote CAF, capture health, partial/silent/sparse gates и неизменяемые inputs."
 
-  foundation-session-package:
-    title: "Session package"
+  capability-echo-preprocess:
+    title: "Echo Guard и speech preprocessing"
     kind: task
-    parent: foundation-done
-    status: done
-    effort: 3
-    notes: "Стабильная структура sessions с raw audio, session.json, pipeline_job и derived артефактами."
-
-  foundation-local-fir-echo-guard:
-    title: "Local FIR Echo Guard"
-    kind: task
-    parent: foundation-done
+    parent: working-capabilities
     status: done
     effort: 6
-    notes: "Локальное подавление remote leak в mic без BlackHole/Loopback и без изменения raw CAF."
+    notes: "local_fir остаётся production baseline; новые engines допускаются только как shadow."
 
-  foundation-whispercpp-transcription:
-    title: "whisper.cpp transcription"
+  capability-authoritative-transcript:
+    title: "Authoritative batch transcript"
     kind: task
-    parent: foundation-done
+    parent: working-capabilities
     status: done
-    effort: 5
-    notes: "Локальная транскрибация Me+Colleagues через whisper.cpp и крупную модель."
+    effort: 9
+    notes: |
+      Resumable whisper.cpp processing, timeline repair, fast authoritative handoff и isolated
+      profiles. `residual_me_evidence_v1` остаётся selected profile.
 
-  foundation-timeline-repair:
-    title: "Timeline repair и start-of-call repair"
+  capability-review-evidence:
+    title: "Audit, evidence и review loop"
     kind: task
-    parent: foundation-done
+    parent: working-capabilities
+    status: done
+    effort: 7
+    notes: "Frozen queues, local audio judges, review decisions, provenance и guarded profile selection."
+
+  capability-notes-export:
+    title: "Evidence notes, verdict, export и retention"
+    kind: task
+    parent: working-capabilities
     status: done
     effort: 6
-    notes: "Ремонт порядка реплик, коротких локальных островов и начала звонка в shadow-профилях."
+    notes: "Deterministic notes, quality verdict, guarded Markdown/Obsidian export и retention plan."
 
-  foundation-audit-cleanups:
-    title: "Audit cleanup profiles"
+  capability-live-shadow:
+    title: "Capture-safe Live Shadow"
     kind: task
-    parent: foundation-done
+    parent: working-capabilities
     status: done
     effort: 5
-    notes: "Профили audit_cleanup_v1/v2 удаляют только безопасно доказанные Me-дубли и ASR noise."
+    notes: |
+      Committed-PCM sidecar даёт advisory preview и fail-open isolation. Live output не участвует
+      в authoritative transcript, export или retention.
 
-  foundation-audio-audits:
-    title: "Group overlap, local recall и audio review audits"
+  capability-cli-release-foundation:
+    title: "CLI installation и open-source foundation"
     kind: task
-    parent: foundation-done
-    status: done
-    effort: 5
-    notes: "Цифровые аудио-аудиты для вредных дублей, benign overlap, lost Me и review burden."
-
-  foundation-agent-reviewed-v1:
-    title: "agent_reviewed_v1"
-    kind: task
-    parent: foundation-done
+    parent: working-capabilities
     status: done
     effort: 4
-    notes: "Первые agent-reviewed решения поверх audit artifacts и session corpus."
-
-  foundation-extractive-notes:
-    title: "Extractive notes и operational readiness"
-    kind: task
-    parent: foundation-done
-    status: done
-    effort: 4
-    notes: "Evidence-backed notes, quality verdict и session quality report без LLM-выдумок."
-
-  cli-orchestration:
-    title: "Единый CLI-оркестратор"
-    kind: phase
-    parent: murmurmark-cli
-    deps: [foundation-done]
-    status: done
-    effort: 32
-    notes: |
-      CLI MVP закрыт: process/latest/sessions/status/report/next/open/audit/cleanup/synthesize/
-      review/corpus/export/retention/config, install wrapper, self-test, release bundle,
-      automated acceptance и live-session acceptance уже работают как единая командная поверхность.
-
-  cli-process-command:
-    title: "murmurmark process SESSION"
-    kind: task
-    parent: cli-orchestration
-    status: done
-    effort: 6
-    notes: "Обёртка над текущим run-session-pipeline.py с понятными этапами, профилями, plan-only и readiness summary."
-
-  cli-record-process-latest:
-    title: "record -> latest -> process"
-    kind: task
-    parent: cli-orchestration
-    deps: [cli-process-command]
-    status: done
-    effort: 4
-    notes: "Путь для обычной работы: заранее задать SESSION, записать новую сессию через --out и обработать тот же SESSION."
-
-  cli-recording-reliability:
-    title: "Recording Reliability"
-    kind: task
-    parent: cli-orchestration
-    deps: [cli-record-process-latest, readiness-single-output]
-    status: done
-    effort: 5
-    notes: |
-      Выполнено после readiness reconciliation: `murmurmark record` продолжается до явной остановки
-      пользователем или requested duration. Если capture завершается неожиданно, session package
-      содержит durable health/events, причину/момент остановки, состояние mic/remote streams и
-      честный CLI handoff: inspect/status/process только как partial или с явным --allow-partial.
-      `doctor` заранее видит blockers для system capture, включая отсутствие shareable display.
-      Запись CAF устойчива к межканальному/немежканальному формату входных буферов ScreenCaptureKit.
-      Raw CAF не переписываются и не удаляются; Echo Guard и основной ASR не меняются.
-
-  cli-sessions-command:
-    title: "murmurmark sessions"
-    kind: task
-    parent: cli-orchestration
-    status: done
-    effort: 2
-    notes: "Лёгкий список последних session packages с временем, длительностью, review burden, readiness-статусом, выбранным профилем, verdict и next-командой; поддерживает фильтр по статусу, next-only и JSON-режим для review/export очередей."
-
-  cli-report-command:
-    title: "murmurmark status/report SESSION и report corpus"
-    kind: task
-    parent: cli-orchestration
-    status: done
-    effort: 4
-    notes: "status даёт быстрый dashboard по готовому readiness, report refresh-ит quality verdict/readiness/profile metrics, report corpus даёт corpus summary."
-
-  cli-audit-command:
-    title: "murmurmark audit"
-    kind: task
-    parent: cli-orchestration
-    status: done
-    effort: 3
-    notes: "Обёртка над order, local-recall, group-overlaps, audio-review и optional stronger-audio-judge scripts через проектный Python runtime; после запуска печатает короткую handoff-сводку."
-
-  cli-cleanup-synthesis-command:
-    title: "murmurmark cleanup и synthesize"
-    kind: task
-    parent: cli-orchestration
-    deps: [cli-audit-command]
-    status: done
-    effort: 3
-    notes: "CLI-входы к audit cleanup profiles и deterministic extractive synthesis; оба печатают handoff-сводки и следующие команды."
-
-  readiness-single-output:
-    title: "Единая читаемая сводка готовности"
-    kind: task
-    parent: cli-orchestration
-    deps: [cli-report-command]
-    status: done
-    effort: 4
-    notes: "process/report печатают gate, выбранный профиль, verdict, review burden, next commands и основные output paths."
-
-  cli-open-command:
-    title: "murmurmark open SESSION"
-    kind: task
-    parent: cli-orchestration
-    deps: [readiness-single-output]
-    status: done
-    effort: 2
-    notes: "Короткий CLI-вход к выбранным локальным артефактам из readiness: notes, transcript, verdict, readiness и audit reports; поддерживает path-only, command-only и cat."
-
-  cli-config-model-prompt:
-    title: "Consistent config/model/prompt handling"
-    kind: task
-    parent: cli-orchestration
-    status: done
-    effort: 5
-    notes: "murmurmark.config.json задаёт model/language/prompt/export defaults; murmurmark config init создаёт локальный файл из tracked-примера; явные CLI-флаги имеют приоритет."
-
-  cli-pipeline-plan-mode:
-    title: "Dry-run и plan mode"
-    kind: task
-    parent: cli-orchestration
-    status: done
-    effort: 3
-    notes: "murmurmark process прокидывает --plan-only в runner и показывает planned steps."
-
-  cli-export-command:
-    title: "murmurmark export SESSION --format markdown|obsidian"
-    kind: task
-    parent: cli-orchestration
-    deps: [readiness-single-output]
-    status: done
-    effort: 2
-    notes: "Создаёт локальный Markdown/Obsidian bundle и блокирует сессии с readiness export_blockers без --force."
-
-  cli-finish-command:
-    title: "murmurmark finish SESSION"
-    kind: task
-    parent: cli-orchestration
-    deps: [cli-export-command]
-    status: done
-    effort: 2
-    notes: "Финальная CLI-обёртка: refresh readiness, guarded export, retention plan, provider payload manifest и один read-only next для пользователя."
-
-  reliable-transcription-route:
-    title: "Reliable Transcription Route"
-    kind: phase
-    parent: murmurmark-cli
-    deps: [cli-orchestration, corpus-regression, review-loop, quality-hardening]
-    status: current
-    effort: 24
-    notes: |
-      Это текущая рамка продукта: полная запись должна без присмотра приходить к честному
-      результату `ready_for_notes`, `review_first` или `blocked`, с выбранным профилем, verdict,
-      review burden, next command, export gate и retention state. Outcome Contract v1, Gate
-      Evaluator, Review Plan, Next Command, Reliable Processing UX v1 и Chunked/Resumable
-      Processing v1 уже закрыли пользовательский handoff и ASR chunk-resume. Current Pipeline
-      Stabilization v1 доказал один поддерживаемый non-live production path, а Process
-      Observability & Run Monitor v1 сделал долгие прогоны наблюдаемыми и возобновляемыми.
-      Live Order and Role Reconciliation v1 уже закрыл 15 effective blockers без transcript
-      mutation. Live Local Recall and Remote Leakage Hardening v1 классифицировал 118 rows и
-      безопасно восстановил 678.32s aggregate missing Me. Causal Local-Island Micro-ASR v2 дал
-      outcomes всем 40 unresolved rows и восстановил ещё 255.77s без per-session регрессий.
-      Causal Remote-Active Me Separation v1 обработал 19 speaker-supported rows и восстановил ещё
-      252.90s без per-session регрессий. Recording-time integration, incremental runtime, fresh
-      evidence 3/3, Fast Authoritative Handoff и Causal Double-Talk Recovery уже завершены.
-      Generalization и follow-up prefilter дали DO_NOT_PROMOTE. Prefilter обеспечивает 783/783
-      explainable routes и устраняет order regression, но принимает один post-hoc ASR-noise candidate
-      и проходит runtime 0/3 holdouts. Live branch остаётся diagnostic. Authoritative Transcript
-      Boundary and Review Closure v1 затем закрыл 213/337 строк и 1253.620/1731.892s обязательной
-      review-очереди с corpus-решением PROMOTE. Residual Me Evidence Closure v1 добавил точные
-      Target-Me, remote-forbidden и micro-ASR evidence, закрыл ещё 31 строку / 170.589s и тоже
-      получил PROMOTE. Residual Audio Evidence Arbitration v1 классифицировал все 66 оставшихся
-      audio-review строк / 196.920s, но безопасно закрыл лишь 1 строку / 0.640s и завершился
-      DO_NOT_PROMOTE. Следующий bounded quality-шаг — insertion-only разбор 13 local-recall строк /
-      48.073s, без изменения audio-review и order очередей.
-
-  current-pipeline-stabilization-v1:
-    title: "Current Pipeline Stabilization v1"
-    kind: task
-    parent: reliable-transcription-route
-    deps: [chunked-resumable-processing-v1, cli-recording-reliability, reliable-outcome-contract]
-    status: done
-    effort: 6
-    notes: |
-      Завершено 2026-07-06. Production path: заранее задать `SESSION`, выполнить
-      `murmurmark record --out "$SESSION" --target-bundle system` без `--live-pipeline`,
-      затем `murmurmark process "$SESSION"`, `next`, `status`, `finish`.
-      Live-pipeline quarantined behind `MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1`. Silent, sparse,
-      partial and interrupted captures block before ASR; `status`/`next` do not suggest review or
-      export for failed capture; stale readiness/outcome/live reports cannot override a newer
-      blocker. Fresh non-live sessions confirmed usable, and restart after ScreenCaptureKit
-      `stream_stopped` preserved raw mic/remote.
-
-  process-observability-run-monitor-v1:
-    title: "Process Observability & Run Monitor v1"
-    kind: task
-    parent: reliable-transcription-route
-    deps: [current-pipeline-stabilization-v1, chunked-resumable-processing-v1, reliable-progress-resume]
-    status: done
-    effort: 5
-    notes: |
-      Завершено. Долгий `murmurmark process SESSION` пишет
-      `derived/pipeline-run/pipeline_run_state.json`, показывает текущий шаг, heartbeat,
-      ASR chunk progress, safe-interrupt hint и resume command. `status` и `next` читают
-      незавершённый run-state и не подменяют его устаревшими финальными отчётами. Capture,
-      Echo Guard, ASR model, transcript profiles, review logic и synthesis не менялись.
-
-  reliable-outcome-contract:
-    title: "Outcome Contract v1"
-    kind: task
-    parent: reliable-transcription-route
-    deps: [readiness-single-output, corpus-review-export-blockers]
-    status: done
-    effort: 5
-    notes: |
-      Базовый v1 реализован: `process` пишет `derived/outcome/outcome.json`, `outcome.md`,
-      `review_plan.json`, `next_command.txt`, а `murmurmark outcome` выводит контракт.
-      `next` читает outcome как первичный источник команды; `finish`, `export`, `report session`
-      и `report corpus --refresh` пересобирают или соблюдают outcome. Обычный export блокируется,
-      если outcome не `ready_for_notes` или `export_status` не `allowed`. Outcome:
-      ready_for_notes, review_first, blocked, partial или pipeline_failed. Дальше нужно
-      калибровать thresholds на corpus labels и удерживать export строго поверх тех же blockers.
-
-  reliable-gate-evaluator:
-    title: "Gate Evaluator"
-    kind: task
-    parent: reliable-transcription-route
-    deps: [reliable-outcome-contract, corpus-review-export-blockers]
-    status: done
-    effort: 5
-    notes: |
-      Детерминированная функция `metrics + artifacts + policy -> outcome`. V1 реализован в
-      `scripts/evaluate-outcome.py`. Первые gate layers:
-      hard, risk, review burden, notes, export/retention. Основные метрики: harmful_remote_in_me_sec,
-      order risk, local recall, review burden и notes evidence integrity. Unknown metric degrades
-      outcome; it never improves it. Следующий шаг - калибровать thresholds на corpus v0 labels.
-
-  reliable-progress-resume:
-    title: "Resumable Run Manifest"
-    kind: task
-    parent: reliable-transcription-route
-    deps: [cli-process-command]
-    status: done
-    effort: 5
-    notes: |
-      Долгие ASR/current/shadow/optional judge stages не должны выглядеть как зависание.
-      Базовый `derived/run/pipeline_run.json` уже пишет step ids, status, timestamps, durations,
-      outcome, next command, session-level resume command, expected output checkpoints, missing
-      output count и stuck-state summary. Reliable Processing UX v1 добавляет более понятный
-      heartbeat для долгих steps: причина шага, checkpoint count и команда возобновления.
-      `process --plan-only` пишет отдельный `pipeline_plan_report.json`, не портит последний
-      реальный run report и не refresh-ит outcome. Ctrl-C во время process гасит текущий дочерний
-      шаг, пишет `status: interrupted`, обновляет outcome и ведёт обратно к `murmurmark process
-      SESSION`. Дальше нужен отдельный chunk-level resume, а не расширение этого v1-слоя.
-
-  chunked-resumable-processing-v1:
-    title: "Chunked/Resumable Processing v1"
-    kind: task
-    parent: reliable-transcription-route
-    deps: [reliable-progress-resume, realtime-final-reconcile, corpus-regression-gate]
-    status: done
-    effort: 8
-    notes: |
-      Завершённая значимая цель: сделать тяжёлую post-recording обработку chunk-addressed,
-      cacheable и безопасно возобновляемой. ASR/cache артефакты должны иметь стабильную
-      идентичность: source audio, model, language, prompt, audio prep, window boundaries и tool
-      version. `murmurmark process SESSION` должен пропускать валидные chunks, продолжать после
-      interrupt/failure и показывать completed seconds, missing chunks, reused chunks и оценку
-      оставшейся тяжёлой работы. Live/near-realtime chunks можно использовать только как строгий
-      cache source, если metadata compatibility и corpus parity gates проходят; batch transcript
-      остаётся authoritative. No default ASR, capture or Echo Guard change.
-
-      Первый ASR-layer slice реализован: default `windowed` whisper.cpp пишет per-window
-      `chunk_cache_report.json` и `.meta.json`; если combined raw JSON отсутствует, но chunks
-      совместимы, bridge пересобирает `mic.json`/`remote.json` из cached chunks без повторного
-      whisper decode. `process` запускает `check-asr-chunk-cache.py --require-chunks` и пишет
-      `raw/chunk_rebuild_check.json`; несовпадение chunk rebuild с current raw ASR становится hard
-      pipeline failure. `report-asr-chunk-cache-corpus.py` агрегирует эти checks по корпусу, а
-      `check-corpus-gates.py` считает failed ASR chunk-cache report hard gate failure. Pipeline
-      heartbeat читает эти reports и показывает ASR chunks/seconds/reuse. Осталось расширить
-      coverage на реальные длинные сессии, добавить real interrupted-run corpus evidence и проверить
-      materialized live-ASR chunk cache на реальных sessions/corpus parity gates. Synthetic
-      live-cache smoke уже подтверждает, что materializer пишет `raw/chunks/<track>/` и
-      `check-asr-chunk-cache.py --require-chunks` пересобирает `mic`/`remote` из live chunks.
-      Coverage теперь есть на четырнадцати реальных sessions, включая real 29-minute
-      `murmurmark process` interruption/resume: first interrupted run wrote `status: interrupted`
-      and ASR progress, the next run reused `14` cached mic chunks and passed rebuild. ASR chunk
-      cache corpus видит `passed_sessions: 14`, `failed_sessions: 0`, `coverage_ratio: 0.28`,
-      `chunks_completed: 146/146`.
-      `pipeline_run_report.json` теперь хранит ASR chunk remaining seconds, completed ratio и
-      advisory `asr_remaining_estimate`. Coverage backlog explicit: `22` sessions have old raw ASR
-      without chunks, `14` have no raw ASR baseline.
-      Legacy top-level raw ASR cache without chunk reports is no longer accepted as sufficient in
-      `windowed` mode: process rebuilds chunks first, then requires rebuild parity.
-      Corpus gates expose live-cache parity explicitly and separate real meeting evidence from
-      diagnostic/lab sessions. Promotion checks use `real_parity_dimensions`; `_debug_*` and
-      `live-pilot-*` sessions remain useful failure evidence but do not satisfy real coverage.
-      `draft_text_recall` is now a separate promotion dimension, so text drift/hallucination is not
-      hidden inside artifact availability. Current evidence still keeps live `shadow_only_do_not_promote`:
-      batch transcript is authoritative, live is quarantined, and the next live step is capture-safe
-      redesign plus real-scope parity proof.
-      `scripts/smoke-cli-handoff.sh` включает deterministic fake-whisper failure/resume: первый
-      запуск падает после одного cached chunk, второй запуск reuse-ит этот chunk и проходит
-      rebuild-check. `scripts/smoke-process-chunk-resume.sh` доказывает тот же сценарий через
-      настоящий `run-session-pipeline.py`, а также контролируемый `Ctrl-C` в середине ASR: run
-      report получает `status: interrupted`, verified chunk остаётся в cache, следующий запуск
-      reuse-ит его и проходит rebuild-check.
-
-  reliable-suggested-review-first:
-    title: "Suggested review before manual review"
-    kind: task
-    parent: reliable-transcription-route
-    deps: [review-suggested-closure-v2, review-loop-stabilization-v1]
-    status: done
-    effort: 4
-    notes: |
-      Завершено. После process `review suggested` закрывает только доказанные rows по
-      stronger-audio-judge/Target-Me/audio-review/order evidence, применяет решения cumulative
-      и key-based и сохраняет `source_audit_ids`. Неуверенные строки остаются в явной ручной
-      очереди; новый тяжёлый decode запускается только явно.
-
-  reliable-burden-telemetry:
-    title: "Review burden telemetry"
-    kind: task
-    parent: reliable-transcription-route
-    deps: [reliable-gate-evaluator, reliable-suggested-review-first]
-    status: done
-    effort: 3
-    notes: |
-      Завершено. Review burden считается по lanes, а не только по количеству items:
-      critical, order, me_role_risk, notes_impacting, overlap_review, local_recall, low_priority.
-      Outcome, status и review progress показывают минуты, blocking lanes, hidden low-priority rows и первую команду для
-      закрытия обязательного хвоста.
-
-  reliable-corpus-v0-labels:
-    title: "Corpus v0 labels"
-    kind: task
-    parent: reliable-transcription-route
-    deps: [corpus-regression, review-loop]
-    status: next
-    effort: 5
-    notes: |
-      Собрать 12-20 реальных сессий как операционный актив: 1x1, group, noisy/open-space,
-      short-ack-heavy и sessions with known remote leak/order risks. Review decisions становятся
-      labels store: attribution_correct, text_usable, order_correct, local_speech_deleted_or_missing,
-      remote_duplicate_or_leak, review_decision, source_audit_ids. Без этого promotion thresholds
-      остаются интуицией.
-
-  reliable-echo-promotion-readiness:
-    title: "ASR-positive Echo promotion readiness"
-    kind: task
-    parent: reliable-transcription-route
-    deps: [quality-asr-positive-echo-candidate-hardening-v1, corpus-regression]
-    status: later
-    effort: 6
-    notes: |
-      Не менять default `local_fir`. Расширить validation `coverage_v2_remote_gate_local_fir`
-      beyond six-session candidate corpus, определить promotion/rollback/inspection gates и
-      связать результат с review burden, remote-token leakage, local recall, order risk и export
-      readiness. Candidate остаётся shadow-only до отдельного corpus gate.
-
-  reliable-order-boundary-hardening:
-    title: "Order and boundary hardening"
-    kind: task
-    parent: reliable-transcription-route
-    deps: [quality-order-regressions, quality-boundary-repair]
-    status: done
-    effort: 5
-    notes: |
-      Завершено профилем `authoritative_boundary_v1`: source-backed keep/drop/split решения
-      применяются только при доказанном безопасном преобразовании, неопределённые случаи получают
-      явный `needs_review`. Corpus gate продвинул профиль после закрытия 213/337 строк и
-      1253.620/1731.892s без регрессий; оставшийся риск вынесен в конечную residual queue.
-
-  reliable-final-handoff:
-    title: "Single final handoff"
-    kind: task
-    parent: reliable-transcription-route
-    deps: [cli-finish-command, reliable-outcome-contract]
-    status: done
-    effort: 4
-    notes: |
-      Один итоговый пользовательский артефакт: можно ли читать notes, можно ли export, сколько
-      осталось review, какие команды выполнить дальше, что с retention. Должен быть одинаковым
-      для новых сессий, возобновлённых обработок и corpus reports. V1 закрыт: normal export,
-      finish, next and session queue now obey `outcome.json`; deeper report polish remains later.
-
-  near-realtime-pipeline:
-    title: "Near-Realtime Pipeline Shadow"
-    kind: phase
-    parent: murmurmark-cli
-    deps: [cli-orchestration, cli-recording-reliability, corpus-regression]
-    status: current
-    effort: 16
-    notes: |
-      Потоковая ветка CLI обрабатывает закрытые committed-PCM segments во время записи, не читает
-      открытый raw CAF и не влияет на authoritative batch. Старый inline `--live-pipeline`
-      quarantined; безопасный путь — `record --experiment live-shadow-v1`. Transport, order/role
-      reconciliation, local-recall hardening, local-island v2 и remote-active separation завершены.
-      Recording-Time Causal Me Recovery Integration v1 перенёс два последних replay-proven слоя за
-      базовый live chunk: latest-only child, bounded timeout/lag, past-only evidence и fail-open
-      fallback. Fixed seven-session paced replay воспроизводит candidate sets и profile metrics
-      7/7. Incremental runtime и fresh evidence 3/3 завершены. Causal Double-Talk Me Recovery v1
-      дополнительно снижает missing Me 1657.89s -> 1639.73s при remote-like Me 108.42s, blockers 0,
-      review burden 478.82s, runtime p95 23.473s и final lag 0. Runtime shadow не подключён к normal
-      preview/export/promotion. Generalization и cheap-prefilter decisions — DO_NOT_PROMOTE. Prefilter
-      дал 783/783 routes и убрал order regression, но один post-hoc ASR-noise candidate и runtime 0/3
-      закрывают promotion branch. Persistent faster-whisper worker остаётся optional isolated lab; product
-      focus возвращён к authoritative batch boundary/review closure.
-
-  realtime-segment-writer:
-    title: "Durable committed PCM sidecar"
-    kind: task
-    parent: near-realtime-pipeline
-    deps: [cli-recording-reliability]
-    status: done
-    effort: 4
-    notes: |
-      `record --live-pipeline` остаётся отключённым по умолчанию. Новый безопасный вход:
-      `record --experiment live-shadow-v1`. После успешной raw write операции recorder кладёт
-      copied committed PCM в bounded queue, которая пишет закрытые experiment segments. Tracker
-      продолжает писать `murmurmark.raw_segment_commit/v1` как audit/fallback. При backlog/read
-      failure отключается только experiment. Два параллельных `murmurmark record` процесса запрещены
-      lock-ом: stable и experimental живут внутри одного запуска как raw capture плюс sidecar.
-      Backlog измеряется pending audio seconds per source; packet count остаётся hard guard.
-      Experiment state/report writes throttled до 1 Hz, queue использует single drain task, а
-      contract сохраняет configured/max-observed pending PCM counters после refresh.
-
-  experimental-sidecar-contract-v1:
-    title: "Experimental Sidecar Contract v1"
-    kind: task
-    parent: near-realtime-pipeline
-    deps: [realtime-segment-writer]
-    status: done
-    effort: 4
-    notes: |
-      Новый контрактный слой оформляет sidecar как эксперимент, а не как набор файлов
-      `derived/live`. `record --experiment live-shadow-v1` и
-      `murmurmark experiment status|report|compare` пишут
-      `derived/experiments/live-shadow-v1/experiment_manifest.json`, `state.json`, `events.jsonl`,
-      `raw_segment_commits.jsonl`, `report.json` и `report.md`. Manifest фиксирует
-      `batch_authoritative: true`, `promotion_allowed: false`, `raw_capture_affected`,
-      recovery/comparison commands и ссылки на committed-PCM mode, raw commit log, canonical experiment audio,
-      compatibility segments and reports. Smoke проверяет materialization from raw commits:
-      sidecar может отключиться, но raw CAF и batch process остаются воспроизводимыми.
-
-  realtime-worker-queue:
-    title: "Echo/ASR worker queue"
-    kind: task
-    parent: near-realtime-pipeline
-    deps: [experimental-sidecar-contract-v1]
-    status: done
-    effort: 5
-    notes: |
-      Worker стартует как best-effort consumer закрытых committed-PCM segments, пишет per-stage
-      state и fail-open завершает sidecar при отставании. Raw capture и batch route от него не
-      зависят.
-
-  realtime-live-draft:
-    title: "Live draft transcript"
-    kind: task
-    parent: near-realtime-pipeline
-    deps: [realtime-worker-queue]
-    status: done
-    effort: 4
-    notes: |
-      Пишет консервативный `derived/live/transcript.preview.md`, полный диагностический
-      `derived/live/transcript.draft.md`, `derived/live/chunks/*.jsonl` и
-      `derived/live/live_pipeline_report.json`. Последние `5-10s` не считать окончательно
-      опубликованными: delayed commit защищает от потери начал/концов фраз и дублей на overlap
-      границах. Base mic/remote chunk и draft durable до optional Target-Me; Target-Me timeout/lag
-      skips отражаются в report и не блокируют следующие base chunks. Draft можно читать, но он не
-      заменяет reviewed/final transcript. Обычный `live watch` показывает preview, где causal
-      Target-Me проходит recording-time remote-energy gate; полный draft включается только явно.
-      Каждый preview rewrite фиксируется append-only строкой `live_preview_snapshot/v1` с временем,
-      покрытым интервалом и SHA-256. Pre-stop gate требует такую строку до `session.ended_at`, поэтому
-      post-stop replay не может считаться near-realtime доказательством.
-
-  live-parity-replay-lab:
-    title: "Offline Live Parity Replay Lab"
-    kind: task
-    parent: near-realtime-pipeline
-    deps: [realtime-live-draft, realtime-corpus-gates]
-    status: done
-    effort: 3
-    notes: |
-      Реализовано: `murmurmark live replay SESSION --refresh` строит
-      `derived/live/replay-lab/live_replay_matrix.{json,md}` без новой записи и без изменения raw
-      audio или batch transcript. Матрица сравнивает политики по missing Me, remote-in-Me,
-      blocking order и token F1. Candidate считается безопасным только при улучшении local recall
-      без regressions по remote/order. Report также фиксирует Pareto frontier и не разрешает
-      promotion.
-
-  live-asr-cache-compatibility:
-    title: "Fast Authoritative Handoff v1"
-    kind: task
-    parent: near-realtime-pipeline
-    deps: [live-parity-replay-lab, live-recovery-runtime-efficiency-real-evidence-v1]
-    status: done
-    effort: 8
-    notes: |
-      Завершено 2026-07-17. `process` атомарно публикует authoritative_handoff и возвращает transcript,
-      verdict и next command; `enrich` и `process --full` выполняют deferred enrichment отдельно.
-      status/next/transcript/notes/finish доверяют только checkpoint с совпадающими readiness profile,
-      path, size и SHA-256. Две дорожки распознаются bounded-пулом, micro-ASR глобально планируется
-      детерминированно, review clips пишутся четырьмя byte-equivalent workers. Три meaningful sessions
-      проходят: cold p50 744.571s, p95 880.090s, checkpoint reuse max 0.032s; fingerprints, profiles и
-      selected quality metrics совпадают с sequential baseline, шесть raw CAF неизменны. Live cache
-      30s/5s против batch 60s/5s и неполная historical provenance дают explicit per-track batch fallback,
-      а не приблизительный reuse. Batch остаётся authoritative, live promotion blocked.
-
-  realtime-final-reconcile:
-    title: "Final reconcile after stop"
-    kind: task
-    parent: near-realtime-pipeline
-    deps: [realtime-live-draft, review-loop, quality-hardening]
-    status: later
-    effort: 5
-    notes: |
-      После stop batch-grade reconcile должен запускать обычный `murmurmark process`; live chunks
-      могут стать только optional cache. Текущий bridge остаётся диагностическим. До capture-safe
-      proof нельзя собирать controlled Live Evidence runs и нельзя полагаться на live cache.
-
-  realtime-corpus-gates:
-    title: "Realtime vs batch corpus gates"
-    kind: task
-    parent: near-realtime-pipeline
-    deps: [realtime-final-reconcile, corpus-regression-gate]
-    status: current
-    effort: 4
-    notes: |
-      `live_batch_comparison.json` пишет parity gates, а `murmurmark corpus live` агрегирует их в
-      corpus-level report. Пока live branch quarantined, эти отчёты остаются shadow evidence. Они
-      сравнивают live draft/finalized output
-      с batch baseline по capture safety, order risk, local recall, remote duplicate/leak, review
-      burden, transcript chunk duplicates, source-level `live_boundary_gate` suppression и missing
-      boundary speech. Promotion rule: live branch can
-      shorten waiting time, but cannot become default if it grows mandatory review queue, worsens
-      selected notes/readiness, or fails capture safety. `objective_audit` в live corpus report
-      должен оставаться компактной машинной сводкой: какие части цели доказаны, какие dimensions
-      блокируют promotion, какой `next_focus` даёт максимальный прогресс, почему broad real live
-      collection всё ещё запрещён, и когда controlled pilot collection разрешён после full proof.
-
-  realtime-live-parity-coverage-v1:
-    title: "Near-Realtime Live Parity Coverage v1"
-    kind: task
-    parent: near-realtime-pipeline
-    deps: [chunked-resumable-processing-v1, realtime-corpus-gates]
-    status: done
-    effort: 6
-    notes: |
-      После sparse-capture на legacy live путь `--live-pipeline` остаётся quarantined. Новый
-      controlled путь `record --experiment live-shadow-v1` пишет raw CAF как source of truth, затем
-      committed-PCM sidecar segments; `raw_segment_commits.jsonl` остаётся fallback/audit. Normal
-      `record --target-bundle system` остаётся production path, batch transcript authoritative.
-      Текущий corpus report уже сравнивает real live chunks/drafts с batch output, держит
-      `promotion_allowed_sessions = 0` и покрывает dimensions capture safety, order risk, local
-      recall, remote leakage, review burden, selected notes readiness, draft text recall,
-      required artifacts and chunk-boundary risks. The comparison now uses ASR-segment granularity
-      when live source ASR JSON is present, with chunk fallback for older artifacts. На 2026-07-08
-      capture-safe candidate scope: 2 real sessions, 1 passing, blockers `order_risk`,
-      `local_recall` and `selected_notes_readiness`.
-      Обновление 2026-07-14: focused capture-safe corpus содержит 6 meaningful comparisons и 0
-      parity passes. Conservative baseline boundary-retime shadow сохраняет missing Me 2146.97s и
-      remote-like Me 67.44s, снижая contentful order 15 -> 14 и blocking rows 5 -> 4. Mixed mic
-      turns с содержательным уникальным локальным текстом защищены от retime. Профиль остаётся
-      shadow-only; ближайший blocker — live local recall и четыре остаточных blocking order rows.
-      Сессия 2026-07-14_15-01-19-live добавила 69 минут здорового raw/sidecar transport: 139
-      chunks, 279 preview snapshots (274 pre-stop) и успешный authoritative batch. При этом baseline
-      live draft пропускает 749.71s batch Me, содержит 60.30s suspected remote-like Me и 5 blocking
-      order rows. Conservative speaker-only boundary profile снижает remote-like Me до 40.98s и
-      blocking rows до 4, не улучшая missing Me. Independent causal live evidence обнаруживает 14
-      probable-lost-Me review rows / 65.54s, которые timeline-island audit не видел; эти строки
-      остаются review-only и не меняют transcript автоматически. Transport доказан лучше, но
-      promotion по-прежнему блокируют полнота Me, порядок и remote leakage.
-      Goal завершён как evidence/localization milestone: три свежих meaningful real sessions имеют
-      complete raw, pre-stop preview, terminal worker, zero final lag и successful batch; реальный
-      compare оставляет realtime artifacts byte-identical. Corpus содержит 33 live sessions, 19
-      real, 12 meaningful comparisons, 7 capture-safe candidates и 0 parity passes. Promotion не
-      разрешён; следующий bounded этап вынесен в live-order-role-reconciliation-v1.
-      Unevaluated oracle profiles публикуются как `not_evaluated` с null metrics. Отдельная non-live
-      control session 2026-07-14 подтвердила здоровый stable capture и authoritative batch.
-      Capture-safe/evaluable local-recall examples are listed in
-      `capture_safe_evaluable_local_recall_gap_examples` so the next fix has concrete target rows.
-      Segment-level parity exposes `30` real live strict order mismatches, `4` batch-interval
-      overlap ambiguities, `395.72s` missing-Me and `15.96s` suspected remote leakage in published
-      live Me. Order-risk categories are now explicit: `17` same-chunk/same-source, `11`
-      same-chunk/cross-source, `1` cross-chunk and `1` overlap-context mismatch. Primary-risk split
-      narrows the work further: `16`
-      role-conflict/remote-leak, `8` weak-match possible false positives and only `6` direct
-      timeline-reorder cases. A stricter same-role matcher confirms `8` strict role-constrained
-      mismatches plus `1` overlap ambiguity: `5` same-source and `3` cross-source strict rows, all
-      inside one live chunk. Filtering short/generic phrases leaves `4` contentful same-role strict
-      order-risk examples and `0` overlap ambiguities; text-match ambiguity scoring narrows the
-      stable subset to `2`. Most missing Me seconds are visible in suppressed mic
-      chunks.
-      Text-only segment rescue is
-      recorded as diagnostic metadata (`6` real live candidate chunks / `31` candidate segments in
-      the current corpus), but remains diagnostic-only because publishing it can reintroduce remote
-      as Me. Segment-level comparison now labels suppressed mic ASR against batch: `47`
-      Me-dominant segments / `149.62s` and `44` mixed segments / `199.92s` in real live runs.
-      Policy-lab metrics show text-only rescue is unsafe: current text gate would recover `152.60s`
-      local but risks `73.62s` remote; strict unique-token text rescue risks even more. The
-      `remote_silent_text_v1` slice is much safer (`34.16s` local / `2.58s` remote-risk), but
-      low-recall versus the `349.54s` oracle local ceiling. The next implementation target is the
-      coarse `live_role_gate`: split or rescue local evidence inside suppressed mic chunks with
-      stronger audio/evidence proof, without publishing remote leak as Me. First audio/evidence
-      lab results: `audio_mic_dominant_v1` is clean but small (`24.00s` local / `0.00s`
-      remote-risk), `audio_low_coherence_v1` is unsafe (`176.98s` local / `193.18s` remote-risk),
-      and `audio_safe_union_v1` is the best current shadow candidate (`50.18s` local / `2.58s`
-      remote-risk, `68.42s` missing-Me recovered). Fresh chunks can expose this candidate as
-      `live_rescue_shadow`; current corpus has `2` real-live shadow chunks / `9` segments, recovering
-      `45.36s` missing-Me in actual shadow artifacts while keeping normal live Me unchanged.
-      The shadow adds no measured remote-risk (`0.00s`), but still leaves `350.36s` missing-Me and
-      leaves `34` order mismatches in the combined draft evaluation, so it is evidence for
-      the next rescue/reconciliation pass, not a promotable live output.
-      Scoped candidate diagnostics now show `no_material_live_candidate`: in capture-safe promotion
-      candidates, the best live-implementable rescue policy recovers only `1.80s` local speech, while
-      the batch-oracle ceiling is `13.06s`. The new rescue lab makes the gap concrete: real live
-      suppressed mic ASR contains `369.74s` local/mixed speech; current candidate policies cover
-      `181.20s` but include `38.78s` remote-risk false positives; `188.54s` still need Target-Me or
-      stronger local-speaker evidence. `scripts/audit-live-local-recall-target-me.py` is the first
-      bridge to that evidence: the current Target-Me corpus pass audited `77` suppressed live mic
-      items / `334.12s`; `295.34s` were local/mixed, and `287.98s` of that local slice were
-      possible or confirmed Target-Me. The first policy candidate was
-      `target_me_confirmed_remote_guard_v1`: interval-overlap accounting estimated `94.68s`
-      missing-Me recovered at `2.44s` remote-risk. The counterfactual live-shadow comparison is now
-      stricter: the same policy recovers `128.85s` missing-Me with `0.00s` measured remote leak, but
-      adds `3` contentful role-constrained order mismatches. `target_me_possible_v1` recovers more
-      but remains unsafe (`278.15s` recovered / `16.30s` remote leak / `5` contentful order
-      mismatches). The first conservative timeline-safe subset,
-      `target_me_confirmed_remote_guard_timeline_safe_v1`, recovers `103.82s` missing-Me with
-      `0.00s` measured remote leak and `0` contentful order-mismatch delta, and is now materialized
-      as diagnostic `derived/live/target-me-shadow/.../draft.{json,md}` artifacts. The same
-      `parity_gates` now evaluate that materialized profile: `1` real-live session passes all gates,
-      profile missing-Me is `315.34s`, and existing live remote leak remains `15.96s`. The diagnostic
-      batch-oracle profile
-      `target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1` removes those
-      `15.96s` of batch-remote-like live `Me` turns and leaves `0.00s` measured remote leak, but it
-      only reduces non-passing profile gates from `42` to `41`; it is a ceiling measurement, not a
-      promotable live algorithm. The remaining `315.34s` missing-Me now split into `278.13s` visible
-      in suppressed mic ASR, `37.21s` not visible there, `174.33s` with a broader Target-Me candidate
-      and `141.01s` without one. The stronger visible-suppressed-mic oracle profile adds `145.54s` of
-      safe suppressed mic segments and drops profile missing-Me to `140.41s` while keeping measured
-      remote leak at `0.00s` and contentful order mismatches at `4`. Two sessions still lack enough
-      enrollment. First live-accessible approximations were not enough: `audio_safe_union_v1` is safe
-      but weak, while `audio_low_corr_text_guard_v1` recovers much more local speech but leaks too
-      much remote-like text. The dedicated suppressed-mic policy lab confirms the same boundary with
-      generated live-accessible thresholds: in the full real scope, best zero-risk recovery is only
-      `27.78s` from a `409.50s` local/mixed ceiling, best <=3s remote-risk recovery is `60.16s`, and
-      high-recall rules leak hundreds of seconds of remote-risk text; in the capture-safe candidate
-      scope, the best safe threshold recovers only `1.80s` from `13.06s`. The next local-recall work
-      therefore needs a stronger online role-gate/fallback design with local-speaker or
-      remote-forbidden evidence, not another simple threshold tweak, while keeping order,
-      review/readiness and capture-safe blockers explicit, plus a later enrollment/calibration
-      fallback. The live Target-Me enrollment lab confirms that same-session live-published `Me` is
-      not enough as the causal enrollment source yet: capture-safe candidate sessions have `0`
-      usable positive live `Me` enrollment segments; in the full real scope, prefix-live enrollment
-      recovers only `9.24s` local at `0.00s` remote-risk, while full-session non-causal enrollment
-      reaches `56.94s`. Target-Me remains promising, but promotion-oriented work now needs an
-      enrollment fallback/warmup or persistent local-speaker evidence. The persistent-profile lab has
-      now checked the historical-profile fallback: full real scope recovers `75.72s` local/mixed
-      speech but still selects `8.64s` remote-risk under the conservative remote guard, and the
-      stricter capture-safe candidate scope recovers `0.00s`. Persistent Target-Me is therefore
-      supporting evidence, not the main rescue path; the next local-recall step needs stricter
-      remote-forbidden gates and online role gating around suppressed mic segments. The composite
-      gate lab confirmed that direction: `dual_target_remote_guard_v1` is the first zero-risk
-      composite slice (`47.70s` local/mixed in the full real scope), `target_me_remote_guard_v1`
-      reaches `116.10s` local/mixed with `2.44s` remote-risk, and the stricter capture-safe
-      candidate scope still recovers `0.00s`. The tiny safe composite is now materialized as
-      `online_suppressed_mic_dual_target_remote_guard_v1`: it adds `47.70s`, leaves `380.17s`
-      missing-Me and leaves the existing `15.96s` live remote leak untouched. The paired
-      `online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1` shadow handles that
-      symptom separately: it removes `15.96s` remote-like live `Me`, keeps measured remote leak at
-      `0.00s`, preserves the `47.70s` suppressed-mic rescue, but still leaves `380.17s`
-      missing-Me, `4` contentful role-constrained order mismatches and `41` non-passing gates. The
-      previous best live-implementable profile,
-      `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_remote_forbidden_relaxed_boundary_classifier_v1`,
-      gets to `100.23s` missing-Me with `0.00s` remote leak, `4` contentful order mismatches and
-      `41` non-passing gates. It keeps the remote-forbidden multi-cut classifier around relaxed
-      suppressed-mic local anchors and closes `9.90s` versus the previous best
-      `audio_safe_union_v1` shadow without adding measured remote leak or contentful order
-      regressions. The current local-speaker boundary shadow
-      `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_v1`
-      improves this to `51.50s` missing-Me on real live sessions with the same `0.00s` remote leak and `4` contentful
-      order mismatches. The current live-only split/retime variant keeps `51.50s` missing-Me and
-      `0.00s` remote leak while lowering contentful order mismatches to `2`. Its residual
-      missing-Me splits into `37.73s` visible without Target-Me evidence and `13.77s` not visible
-      in suppressed mic. The remaining-gap report now identifies no-policy
-      rows as the largest bucket (`51.50s`) and groups their overlapping suppressed-mic evidence: top gate reason
-      `(none)` (`34.45s`), top batch-role labels `remote_dominant` (`32.90s`), `mixed`
-      (`29.28s`) and `me_dominant` (`10.90s`), plus `known_hallucination` (`12.42s`)
-      explicitly forbidden from rescue. The local-island split/retime oracle family now stays at
-      `51.50s` missing-Me on the real-live subset, so it no longer proves an additional missing-Me
-      gain.
-      After the diagnostic remote-guarded voice-boundary materialization, actionability points at
-      `25.00s` `mixed_needs_segmentation_or_speaker_evidence`, not a clean publication queue. The
-      mixed/speaker subset is `25.32s`: `10.58s` `local_island_split_candidate`, `5.36s` mixed
-      boundary voice gating, `8.58s` duplicate-heavy voice-disambiguation rows, `0.32s` already
-      materialized in the diagnostic remote-guarded boundary profile and `0.48s` low-value tail. The local-island split
-      lab now has `1` candidate / `10.58s` with `5.10s` of local-island evidence and rejects it by
-      token recall. The diagnostic split/retime oracle no longer closes extra missing-Me on the
-      real-live subset; ordinary parity gates still block promotion.
-      `live_next_unlock` records full-corpus diagnostics, but the current unlock path now uses
-      `capture_safe_candidate_scope`. Materializing the candidate profile exposed missing profile
-      evidence in the earlier report: active order risk was not advisory-only. The follow-up causal
-      token-density profile uses closed-chunk live ASR token timing and a short-phrase temporal prior.
-      On the refreshed 14-session real corpus the profile has `5` advisory gate rows and `0`
-      gate-blocking rows. Active capture-safe triage has `2` advisory / `0` blocking rows;
-      historical full-corpus triage retains one blocking row outside that active slice. The next
-      implementation focus is `fix_live_local_recall_gap`; remote leakage remains a parallel gate,
-      and no extra recording is required.
-      The first local-only enrollment probe is now available and finds ready seed material in all
-      `3` affected sessions (`144.00s` accepted positive local-only audio). The probe supports
-      `24.52s` of the `25.00s` blocked mixed rows, leaving only the `0.48s` low-value tail
-      unsupported. A causal follow-up now uses only enrollment seeds ending before each closed live
-      segment: it supports `33` segments / `111.18s`. Its micro-ASR lab accepts `13` groups /
-      `62.54s`; batch-informed selection keeps the diagnostic missing-Me ceiling at `683.55s`.
-      Progressive enrollment is integrated into the running sidecar and evaluated through the
-      direct live profile `live_runtime_causal_target_me_direct_v1`: it evaluates the current chunk
-      before enrollment and publishes only candidates localized outside live remote intervals.
-      A conservative follow-up, `live_runtime_causal_target_me_remote_energy_v1`, additionally
-      requires quiet contemporary remote audio or at least 20 dB mic dominance. It is a separate
-      shadow profile, uses no batch fields and may trade ambiguous double-talk recall for role safety.
-      Speaker-confirmed sliding-window candidates remain diagnostic. On 10 comparable real sessions
-      it improves missing Me `2426.91s -> 1869.02s` (`557.89s`) with unchanged `35.42s` remote-like
-      Me and unchanged `1` blocking / `5` advisory order rows. Weighted recall improves by
-      `0.058710` and F1 by `0.039337`; maximum per-session F1 regression is `0.001712`. The profile
-      has `algorithmic_status = safe_shadow_candidate` and is the best live-implementable shadow
-      profile. Overall status remains `historical_replay_only`: temporal provenance finds one sparse
-      session with ordinary pre-stop chunks but `0` sessions with accepted causal candidates produced
-      before stop and a usable batch comparison. A fresh controlled Live
-      Evidence run must still prove pre-stop artifacts, bounded lag and fail-open capture behavior;
-      promotion remains blocked by ordinary parity gates.
-      Profile selection now ranks algorithms by common quality gates: the runtime-only
-      `pre_stop_runtime_causal_target_me` gate remains mandatory for promotion but is excluded from
-      cross-profile ranking. The current runtime profile has `72` total / `66` comparable
-      non-passing gates, so it stays the best live-implementable candidate without making promotion
-      appear ready.
-      A stricter speaker-overlap follow-up previously became the best live-implementable profile:
-      `live_runtime_causal_target_me_speaker_overlap_v1` admits only speaker-confirmed windows with
-      strong source alignment and short or known-hallucination remote context. Against the direct
-      runtime profile it reduces missing Me `1881.44s -> 1829.64s` (`51.80s`), keeps remote-like Me
-      at `35.42s`, keeps blocking/advisory order at `1 / 5`, raises weighted F1 by `0.001874`, and has
-      zero per-session F1 regression. Its profile-specific pre-stop evidence count is `0`, so status
-      remains `historical_replay_only` and promotion remains blocked.
-      The first long real runtime session changed that ranking. The separate
-      `live_runtime_causal_target_me_remote_energy_v1` profile is now the best live-implementable
-      candidate: across 11 comparable sessions it recovers 634.43s missing Me, keeps remote-like Me
-      at 126.30s, keeps blocking/advisory order at 2/14, improves weighted F1 by 0.029584 and has no
-      per-session F1 regression. Its first pre-stop evidence makes it `safe_shadow_candidate`.
-      Promotion still has zero passing real sessions and remains blocked.
-      The 2026-07-10 strict refresh classifies `14` real sessions, `7` meaningful comparisons and
-      `0` passing comparisons; the coverage target remains `3` fresh passing comparisons.
-      The immediate reliability unit separates immutable realtime artifacts from explicit post-stop
-      fallback recovery, adds worker heartbeat and child-process timeouts, makes compare read-only,
-      and requires an integration smoke that observes a draft before recording stop.
-      Post-stop processing applies cheap cleanup before stronger-audio-judge, rebuilds the residual
-      review pack and uses two-source triage by default; exhaustive four-source decoding is opt-in.
-      `remote_dominant_without_new_evidence` / `known_hallucination` stay blocked. Historical base
-      triage had `14` contentful rows; the former voice-activity profile exposed `9` blocking
-      boundary candidates and `12` advisory weak matches. The token-density follow-up clears
-      blocking order risk in the active capture-safe path while retaining `2` advisory rows for
-      audit. Historical full-corpus triage still retains one blocking row. Strict order gates still
-      block genuine contradictions; the active implementation focus now moves to live local recall.
-      The causal Target-Me remote-gap trim follow-up keeps only mic ASR token pieces between guarded
-      remote intervals and after sustained local activity. On the full real corpus it materializes
-      `42` pieces / `176.262s`, closes `15.38s` missing Me and leaves remote-like Me (`40.29s`) and
-      order counters unchanged. Focused live-only micro-ASR adds `3` non-duplicate pieces /
-      `10.74s`, rejects `3` unsafe or already-covered candidates and closes the remaining known
-      Target-Me row / `4.68s` (`719.49s -> 714.81s`). The next step is the broader classified
-      local-recall queue.
-      The diagnostic boundary-order retime oracle remains non-promotable evidence: timing repair
-      needs local-speaker preservation and must not relax remote-forbidden gates.
-      The split/retime oracle preserves `1 / 6.62s` of local prefix and keeps missing-Me unchanged
-      at `86.85s`, while still reducing contentful order mismatches to `2` and keeping remote leak
-      at `0.00s`. The live-only implementation now materializes this target shape as a shadow
-      profile; promotion is still blocked by ordinary parity gates.
-      `live_speaker_boundary_evidence_lab` now splits the same gap into `17.90s` future
-      shadow-probe candidates, `68.95s` blocked rows and `0.0s` publication-ready. Next
-      implementation should focus on online local-speaker and boundary evidence for mixed regions.
-      A soft local-speaker boundary shadow was tested and produced `no_incremental_gain`
-      (`0.00s` missing-Me delta, `0.00s` remote-leak delta), so weaker loudness thresholds are not
-      the next useful path.
-      `live_online_speaker_boundary_evidence_design_lab/v1` now narrows the next implementation:
-      `40.18s` actionable mixed/speaker rows, `14.132s` potential publishable seconds after new
-      evidence, `0.0s` publish-ready now, and top unit `boundary_island_micro_asr` (`10.58s`, potential
-      `5.10s`). The first `live_boundary_island_micro_asr_lab` confirms `1` live alignment
-      candidate / `5.10s`: live batch-token recall improves from `0.154` to `0.385`,
-      batch-reference recall reaches `0.462`, and publication remains blocked at `0.0s`.
-      The diagnostic lab-shadow profile now materializes that candidate: it adds `1` micro-ASR
-      turn / `5.10s`, lowers missing-Me to `76.27s`, keeps measured remote leak at `0.00s`, keeps
-      contentful order mismatches at `2`, and remains `lab_shadow`.
-      The
-      live-only candidate lab now selects `99.40s` of suppressed mic
-      candidates and `83.04s` local/mixed evidence, but still carries `16.36s` remote-risk
-      (`precision_proxy = 0.835412`). Its stricter zero-risk profile selects `36.12s` with `0.00s`
-      remote-risk under batch evaluation. The strict profile is now materialized as shadow output:
-      after deduplication against existing live/Target-Me turns, standalone strict adds `0.00s`,
-      leaves `117.57s` missing-Me and `0.00s` remote leak; combined strict+audio-safe adds the same
-      `52.76s` as `audio_safe_union_v1`, while the current local-speaker boundary profile leaves
-      `86.85s` missing-Me with `0.00s` remote leak. `live_strict_local_island_shadow_delta_lab/v1` records `0.00s` incremental strict turns
-      and `13.38s` closed missing-Me, but a negative net delta versus the current relaxed profile.
-      The live-only micro-ASR profile is now materialized too:
-      `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_live_boundary_micro_asr_live_only_shadow_v1`.
-      It finds `3` alignment candidates / `13.76s`, but after deduplication and timeline safety it
-      adds `0.00s`, leaves missing-Me at `86.85s`, keeps remote leak at `0.00s` and contentful
-      order mismatches at `2`.
-      The blocker-analysis micro-ASR lab now targets the capture-safe duplicate-heavy rows directly:
-      `2` rows yield `4` local-island probes, `3` probes / `9.16s` are split candidates, and
-      `promotion_allowed` remains false because selection still uses batch blocker labels.
-      The paired live-only selector `live-duplicate-heavy` now selects the same problem shape from
-      suppressed mic rows with duplicate-heavy text and low-correlation audio evidence: `4` selected
-      rows, `3` split candidates / `12.00s`, still diagnostic-only.
-      Keep duplicate-heavy or remote-dominant rows blocked; the next
-      implementation target is online timing anchors / remote-forbidden evidence for still-uncovered
-      local islands, not more recordings, broader rescue or live promotion. The
-      `live_only_retime_boundary_candidate_lab/v1` follow-up evaluates that idea against the current
-      best-live-implementable remaining gap: strict zero-remote anchors recover `0.00s`, so there is
-      no strict recommended profile yet; the relaxed `oracle_gap_probe_v1` recovers `18.69s` but
-      also carries `27.20s` remote-risk. The next implementation target is a remote-forbidden
-      context/boundary gate around relaxed anchors, not publication of relaxed anchors as-is. The
-      evaluation-only zero-remote ceiling recovers `14.79s` at `0.00s` remote-risk from `31.28s` of
-      candidate span. The first live-only classifier now recovers `13.44s` at `0.00s` remote-risk
-      without batch labels. It has now been materialized as an ordinary shadow profile:
-      `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_remote_forbidden_boundary_classifier_v1`.
-      The unguarded version adds `12.68s` and lowers missing-Me from `130.97s` to `127.01s`, but
-      increases contentful order mismatches from `4` to `5`. The guarded version adds only `1.48s`.
-      The relaxed materialized variant
-      `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_remote_forbidden_relaxed_boundary_classifier_v1`
-      adds `4.10s`, leaves `100.23s` missing-Me, keeps measured remote leak at `0.00s` and keeps
-      contentful order mismatches at `4`. The local-speaker boundary materialized variant now
-      leaves `86.85s` missing-Me with the same `0.00s` remote leak and `4` contentful order
-      mismatches. The current live-only split/retime variant keeps missing-Me and remote leak
-      unchanged and lowers contentful order mismatches to `2`. The earlier `7` advisory / `0`
-      blocking result was incomplete because the candidate profile was absent from several
-      comparisons. Focused materialization found `9` blocking boundary rows and `12` advisory
-      weak-match rows. Token-density retime plus short-phrase temporal matching now leaves `2`
-      advisory rows and `0` blocking rows in the active capture-safe path. The refreshed full real
-      corpus has `5` advisory gate rows and one historical triage blocker outside that path. The first
-      voice-coverage
-      check now shows `5` mixed/speaker rows / `25.32s`. After Target-Me is rerun with
-      `--include-remaining-gap` and diagnostic `--fallback-persistent-profile`, all rows have
-      Target-Me coverage; `0.32s` have been materialized in the diagnostic remote-guarded boundary
-      profile and `25.00s` stay weak or ambiguous. Those labs remain diagnostic-only. Следующий
-      фокус: `fix_live_local_recall_gap`. Remote-gap trim уже закрыл `2` live-visible Target-Me
-      строки / `15.38s`; focused live-only micro-ASR закрыл третью / `4.68s` и отфильтровал
-      remote-like/covered варианты. Runtime-causal follow-up с локализацией по remote-free и
-      remote-free окнам уменьшил comparable-session missing-Me `2426.91s -> 1869.02s` без изменения
-      remote/order counters и поднял weighted F1 `0.746153 -> 0.785490`. Paired no-regression status
-      имеет `algorithmic_status = safe_shadow_candidate`, но общий status —
-      `historical_replay_only`; promotion остаётся blocked до свежего soak и обычных parity gates.
-
-  live-order-role-reconciliation-v1:
-    title: "Live Order and Role Reconciliation v1"
-    kind: task
-    parent: near-realtime-pipeline
-    deps: [realtime-live-parity-coverage-v1]
-    status: done
-    effort: 5
-    notes: |
-      Завершено 2026-07-14. В 7 capture-safe sessions классифицированы все 23 audit rows: 10
-      causal_cross_source_overlap, 5 causal_same_source_overlap_context, 6
-      matcher_temporal_false_positive и 2 matcher_ambiguous_reference. Все 15 прежних effective
-      blockers закрыты доказательствами; candidate order gate проходит 7/7. Реальных timeline/role
-      conflicts не найдено, поэтому transcript mutation count = 0. Raw matcher rows остаются в
-      аудите. Selected profile:
-      online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_speaker_only_v1.
-      Batch authoritative, promotion blocked другими parity gates.
-
-  live-local-recall-remote-leakage-hardening-v1:
-    title: "Live Local Recall and Remote Leakage Hardening v1"
-    kind: task
-    parent: near-realtime-pipeline
-    deps: [live-order-role-reconciliation-v1]
-    status: done
-    effort: 8
-    notes: |
-      Завершено 2026-07-15. Все 118 local-recall blocker rows / 451.03s в 7 capture-safe sessions
-      получили стабильные dispositions: 5 partial_safe_tail, 4 remote_free_local_island, 16
-      mixed_double_talk, 25 duplicate_context, 28 unsupported и 40 unresolved. Selected profile
-      online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_v1
-      уменьшает aggregate missing Me 2844.88s -> 2166.56s, сохраняя remote-like Me 108.42s,
-      effective order blockers 0 и review burden 490.38s. Все 7 per-session token-F1 и safety gates
-      проходят. Batch использован только для оценки, raw CAF и authoritative transcript не менялись,
-      promotion остаётся blocked.
-
-  live-causal-local-island-micro-asr-v2:
-    title: "Causal Local-Island Micro-ASR v2"
-    kind: task
-    parent: near-realtime-pipeline
-    deps: [live-local-recall-remote-leakage-hardening-v1]
-    status: done
-    effort: 8
-    notes: |
-      Завершено 2026-07-15. Все 40 unresolved rows / 210.41s получили стабильные outcomes: 2
-      accepted, 38 rejected. Explicit-only profile добавляет 44 deduplicated turns / 267.12s и
-      уменьшает aggregate missing Me 2166.56s -> 1910.79s. Remote-like Me остаётся 108.42s,
-      effective order blockers 0, review burden 490.38s; token F1 не регрессирует, все 7
-      per-session gates проходят. Batch использован только для оценки, raw CAF, authoritative batch
-      и предыдущие shadows не менялись, promotion остаётся blocked.
-
-  live-causal-remote-active-me-separation-v1:
-    title: "Causal Remote-Active Me Separation v1"
-    kind: task
-    parent: near-realtime-pipeline
-    deps: [live-causal-local-island-micro-asr-v2]
-    status: done
-    effort: 8
-    notes: |
-      Завершено 2026-07-15. Все 19 primary remote-active rows / 88.39s получили стабильные outcomes:
-      9 accepted, 10 rejected. Все 16 mixed/double-talk cross-check rows / 65.07s безопасно
-      отклонены. Explicit-only profile добавляет 42 turns / 289.46s и уменьшает aggregate missing
-      Me 1910.79s -> 1657.89s. Remote-like Me остаётся 108.42s, effective order blockers 0, review
-      burden 490.38s; token F1 не регрессирует, все 7 per-session gates проходят. Selection использует
-      committed PCM, past-only training, Target-Me и hard remote text/audio guards; batch поля только
-      для оценки, promotion blocked.
-
-  live-recording-time-causal-me-recovery-integration-v1:
-    title: "Recording-Time Causal Me Recovery Integration v1"
-    kind: task
-    parent: near-realtime-pipeline
-    deps: [live-causal-remote-active-me-separation-v1]
-    status: done
-    effort: 8
-    notes: |
-      Завершено 2026-07-15. Replay-proven local-island v2 и remote-active v1 выполняются после
-      durable base chunk через latest-only child. Runtime использует closed current/past chunks,
-      past-only enrollment, timeout 120s, lag budget 90s и proven remote-active ASR
-      budget 24. Fixed corpus воспроизводит candidate sets и profile metrics 7/7; missing Me
-      1657.89s, remote-like Me 108.42s, blockers 0, review burden 490.38s. Timeout/lag/coalescing
-      fail open, raw и batch hashes неизменны. Isolated source-time soak 870.16s публикует 7
-      pre-stop candidates / 48.40s; max invocation 32.28s внутри lag budget 90s. Runtime shadow
-      изолирован от normal preview/export, promotion blocked.
-
-  live-recovery-runtime-efficiency-real-evidence-v1:
-    title: "Live Recovery Runtime Efficiency and Real Evidence v1"
-    kind: task
-    parent: near-realtime-pipeline
-    deps: [live-recording-time-causal-me-recovery-integration-v1]
-    status: done
-    effort: 8
-    notes: |
-      Завершено 2026-07-17. Реализованы persistent per-stage watermarks, immutable content-addressed
-      DSP/candidate/micro-ASR caches, changed-suffix processing и bounded model/config invalidation.
-      Fixed corpus сохраняет candidate agreement и profile metrics 7/7; warm-final equivalence 7/7.
-      Stride-1 replay на 2460s/41 cutoffs даёт p50 2.80s, p95 13.61s, max 19.16s и warm final 2.52s
-      без новой работы. Stop path теперь имеет bounded 30s latest-cutoff drain вместо потери pending
-      cutoff; focused tests подтверждают zero-lag completion и fail-open timeout. Команда `live
-      recovery-evidence` автоматически проверяет manager 1.1.0+, настоящее recording-time execution,
-      experiment backpressure, incremental state, pre-stop candidates и zero final lag. Первый
-      fresh proof `2026-07-16_11-15-15-live` проходит: raw 1830.64s, batch successful, 62 healthy
-      recording-time invocations, runtime p95 3.98s, backpressure 0, final lag 0. Второй proof
-      `2026-07-16_14-01-26-live` также проходит: raw 4527.4s, batch successful, 149 invocations,
-      pre-stop candidates, runtime p95 10.99s, no timeout/backpressure и final lag 0. Третий proof
-      `2026-07-17_11-15-54-live` проходит: raw 2304.1s, 77 recording-time invocations, 59 pre-stop
-      candidate runs, 16 final candidates, no failed/timed-out invocation и final lag 0. Strict
-      aggregate теперь 3/3. Normal preview, transcript, notes, export и promotion не менялись.
-
-  live-causal-double-talk-me-recovery-v1:
-    title: "Causal Double-Talk Me Recovery v1"
-    kind: task
-    parent: near-realtime-pipeline
-    deps: [live-recovery-runtime-efficiency-real-evidence-v1, live-asr-cache-compatibility]
-    status: done
-    effort: 8
-    notes: |
-      Завершено 2026-07-18. Immutable corpus: 16 rows / 65.07s, 356 frozen input files. Все rows
-      имеют stable explainable outcomes; 4 rows / 11.56s восстановлены causal FIR/spectral/hybrid/
-      ratio-mask residuals, past-only Target-Me и local micro-ASR consensus при неизменных remote
-      text/audio forbiddance. Aggregate missing Me 1657.89s -> 1639.73s, remote-like Me 108.42s,
-      effective order blockers 0, review burden 490.38s -> 478.82s, no per-session token-F1
-      regression. Runtime double-talk p95 23.473s, final lag 0. Raw, Echo Guard, normal preview,
-      authoritative batch и promotion не изменились. Completion audit проверяет 161 residual view
-      из четырёх families, причины всех rejected views, strict evidence каждого accepted candidate
-      и evaluation-only boundary evidence всех recovered rows.
-
-  live-causal-recovery-generalization-promotion-readiness-v1:
-    title: "Causal Recovery Generalization and Promotion Readiness v1"
-    kind: task
-    parent: near-realtime-pipeline
-    deps: [live-causal-double-talk-me-recovery-v1, corpus-regression]
-    status: done
-    effort: 8
-    notes: |
-      Завершено 2026-07-18 решением DO_NOT_PROMOTE. Immutable corpus: 963 outcomes / 10 sessions,
-      3 holdout meetings / 9105.631s, 832 unchanged input SHA. Original 16 rows сохранены; 4 rows /
-      11.56s остаются recovered. Evaluation: 284 genuine double-talk, 549 remote leak, 28 ASR noise,
-      11 timing overlap, 91 insufficient; 65 adversarial negative controls, accepted negatives 0.
-      Blockers: expensive candidate stage покрывает 268/783 eligible rows, все три holdout runtime
-      replay завершаются timed_out_fail_open, один holdout увеличивает effective order blockers
-      3 -> 4. Deterministic outcome fingerprint повторён, fail-open и 832 SHA checks pass. Normal
-      preview unchanged, batch authoritative, remote-forbidden guards unchanged.
-
-  live-causal-candidate-coverage-cheap-negative-prefilter-v1:
-    title: "Causal Candidate Coverage and Cheap Negative Prefilter v1"
-    kind: task
-    parent: near-realtime-pipeline
-    deps: [live-causal-recovery-generalization-promotion-readiness-v1, corpus-regression]
-    status: done
-    effort: 8
-    notes: |
-      Завершено 2026-07-18 решением DO_NOT_PROMOTE. Все 783 eligible rows имеют causal route:
-      48 cheap_reject, 159 expensive_candidate, 576 unresolved. Cheap reject не удаляет frozen
-      genuine double-talk; selection не использует batch/future evidence. Expensive stage: 87
-      candidates, 39 accepted / 191.26s; fixed 4 rows / 11.56s сохранены. Все 10 per-session
-      order/remote/F1/review no-regression gates проходят, прежняя order regression устранена.
-      Все 65 frozen negative controls отвергнуты; blocker — 1 новый post-hoc ASR-noise candidate.
-      Runtime проходит 0/3 holdouts, 20 attempts timed_out_fail_open, overall p95 max 42.634s при лимите 30s. Routes
-      совпадают offline/runtime 643/643, final lag 0. Prefilter watermark теперь сохраняется до
-      expensive work, поэтому timeout не повторяет тот же cutoff. Normal preview не менялся, batch
-      authoritative; live promotion branch закрыт.
-
-  live-causal-recovery-promotion-reconsideration:
-    title: "Causal Recovery Promotion Reconsideration"
-    kind: task
-    parent: near-realtime-pipeline
-    deps: [live-causal-candidate-coverage-cheap-negative-prefilter-v1, corpus-regression]
-    status: blocked
-    effort: 3
-    notes: |
-      Заблокировано итогом cheap-prefilter goal: один post-hoc ASR-noise candidate и runtime 0/3 не проходят
-      hard gates. Решение DO_NOT_PROMOTE воспроизводимо, normal preview неизменён, batch authoritative.
-      Возвращаться к promotion можно только отдельной будущей целью с новой доказуемой гипотезой;
-      persistent faster-whisper worker допустим лишь как isolated lab на том же immutable corpus.
+    notes: "doctor, self-test, acceptance, local installer, public docs, license и readiness checks."
 
   corpus-regression:
-    title: "Corpus regression и постоянный контур качества"
+    title: "Corpus regression и evidence store"
     kind: phase
     parent: murmurmark-cli
-    deps: [foundation-done]
-    status: current
-    effort: 23
+    status: done
+    effort: 12
     notes: |
-      Набор реальных сессий, пересборка, сравнение метрик и no-regression gates.
-      Базовые команды corpus build/process/evaluate/train-audio-judge/report уже доступны;
-      corpus gate уже проверяет hard-инварианты и может сравнивать будущие прогоны
-      с локальным baseline snapshot. Audio judge evaluation пишет out-of-fold audit;
-      session readiness теперь явно разделяет review_blockers и export_blockers.
-      Audio-error taxonomy уже показывает цену классов ошибок и следующий безопасный ремонт.
-      Следующий слой — использовать эту карту для точечного закрытия `review_first` сессий.
-
-  corpus-add-command:
-    title: "corpus add"
-    kind: task
-    parent: corpus-regression
-    status: done
-    effort: 3
-    notes: "murmurmark corpus build принимает явный список сессий или all/latest и собирает regression corpus."
-
-  corpus-process-report:
-    title: "corpus process/report"
-    kind: task
-    parent: corpus-regression
-    status: done
-    effort: 5
-    notes: "murmurmark corpus process пересобирает quality/corpus/evaluation/audio-judge/readiness; corpus report показывает сводку по сессиям."
-
-  corpus-regression-gate:
-    title: "Regression gates"
-    kind: task
-    parent: corpus-regression
-    status: done
-    effort: 5
-    notes: "murmurmark corpus gate проверяет coverage, transcript-инварианты, corpus readiness, audio judge, review burden, local-recall blockers в выбранном operational-срезе и warning-очередь remote-leak segment repair. Operational review ограничен и строками (`25`), и упакованными действиями (`15`) при текущем уровне `12` rows / `9` actions."
-
-  corpus-audio-judge-refresh:
-    title: "Audio judge evaluation"
-    kind: task
-    parent: corpus-regression
-    status: done
-    effort: 5
-    notes: "train-audio-judge-v0.py пишет out-of-fold predictions, per-session accuracy, confidence buckets, cleanup precision by threshold и high-confidence error audit."
-
-  corpus-no-regression-thresholds:
-    title: "No-regression thresholds"
-    kind: task
-    parent: corpus-regression
-    status: done
-    effort: 5
-    notes: "check-corpus-gates.py поддерживает --write-baseline и --baseline; baseline ловит регрессии по готовым сессиям, use_gate, review burden, operational review actions, local recall, local-recall blockers/lost seconds, protected remote-leak queue, corpus size и audio judge. Hard transcript/local-recall gates используют выбранный operational-срез, а полный historical corpus остаётся warning-аудитом."
-
-  corpus-review-export-blockers:
-    title: "Review/export blockers"
-    kind: task
-    parent: corpus-regression
-    status: done
-    effort: 3
-    notes: "session_readiness.json пишет use_gate_reasons, review_blockers, export_blockers и next_commands; export использует export_blockers как машинный gate."
-
-  corpus-error-taxonomy:
-    title: "Audio error taxonomy"
-    kind: task
-    parent: corpus-regression
-    deps: [corpus-audio-judge-refresh]
-    status: done
-    effort: 3
-    notes: "murmurmark corpus taxonomy собирает regression corpus, audio-judge и session-quality отчёты в одну карту классов ошибок и следующих безопасных действий. Внутри широких классов пишет diagnostic subtypes и action_plan, например uncertain_duplicate_vs_leak и remote_leak_with_local_content_risk."
-
-  review-loop:
-    title: "Review loop"
-    kind: phase
-    parent: murmurmark-cli
-    deps: [cli-orchestration, corpus-regression]
-    status: done
-    effort: 24
-    notes: |
-      Базовый review loop завершён. Plan/progress/apply и интерактивный
-      review SESSION/latest уже доступны. Workspace review и агентный review agent доступны
-      через CLI, readiness и blocked export ведут к workspace next commands. Suggested decisions
-      применяются накопительно, уже закрытые строки
-      не теряются при пересборке template, а progress/status/report показывают один и тот же ручной
-      остаток. Дальнейшее снижение очереди относится к quality-hardening и текущей live
-      reconciliation, а не к отсутствию review-механизма.
-
-  cli-review-command:
-    title: "murmurmark review SESSION"
-    kind: task
-    parent: review-loop
-    status: done
-    effort: 5
-    notes: "Открывает review queue по transcript, overlaps, lost Me, duplicate и audio-review evidence."
-
-  review-lane-filtering:
-    title: "Lane-based review"
-    kind: task
-    parent: review-loop
-    status: done
-    effort: 4
-    notes: "Фильтры по дорожкам, explicit `murmurmark review lane LANE`, first-lane и workspace packs: harmful duplicate, lost Me, local-recall repair, uncertain, notes evidence, export blockers."
-
-  review-hotkeys-progress:
-    title: "Hotkeys и progress"
-    kind: task
-    parent: review-loop
-    status: done
-    effort: 3
-    notes: "Быстрые решения: accept/drop/mark/retry/skip и сохранение прогресса."
-
-  review-apply-decisions:
-    title: "Apply decisions"
-    kind: task
-    parent: review-loop
-    status: done
-    effort: 4
-    notes: "Применение review decisions в отдельный профиль без изменения baseline."
-
-  review-agent-command:
-    title: "murmurmark review agent"
-    kind: task
-    parent: review-loop
-    deps: [review-apply-decisions, corpus-audio-judge-refresh]
-    status: done
-    effort: 2
-    notes: "CLI-команда строит безопасные agent_reviewed_v1 decisions, применяет профиль, запускает synthesis и обновляет session-quality/readiness/review-plan отчёты. Агентный слой закрывает только узкие подтверждённые паттерны, включая short remote backchannel внутри длинной Me-реплики как transcript-order keep_me и high-confidence faster-whisper judge evidence при прежних safety gates."
-
-  review-export-closure-v1:
-    title: "Export-review closure v1"
-    kind: task
-    parent: review-loop
-    deps: [review-agent-command, review-burden-report, review-unresolved-explicit]
-    status: done
-    effort: 4
-    notes: |
-      Завершено 2026-06-30: readiness/status/next больше не отправляют пользователя в пустой
-      `review first-lane`. Этот слой не означает, что текущий корпус зелёный: после новой daily sync
-      corpus снова `not_ready` с 5 actionable rows. Завершённая часть — корректная маршрутизация:
-      ready sessions ведут в notes/finish, пустые очереди не предлагаются, а реальные rows остаются
-      явными. Capture, Echo Guard и основной ASR не менялись.
-      Possible lost `Me` и спорное содержание остаются в review/export gate.
-
-  review-suggested-closure-v2:
-    title: "Suggested review closure v2"
-    kind: task
-    parent: review-loop
-    deps: [review-agent-command, review-export-closure-v1, quality-audio-judge-labels]
-    status: done
-    effort: 5
-    notes: |
-      Завершённый инструмент после анализа daily sync `2026-06-30_11-15-56`.
-      Сессия прошла capture/Echo Guard/ASR, но получила `risky` из-за transcript order и local recall.
-      При этом faster-whisper stronger judge подтвердил ряд overlap-фрагментов как real Me +
-      real remote timing/double-talk, но текущая очередь daily sync состоит из unmatched order/local-recall
-      rows. Реализован first-class путь `murmurmark review suggested` /
-      `murmurmark review suggested apply`: preview exact remaining queue, partial apply только
-      безопасных suggestions, reason/evidence в applied rows, `suggested_closure` в workspace report,
-      status/readiness/corpus metrics. Guardrail текущего шага: если безопасных suggested rows нет,
-      CLI честно печатает `auto_closable: 0` и ведёт в первую ручную lane, а не скрывает риск.
-      Corpus report на момент внедрения: `8` generated suggestions, `0` actionable rows,
-      `8` needs-review rows, `61` manual rows remaining. Дальше review closure остаётся
-      операционной дисциплиной и поддерживает качество, но не является ближайшей крупной целью.
-
-  review-loop-stabilization-v1:
-    title: "Review-loop stabilization v1"
-    kind: task
-    parent: review-loop
-    deps: [review-suggested-closure-v2]
-    status: done
-    effort: 3
-    notes: |
-      Завершённая цель. Исправляет рассинхрон между `review_decisions.jsonl`, `review progress`,
-      workspace `suggested_closure`, `status` и session-quality. `review suggested apply` стал
-      cumulative/key-based: безопасные новые решения не затирают уже закрытые строки. Lane suggestions
-      используют cached stronger-audio-judge и Target-Me evidence; новый faster-whisper decode внутри
-      suggested flow теперь opt-in через `MURMURMARK_TARGETED_JUDGE_COMPUTE=1`. Проверено на
-      `2026-07-01_11-17-22` и `2026-07-01_14-01-09`.
-
-  operational-corpus-green-v2:
-    title: "Operational Corpus Green v2"
-    kind: task
-    parent: corpus-regression
-    deps: [review-loop-stabilization-v1, corpus-process-report]
-    status: done
-    effort: 5
-    notes: |
-      Завершённый операционный baseline для medium-risk рабочих встреч: все рабочие сессии либо
-      ready_for_notes, либо имеют короткую, доказанную и не закрываемую безопасной автоматикой
-      manual review очередь. Зафиксированный проход:
-      `murmurmark next corpus --refresh` пишет `pilot_ready_with_review`, `0` do-not-use sessions,
-      irreducible review gate `irreducible_manual_review_queue_present`, `9` actions
-      обязательной очереди, `28` low-materiality rows / `70.95s` вне mandatory queue,
-      `0` pending safe suggestions, notes review burden `1.32 min`, transcript/export surface
-      `4.09 min`. Узкие risky-сессии с разрешёнными флагами и короткой очередью
-      представлены как formal residual risk, а не как скрытая готовность.
-      Full transcript export остаётся отдельным guarded gate: `finish` должен блокировать bundle,
-      когда остаются transcript-only blockers.
-
-  review-burden-report:
-    title: "Review burden report"
-    kind: task
-    parent: review-loop
-    status: done
-    effort: 3
-    notes: "Сколько минут/реплик требуют проверки, что блокирует export, что можно игнорировать."
-
-  review-unresolved-explicit:
-    title: "Unresolved risky items остаются явными"
-    kind: task
-    parent: review-loop
-    status: done
-    effort: 3
-    notes: "Ни один рискованный участок не исчезает молча из итогового отчёта."
-
-  quality-hardening:
-    title: "Укрепление качества transcript"
-    kind: phase
-    parent: murmurmark-cli
-    deps: [review-loop, corpus-regression]
-    status: current
-    effort: 47
-    notes: |
-      Улучшать качество без разрушения уже работающего pipeline. Запись, raw CAF, текущий
-      `local_fir` default и основной ASR остаются воспроизводимыми. Новые echo-removal идеи
-      сначала работают как shadow candidates.
-
-      `audit_cleanup_v7` и review loop уже умеют компенсировать часть remote leak после ASR, но
-      это дорогая защита. offline AEC v2 и первый vNext spike дали baseline: proxy audio cleanup
-      недостаточен, а ASR-visible remote tokens надо ловить явными evidence gates. Coverage v2
-      сделал этот gate достаточно широким для следующего шага. ASR-positive audio candidate v2
-      добавил `coverage_v2_remote_gate_local_fir` как текущий shadow audio baseline. Target-Me
-      hardening подключил speaker evidence к review-plan rows и закрыл две безопасные `keep_me`
-      строки. `authoritative_boundary_v1` теперь является продвинутым operational-профилем и
-      снимает 63.2% строк исходной обязательной очереди. `residual_me_evidence_v1` поднимает
-      безопасное закрытие до 244/337 строк и оставляет 93 строки / 307.683s явными. Текущий фокус —
-      откалибровать evidence для 66 audio-review строк, не меняя capture, Echo Guard и primary ASR.
-
-  quality-local-recall-repair:
-    title: "Better local recall repair"
-    kind: task
-    parent: quality-hardening
-    status: done
-    effort: 6
-    notes: "Первый conservative слой local_recall_repair_v1 вставляет только короткие Me-острова из possible_lost_me после micro-ASR поверх лучшего текущего безопасного профиля. Boundary-overlap fallback восстанавливает короткие строки, которые Whisper распознал, но чей midpoint вышел за край local island; operational readiness и review plan выводят эти вставки как local_recall_repair rows с keep/drop/needs_review решениями. murmurmark review agent может закрыть только high-confidence local-only вставки, остальные остаются в check_local_recall. murmurmark corpus local-recall-repair собирает эффект по корпусу перед возможной auto-promotion и отделяет reviewable-вставки complete-сессий от incomplete-сессий, которые сначала нужно прогнать через process."
-
-  quality-local-recall-boundary-audit:
-    title: "Boundary-aware local recall audit"
-    kind: task
-    parent: quality-hardening
-    status: done
-    effort: 2
-    notes: "audit-local-recall отличает короткие boundary/ack fragments и remote-covered boundary fragments от возможной потерянной локальной речи и не раздувает review burden такими хвостами."
-
-  quality-local-recall-corpus-queue:
-    title: "Local recall corpus queue"
-    kind: task
-    parent: quality-hardening
-    deps: [quality-local-recall-boundary-audit]
-    status: done
-    effort: 2
-    notes: "murmurmark corpus local-recall агрегирует per-session local-recall audits в одну очередь возможных пропусков Me; --audit пересобирает аудиты перед агрегацией. Transcript edits не применяются."
-
-  quality-remote-duplicate-safety:
-    title: "Safer remote duplicate handling"
-    kind: task
-    parent: quality-hardening
-    status: done
-    effort: 5
-    notes: "Whole-utterance cleanup защищает намеренные повторы и действия; audit_cleanup_v7 добавляет segment-level удаление доказанных remote_duplicate spans внутри смешанных Me-реплик. Remote_leak без текстового дубля остаётся mark/review-only."
-
-  quality-remote-leak-segment-plan:
-    title: "Remote leak segment repair plan"
-    kind: task
-    parent: quality-hardening
-    deps: [corpus-error-taxonomy, quality-remote-duplicate-safety]
-    status: done
-    effort: 2
-    notes: "murmurmark repair remote-leak строит audit-only план по audio_review remote_leak probable errors и частичным remote_duplicate rows, отделяет plain leak от protected-local-content risks и явно запрещает raw edits/whole-Me drop для защищённых интервалов."
-
-  quality-remote-leak-corpus-queue:
-    title: "Remote leak corpus queue"
-    kind: task
-    parent: quality-hardening
-    deps: [quality-remote-leak-segment-plan]
-    status: done
-    effort: 2
-    notes: "murmurmark corpus remote-leak агрегирует per-session segment plans в одну очередь по корпусу; --plan пересобирает планы перед агрегацией. Для complete-сессий с protected local content отчёт ведёт в review lane check_unique_me_content, incomplete-сессии сначала отправляет в process. murmurmark corpus process all делает этот refresh автоматически перед session-quality. Transcript edits не применяются."
-
-  quality-order-regressions:
-    title: "Transcript order regression cases"
-    kind: task
-    parent: quality-hardening
-    status: done
-    effort: 5
-    notes: "Базовый order-контур завершён: murmurmark audit order выявляет длинные Me-блоки поверх remote, входит в process/session-quality/corpus gates и имеет audit-only review lane; order_repair_v1 разрезает блок только по сохранённым source ASR segments. Следующий bounded слой объединяет оставшиеся order и start/end boundary rows с review closure."
-
-  quality-boundary-repair:
-    title: "Authoritative Transcript Boundary and Review Closure v1"
-    kind: task
-    parent: quality-hardening
-    deps: [quality-order-regressions, operational-corpus-green-v2]
-    status: done
-    effort: 8
-    notes: |
-      Завершено 2026-07-18. Operational batch corpus и очередь заморожены; каждая из 337 строк имеет
-      объяснимый disposition. Профиль `authoritative_boundary_v1` доказательно закрыл 213 строк /
-      1253.620s, оставил 124 строки / 478.272s явной review-очереди и получил решение
-      `PROMOTE_AUTHORITATIVE_BOUNDARY_V1`. Frozen inputs, remote-like Me, order, local recall,
-      selected notes и export safety не регрессировали. Capture, Echo Guard, primary ASR, raw CAF,
-      live promotion и существующие профили не менялись.
-
-  quality-residual-me-evidence-closure-v1:
-    title: "Residual Me Evidence Closure v1"
-    kind: task
-    parent: quality-hardening
-    deps: [quality-boundary-repair, quality-audio-judge-labels, corpus-regression]
-    status: done
-    effort: 8
-    notes: |
-      Завершено 2026-07-18 решением `PROMOTE_RESIDUAL_ME_EVIDENCE_V1`. Все 124 строки / 478.272s
-      получили устойчивые outcomes на точных mic/remote/clean clips, Target-Me, remote-forbidden и
-      local micro-ASR evidence. Безопасно закрыта 31 строка / 170.589s: 21 local-recall, 9 order и
-      1 audio-review; остаются 93 строки / 307.683s. Frozen inputs, raw CAF, remote и existing-local
-      text, local recall, order, remote-like Me, notes, review burden, export и deterministic-output
-      gates прошли.
-
-  quality-residual-audio-evidence-arbitration-v1:
-    title: "Residual Audio Evidence Arbitration v1"
-    kind: task
-    parent: quality-hardening
-    deps: [quality-residual-me-evidence-closure-v1, quality-audio-judge-labels, corpus-regression]
-    status: done
-    effort: 8
-    notes: |
-      Завершено 2026-07-18 решением `DO_NOT_PROMOTE`. Все 66 audio-review строк / 196.920s получили
-      устойчивые outcomes и SHA-bound provenance; 14 per-session калибровок Target-Me надёжны.
-      Безопасно закрыта 1 строка / 0.640s, ниже порога 14 строк / 39.384s. Ни одного audio-only drop,
-      изменения remote/protected/unique Me content или регрессии нет. Отдельные 13 local-recall и
-      14 order строк сохранены; `residual_me_evidence_v1` остаётся selected fallback.
+      Постоянно используемая, но уже реализованная возможность: frozen inputs, labels, corpus
+      reports, per-session gates и решения PROMOTE/DO_NOT_PROMOTE.
 
   quality-residual-local-recall-closure-v1:
     title: "Residual Local Recall Closure v1"
     kind: task
-    parent: quality-hardening
-    deps: [quality-residual-audio-evidence-arbitration-v1, quality-residual-me-evidence-closure-v1, corpus-regression]
-    status: next
-    effort: 8
-    notes: |
-      Заморозить отдельные 13 local-recall строк / 48.073s из `residual_me_evidence_v1`.
-      Восстанавливать только independently confirmed local speech с word-level timestamps, без
-      remote-text support и без overlap/paraphrase существующего Me. 66 audio-review dispositions,
-      14 chronology rows, raw CAF и existing text не менять. Выпустить isolated profile и разрешить
-      auto-selection только после corpus-wide local-recall gain и no-regression gates.
-
-  quality-audio-judge-labels:
-    title: "Richer audio-judge labels"
-    kind: task
-    parent: quality-hardening
-    deps: [corpus-error-taxonomy]
-    status: done
-    effort: 6
-    notes: "Реализованы более точные метки: lost_me, remote_duplicate, asr_noise, timing_overlap, double_talk. Daily sync 2026-06-30 подтвердил полезность confirm_timing_or_doubletalk для suggested review closure; status показывает текущий остаток после частичного suggested apply, а не старый прогноз."
-
-  quality-offline-aec-v2-lab:
-    title: "Echo Guard complete-removal lab"
-    kind: task
-    parent: quality-hardening
-    deps: [corpus-regression, quality-remote-leak-corpus-queue, quality-audio-judge-labels]
-    status: done
-    effort: 12
-    notes: |
-      Shadow-only `offline_aec_v2_v0` exists: delay trajectory, 80/160/320 ms tails, nonlinear
-      remote-basis bank, residual mask, `remote_floor` control candidate, corpus report and optional
-      faster-whisper ASR clip audit. `local_fir` remains default. v0 improved proxy metrics but did
-      not beat `local_fir` on ASR-token leakage gates.
-
-  quality-offline-aec-v2-gates:
-    title: "Product gates for complete removal"
-    kind: task
-    parent: quality-hardening
-    deps: [quality-offline-aec-v2-lab]
-    status: done
-    effort: 2
-    notes: "Implemented for v0. Reports emit proxy metrics, ASR clip audit metrics when requested, artifact flags and `promotion_decision: shadow_only_not_promoted`. Proxy gates can pass without ASR promotion."
-
-  quality-offline-aec-v2-delay-linear:
-    title: "Delay trajectory and long-tail linear stage"
-    kind: task
-    parent: quality-hardening
-    deps: [quality-offline-aec-v2-gates]
-    status: done
-    effort: 4
-    notes: "Implemented in v0 as smoothed delay trajectory and 80/160/320 ms offline FIR candidates."
-
-  quality-offline-aec-v2-nonlinear-mask:
-    title: "Nonlinear basis and residual mask"
-    kind: task
-    parent: quality-hardening
-    deps: [quality-offline-aec-v2-delay-linear]
-    status: done
-    effort: 4
-    notes: "Implemented in v0 with clipped, tanh, compressed, band-limited and signed-power remote bases plus `remote_only` residual masks."
-
-  quality-offline-aec-v2-corpus-ranking:
-    title: "ASR-level candidate ranking"
-    kind: task
-    parent: quality-hardening
-    deps: [quality-offline-aec-v2-nonlinear-mask]
-    status: done
-    effort: 4
-    notes: "Implemented for v0 and rerun on the six-session smoke. Audio-only candidates did not beat `local_fir` on ASR-token leakage; this became the baseline for vNext."
-
-  quality-echo-vnext-asr-positive:
-    title: "ASR-positive echo removal vNext"
-    kind: task
-    parent: quality-hardening
-    deps: [quality-offline-aec-v2-corpus-ranking]
-    status: done
-    effort: 8
-    notes: "First spike complete: `segment_switch_remote_floor_local_fir` produces a shadow audio candidate, and `remote_forbidden_token_guard` is a virtual ASR safety candidate for remote-only windows. Six-session smoke: `asr_candidate_gate_passed: 1/6`, no local-word recall regressions. Not promoted; it becomes evidence for the next hardening goal."
-
-  quality-remote-forbidden-evidence-hardening:
-    title: "Remote-forbidden evidence hardening v1"
-    kind: task
-    parent: quality-hardening
-    deps: [quality-echo-vnext-asr-positive, corpus-regression]
-    status: done
-    effort: 6
-    notes: "Completed as a shadow/review evidence layer. It writes `remote_forbidden_evidence.jsonl`, `remote_forbidden_summary.json`, session readiness metrics and `remote_forbidden_corpus_report`. Six-session smoke: one safe improved session, zero local-recall regressions, explicit explanation for missed cases, no default promotion."
-
-  quality-remote-forbidden-coverage-v2:
-    title: "Remote-forbidden evidence coverage v2"
-    kind: task
-    parent: quality-hardening
-    deps: [quality-remote-forbidden-evidence-hardening, corpus-regression]
-    status: done
-    effort: 5
-    notes: "Completed as a shadow/review coverage layer. Selector reads speaker_state, audio-review, stronger-audio-judge, group-overlap, transcript-overlap and local/order risk artifacts. Six-session smoke: 4/6 safe improved, zero local-recall regressions, 24 evaluable ASR windows, 578 skipped by cap, no default promotion."
-
-  quality-asr-positive-audio-candidate-v2:
-    title: "ASR-positive audio candidate v2"
-    kind: task
-    parent: quality-hardening
-    deps: [quality-remote-forbidden-coverage-v2]
-    status: done
-    effort: 6
-    notes: |
-      Completed as a shadow-only audio candidate. `coverage_v2_remote_gate_local_fir` starts from
-      local-fir/segment-switch and applies remote-floor cleanup only in Coverage v2 risk windows
-      without strong local-speech evidence. Six-session smoke: 4/6 ASR audio candidate gate-passed,
-      0/6 local-recall regressions, 2/6 `no_baseline_asr_visible_leak`, no default promotion.
-
-  quality-asr-positive-echo-candidate-hardening-v1:
-    title: "ASR-positive echo candidate hardening v1"
-    kind: task
-    parent: quality-hardening
-    deps: [quality-asr-positive-audio-candidate-v2, quality-target-me-extractor-spike, corpus-regression]
-    status: done
-    effort: 8
-    notes: |
-      Completed. `murmurmark audit asr-positive-echo-candidate` writes
-      `asr_positive_echo_candidate_report.{json,md}` for one session, and `murmurmark corpus
-      echo-candidate` writes `asr_positive_echo_candidate_corpus_report.{json,md}`. Current
-      six-session corpus: 5/6 safe improved, 1/6 not applicable, 0/6 local-recall regressions.
-      `murmurmark corpus gate` reads the report and enforces `shadow_only_do_not_promote`.
-      `local_fir` remains default; raw CAF, baseline outputs and `mic_for_asr.wav` do not change.
-
-  quality-asr-positive-echo-promotion-readiness:
-    title: "ASR-positive Echo promotion technical gates"
-    kind: task
-    parent: quality-hardening
-    deps: [quality-asr-positive-echo-candidate-hardening-v1, corpus-regression]
-    status: later
-    effort: 8
-    notes: |
-      Broaden the experimental candidate beyond the current six-session corpus and define the future
-      default-promotion bar: more operational sessions, explicit rollback, review-burden comparison,
-      stronger local-recall coverage and a non-default promoted bundle for inspection. This is still
-      not a default change.
-
-  quality-neural-residual-echo-spike:
-    title: "Neural residual echo suppression spike"
-    kind: task
-    parent: quality-hardening
-    deps: [quality-asr-positive-audio-candidate-v2]
-    status: idea
-    effort: 8
-    notes: "Only after offline AEC v2 establishes contracts: train or test a narrow local model that estimates echo/local confidence maps from mic, remote, echo_hat and speaker_state."
-
-  quality-target-me-extractor-spike:
-    title: "Target-Me extractor spike"
-    kind: task
-    parent: quality-hardening
-    deps: [quality-asr-positive-audio-candidate-v2]
-    status: done
-    effort: 6
-    notes: "Completed as Target-Me Evidence Hardening v1. `mfcc_voiceprint_v0` and `mfcc_contrastive_v0` are negative baselines. `resemblyzer_dvector_v0` is the first promising local speaker-embedding backend. The hardening pass made audio-review packs include open readiness review-plan rows, added `source_audit_ids` to Target-Me rows, matched review suggestions by source_audit_id plus interval overlap, and closed two safe `keep_me` rows. Remaining ambiguous rows stay manual."
-
-  quality-token-remote-forbidden:
-    title: "Token-level remote-forbidden transcript"
-    kind: task
-    parent: quality-hardening
-    deps: [quality-remote-forbidden-coverage-v2]
-    status: later
-    effort: 4
-    notes: "Keep transcript safety even after better audio: align mic and remote tokens and prevent remote-explainable tokens from becoming Me unless local evidence is strong."
-
-  evidence-notes:
-    title: "Evidence-backed notes и quality verdict"
-    kind: phase
     parent: murmurmark-cli
-    deps: [quality-hardening]
-    status: later
-    effort: 21
-    notes: |
-      Notes должны быть полезными, но проверяемыми: никаких неподдержанных фактов,
-      все claims ссылаются на utterance IDs и audit evidence.
-
-  evidence-stronger-extractive-scoring:
-    title: "Stronger extractive scoring"
-    kind: task
-    parent: evidence-notes
-    status: later
-    effort: 5
-    notes: "Лучше отличать реальные действия/решения от фасилитации и общего обсуждения."
-
-  evidence-stable-json-contract:
-    title: "Stable evidence_notes.json"
-    kind: task
-    parent: evidence-notes
-    status: later
-    effort: 4
-    notes: "Сделать evidence_notes.json устойчивым контрактом для будущего LLM/export слоя."
-
-  evidence-review-aware-notes:
-    title: "Review-aware notes"
-    kind: task
-    parent: evidence-notes
-    status: later
-    effort: 5
-    notes: "Отмечать notes, которые опираются на спорные или непроверенные реплики."
-
-  evidence-quality-verdict-first-class:
-    title: "quality_verdict как основной пользовательский артефакт"
-    kind: task
-    parent: evidence-notes
-    status: later
-    effort: 4
-    notes: "Сделать verdict понятным итогом запуска: можно использовать, нужно проверить, рискованно."
-
-  evidence-transcript-rich-prep:
-    title: "Подготовка к transcript.rich.json"
-    kind: task
-    parent: evidence-notes
-    status: later
-    effort: 3
-    notes: "Не сам rich transcript, а требования и поля, нужные для будущего слоя."
-
-  export-workflows:
-    title: "Export workflows"
-    kind: phase
-    parent: murmurmark-cli
-    deps: [evidence-notes]
+    deps: [working-capabilities, corpus-regression]
     status: current
-    effort: 19
+    effort: 8
     notes: |
-      Базовый локальный Markdown/Obsidian bundle и murmurmark finish handoff уже есть.
-      Export Bundle Quality v1 сделал index.md, quality_verdict.md, notes.md, transcript.md и
-      Obsidian note пользовательскими handoff-артефактами. Следующий слой — Obsidian vault handoff
-      и docs/Jira proposals.
+      Единственная исполнимая продуктовая цель. Дать stable outcomes всем 13 local-recall строкам /
+      48.073s и вставлять только independently confirmed remote-forbidden Me speech с word-level
+      timestamps. 66 audio-review dispositions и 14 chronology rows не менять. Итогом может быть
+      PROMOTE или воспроизводимый DO_NOT_PROMOTE.
 
-  export-markdown-bundle:
-    title: "Markdown bundle"
+  quality-residual-chronology-closure-v1:
+    title: "Residual Chronology Closure v1"
     kind: task
-    parent: export-workflows
-    status: done
-    effort: 4
-    notes: "Transcript, notes, verdict, review items и manifest в одном переносимом пакете."
-
-  export-obsidian-note:
-    title: "Obsidian note"
-    kind: task
-    parent: export-workflows
-    status: done
-    effort: 4
-    notes: "Локальная frontmatter Markdown note без записи в vault и без raw audio."
-
-  export-bundle-quality-v1:
-    title: "Export Bundle Quality v1"
-    kind: task
-    parent: export-workflows
-    status: done
-    effort: 5
-    notes: |
-      murmurmark finish/export writes a user-facing bundle: "Can I use this?", selected profile,
-      review burden, evidence-backed notes, full transcript with utterance IDs and retention/privacy
-      next steps. Raw audio is not copied.
-
-  export-docs-patch-plan:
-    title: "Docs patch plan"
-    kind: task
-    parent: export-workflows
+    parent: murmurmark-cli
+    deps: [quality-residual-local-recall-closure-v1, corpus-regression]
     status: later
-    effort: 5
-    notes: "План изменений в документации на основе notes, только как proposal."
-
-  export-jira-reviewed-proposal:
-    title: "Jira/issue tracker export as reviewed proposal"
-    kind: task
-    parent: export-workflows
-    status: later
-    effort: 6
-    notes: "Создание задач только после review, с payload manifest и ссылками на evidence."
-
-  retention-policy:
-    title: "Retention policy и privacy manifests"
-    kind: phase
-    parent: murmurmark-cli
-    deps: [export-workflows, readiness-single-output]
-    status: done
-    effort: 14
-    notes: |
-      Базовый локальный контур завершён: policy определяет, что хранится и удаляется,
-      provider payload manifest показывает, что может покинуть локальную машину, а raw deletion
-      требует успешный export manifest и явное подтверждение. Будущие интеграции обязаны
-      переиспользовать эти gates.
-
-  retention-policy-file:
-    title: "Retention policy file"
-    kind: task
-    parent: retention-policy
-    status: done
-    effort: 3
-    notes: "examples/retention-policy.local-first.json и murmurmark retention plan фиксируют raw/export/provider правила."
-
-  retention-delete-raw-after-export:
-    title: "Delete raw audio after successful export"
-    kind: task
-    parent: retention-policy
-    status: done
-    effort: 4
-    notes: "retention apply может удалить raw CAF только по явной policy, успешному export_manifest и --confirm-delete-raw."
-
-  retention-provider-payload-manifest:
-    title: "Payload manifest для внешних провайдеров"
-    kind: task
-    parent: retention-policy
-    status: done
-    effort: 4
-    notes: "murmurmark retention payload пишет provider_payload_manifest.json, блокирует local-first policy и показывает candidate files без отправки данных."
-
-  retention-audit-events:
-    title: "Audit events без content leakage"
-    kind: task
-    parent: retention-policy
-    status: done
-    effort: 3
-    notes: "retention_audit.jsonl пишет технические события удаления без transcript text, notes и audio content."
-
-  packaging:
-    title: "Packaging и open-source readiness"
-    kind: phase
-    parent: murmurmark-cli
-    deps: [cli-orchestration, review-loop, export-workflows]
-    status: current
-    effort: 18
-    notes: |
-      Установка, релизы, doctor, документация и готовность репозитория к открытой публикации.
-      Минимальный локальный install wrapper, расширенный doctor, локальный self-test,
-      CLI MVP acceptance gate, локальный release bundle и open-source readiness gate уже есть.
-
-  packaging-install-update:
-    title: "Install/update flow"
-    kind: task
-    parent: packaging
-    status: done
-    effort: 4
-    notes: "scripts/install-local.sh ставит локальную команду murmurmark и фиксирует MURMURMARK_HOME для запуска из любого каталога."
-
-  packaging-release-layout:
-    title: "Release layout"
-    kind: task
-    parent: packaging
-    status: done
-    effort: 4
-    notes: "scripts/build-release-bundle.sh собирает bin/libexec/scripts/docs/examples/tools и release-manifest.json без приватных данных."
-
-  packaging-doctor:
-    title: "Doctor health checks"
-    kind: task
-    parent: packaging
-    status: done
-    effort: 4
-    notes: "doctor проверяет macOS permissions, ffmpeg/ffprobe, whisper-cli, модель, Python окружение, модули, config и core scripts; в конце печатает self-test и next commands для обычного запуска."
-
-  packaging-self-test:
-    title: "CLI self-test"
-    kind: task
-    parent: packaging
-    status: done
-    effort: 2
-    notes: "murmurmark self-test запускает быстрый CLI handoff smoke через пользовательскую командную поверхность; scripts/check.sh проверяет этот путь вместо прямого вызова внутреннего smoke script."
-
-  packaging-cli-mvp-acceptance:
-    title: "CLI MVP acceptance gate"
-    kind: task
-    parent: packaging
-    status: done
-    effort: 3
-    notes: "murmurmark acceptance проверяет install wrapper, doctor, self-test, config init, open-source readiness и release bundle verify в developer checkout; в release bundle проверяет doctor --strict, self-test и config init; --report пишет машинно-читаемый evidence-файл; --live-session проверяет уже записанную живую сессию по raw track health и readiness."
-
-  packaging-open-source-readiness:
-    title: "Open-source readiness"
-    kind: task
-    parent: packaging
-    status: current
-    effort: 6
-    notes: "CONTRIBUTING, SECURITY, sanitized example-domain, MIT LICENSE и scripts/check-open-source-readiness.sh готовы; public security contact остаётся owner decision."
-
-  future-heavy-local:
-    title: "Тяжёлые локальные валидаторы и rich transcript"
-    kind: phase
-    parent: murmurmark-cli
-    deps: [corpus-regression, quality-hardening]
-    status: idea
-    effort: 28
-    notes: |
-      Дальняя ветка после стабилизации CLI: diarization внутри Colleagues,
-      forced alignment, альтернативные локальные ASR validators, transcript.rich.json,
-      speaker map и строгая доменная коррекция.
-
-  future-heavy-local-diarization:
-    title: "Per-speaker diarization внутри Colleagues"
-    kind: task
-    parent: future-heavy-local
-    status: idea
     effort: 7
-    notes: "Пока не обязательна для CLI MVP."
+    notes: |
+      Отдельный lossless contract для 14 chronology rows / 62.690s. Разрешены только доказанные
+      split, retime и reorder; local-recall insertion и audio disposition сюда не входят.
 
-  future-heavy-local-rich-transcript:
+  quality-operational-rebaseline-v1:
+    title: "Operational Rebaseline v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-residual-chronology-closure-v1]
+    status: later
+    effort: 5
+    notes: |
+      Пересчитать selected profile, verdict, mandatory review burden, notes evidence, guarded export
+      и пользовательские показатели end-to-end. Выбрать следующую root-cause работу по результату.
+
+  quality-echo-suppression-promotion:
+    title: "Echo Suppression Promotion"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-operational-rebaseline-v1, corpus-regression]
+    status: later
+    effort: 10
+    notes: |
+      Один объединённый promotion-контракт для audio-layer suppression. Цель: сделать remote speech
+      нераспознаваемой в Me при полном сохранении подтверждённой локальной речи. Promotion только по
+      ASR-positive, Target-Me, chronology и per-session no-regression gates.
+
+  product-evidence-export-v2:
+    title: "Evidence Notes And Export v2"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-echo-suppression-promotion]
+    status: later
+    effort: 7
+    notes: |
+      Улучшить review-aware notes и пользовательский handoff поверх выбранного transcript profile.
+      Стабильные v1 notes/export уже работают; этот этап повышает качество, а не создаёт основу заново.
+
+  product-release-quality-cli:
+    title: "Release-quality CLI"
+    kind: task
+    parent: murmurmark-cli
+    deps: [product-evidence-export-v2]
+    status: later
+    effort: 7
+    notes: |
+      Зафиксировать supported environment, installation, model/config handling, end-to-end acceptance,
+      release notes и публичный operational contract без обязательного UI.
+
+  parallel-research:
+    title: "Параллельные исследования"
+    kind: phase
+    parent: murmurmark-cli
+    status: idea
+    effort: 24
+    notes: |
+      Эти гипотезы могут создавать isolated evidence, но не блокируют критический CLI-путь и не
+      меняют production defaults без собственных corpus gates.
+
+  research-remote-diarization:
+    title: "Remote speaker diarization"
+    kind: task
+    parent: parallel-research
+    deps: [quality-operational-rebaseline-v1, corpus-regression]
+    status: idea
+    effort: 6
+    notes: "Разделить authoritative remote на стабильные anonymous Speaker 1/2/3 intervals."
+
+  research-speaker-map:
+    title: "Speaker map"
+    kind: task
+    parent: parallel-research
+    deps: [research-remote-diarization]
+    status: idea
+    effort: 5
+    notes: "Привязывать устойчивые speaker clusters к именам только по evidence или review."
+
+  research-rich-transcript:
     title: "transcript.rich.json"
     kind: task
-    parent: future-heavy-local
-    status: idea
-    effort: 7
-    notes: "Единый богатый формат с ролями, уверенностью, evidence и review decisions."
-
-  future-heavy-local-validators:
-    title: "Локальные ASR/forced-alignment validators"
-    kind: task
-    parent: future-heavy-local
-    status: idea
-    effort: 7
-    notes: "Тяжёлые модели как судьи и валидаторы, а не основной обязательный путь."
-
-  future-heavy-local-speaker-map:
-    title: "Speaker map и strict glossary correction"
-    kind: task
-    parent: future-heavy-local
-    status: idea
-    effort: 7
-    notes: "Доменная нормализация и карта говорящих только после устойчивого transcript."
-
-  future-llm-synthesis:
-    title: "LLM synthesis с evidence guard"
-    kind: phase
-    parent: murmurmark-cli
-    deps: [evidence-notes]
-    status: idea
-    effort: 22
-    notes: |
-      Локальный или контролируемый LLM слой поверх evidence_notes.json.
-      Любые выводы должны иметь цитаты и отклонять unsupported claims.
-
-  future-llm-policy:
-    title: "Local/frontier LLM behind policy"
-    kind: task
-    parent: future-llm-synthesis
+    parent: parallel-research
+    deps: [research-speaker-map]
     status: idea
     effort: 5
-    notes: "Выбор локальной/внешней модели только через явную privacy policy."
+    notes: "Единый формат speaker IDs, confidence, alignment, evidence и review decisions."
 
-  future-llm-evidence-guard:
-    title: "Evidence guard"
+  research-heavy-local-validators:
+    title: "Heavy local ASR/audio validators"
     kind: task
-    parent: future-llm-synthesis
+    parent: parallel-research
+    deps: [quality-operational-rebaseline-v1, corpus-regression]
     status: idea
-    effort: 6
-    notes: "Ни одно summary/action/risk утверждение не проходит без evidence IDs."
+    effort: 4
+    notes: "Тяжёлые локальные модели сначала работают как bounded judges, не как обязательный ASR."
 
-  future-llm-unsupported-rejection:
-    title: "Unsupported claim rejection"
+  research-evidence-guarded-llm:
+    title: "Evidence-guarded LLM synthesis"
     kind: task
-    parent: future-llm-synthesis
+    parent: parallel-research
+    deps: [research-rich-transcript, product-evidence-export-v2]
     status: idea
-    effort: 5
-    notes: "Модель должна уметь сказать, что данных недостаточно."
+    effort: 4
+    notes: "Generated claims обязаны ссылаться на evidence IDs; unsupported claims отклоняются."
 
-  future-llm-generated-summaries:
-    title: "Generated summaries/actions/risks with citations"
-    kind: task
-    parent: future-llm-synthesis
-    status: idea
-    effort: 6
-    notes: "Человеческий слой итогов после extractive notes и review gates."
-
-  future-ui-app:
-    title: "Optional UI App/Menu Bar"
+  parking-lot:
+    title: "Parking lot"
     kind: phase
     parent: murmurmark-cli
-    deps: [packaging, retention-policy, export-workflows]
     status: optional
-    effort: 9
+    effort: 15
+    notes: "Полезные возможности без влияния на текущую сходимость CLI."
+
+  parked-live-promotion:
+    title: "Live result promotion"
+    kind: task
+    parent: parking-lot
+    deps: [capability-live-shadow, corpus-regression]
+    status: blocked
+    effort: 5
     notes: |
-      Необязательный хвост. UI имеет смысл только после зрелого CLI,
-      стабильных профилей, review loop, export и retention policy.
+      Заблокировано воспроизводимыми quality/runtime DO_NOT_PROMOTE. Возобновлять только с новой
+      гипотезой, которая проходит immutable corpus и live-vs-batch parity gates.
 
-  future-ui-menu-bar:
-    title: "Menu bar recorder"
+  parked-reviewed-integrations:
+    title: "Docs and issue-tracker proposals"
     kind: task
-    parent: future-ui-app
+    parent: parking-lot
+    deps: [product-evidence-export-v2]
     status: optional
-    effort: 3
-    notes: "Удобный запуск/остановка записи поверх CLI."
+    effort: 4
+    notes: "Только reviewed proposals; никаких автоматических внешних записей без подтверждения."
 
-  future-ui-review:
-    title: "Review UI"
+  parked-ui:
+    title: "Optional UI/Menu Bar"
     kind: task
-    parent: future-ui-app
+    parent: parking-lot
+    deps: [product-release-quality-cli]
     status: optional
-    effort: 3
-    notes: "Визуальный review спорных мест, если CLI review окажется недостаточным."
-
-  future-ui-library:
-    title: "Session library"
-    kind: task
-    parent: future-ui-app
-    status: optional
-    effort: 3
-    notes: "Каталог сессий, verdict, export status и retention controls."
+    effort: 6
+    notes: "UI переиспользует CLI contracts и не является условием полезности продукта."
 
 views:
   roadmap-tree:
-    title: "Полный roadmap"
+    title: "Полный активный roadmap"
     lanes:
       root:
         title: "MurmurMark CLI"
@@ -2070,96 +291,80 @@ views:
         nodes: [murmurmark-cli]
 
   near-term:
-    title: "Ближайшие этапы"
-    where:
-      status: [current, next]
-    order_by: status
-
-  causal-recovery-path:
-    title: "Текущий causal recovery path"
+    title: "Текущий фокус"
     lanes:
-      completed-evidence:
-        title: "Зафиксированное доказательство"
-        nodes:
-          - live-causal-double-talk-me-recovery-v1
-          - live-causal-recovery-generalization-promotion-readiness-v1
-      current-goal:
-        title: "Ближайшая цель"
+      working:
+        title: "Готовая основа"
+        nodes: [working-capabilities, corpus-regression]
+      current:
+        title: "Единственная исполнимая цель"
         nodes: [quality-residual-local-recall-closure-v1]
-      conditional-decision:
-        title: "Условное следующее решение"
-        nodes: [live-causal-recovery-promotion-reconsideration]
+      dependent:
+        title: "Зависимые этапы"
+        nodes:
+          - quality-residual-chronology-closure-v1
+          - quality-operational-rebaseline-v1
 
-  cli-mvp:
-    title: "Путь к CLI MVP"
-    lanes:
-      foundation:
-        title: "Основа"
-        expand_descendants: leaves
-        nodes: [foundation-done]
-      orchestration:
-        title: "CLI"
-        expand_descendants: leaves
-        nodes: [cli-orchestration]
-      reliable:
-        title: "Надёжный маршрут"
-        expand_descendants: leaves
-        nodes: [reliable-transcription-route]
-      realtime:
-        title: "Near-realtime"
-        expand_descendants: leaves
-        nodes: [near-realtime-pipeline]
-      quality-loop:
-        title: "Качество и review"
-        expand_descendants: leaves
-        nodes: [corpus-regression, review-loop, quality-hardening]
-      output:
-        title: "Пользовательский результат"
-        expand_descendants: leaves
-        nodes: [evidence-notes, export-workflows]
-
-  future:
-    title: "Дальние ветки"
-    lanes:
-      heavy-local:
-        title: "Тяжёлые локальные возможности"
-        expand_descendants: leaves
-        nodes: [future-heavy-local]
-      llm:
-        title: "LLM synthesis"
-        expand_descendants: leaves
-        nodes: [future-llm-synthesis]
-      ui:
-        title: "Optional UI"
-        expand_descendants: leaves
-        nodes: [future-ui-app]
-
-  deps-map:
-    title: "Зависимости крупных этапов"
+  critical-path:
+    title: "Критический CLI-путь"
     lanes:
       main:
-        title: "CLI-first path"
+        title: "Authoritative convergence"
         nodes:
-          - foundation-done
-          - cli-orchestration
-          - reliable-transcription-route
-          - near-realtime-pipeline
+          - quality-residual-local-recall-closure-v1
+          - quality-residual-chronology-closure-v1
+          - quality-operational-rebaseline-v1
+          - quality-echo-suppression-promotion
+          - product-evidence-export-v2
+          - product-release-quality-cli
+
+  parallel-research-view:
+    title: "Параллельные исследования"
+    lanes:
+      speaker:
+        title: "Remote speakers"
+        nodes:
+          - research-remote-diarization
+          - research-speaker-map
+          - research-rich-transcript
+      validators:
+        title: "Validators and synthesis"
+        nodes:
+          - research-heavy-local-validators
+          - research-evidence-guarded-llm
+
+  parking-lot-view:
+    title: "Не держит критический путь"
+    lanes:
+      parked:
+        title: "Parking lot"
+        nodes:
+          - parked-live-promotion
+          - parked-reviewed-integrations
+          - parked-ui
+
+  deps-map:
+    title: "Зависимости активного плана"
+    lanes:
+      all:
+        title: "Programs and stages"
+        nodes:
+          - working-capabilities
           - corpus-regression
-          - review-loop
-          - quality-hardening
-          - evidence-notes
-          - export-workflows
-          - retention-policy
-          - packaging
-          - future-heavy-local
-          - future-llm-synthesis
-          - future-ui-app
+          - quality-residual-local-recall-closure-v1
+          - quality-residual-chronology-closure-v1
+          - quality-operational-rebaseline-v1
+          - quality-echo-suppression-promotion
+          - product-evidence-export-v2
+          - product-release-quality-cli
+          - parallel-research
+          - parking-lot
 
 x:
   exec:
     program:
-      nearest_goal: "Residual Local Recall Closure v1: доказательно разобрать 13 local-recall строк / 48.073s и восстановить только timestamp-backed remote-forbidden Me speech."
-      success_by_next_sync: "Local-recall queue заморожена; все 13 строк имеют stable outcomes и provenance; безопасные вставки улучшают local recall без chronology/remote/notes/export regressions либо опубликован точный DO_NOT_PROMOTE."
+      nearest_goal: "Residual Local Recall Closure v1: доказательно разобрать 13 local-recall строк / 48.073s и восстановить только word-timestamp-backed remote-forbidden Me speech."
+      success_by_next_sync: "Все 13 строк имеют stable outcomes и provenance; isolated candidate улучшает local recall без chronology, remote, notes или export regression либо опубликован воспроизводимый DO_NOT_PROMOTE."
     defaults:
       status_progress:
         done: 1.0
@@ -2173,62 +378,66 @@ x:
     blocks:
       working-now:
         title: "Работает сейчас"
-        scope_nodes: [foundation-done]
+        scope_nodes: [working-capabilities, corpus-regression]
         kind: main
         mgmt:
           health: green
-          sync_note: "Capture, Echo Guard, транскрибация, audit, agent-review и readiness уже дают полезный результат."
-          next_sync_goal: "Не ломать baseline и использовать готовую основу как regression corpus."
-      next-cli:
-        title: "Live качество"
-        scope_nodes: [cli-orchestration, reliable-transcription-route, near-realtime-pipeline]
+          sync_note: "Durable capture, batch transcript, review, notes/export и Live Shadow уже работают."
+          next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
+      current-quality:
+        title: "Текущая цель"
+        scope_nodes: [quality-residual-local-recall-closure-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "CLI MVP, committed-PCM transport и Fast Authoritative Handoff закрыты. Boundary и residual профили получили PROMOTE и суммарно закрыли 244/337 строк / 1424.209s mandatory review без регрессий. Production output остаётся batch."
-          next_sync_goal: "Доказательно восстановить безопасную часть 13 local-recall строк / 48.073s без изменения audio-review и chronology очередей."
-      quality-loop:
-        title: "Контур качества"
-        scope_nodes: [corpus-regression, review-loop, quality-hardening, reliable-transcription-route]
+          sync_note: "Остались 13 отдельные local-recall строк / 48.073s."
+          next_sync_goal: "Закрыть безопасную часть insertion-only контрактом или доказать evidence ceiling."
+      dependent-path:
+        title: "Зависимый путь"
+        scope_nodes:
+          - quality-residual-chronology-closure-v1
+          - quality-operational-rebaseline-v1
+          - quality-echo-suppression-promotion
+          - product-evidence-export-v2
+          - product-release-quality-cli
         kind: main
         mgmt:
-          health: green
-          sync_note: "Corpus CLI, review loop, audio judge, authoritative_boundary_v1 и residual_me_evidence_v1 образуют воспроизводимый контур: 72.4% строк и 82.23% секунд исходной очереди закрыто; 93 строки / 307.683s остаются явными. Echo candidate остаётся shadow-only."
-          next_sync_goal: "Проверить insertion-only local-recall recovery на frozen corpus и продвинуть профиль только при word-level, remote-forbidden и per-session no-regression gates."
-      future-capabilities:
-        title: "Будущие возможности"
-        scope_nodes: [evidence-notes, export-workflows, future-heavy-local, future-llm-synthesis]
+          health: neutral
+          sync_note: "Chronology, rebaseline, root-cause Echo и release следуют по явным зависимостям."
+          next_sync_goal: "Не начинать зависимый этап до завершения текущего gate."
+      research:
+        title: "Параллельные исследования"
+        scope_nodes: [parallel-research]
         kind: context
         mgmt:
           health: neutral
-          sync_note: "Neural residual echo suppression, target-speaker extraction, rich transcript and LLM synthesis stay behind evidence contracts and corpus gates."
-          next_sync_goal: "Тяжёлые модели подключать только как gated validator/spike против v0 baseline, а не как замену production pipeline."
-      optional-ui:
-        title: "Optional UI"
-        scope_nodes: [future-ui-app]
+          sync_note: "Diarization и validators могут собирать isolated evidence, не меняя production."
+          next_sync_goal: "Не отвлекать ресурсы текущей quality-цели без отдельного решения."
+      parked:
+        title: "Parking lot"
+        scope_nodes: [parking-lot]
         kind: risk_sidecar
         progress_override: 0.0
         mgmt:
           health: neutral
-          sync_note: "UI не держит полезность MurmurMark и остаётся хвостом после зрелого CLI."
-          next_sync_goal: "Не тратить фокус на UI до стабилизации CLI/export/retention."
+          sync_note: "Live promotion, integrations и UI не держат полезность CLI."
+          next_sync_goal: "Не активировать без нового product signal или снятия blocker."
     edges:
       - from: working-now
-        to: next-cli
+        to: current-quality
+        type: required
+      - from: current-quality
+        to: dependent-path
         type: required
       - from: working-now
-        to: quality-loop
-        type: required
-      - from: next-cli
-        to: quality-loop
-        type: required
-      - from: quality-loop
-        to: future-capabilities
-        type: required
-      - from: future-capabilities
-        to: optional-ui
+        to: research
         type: context
-        label: "после зрелого CLI"
+      - from: research
+        to: dependent-path
+        type: context
+      - from: dependent-path
+        to: parked
+        type: context
     views:
       exec-top:
         direction: LR
@@ -2237,10 +446,10 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: что уже работает, где ближайший quality-фокус и какие хвосты не держат roadmap."
+        caption: "Короткая карта: готовая основа, одна текущая цель, зависимый путь и неблокирующие ветки."
         blocks:
           - working-now
-          - next-cli
-          - quality-loop
-          - future-capabilities
-          - optional-ui
+          - current-quality
+          - dependent-path
+          - research
+          - parked

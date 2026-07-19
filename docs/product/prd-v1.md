@@ -28,69 +28,25 @@ Working now:
 - live-ASR cache bridge exists as a diagnostic/future acceleration layer; incompatible or unsafe
   chunks fall back to batch ASR.
 
-Current operating point, 2026-07-18:
+Current operating point, 2026-07-19:
 
-- the stable batch route is usable for working transcripts and evidence-backed notes, with guarded
-  review/export when unresolved risks remain;
-- the live corpus contains `33` sessions: `19` real meetings, `12` meaningful comparisons and `7`
-  capture-safe candidate sessions;
-- no live session passes every parity gate, so `shadow_only_do_not_promote` remains mandatory;
-- Near-Realtime Live Parity Coverage v1 is complete as a transport/evidence milestone;
-- Live Order and Role Reconciliation v1 is complete: all `23` auditable rows are classified, the
-  `15` previous effective order blockers are now `0`, and no live turn mutation was required;
-- Live Local Recall and Remote Leakage Hardening v1 is complete: all `118` local-recall rows have
-  stable dispositions, the selected causal remote-energy shadow recovers `678.32s` aggregate
-  missing `Me`, and all seven per-session no-regression gates pass;
-- Causal Local-Island Micro-ASR v2 is complete: all `40` unresolved rows have stable outcomes, its
-  explicit-only shadow reduces aggregate missing `Me` by another `255.77s`, remote-like `Me` stays
-  at `108.42s`, effective order blockers stay at `0`, and all seven per-session gates pass;
-- Causal Remote-Active Me Separation v1 is complete: `9/19` primary rows are accepted, all `16`
-  mixed/double-talk cross-check rows are safely rejected, and aggregate missing `Me` falls by
-  another `252.90s` without gate regressions;
-- Recording-Time Causal Me Recovery Integration v1 is complete: the bounded runtime reproduces
-  replay candidate sets and profile metrics `7/7`, while normal preview and batch stay unchanged;
-- Live Recovery Runtime Efficiency and Real Evidence v1 is complete: per-stage watermarks,
-  content-addressed DSP/candidate/micro-ASR caches and bounded invalidation pass the fixed corpus,
-  while three fresh meaningful sessions prove recording-time execution, pre-stop candidates when
-  evidence exists, no timeout/backpressure regression and zero final lag.
-- Fast Authoritative Handoff v1 is complete. `process` publishes an atomic authoritative
-  transcript/verdict/next checkpoint before optional `enrich`; three meaningful sessions pass with
-  cold p50 `744.571s`, p95 `880.090s` and checkpoint reuse at most `0.032s`. Transcript fingerprints,
-  selected profiles and quality metrics match sequential baselines; all source CAF hashes match.
-  Live ASR remains reusable only under strict audio/model/prompt/window/provenance compatibility;
-  historical incompatible cache falls back per track.
-- Causal Double-Talk Me Recovery v1 is complete. Its immutable `16`-row / `65.07s` corpus has
-  stable outcomes; `4` rows / `11.56s` are recovered, aggregate missing `Me` falls to `1639.73s`,
-  remote-like `Me` remains `108.42s`, order blockers remain `0`, and every per-session/runtime/SHA
-  gate passes. The result remains explicit-only and batch-authoritative.
-- Causal Recovery Generalization and Promotion Readiness v1 is complete with `DO_NOT_PROMOTE`:
-  `963` stable outcomes, `832` unchanged input hashes, three independent holdouts and zero accepted
-  negative controls. Promotion is blocked by `268/783` expensive-stage coverage, three bounded
-  runtime timeouts and one holdout order regression.
-- Causal Candidate Coverage and Cheap Negative Prefilter v1 is complete with `DO_NOT_PROMOTE`.
-  It routes all `783` eligible rows and removes the previous order regression. All `65` frozen
-  negative controls remain rejected, but one post-hoc ASR-noise candidate and runtime gates (`0/3`
-  holdouts, p95 up to `42.634s`) keep it diagnostic.
-- Authoritative Transcript Boundary and Review Closure v1 is complete with
-  `PROMOTE_AUTHORITATIVE_BOUNDARY_V1`: the evidence-backed batch profile closes `213/337` rows and
-  `1253.620/1731.892s` while preserving explicit uncertainty, raw audio and selected-profile safety.
-- Residual Me Evidence Closure v1 is complete with `PROMOTE_RESIDUAL_ME_EVIDENCE_V1`: exact local
-  audio, Target-Me, remote-forbidden and micro-ASR evidence closes another `31/124` rows /
-  `170.589/478.272s` without weakening corpus gates.
-- The recommended bounded goal is Residual Audio Evidence Arbitration v1: classify the remaining
-  `66` audio-review rows / `196.920s` and apply only whole-utterance decisions supported by calibrated
-  local-speaker, local ASR and remote-forbidden evidence.
+- stable batch capture and processing produce a transcript, verdict, evidence notes, review plan,
+  guarded export and retention plan;
+- `residual_me_evidence_v1` remains the selected authoritative profile;
+- Residual Audio Evidence Arbitration v1 classified all `66` audio-review rows / `196.920s` and
+  completed with reproducible `DO_NOT_PROMOTE`; only `1` row / `0.640s` closed safely;
+- the current goal is Residual Local Recall Closure v1 for the separate `13` local-recall rows /
+  `48.073s`; the `14` chronology rows / `62.690s` follow under a different lossless contract;
+- committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
+  not hold the stable CLI path.
 
-Still future:
+Dependent work is: chronology closure, operational rebaseline, one consolidated Echo Suppression
+Promotion contract, Evidence Notes And Export v2 and release-quality CLI. Remote diarization,
+speaker mapping and `transcript.rich.json` form a parallel future branch after base quality closure.
+Heavy validators, LLM synthesis, reviewed external integrations and UI remain research or optional
+work outside the critical path.
 
-- near-realtime promotion beyond shadow, conditional on bounded runtime, zero accepted negatives
-  and no per-session order/local-recall/remote-leak regression;
-- signed menubar app;
-- remote speaker diarization inside `Colleagues`;
-- heavy-local ASR stack with specialized models;
-- strict glossary/domain correction beyond the current whisper prompt;
-- polished generative notes, decisions and action extraction;
-- docs/ticket export proposals with human review.
+Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.
 
 ## Scope
 

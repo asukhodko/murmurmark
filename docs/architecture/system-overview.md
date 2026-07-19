@@ -96,8 +96,9 @@ Candidate Prefilter v1 now routes all `783` eligible rows (`48` cheap reject, `1
 unresolved) and removes the earlier order regression. All frozen negative controls remain rejected,
 but one post-hoc ASR-noise candidate and a `0/3` holdout runtime result still fail hard gates. The
 sidecar remains diagnostic and cannot affect
-the raw writer, normal preview or authoritative batch path. Product work returns to batch
-order/boundary review closure; a persistent ASR worker is only a future isolated live hypothesis.
+the raw writer, normal preview or authoritative batch path. Authoritative batch work now follows the
+finite residual route: local-recall insertion, lossless chronology repair and an operational
+rebaseline. A persistent ASR worker is only a future isolated live hypothesis.
 
 The post-stop pipeline has two explicit phases. `murmurmark process SESSION` stops after the first
 safe handoff. `murmurmark enrich SESSION` runs bounded optional diagnostics and may be interrupted

@@ -2,9 +2,10 @@
 
 Status: active product route; stable batch capture/processing, live transport evidence, order/role
 reconciliation, causal local-island, remote-active and double-talk recovery, bounded recording-time
-runtime and fast authoritative handoff complete; generalization is complete with `DO_NOT_PROMOTE`;
-candidate prefilter is complete with `DO_NOT_PROMOTE`; authoritative boundary/review closure is current
-Date: 2026-07-18
+runtime and fast authoritative handoff complete; boundary and residual Me evidence profiles are
+promoted; residual audio arbitration is complete with `DO_NOT_PROMOTE`; residual local recall is the
+current bounded goal
+Date: 2026-07-19
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
 corpus-calibrated gates and explicit review burden before broader repair. Outcome Contract v1,
@@ -378,14 +379,15 @@ source_audit_ids
 
 This is the flywheel: review burden produces the data needed to reduce future review burden.
 
-## Suggested Next Goal
+## Current Executable Goal
 
 ```text
-Reliable Transcription Route v1: превратить текущий набор record/process/audit/review/export
-слоёв в один надёжный unattended маршрут от полной записи до честного результата. Реализовать
-Outcome Contract v1, Gate Evaluator, Review Plan, Next Command и Resumable Run Manifest; откалибровать
-первые gates на corpus v0 и закрывать автоматически только доказанные review rows. Не менять raw CAF,
-default local_fir и основной whisper.cpp ASR без отдельных corpus gates.
+Residual Local Recall Closure v1: заморозить отдельные 13 local-recall строк / 48.073s из
+residual_me_evidence_v1, дать каждой строке стабильный outcome и полную provenance, восстановить
+только независимо подтверждённую локальную речь с word-level timestamps и remote-forbidden gates.
+Не менять 66 audio-review dispositions, 14 chronology rows, raw CAF, Echo Guard и основной ASR.
+Продвигать isolated profile только после corpus-wide local-recall gain и всех no-regression gates;
+иначе выпустить воспроизводимый DO_NOT_PROMOTE с точным пределом доказательств.
 ```
 
 ## Consultation Prompt

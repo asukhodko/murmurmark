@@ -1,7 +1,8 @@
 # RFC-0001: MurmurMark v1 Scope
 
-Status: draft  
+Status: implemented
 Date: 2026-06-22
+Last updated: 2026-07-19
 
 ## Summary
 
@@ -15,11 +16,16 @@ v1 proves:
 - evidence-backed synthesis;
 - privacy and retention controls.
 
-Current implementation status, 2026-06-24:
+Current implementation status, 2026-07-19:
 
-- capture, session packaging and Echo Guard preprocessing are implemented in the CLI spike;
-- the practical transcription path is a local `whisper.cpp` bridge with `Me`/`Colleagues` roles, timeline repair and shadow audit output;
-- full heavy-local transcription, diarization, evidence-backed synthesis and retention automation remain future work.
+- capture, session packaging, Echo Guard preprocessing, resumable local `whisper.cpp` transcription,
+  quality verdict, evidence-backed extractive notes, guarded export and retention are implemented;
+- `residual_me_evidence_v1` is the promoted authoritative transcript profile; residual audio
+  arbitration is completed with `DO_NOT_PROMOTE`, and the current bounded goal is insertion-only
+  local-recall closure;
+- committed-PCM live preview exists as an advisory shadow, while batch remains authoritative;
+- heavy-local validators, individual remote diarization, rich transcript, evidence-guarded LLM
+  synthesis and UI remain future or optional work.
 
 ## Goals
 
@@ -28,7 +34,8 @@ Current implementation status, 2026-06-24:
 - No meeting app routing changes.
 - CLI-first workflow with future menubar app on the same core.
 - Durable session package with `session.json` and `events.jsonl`.
-- Local transcription profile with ASR, diarization, correction and quality report.
+- Local transcription profile with ASR, `Me`/`Colleagues` reconciliation, correction and quality
+  report. Individual remote-speaker diarization remains a later capability.
 - Echo diagnostics so remote audio leaking into mic is not attributed to the user.
 - Long-meeting support through windowing and reconciliation.
 - Synthesis that cites transcript evidence.
@@ -81,6 +88,8 @@ Acceptance:
 - stop-and-delete works.
 
 ### M3: Menubar UX
+
+Status: optional and deferred. It is not required for CLI usefulness or v1 acceptance.
 
 Acceptance:
 
@@ -147,6 +156,9 @@ Future M5+ acceptance:
 - `transcript.rich.json` and `speaker_map.json` emitted as stable rich artifacts.
 
 ### M6: Evidence-Backed Synthesis
+
+Status: implemented for deterministic extractive notes, quality verdict, evidence IDs and guarded
+Markdown/Obsidian export. Generative synthesis and external write integrations remain future work.
 
 Acceptance:
 
