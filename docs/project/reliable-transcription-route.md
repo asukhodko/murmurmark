@@ -3,8 +3,8 @@
 Status: active product route; stable batch capture/processing, live transport evidence, order/role
 reconciliation, causal local-island, remote-active and double-talk recovery, bounded recording-time
 runtime and fast authoritative handoff complete; boundary and residual Me evidence profiles are
-promoted; residual audio arbitration is complete with `DO_NOT_PROMOTE`; residual local recall is the
-current bounded goal
+promoted; residual audio arbitration is complete with `DO_NOT_PROMOTE`; residual local recall is
+promoted and residual chronology is the current bounded goal
 Date: 2026-07-19
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
@@ -136,9 +136,16 @@ local-recall, `9` order and `1` audio-review row. The selected residual profile 
 Residual Audio Evidence Arbitration v1 is complete with reproducible `DO_NOT_PROMOTE`. It classified
 all `66` audio-review rows / `196.920s`, but independent Target-Me, bounded word-timestamp ASR and
 remote-forbidden evidence safely closed only `1` row / `0.640s`. The input
-`residual_me_evidence_v1` profile therefore remains authoritative. The recommended bounded step is
-Residual Local Recall Closure v1: handle the separate `13` local-recall rows / `48.073s` under an
-insertion-only contract while keeping all audio-review dispositions and `14` order rows unchanged.
+`residual_me_evidence_v1` profile therefore remained the safe input to Residual Local Recall
+Closure v1. That pass completed with `PROMOTE_RESIDUAL_LOCAL_RECALL_V1`: all `13` rows / `48.073s`
+received stable outcomes, and `9` rows / `26.953s` closed as already covered, paraphrased or
+remote-supported. It inserted no speech, preserved all verdicts and note evidence, and left four
+ambiguous rows explicit.
+
+The selected profile is now `residual_local_recall_v1`. The recommended bounded step is Residual
+Chronology Closure v1 for the separately frozen `14` order rows / `62.690s`. It may only apply
+lossless split, retime or reorder operations while keeping all words, roles, audio-review
+dispositions and local-recall outcomes unchanged.
 
 This step does not change capture, Echo Guard, the primary ASR, live promotion or raw audio. The
 failed live-recovery profile remains diagnostic evidence rather than another user-facing branch.
@@ -382,12 +389,12 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Residual Local Recall Closure v1: заморозить отдельные 13 local-recall строк / 48.073s из
-residual_me_evidence_v1, дать каждой строке стабильный outcome и полную provenance, восстановить
-только независимо подтверждённую локальную речь с word-level timestamps и remote-forbidden gates.
-Не менять 66 audio-review dispositions, 14 chronology rows, raw CAF, Echo Guard и основной ASR.
-Продвигать isolated profile только после corpus-wide local-recall gain и всех no-regression gates;
-иначе выпустить воспроизводимый DO_NOT_PROMOTE с точным пределом доказательств.
+Residual Chronology Closure v1: заморозить отдельные 14 chronology строк / 62.690s из
+residual_local_recall_v1, дать каждой строке стабильный outcome и полную provenance, применять
+только доказанные lossless split, retime или reorder. Не менять слова, роли, 66 audio-review
+dispositions, local-recall outcomes, raw CAF, Echo Guard и основной ASR. Продвигать isolated
+profile только после corpus-wide order gain и всех no-regression gates; иначе выпустить
+воспроизводимый DO_NOT_PROMOTE с точным пределом доказательств.
 ```
 
 ## Consultation Prompt

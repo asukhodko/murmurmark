@@ -901,6 +901,64 @@ gates. The current result is `DO_NOT_PROMOTE`: `1/66` rows and `0.640/196.920s` 
 required `14` rows and `39.384s`. Auto-selection therefore remains on
 `residual_me_evidence_v1`.
 
+### Residual Local Recall Closure
+
+`scripts/residual-local-recall.py` freezes only the `local_recall` rows left by the promoted
+`residual_me_evidence_v1` queue. Corpus artifacts are:
+
+```text
+sessions/_reports/residual-local-recall-v1/
+  residual_local_recall_baseline.json
+  residual_local_recall_queue.jsonl
+  residual_local_recall_evidence_corpus.json
+  residual_local_recall_corpus_report.json
+  residual_local_recall_corpus_report.md
+  residual_local_recall_decision.json
+```
+
+The schemas are `murmurmark.residual_local_recall_baseline/v1`,
+`murmurmark.residual_local_recall_queue_item/v1`,
+`murmurmark.residual_local_recall_evidence/v1`,
+`murmurmark.residual_local_recall_profile_report/v1` and
+`murmurmark.residual_local_recall_corpus_report/v1`. The baseline freezes the exact `13` rows /
+`48.073s`, the input profile, relevant audio and speaker-state files, existing Target-Me evidence,
+local word-timestamp ASR identity, and the excluded `66` audio-review and `14` chronology rows.
+
+Allowed outcomes are `confirmed_missing_me`, `already_covered`, `duplicate_or_paraphrase`,
+`remote_supported`, `mixed_or_double_talk`, `insufficient_local_evidence` and `needs_review`.
+Existing utterances and all remote rows are immutable. A new `Me` utterance is permitted only when
+two mic sources, Target-Me evidence, local-only speaker state, remote-forbidden checks and bounded
+word timestamps agree. Missing or conflicting evidence remains reviewable.
+
+The isolated profile writes:
+
+```text
+derived/transcript-simple/whisper-cpp/resolved/
+  clean_dialogue.residual_local_recall_v1.json
+  transcript.residual_local_recall_v1.md
+  transcript.simple.residual_local_recall_v1.json
+  quality_report.residual_local_recall_v1.json
+  overlaps.residual_local_recall_v1.json
+
+derived/transcript-simple/whisper-cpp/residual-local-recall-v1/
+  residual_local_recall_dispositions.jsonl
+  residual_local_recall_applied.jsonl
+  residual_local_recall_rejected.jsonl
+  residual_local_recall_review_queue.jsonl
+  residual_local_recall_diff.json
+  residual_local_recall_profile_report.json
+```
+
+`PROMOTE_RESIDUAL_LOCAL_RECALL_V1` requires at least `3` rows and `9.615s` safe closure, unchanged
+frozen inputs and excluded queues, exact existing utterances, no quality-metric or verdict
+regression, valid note evidence IDs and deterministic fingerprints. The promoted result closes
+`9/13` rows / `26.953/48.073s` without inserting speech: five rows were already covered, one was a
+duplicate/paraphrase and three were remote-supported. Four weak or mixed rows remain explicit.
+
+Auto-selection accepts this profile only for promoted sessions whose baseline SHA, session gates,
+source hashes and output fingerprint match the corpus decision. Any stale artifact fails open to
+`residual_me_evidence_v1`.
+
 `murmurmark corpus order` aggregates per-session order audits into:
 
 ```text

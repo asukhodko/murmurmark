@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import shlex
 from collections import Counter
@@ -559,6 +560,7 @@ def parse_args() -> argparse.Namespace:
             "authoritative_boundary_v1",
             "residual_me_evidence_v1",
             "residual_audio_arbitration_v1",
+            "residual_local_recall_v1",
         ),
         default="auto",
         help="Transcript artifact profile to synthesize from.",
@@ -754,6 +756,9 @@ def source_profile_paths(resolved_dir: Path, requested_profile: str) -> dict[str
         "residual_audio_arbitration_report": resolved_dir.parent
         / "residual-audio-arbitration-v1"
         / "residual_audio_arbitration_profile_report.json",
+        "residual_local_recall_report": resolved_dir.parent
+        / "residual-local-recall-v1"
+        / "residual_local_recall_profile_report.json",
     }
 
 
@@ -796,6 +801,17 @@ def frozen_boundary_inputs_match(baseline: dict[str, Any] | None, session: Path)
         sha256_file(Path(str(value.get("path") or ""))) == value.get("sha256")
         for value in frozen
     )
+
+
+def frozen_artifact_tree_matches(value: Any) -> bool:
+    if isinstance(value, dict):
+        if value.get("sha256"):
+            path = Path(str(value.get("path") or ""))
+            return path.is_file() and sha256_file(path) == value.get("sha256")
+        return all(frozen_artifact_tree_matches(child) for child in value.values())
+    if isinstance(value, list):
+        return all(frozen_artifact_tree_matches(child) for child in value)
+    return True
 
 
 def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dict[str, Path], dict[str, Any] | None, list[dict[str, Any]]]:
@@ -972,6 +988,65 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
             return paths
         return None
 
+    def residual_local_recall_paths_if_promoted() -> dict[str, Path] | None:
+        paths = source_profile_paths(resolved_dir, "residual_local_recall_v1")
+        report, report_error = read_json(paths["residual_local_recall_report"])
+        try:
+            session = resolved_dir.parents[3]
+        except IndexError:
+            return None
+        corpus_dir = session.parent / "_reports/residual-local-recall-v1"
+        corpus, corpus_error = read_json(corpus_dir / "residual_local_recall_corpus_report.json")
+        baseline, baseline_error = read_json(corpus_dir / "residual_local_recall_baseline.json")
+        record = next(
+            (
+                row
+                for row in (baseline.get("sessions") or [])
+                if isinstance(row, dict) and str(row.get("session_id") or "") == session.name
+            ),
+            None,
+        ) if isinstance(baseline, dict) else None
+        corpus_session = next(
+            (
+                row
+                for row in (corpus.get("sessions") or [])
+                if isinstance(row, dict) and str(row.get("session_id") or "") == session.name
+            ),
+            None,
+        ) if isinstance(corpus, dict) else None
+        output_fingerprint = authoritative_boundary_output_fingerprint(paths)
+        candidate_mode = os.environ.get("MURMURMARK_RESIDUAL_LOCAL_RECALL_CANDIDATE") == "1"
+        corpus_gate = candidate_mode or (
+            isinstance(corpus, dict)
+            and corpus.get("decision") == "PROMOTE_RESIDUAL_LOCAL_RECALL_V1"
+            and isinstance(corpus.get("gates"), dict)
+            and corpus["gates"].get("passed") is True
+        )
+        membership_gate = candidate_mode or session.name in {
+            str(value)
+            for value in (corpus.get("promoted_sessions") or [] if isinstance(corpus, dict) else [])
+        }
+        return paths if (
+            report_error is None
+            and isinstance(report, dict)
+            and isinstance(report.get("gates"), dict)
+            and report["gates"].get("passed") is True
+            and report.get("output_profile") == "residual_local_recall_v1"
+            and corpus_error is None
+            and corpus_gate
+            and baseline_error is None
+            and isinstance(baseline, dict)
+            and isinstance(baseline.get("gates"), dict)
+            and baseline["gates"].get("passed") is True
+            and isinstance(record, dict)
+            and frozen_artifact_tree_matches(record.get("artifacts"))
+            and sha256_file(corpus_dir / "residual_local_recall_baseline.json") == corpus.get("baseline_sha256")
+            and membership_gate
+            and report.get("output_fingerprint") == output_fingerprint
+            and isinstance(corpus_session, dict)
+            and corpus_session.get("output_fingerprint") == output_fingerprint
+        ) else None
+
     def order_repair_for(base_profile: str) -> tuple[str, dict[str, Path]] | None:
         order_paths = source_profile_paths(resolved_dir, "order_repair_v1")
         order_report, order_error = read_json(order_paths["order_repair_report"])
@@ -994,6 +1069,9 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
         return None
 
     if requested_profile == "auto":
+        residual_local_paths = residual_local_recall_paths_if_promoted()
+        if residual_local_paths:
+            return "residual_local_recall_v1", residual_local_paths, repair_comparison, risk_items
         residual_audio_paths = residual_audio_arbitration_paths_if_promoted()
         if residual_audio_paths:
             return "residual_audio_arbitration_v1", residual_audio_paths, repair_comparison, risk_items
@@ -1301,6 +1379,33 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
             )
         return "residual_audio_arbitration_v1", paths, repair_comparison, risk_items
 
+    if requested_profile == "residual_local_recall_v1":
+        paths = source_profile_paths(resolved_dir, "residual_local_recall_v1")
+        report, report_error = read_json(paths["residual_local_recall_report"])
+        if report_error is not None:
+            risk_items.append({"type": "missing_residual_local_recall_report", "severity": "high", "reason": report_error})
+        elif (
+            not isinstance(report, dict)
+            or not isinstance(report.get("gates"), dict)
+            or report["gates"].get("passed") is not True
+        ):
+            risk_items.append(
+                {
+                    "type": "residual_local_recall_gates_failed",
+                    "severity": "high",
+                    "reason": "residual local-recall profile was requested but per-session gates did not pass",
+                }
+            )
+        elif residual_local_recall_paths_if_promoted() is None:
+            risk_items.append(
+                {
+                    "type": "residual_local_recall_not_currently_promoted",
+                    "severity": "high",
+                    "reason": "the corpus promotion, frozen input SHA, or output fingerprint is missing or stale",
+                }
+            )
+        return "residual_local_recall_v1", paths, repair_comparison, risk_items
+
     if requested_profile == "shadow_v2":
         paths = source_profile_paths(resolved_dir, "shadow_v2")
         comparison, error = read_json(paths["repair_comparison"])
@@ -1464,6 +1569,7 @@ def verdict_from_metrics(
         "authoritative_boundary_v1",
         "residual_me_evidence_v1",
         "residual_audio_arbitration_v1",
+        "residual_local_recall_v1",
     } and "audit_harmful_seconds_after" in metrics:
         duration = max(1.0, float(metrics.get("meeting_duration_sec", 0.0) or 0.0))
         harmful = float(metrics.get("audit_harmful_seconds_after", 0.0) or 0.0)
@@ -2803,6 +2909,7 @@ def main() -> int:
         "authoritative_boundary_v1",
         "residual_me_evidence_v1",
         "residual_audio_arbitration_v1",
+        "residual_local_recall_v1",
     }:
         profile_suffix = selected_profile
         profile_aliases = {

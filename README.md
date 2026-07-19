@@ -200,16 +200,15 @@ murmurmark open "$SESSION" --kind transcript --command-only
 ## Current Development Direction
 
 The stable batch CLI already supports durable capture, resumable processing, evidence-backed review,
-guarded export and retention planning. The authoritative profile is
-`residual_me_evidence_v1`. Residual Audio Evidence Arbitration v1 completed with a reproducible
-`DO_NOT_PROMOTE`, so it did not replace that profile.
+guarded export and retention planning. The promoted authoritative profile is
+`residual_local_recall_v1`. It classified all `13` local-recall rows / `48.073s` and safely closed
+`9` rows / `26.953s` without inventing or inserting speech. Four ambiguous rows remain explicit.
 
-The current goal is **Residual Local Recall Closure v1** for `13` isolated local-recall rows /
-`48.073s`. The dependent critical path is:
+The current goal is **Residual Chronology Closure v1** for `14` isolated order rows / `62.690s`.
+The dependent critical path is:
 
 ```text
-Residual Local Recall Closure
--> Residual Chronology Closure
+Residual Chronology Closure
 -> Operational Rebaseline
 -> Echo Suppression Promotion
 -> Evidence Notes and Export

@@ -32,15 +32,18 @@ Current operating point, 2026-07-19:
 
 - stable batch capture and processing produce a transcript, verdict, evidence notes, review plan,
   guarded export and retention plan;
-- `residual_me_evidence_v1` remains the selected authoritative profile;
+- `residual_local_recall_v1` is the selected authoritative profile after passing corpus, verdict
+  and notes-evidence gates;
 - Residual Audio Evidence Arbitration v1 classified all `66` audio-review rows / `196.920s` and
   completed with reproducible `DO_NOT_PROMOTE`; only `1` row / `0.640s` closed safely;
-- the current goal is Residual Local Recall Closure v1 for the separate `13` local-recall rows /
-  `48.073s`; the `14` chronology rows / `62.690s` follow under a different lossless contract;
+- Residual Local Recall Closure v1 classified all `13` rows / `48.073s` and safely closed `9` rows /
+  `26.953s` without inserting speech; four ambiguous rows remain explicit;
+- the current goal is Residual Chronology Closure v1 for the separate `14` order rows / `62.690s`
+  under a lossless timing contract;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 
-Dependent work is: chronology closure, operational rebaseline, one consolidated Echo Suppression
+Dependent work is: operational rebaseline, one consolidated Echo Suppression
 Promotion contract, Evidence Notes And Export v2 and release-quality CLI. Remote diarization,
 speaker mapping and `transcript.rich.json` form a parallel future branch after base quality closure.
 Heavy validators, LLM synthesis, reviewed external integrations and UI remain research or optional

@@ -746,6 +746,26 @@ Current result: `DO_NOT_PROMOTE`. Every one of the `66` rows / `196.920s` has a 
 only `1` row / `0.640s` closes safely. The required floor is `14` rows / `39.384s`. Do not use the
 candidate as the final transcript; `auto` intentionally keeps `residual_me_evidence_v1`.
 
+### Residual local recall closure
+
+The separate local-recall queue is reproducible without rerunning primary ASR:
+
+```bash
+.venv/bin/python scripts/residual-local-recall.py freeze
+.venv/bin/python scripts/residual-local-recall.py evidence
+.venv/bin/python scripts/residual-local-recall.py evaluate --apply --synthesize
+
+jq '{decision, summary, gates, synthesis_gates}' \
+  sessions/_reports/residual-local-recall-v1/residual_local_recall_corpus_report.json
+less sessions/_reports/residual-local-recall-v1/residual_local_recall_corpus_report.md
+```
+
+Use `freeze --force` only to intentionally replace the immutable baseline. The promoted result
+classifies all `13` rows / `48.073s` and closes `9` rows / `26.953s` without inserting speech. Four
+rows remain explicit because local evidence is weak or mixed. `auto`, status, readiness, notes and
+export select `residual_local_recall_v1` only while corpus, session, source-hash, fingerprint,
+verdict and note-evidence gates all pass.
+
 ## Remote Leak Segment Plan
 
 Remote leak and partial remote duplicates need a different safety shape. A `remote_leak` region or
@@ -2003,7 +2023,7 @@ does not call an LLM, and does not read raw audio.
 Profile selection:
 
 ```text
-auto      -> promoted residual_audio_arbitration_v1 when its corpus/session/hash gates pass; otherwise promoted residual_me_evidence_v1; otherwise promoted authoritative_boundary_v1; then audit_cleanup_v7 when it passed and applied material segment repair, reviewed_v1 when review gates pass, agent_reviewed_v1 when agent gates pass, audit_cleanup_v6/v5/v4/v3/v2/v1 with passing cleanup gates, a compatible passing order_repair_v1, passing shadow_v2, then current
+auto      -> promoted residual_local_recall_v1 when its corpus/session/hash gates pass; otherwise promoted residual_audio_arbitration_v1 when its gates pass; otherwise promoted residual_me_evidence_v1; otherwise promoted authoritative_boundary_v1; then audit_cleanup_v7 when it passed and applied material segment repair, reviewed_v1 when review gates pass, agent_reviewed_v1 when agent gates pass, audit_cleanup_v6/v5/v4/v3/v2/v1 with passing cleanup gates, a compatible passing order_repair_v1, passing shadow_v2, then current
 current   -> baseline clean_dialogue.json
 shadow_v2 -> shadow clean_dialogue.shadow_v2.json, marked risky if comparison failed
 audit_cleanup_v1..v7 -> audit-cleaned dialogue, marked risky if cleanup gates failed
@@ -2014,6 +2034,7 @@ order_repair_v1 -> transcript-order repair candidate, eligible for auto only whe
 authoritative_boundary_v1 -> frozen corpus boundary profile; eligible for auto only after global PROMOTE, per-session gates and promoted-session membership all pass
 residual_me_evidence_v1 -> frozen residual evidence profile; eligible for auto only after global PROMOTE, per-session gates, promoted-session membership, frozen source hashes and output fingerprints all pass
 residual_audio_arbitration_v1 -> frozen audio-review arbitration candidate; eligible for auto only after global PROMOTE, per-session gates, promoted-session membership, frozen source hashes and output fingerprints all pass; current corpus decision is DO_NOT_PROMOTE
+residual_local_recall_v1 -> frozen local-recall closure profile; eligible for auto only after global PROMOTE, per-session and synthesis gates, promoted-session membership, frozen source hashes and output fingerprints all pass
 ```
 
 The script writes a quality verdict and a conservative `notes.md`. The v3 notes path is extractive

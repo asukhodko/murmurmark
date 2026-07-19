@@ -31,6 +31,7 @@ CLEANUP_PROFILES = {
     "authoritative_boundary_v1",
     "residual_me_evidence_v1",
     "residual_audio_arbitration_v1",
+    "residual_local_recall_v1",
 }
 
 
@@ -241,6 +242,17 @@ def frozen_boundary_inputs_match(baseline: dict[str, Any] | None, session: Path)
     )
 
 
+def frozen_artifact_tree_matches(value: Any) -> bool:
+    if isinstance(value, dict):
+        if value.get("sha256"):
+            path = Path(str(value.get("path") or ""))
+            return path.is_file() and sha256_file(path) == value.get("sha256")
+        return all(frozen_artifact_tree_matches(child) for child in value.values())
+    if isinstance(value, list):
+        return all(frozen_artifact_tree_matches(child) for child in value)
+    return True
+
+
 def authoritative_boundary_usable(session: Path) -> bool:
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
     boundary_dir = session / "derived/transcript-simple/whisper-cpp/authoritative-boundary-v1"
@@ -357,7 +369,55 @@ def residual_audio_arbitration_usable(session: Path) -> bool:
     )
 
 
+def residual_local_recall_usable(session: Path) -> bool:
+    resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
+    profile_path = session / "derived/transcript-simple/whisper-cpp/residual-local-recall-v1"
+    report = read_json(profile_path / "residual_local_recall_profile_report.json")
+    corpus_dir = session.parent / "_reports/residual-local-recall-v1"
+    corpus = read_json(corpus_dir / "residual_local_recall_corpus_report.json")
+    baseline = read_json(corpus_dir / "residual_local_recall_baseline.json")
+    record = next(
+        (
+            row
+            for row in (baseline.get("sessions") or [])
+            if isinstance(row, dict) and str(row.get("session_id") or "") == session.name
+        ),
+        None,
+    ) if isinstance(baseline, dict) else None
+    output_fingerprint = profile_output_fingerprint(resolved, "residual_local_recall_v1")
+    corpus_session = next(
+        (
+            row
+            for row in (corpus.get("sessions") or [])
+            if isinstance(row, dict) and str(row.get("session_id") or "") == session.name
+        ),
+        None,
+    ) if isinstance(corpus, dict) else None
+    return bool(
+        isinstance(report, dict)
+        and isinstance(report.get("gates"), dict)
+        and report["gates"].get("passed") is True
+        and report.get("output_profile") == "residual_local_recall_v1"
+        and isinstance(corpus, dict)
+        and corpus.get("decision") == "PROMOTE_RESIDUAL_LOCAL_RECALL_V1"
+        and isinstance(corpus.get("gates"), dict)
+        and corpus["gates"].get("passed") is True
+        and isinstance(baseline, dict)
+        and isinstance(baseline.get("gates"), dict)
+        and baseline["gates"].get("passed") is True
+        and isinstance(record, dict)
+        and frozen_artifact_tree_matches(record.get("artifacts"))
+        and sha256_file(corpus_dir / "residual_local_recall_baseline.json") == corpus.get("baseline_sha256")
+        and session.name in {str(value) for value in corpus.get("promoted_sessions") or []}
+        and report.get("output_fingerprint") == output_fingerprint
+        and isinstance(corpus_session, dict)
+        and corpus_session.get("output_fingerprint") == output_fingerprint
+    )
+
+
 def selected_profile(session: Path) -> str:
+    if residual_local_recall_usable(session):
+        return "residual_local_recall_v1"
     if residual_audio_arbitration_usable(session):
         return "residual_audio_arbitration_v1"
     if residual_me_evidence_usable(session):
@@ -624,6 +684,11 @@ def stage_status(session: Path) -> dict[str, bool]:
         "residual_audio_arbitration_v1": (resolved / "quality_report.residual_audio_arbitration_v1.json").exists()
         and (resolved / "clean_dialogue.residual_audio_arbitration_v1.json").exists()
         and (residual_audio_arbitration / "residual_audio_arbitration_profile_report.json").exists(),
+        "residual_local_recall_v1": (resolved / "quality_report.residual_local_recall_v1.json").exists()
+        and (resolved / "clean_dialogue.residual_local_recall_v1.json").exists()
+        and (
+            session / "derived/transcript-simple/whisper-cpp/residual-local-recall-v1/residual_local_recall_profile_report.json"
+        ).exists(),
         "synthesis": (synthesis / "quality_verdict.json").exists() and (synthesis / "evidence_notes.json").exists(),
         "synthesis_audit_cleanup_v1": (synthesis / "quality_verdict.audit_cleanup_v1.json").exists()
         and (synthesis / "evidence_notes.audit_cleanup_v1.json").exists(),
@@ -655,6 +720,8 @@ def stage_status(session: Path) -> dict[str, bool]:
         and (synthesis / "evidence_notes.residual_me_evidence_v1.json").exists(),
         "synthesis_residual_audio_arbitration_v1": (synthesis / "quality_verdict.residual_audio_arbitration_v1.json").exists()
         and (synthesis / "evidence_notes.residual_audio_arbitration_v1.json").exists(),
+        "synthesis_residual_local_recall_v1": (synthesis / "quality_verdict.residual_local_recall_v1.json").exists()
+        and (synthesis / "evidence_notes.residual_local_recall_v1.json").exists(),
         "audio_review_pack": (audio_review / "review_pack_summary.json").exists()
         and (audio_review / "review_pack_items.jsonl").exists(),
         "audio_review_audit": (audio_review / "audio_review_summary.json").exists()
@@ -782,14 +849,14 @@ def cleanup_input_profile(session: Path, profile: str) -> str | None:
 
 
 def residual_me_evidence_input_profile(session: Path, profile: str) -> str | None:
-    if profile not in {"residual_me_evidence_v1", "residual_audio_arbitration_v1"}:
+    if profile not in {"residual_me_evidence_v1", "residual_audio_arbitration_v1", "residual_local_recall_v1"}:
         return None
-    directory = "residual-me-evidence-v1" if profile == "residual_me_evidence_v1" else "residual-audio-arbitration-v1"
-    filename = (
-        "residual_me_evidence_profile_report.json"
-        if profile == "residual_me_evidence_v1"
-        else "residual_audio_arbitration_profile_report.json"
-    )
+    reports = {
+        "residual_me_evidence_v1": ("residual-me-evidence-v1", "residual_me_evidence_profile_report.json"),
+        "residual_audio_arbitration_v1": ("residual-audio-arbitration-v1", "residual_audio_arbitration_profile_report.json"),
+        "residual_local_recall_v1": ("residual-local-recall-v1", "residual_local_recall_profile_report.json"),
+    }
+    directory, filename = reports[profile]
     report = read_json(session / "derived/transcript-simple/whisper-cpp" / directory / filename)
     if not isinstance(report, dict):
         return None
@@ -798,13 +865,14 @@ def residual_me_evidence_input_profile(session: Path, profile: str) -> str | Non
 
 
 def residual_me_evidence_resolved_ids(session: Path, profile: str, sources: set[str]) -> set[str]:
-    if profile not in {"residual_me_evidence_v1", "residual_audio_arbitration_v1"}:
+    if profile not in {"residual_me_evidence_v1", "residual_audio_arbitration_v1", "residual_local_recall_v1"}:
         return set()
-    path = session / "derived/transcript-simple/whisper-cpp" / (
-        "residual-me-evidence-v1/residual_me_applied.jsonl"
-        if profile == "residual_me_evidence_v1"
-        else "residual-audio-arbitration-v1/residual_audio_applied.jsonl"
-    )
+    paths = {
+        "residual_me_evidence_v1": "residual-me-evidence-v1/residual_me_applied.jsonl",
+        "residual_audio_arbitration_v1": "residual-audio-arbitration-v1/residual_audio_applied.jsonl",
+        "residual_local_recall_v1": "residual-local-recall-v1/residual_local_recall_applied.jsonl",
+    }
+    path = session / "derived/transcript-simple/whisper-cpp" / paths[profile]
     return {
         str(row.get("source_audit_id"))
         for row in read_jsonl(path)
@@ -1995,7 +2063,7 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
             session
             / "derived/transcript-simple/whisper-cpp/authoritative-boundary-v1/boundary_repair_report.json"
         )
-        if profile in {"authoritative_boundary_v1", "residual_me_evidence_v1", "residual_audio_arbitration_v1"}
+        if profile in {"authoritative_boundary_v1", "residual_me_evidence_v1", "residual_audio_arbitration_v1", "residual_local_recall_v1"}
         else None
     )
     residual_me_report = (
@@ -2006,9 +2074,11 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
                 "residual-me-evidence-v1/residual_me_evidence_profile_report.json"
                 if profile == "residual_me_evidence_v1"
                 else "residual-audio-arbitration-v1/residual_audio_arbitration_profile_report.json"
+                if profile == "residual_audio_arbitration_v1"
+                else "residual-local-recall-v1/residual_local_recall_profile_report.json"
             )
         )
-        if profile in {"residual_me_evidence_v1", "residual_audio_arbitration_v1"}
+        if profile in {"residual_me_evidence_v1", "residual_audio_arbitration_v1", "residual_local_recall_v1"}
         else None
     )
     session_json = read_json(session / "session.json") or {}
@@ -2141,8 +2211,33 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
         )
     if isinstance(residual_me_report, dict) and (residual_me_report.get("gates") or {}).get("passed") is True:
         profile_dir = session / "derived/transcript-simple/whisper-cpp/residual-me-evidence-v1"
+        base_residual_report = read_json(profile_dir / "residual_me_evidence_profile_report.json") or {}
+        base_residual_summary = (
+            base_residual_report.get("summary")
+            if isinstance(base_residual_report.get("summary"), dict)
+            else {}
+        )
         remaining_rows = read_jsonl(profile_dir / "residual_me_review_queue.jsonl")
         applied_rows = read_jsonl(profile_dir / "residual_me_applied.jsonl")
+        added_closed_seconds = 0.0
+        if profile == "residual_local_recall_v1":
+            local_profile_dir = session / "derived/transcript-simple/whisper-cpp/residual-local-recall-v1"
+            local_applied = read_jsonl(local_profile_dir / "residual_local_recall_applied.jsonl")
+            closed_local_ids = {
+                str(item.get("source_audit_id") or "")
+                for item in local_applied
+                if item.get("closed") is True and item.get("source_audit_id")
+            }
+            remaining_rows = [
+                item
+                for item in remaining_rows
+                if not (
+                    str(item.get("source") or "") == "local_recall"
+                    and str(item.get("source_audit_id") or "") in closed_local_ids
+                )
+            ]
+            applied_rows = applied_rows + local_applied
+            added_closed_seconds = safe_float((residual_me_report.get("summary") or {}).get("closed_seconds")) or 0.0
 
         def source_summary(rows: list[dict[str, Any]], source: str) -> tuple[int, float]:
             selected = [row for row in rows if str(row.get("source") or "") == source]
@@ -2151,14 +2246,17 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
 
         remaining_local_count, remaining_local_seconds = source_summary(remaining_rows, "local_recall")
         remaining_order_count, remaining_order_seconds = source_summary(remaining_rows, "transcript_order")
-        residual_summary = residual_me_report.get("summary") if isinstance(residual_me_report.get("summary"), dict) else {}
+        residual_closed_seconds = (safe_float(base_residual_summary.get("closed_seconds")) or 0.0) + added_closed_seconds
+        residual_remaining_seconds = sum(
+            max(0.0, end - start) for start, end in (audio_review_interval(item) for item in remaining_rows)
+        )
         row.update(
             {
                 "residual_me_evidence_gates_passed": True,
                 "residual_me_evidence_closed_items": len(applied_rows),
-                "residual_me_evidence_closed_seconds": round_or_none(residual_summary.get("closed_seconds")),
+                "residual_me_evidence_closed_seconds": round(residual_closed_seconds, 3),
                 "residual_me_evidence_remaining_items": len(remaining_rows),
-                "residual_me_evidence_remaining_seconds": round_or_none(residual_summary.get("remaining_seconds")),
+                "residual_me_evidence_remaining_seconds": round(residual_remaining_seconds, 3),
                 "local_recall_possible_lost_me_count": remaining_local_count,
                 "local_recall_possible_lost_me_seconds": remaining_local_seconds,
                 "local_recall_needs_review_count": 0,

@@ -11,38 +11,48 @@ Roadmap status and dependency truth live in
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`. This file defines the executable goal in human
 terms. The two must agree; `scripts/check-planning-consistency.py` enforces that contract.
 
-## Residual Local Recall Closure v1
+## Residual Chronology Closure v1
 
-OpsKarta nearest goal: Residual Local Recall Closure v1: доказательно разобрать 13 local-recall
-строк / 48.073s и восстановить только word-timestamp-backed remote-forbidden Me speech.
+OpsKarta nearest goal: Residual Chronology Closure v1: доказательно разобрать 14 chronology строк / 62.690s и применять только lossless split, retime или reorder без изменения слов и ролей.
 
-The selected `residual_me_evidence_v1` profile leaves `93` explicit review rows / `307.683s`.
-Residual Audio Evidence Arbitration v1 classified all `66` audio-review rows / `196.920s`, but only
-`1` row / `0.640s` passed the full closure gates. Its reproducible result is `DO_NOT_PROMOTE`.
+The selected `residual_local_recall_v1` profile has closed the separate local-recall class. The
+remaining coherent class is `14` chronology rows / `62.690s`: places where valid `Me` and
+`Colleagues` content exists, but utterance boundaries or timestamps can publish turns in the wrong
+order.
 
-The next coherent class is therefore `13` local-recall rows / `48.073s`: intervals with independent
-local-speech evidence where the authoritative dialogue may lack a complete `Me` utterance.
+Objective: give every row a deterministic disposition and repair only when source segments,
+word-level timestamps and track evidence prove a lossless transformation.
 
-Objective: give every row a stable outcome and complete provenance, then insert only independently
-confirmed local speech with lossless word timestamps and remote-forbidden evidence.
+## Completed Predecessor
+
+Residual Local Recall Closure v1 completed with `PROMOTE_RESIDUAL_LOCAL_RECALL_V1`:
+
+- all `13` rows / `48.073s` have stable outcomes and provenance;
+- `9` rows / `26.953s` closed safely;
+- `5` were already covered, `1` was a duplicate/paraphrase and `3` were remote-supported;
+- `4` rows / `21.120s` remain explicit because evidence is weak or mixed;
+- no synthetic `Me` utterance was inserted;
+- all nine session verdicts and all evidence-note utterance references passed no-regression gates;
+- the `66` audio-review rows and `14` chronology rows remained unchanged.
 
 ## Safety Contract
 
-- freeze the exact 13-row queue and all input hashes;
-- use exact or speaker-bounded mic raw, mic clean, role-masked and remote evidence;
-- require word-level timestamps inside the supported local interval;
-- reject remote-text support, weak Target-Me enrollment and unresolved mixed speech;
-- do not overlap, paraphrase or replace existing `Me` content;
-- do not change the 66 audio-review dispositions or 14 chronology rows;
+- freeze the exact 14-row queue, source profile and SHA-256 identities;
+- keep utterance words and roles immutable;
+- allow only proven `split`, `retime`, `reorder`, `already_correct` or `needs_review` outcomes;
+- preserve token order within every utterance and preserve all remote content;
+- do not insert local speech or revisit the 66 audio-review dispositions;
+- reject a repair when word timestamps, source segments or track evidence disagree;
 - keep the candidate in an isolated profile until corpus-wide promotion gates pass;
 - missing models or evidence fail open to `needs_review`.
 
 ## Definition Of Done
 
-- all 13 rows have deterministic outcomes, reasons and provenance;
-- every insertion is backed by independent local evidence and lossless timestamps;
-- local recall improves without chronology, remote-like `Me`, notes, verdict or export regression;
-- frozen raw CAF and selected baseline artifacts remain unchanged;
+- all 14 rows have deterministic outcomes, reasons and provenance;
+- every applied repair is lossless and derived from frozen timing evidence;
+- known crossed-turn patterns are ordered correctly without text, role or local-recall regression;
+- the selected input profile, raw CAF and excluded queues remain unchanged;
+- verdict, review burden, evidence notes and guarded export do not regress;
 - repeated runs produce identical decisions and fingerprints;
 - the corpus publishes either `PROMOTE` or a reproducible `DO_NOT_PROMOTE` with a measured evidence
   ceiling;
@@ -53,28 +63,25 @@ confirmed local speech with lossless word timestamps and remote-forbidden eviden
 
 ```mermaid
 flowchart LR
-    A["Residual Local Recall Closure<br/>13 rows / 48.073s"]
-    B["Residual Chronology Closure<br/>14 rows / 62.690s"]
-    C["Operational Rebaseline"]
-    D["Echo Suppression Promotion"]
-    E["Evidence Notes And Export v2"]
-    F["Release-quality CLI"]
+    A["Residual Chronology Closure<br/>14 rows / 62.690s"]
+    B["Operational Rebaseline"]
+    C["Echo Suppression Promotion"]
+    D["Evidence Notes And Export v2"]
+    E["Release-quality CLI"]
 
-    A --> B --> C --> D --> E --> F
+    A --> B --> C --> D --> E
 ```
 
-A `DO_NOT_PROMOTE` still completes the current hypothesis and unblocks the chronology contract. It
-preserves `residual_me_evidence_v1` as the selected profile instead of forcing a weak improvement.
+A `DO_NOT_PROMOTE` still completes the chronology hypothesis and unblocks the operational
+rebaseline. It preserves `residual_local_recall_v1` as the selected profile.
 
 ## Out Of Scope
 
-- capture and raw CAF changes;
-- Echo Guard implementation;
-- primary ASR changes;
-- mutation of the 66 audio-review or 14 chronology rows;
+- capture, raw CAF and Echo Guard changes;
+- primary ASR changes or new transcription;
+- local-recall insertion and audio-review reclassification;
 - Live Shadow promotion;
 - remote diarization;
 - LLM synthesis and UI.
 
-Detailed previous goal evidence is archived in
-`docs/history/current-goal-through-2026-07-19.md`.
+Detailed previous goal evidence is archived in the corpus artifacts and Git history.

@@ -41,8 +41,9 @@ Read in this order:
 
 ## Current Planning Entry Points
 
-Planning snapshot: 2026-07-19. The current executable goal is Residual Local Recall Closure v1;
-Residual Audio Evidence Arbitration v1 is completed with `DO_NOT_PROMOTE`.
+Planning snapshot: 2026-07-19. Residual Local Recall Closure v1 is promoted after safely closing
+`9/13` rows / `26.953/48.073s`; the current executable goal is Residual Chronology Closure v1 for
+the separate `14` order rows / `62.690s`.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

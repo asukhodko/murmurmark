@@ -74,7 +74,7 @@ nodes:
     effort: 9
     notes: |
       Resumable whisper.cpp processing, timeline repair, fast authoritative handoff и isolated
-      profiles. `residual_me_evidence_v1` остаётся selected profile.
+      profiles. `residual_local_recall_v1` остаётся selected profile после corpus-wide promotion.
 
   capability-review-evidence:
     title: "Audit, evidence и review loop"
@@ -125,24 +125,24 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [working-capabilities, corpus-regression]
-    status: current
+    status: done
     effort: 8
     notes: |
-      Единственная исполнимая продуктовая цель. Дать stable outcomes всем 13 local-recall строкам /
-      48.073s и вставлять только independently confirmed remote-forbidden Me speech с word-level
-      timestamps. 66 audio-review dispositions и 14 chronology rows не менять. Итогом может быть
-      PROMOTE или воспроизводимый DO_NOT_PROMOTE.
+      Завершено с PROMOTE_RESIDUAL_LOCAL_RECALL_V1. Все 13 строк / 48.073s классифицированы;
+      безопасно закрыты 9 строк / 26.953s без вставки новых Me utterances. Четыре неоднозначные
+      строки остались явными; audio-review и chronology очереди не изменены.
 
   quality-residual-chronology-closure-v1:
     title: "Residual Chronology Closure v1"
     kind: task
     parent: murmurmark-cli
     deps: [quality-residual-local-recall-closure-v1, corpus-regression]
-    status: later
+    status: current
     effort: 7
     notes: |
-      Отдельный lossless contract для 14 chronology rows / 62.690s. Разрешены только доказанные
-      split, retime и reorder; local-recall insertion и audio disposition сюда не входят.
+      Единственная исполнимая продуктовая цель. Отдельный lossless contract для 14 chronology rows /
+      62.690s. Разрешены только доказанные split, retime, reorder и already-correct; слова, роли,
+      local-recall insertion и audio dispositions неизменны.
 
   quality-operational-rebaseline-v1:
     title: "Operational Rebaseline v1"
@@ -298,11 +298,10 @@ views:
         nodes: [working-capabilities, corpus-regression]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-residual-local-recall-closure-v1]
+        nodes: [quality-residual-chronology-closure-v1]
       dependent:
         title: "Зависимые этапы"
         nodes:
-          - quality-residual-chronology-closure-v1
           - quality-operational-rebaseline-v1
 
   critical-path:
@@ -363,8 +362,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Residual Local Recall Closure v1: доказательно разобрать 13 local-recall строк / 48.073s и восстановить только word-timestamp-backed remote-forbidden Me speech."
-      success_by_next_sync: "Все 13 строк имеют stable outcomes и provenance; isolated candidate улучшает local recall без chronology, remote, notes или export regression либо опубликован воспроизводимый DO_NOT_PROMOTE."
+      nearest_goal: "Residual Chronology Closure v1: доказательно разобрать 14 chronology строк / 62.690s и применять только lossless split, retime или reorder без изменения слов и ролей."
+      success_by_next_sync: "Все 14 строк имеют stable outcomes и provenance; isolated candidate исправляет доказанные нарушения порядка без text, role, local-recall, notes или export regression либо опубликован воспроизводимый DO_NOT_PROMOTE."
     defaults:
       status_progress:
         done: 1.0
@@ -386,16 +385,15 @@ x:
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
         title: "Текущая цель"
-        scope_nodes: [quality-residual-local-recall-closure-v1]
+        scope_nodes: [quality-residual-chronology-closure-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Остались 13 отдельные local-recall строк / 48.073s."
-          next_sync_goal: "Закрыть безопасную часть insertion-only контрактом или доказать evidence ceiling."
+          sync_note: "Local Recall Closure promoted; остались 14 отдельные chronology строки / 62.690s."
+          next_sync_goal: "Закрыть доказуемую часть lossless timing-контрактом или измерить evidence ceiling."
       dependent-path:
         title: "Зависимый путь"
         scope_nodes:
-          - quality-residual-chronology-closure-v1
           - quality-operational-rebaseline-v1
           - quality-echo-suppression-promotion
           - product-evidence-export-v2

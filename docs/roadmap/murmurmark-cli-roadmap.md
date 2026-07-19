@@ -48,53 +48,48 @@ advisory; its promotion remains blocked by quality and runtime evidence.
 
 ## Current Goal
 
-**Residual Local Recall Closure v1** handles the isolated `13` local-recall rows / `48.073s` left by
-the selected `residual_me_evidence_v1` profile. It may insert only independently confirmed local
-speech with word-level timestamps and remote-forbidden evidence.
+**Residual Chronology Closure v1** handles the isolated `14` order rows / `62.690s` left by the
+selected `residual_local_recall_v1` profile. It may apply only lossless split, retime or reorder
+operations backed by frozen source timing evidence.
 
-The previous Residual Audio Evidence Arbitration v1 completed with `DO_NOT_PROMOTE`: all `66`
-audio-review rows / `196.920s` have outcomes, but only `1` row / `0.640s` closed safely.
+Residual Local Recall Closure v1 completed with `PROMOTE`: all `13` rows / `48.073s` have outcomes,
+`9` rows / `26.953s` closed safely, no speech was inserted, and four ambiguous rows remain explicit.
 
 ## Critical Path
 
 ```mermaid
 flowchart LR
-    A["Current<br/>Local Recall Closure"]
-    B["Chronology Closure"]
-    C["Operational Rebaseline"]
-    D["Echo Suppression Promotion"]
-    E["Evidence Notes And Export v2"]
-    F["Release-quality CLI"]
+    A["Current<br/>Chronology Closure"]
+    B["Operational Rebaseline"]
+    C["Echo Suppression Promotion"]
+    D["Evidence Notes And Export v2"]
+    E["Release-quality CLI"]
 
-    A --> B --> C --> D --> E --> F
+    A --> B --> C --> D --> E
 ```
 
-### 1. Residual Local Recall Closure
-
-Resolve `13` insertion-specific rows without changing chronology or audio-review dispositions.
-
-### 2. Residual Chronology Closure
+### 1. Residual Chronology Closure
 
 Resolve the separate `14` chronology rows / `62.690s` with lossless split, retime or reorder. Do not
 mix insertion and chronology mutation in one profile.
 
-### 3. Operational Rebaseline
+### 2. Operational Rebaseline
 
 Recompute selected profile, quality verdict, review burden, notes evidence, guarded export and
 end-to-end user metrics. This determines whether transcript repair or audio-layer suppression has
 the highest remaining value.
 
-### 4. Echo Suppression Promotion
+### 3. Echo Suppression Promotion
 
 Use one promotion contract for future audio candidates. The user-facing target is remote speech
 below the ASR-detectable threshold in `Me` while confirmed local speech remains intact.
 
-### 5. Evidence Notes And Export v2
+### 4. Evidence Notes And Export v2
 
 Improve the already working notes/export handoff over the selected transcript. Generated or
 extractive claims remain traceable to evidence IDs.
 
-### 6. Release-quality CLI
+### 5. Release-quality CLI
 
 Finalize the supported environment, installation, model/config handling, acceptance, release notes
 and public operational contract. UI is not required.
