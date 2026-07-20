@@ -31,6 +31,13 @@ def main() -> int:
     assert module.strip_hallucination_fragments(
         "Да, все, вот она переместилась. Редактор субтитров А.Семкин Корректор А.Егорова"
     ) == "Да, все, вот она переместилась"
+    assert module.strip_hallucination_fragments(
+        "Продолжение следует... Обсудим план дальше"
+    ) == "Обсудим план дальше"
+    assert module.strip_hallucination_fragments(
+        "Обсудили план. Субтитры создавал DimaTorzok"
+    ) == "Обсудили план"
+    assert module.strip_hallucination_fragments("Спасибо") == "Спасибо"
     assert module.strip_hallucination_fragments("Это реальная рабочая реплика.") == "Это реальная рабочая реплика"
     assert not module.is_hallucination("Продолжение встречи обсудим завтра")
     with tempfile.TemporaryDirectory(prefix="murmurmark-live-preview-") as raw_dir:

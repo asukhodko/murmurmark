@@ -231,8 +231,13 @@ afplay "$SESSION/derived/preprocess/audio/mic_role_preview.wav"
 Check the report:
 
 ```bash
-jq '.summary, .metrics, .decision' "$SESSION/derived/preprocess/echo/local_fir_report.json"
+jq '.input_conditioning, .summary, .metrics, .decision' \
+  "$SESSION/derived/preprocess/echo/local_fir_report.json"
 ```
+
+`input_conditioning.*.applied == true` means that a sparse full-scale input impulse was limited before
+FIR fitting. This is expected only for short, rare events. A sustained overload is deliberately left
+to the quality gate and should be investigated instead of hidden.
 
 If local speech seems to disappear, inspect the muted chunks:
 

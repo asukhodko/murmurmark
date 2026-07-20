@@ -24,7 +24,7 @@ from scipy.io import wavfile
 
 
 SCHEMA = "murmurmark.live_pipeline_report/v1"
-SCRIPT_VERSION = "0.8.1"
+SCRIPT_VERSION = "0.8.2"
 EPSILON = 1.0e-12
 LIVE_ROLE_DUPLICATE_THRESHOLD = 0.55
 LIVE_RESCUE_SHADOW_POLICY = "audio_safe_union_v1"
@@ -38,6 +38,8 @@ HALLUCINATION_SUFFIX_MARKERS = (
     "редактор субтитров",
     "субтитры подготовлены",
     "субтитры сделал",
+    "субтитры создал",
+    "субтитры создавал",
     "спасибо за просмотр",
 )
 CORRECTOR_CREDIT_RE = re.compile(r"\bкорректор\s+[A-Za-zА-Яа-яЁё]\.\s*[A-Za-zА-Яа-яЁё-]+.*$", re.IGNORECASE)
@@ -457,15 +459,12 @@ def strip_hallucination_fragments(text: str) -> str:
         cleaned = cleaned[: min(marker_offsets)]
     cleaned = CORRECTOR_CREDIT_RE.sub("", cleaned)
     normalized = clean_text(cleaned).strip(".!?, ")
+    for phrase in sorted(KNOWN_HALLUCINATIONS, key=len, reverse=True):
+        normalized = re.sub(re.escape(phrase), " ", normalized, flags=re.IGNORECASE)
+    normalized = clean_text(normalized).strip(".!?, ")
     lowered_normalized = normalized.lower()
-    hallucination_remainder = lowered_normalized
-    for phrase in KNOWN_HALLUCINATIONS:
-        hallucination_remainder = hallucination_remainder.replace(phrase, " ")
-    hallucination_remainder = re.sub(r"[^A-Za-zА-Яа-яЁё0-9]+", "", hallucination_remainder)
-    if (
-        lowered_normalized in KNOWN_HALLUCINATIONS
-        or lowered_normalized.startswith("субтитры")
-        or not hallucination_remainder
+    if lowered_normalized.startswith("субтитры") or not re.sub(
+        r"[^A-Za-zА-Яа-яЁё0-9]+", "", lowered_normalized
     ):
         return ""
     return normalized

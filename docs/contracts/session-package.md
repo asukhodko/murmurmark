@@ -313,3 +313,9 @@ For `local_fir` suppression, inspection should also expose:
 - `mic_role_preview.wav`: concatenated preview of retained mic regions for fast listening.
 - `mic_asr_segments/`: chunk files and manifest for future mic ASR on retained regions.
 - `speaker_state.jsonl`: 2 second role/action decisions for audit and debugging.
+
+`local_fir_report.json.input_conditioning` records any sparse full-scale limiting applied before FIR
+fitting, separately for `mic` and `remote`. It includes `applied`, peaks before/after, sample and region
+counts, aggregate duration, fraction, and first/last occurrence. Sparse limiting is conditioning, not
+an acceptance override: the ordinary quality gate still decides whether `mic_for_asr.wav` may use the
+clean candidate.

@@ -21,6 +21,9 @@ from scipy.io import wavfile
 
 
 EPSILON = 1.0e-12
+INPUT_PEAK_LIMIT = 0.999
+MAX_SPARSE_OVERRANGE_MS = 250.0
+MAX_SPARSE_OVERRANGE_FRACTION = 0.001
 
 
 def parse_args() -> argparse.Namespace:
@@ -99,6 +102,36 @@ def highpass(audio: np.ndarray, sample_rate: int, cutoff_hz: float) -> np.ndarra
         return audio.astype(np.float32)
     sos = signal.butter(4, cutoff_hz, btype="highpass", fs=sample_rate, output="sos")
     return signal.sosfilt(sos, audio).astype(np.float32)
+
+
+def limit_sparse_input_overrange(audio: np.ndarray, sample_rate: int) -> tuple[np.ndarray, dict[str, Any]]:
+    values = np.asarray(audio, dtype=np.float32)
+    peak_before = float(np.max(np.abs(values))) if values.size else 0.0
+    indices = np.flatnonzero(np.abs(values) > 1.0)
+    sample_count = int(indices.size)
+    region_count = int(np.count_nonzero(np.diff(indices) > 1) + 1) if sample_count else 0
+    duration_ms = sample_count * 1_000.0 / sample_rate if sample_rate > 0 else 0.0
+    fraction = sample_count / values.size if values.size else 0.0
+    applied = bool(
+        sample_count
+        and duration_ms <= MAX_SPARSE_OVERRANGE_MS
+        and fraction <= MAX_SPARSE_OVERRANGE_FRACTION
+    )
+    output = np.clip(values, -INPUT_PEAK_LIMIT, INPUT_PEAK_LIMIT) if applied else values
+    return output.astype(np.float32, copy=False), {
+        "applied": applied,
+        "peak_before": round(peak_before, 6),
+        "peak_after": round(float(np.max(np.abs(output))) if output.size else 0.0, 6),
+        "sample_count": sample_count,
+        "region_count": region_count,
+        "duration_ms": round(duration_ms, 3),
+        "fraction": round(fraction, 9),
+        "first_sec": round(float(indices[0]) / sample_rate, 3) if sample_count and sample_rate > 0 else None,
+        "last_sec": round(float(indices[-1] + 1) / sample_rate, 3) if sample_count and sample_rate > 0 else None,
+        "limit": INPUT_PEAK_LIMIT,
+        "max_sparse_duration_ms": MAX_SPARSE_OVERRANGE_MS,
+        "max_sparse_fraction": MAX_SPARSE_OVERRANGE_FRACTION,
+    }
 
 
 def rms_db(audio: np.ndarray) -> float:
@@ -371,6 +404,8 @@ def main() -> int:
     mic = resample_if_needed(mic, mic_rate, args.sample_rate)
     remote = highpass(remote, args.sample_rate, args.highpass_hz)
     mic = highpass(mic, args.sample_rate, args.highpass_hz)
+    remote, remote_overrange = limit_sparse_input_overrange(remote, args.sample_rate)
+    mic, mic_overrange = limit_sparse_input_overrange(mic, args.sample_rate)
     count = min(remote.size, mic.size)
     remote = remote[:count]
     mic = mic[:count]
@@ -673,6 +708,22 @@ def main() -> int:
     warnings: list[dict[str, Any]] = []
     if not local_energy_deltas:
         warnings.append({"type": "local_only_windows_missing", "start": 0.0, "end": 0.0})
+    for source, conditioning in (("mic", mic_overrange), ("remote", remote_overrange)):
+        if conditioning["applied"]:
+            warning_start = conditioning["first_sec"] if conditioning["region_count"] == 1 else 0.0
+            warning_end = conditioning["last_sec"] if conditioning["region_count"] == 1 else 0.0
+            warnings.append(
+                {
+                    "type": "sparse_input_overrange_limited",
+                    "source": source,
+                    "start": warning_start,
+                    "end": warning_end,
+                    "sample_count": conditioning["sample_count"],
+                    "region_count": conditioning["region_count"],
+                    "duration_ms": conditioning["duration_ms"],
+                    "peak_before": conditioning["peak_before"],
+                }
+            )
 
     conservative_failures: list[str] = []
     if delay_summary["reliable_delay_windows"] < 10:
@@ -804,6 +855,10 @@ def main() -> int:
             "remote_only_residual_max_attenuation_db": args.remote_only_residual_max_attenuation_db,
             "requested_crossfade_ms": args.crossfade_ms,
             "effective_crossfade_ms": 0.0,
+        },
+        "input_conditioning": {
+            "mic": mic_overrange,
+            "remote": remote_overrange,
         },
         "summary": {
             **delay_summary,

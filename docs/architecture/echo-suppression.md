@@ -574,6 +574,13 @@ Current `local_fir` conservative quality gate:
 - clean output does not clip;
 - peak scaling, if needed, is small.
 
+Before FIR fitting, `local_fir` also handles sparse input overrange introduced by capture or filtering.
+Samples above full scale are limited to `0.999` only when their total duration is at most `250 ms`
+and their share is at most `0.1%` of the session. The report records the original peak, sample and
+region counts, total duration and first/last occurrence under `input_conditioning`. Longer overloads
+remain untouched and must fail the normal clipping/peak-scaling gate; this prevents a damaged source
+or an unstable filter from being silently accepted.
+
 For `local_fir`, acceptance promotes `mic_role_masked_for_asr.wav` to `mic_for_asr.wav`, not the diagnostic `mic_clean_local_fir.wav`. This keeps the ASR input aligned with the role policy.
 
 Example `echo_suppression_report.json`:
