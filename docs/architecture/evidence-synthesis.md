@@ -71,6 +71,13 @@ clean_dialogue.json
 `quality_verdict.json` is the first gate a user should read. It reports `good`, `usable_with_review`,
 `risky` or `failed` from transcript quality counters and risky intervals.
 
+An empty selected dialogue is not always a pipeline failure. For a complete no-show or silent call,
+the synthesis layer may emit `session_classification: verified_no_speech` and a `good` verdict. This
+requires a separate `murmurmark.no_speech_evidence/v1` artifact proving raw-track coverage,
+microphone acoustic liveness, remote silence, successful chunk reconstruction, ASR output limited
+to known hallucinations, and no missing-local-speech evidence. Missing or conflicting evidence keeps
+the empty result at `failed`.
+
 ## Boundary
 
 Transcription answers:

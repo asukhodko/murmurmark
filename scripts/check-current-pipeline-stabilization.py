@@ -109,12 +109,31 @@ def transcript_has_content(session: Path, profile: str | None) -> bool:
         text = transcript.read_text(encoding="utf-8")
     except OSError:
         return False
+    metadata_prefixes = ("Backend:", "Model:", "Language:", "Profile:")
     meaningful = [
         line.strip()
         for line in text.splitlines()
-        if line.strip() and not line.startswith("#") and not line.startswith("Backend:") and not line.startswith("Model:")
+        if line.strip()
+        and not line.startswith("#")
+        and not line.startswith(metadata_prefixes)
     ]
     return bool(meaningful)
+
+
+def has_verified_no_speech(session: Path, row: dict[str, Any]) -> bool:
+    if row.get("session_classification") != "verified_no_speech":
+        return False
+    evidence = read_json(session / "derived/synthesis-simple/extractive/no_speech_evidence.json")
+    checks = evidence.get("checks") if isinstance(evidence, dict) else None
+    return (
+        isinstance(evidence, dict)
+        and evidence.get("schema") == "murmurmark.no_speech_evidence/v1"
+        and evidence.get("status") == "verified_no_speech"
+        and evidence.get("failures") == []
+        and isinstance(checks, list)
+        and bool(checks)
+        and all(isinstance(check, dict) and check.get("passed") is True for check in checks)
+    )
 
 
 def readiness(session: Path) -> dict[str, Any]:
@@ -301,10 +320,17 @@ def main() -> int:
         profile = str(row.get("selected_profile") or "")
         if category in {"usable", "review_first"}:
             count = utterance_count(session, profile)
-            if count is None or count <= 0:
-                errors.append(f"{category} session has no clean dialogue utterances: {session_id}")
-            if not transcript_has_content(session, profile):
-                errors.append(f"{category} session has no non-empty transcript: {session_id}")
+            verified_empty = has_verified_no_speech(session, row)
+            if verified_empty:
+                if count != 0:
+                    errors.append(f"verified no-speech session has transcript utterances: {session_id}")
+                if transcript_has_content(session, profile):
+                    errors.append(f"verified no-speech session has transcript content: {session_id}")
+            else:
+                if count is None or count <= 0:
+                    errors.append(f"{category} session has no clean dialogue utterances: {session_id}")
+                if not transcript_has_content(session, profile):
+                    errors.append(f"{category} session has no non-empty transcript: {session_id}")
         elif category == "blocked" and not has_explicit_blocker(row, session):
             errors.append(f"blocked session has no explicit blocker evidence: {session_id}")
         elif category == "broken_capture_or_incomplete" and gate != "pipeline_incomplete":

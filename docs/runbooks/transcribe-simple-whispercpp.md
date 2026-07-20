@@ -518,6 +518,33 @@ less "$(murmurmark transcript "$SESSION" --path-only)"
 `next_commands` and `open_commands`. Use those fields for automation; the terminal output is only the
 human-readable view of the same handoff.
 
+### Empty but valid sessions
+
+If nobody speaks, a correct transcript is empty. Synthesis accepts that result only when it can
+prove `session_classification: verified_no_speech` from complete raw capture, matched track
+durations, microphone acoustic activity, silent remote audio, successful ASR chunk reconstruction,
+known-hallucination-only ASR output and a clear local-recall audit:
+
+```bash
+jq '{verdict, session_classification, failures: .metrics.no_speech_evidence.failures}' \
+  "$SESSION/derived/synthesis-simple/extractive/quality_verdict.json"
+
+jq '.' \
+  "$SESSION/derived/synthesis-simple/extractive/no_speech_evidence.json"
+```
+
+Expected verified result:
+
+```text
+verdict: good
+session_classification: verified_no_speech
+failures: []
+```
+
+Do not treat an arbitrary empty transcript as a no-show. A silent microphone, incomplete capture,
+unexpected capture warning, missing chunk proof, possible lost `Me` evidence or unfiltered ASR text
+keeps the verdict at `failed`.
+
 ## Local Recall Audit
 
 Timeline repair can report low `local_only_island_recall` when a long `Me` candidate is split around

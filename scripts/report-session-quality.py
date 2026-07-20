@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.5.0"
+SCRIPT_VERSION = "0.5.1"
 SCHEMA = "murmurmark.session_quality_report/v1"
 READINESS_SCHEMA = "murmurmark.session_readiness/v1"
 CLEANUP_PROFILES = {
@@ -2107,6 +2107,7 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
         "missing_artifacts": missing,
         "stages": status,
         "verdict": verdict.get("verdict") if isinstance(verdict, dict) else None,
+        "session_classification": verdict.get("session_classification") if isinstance(verdict, dict) else None,
         "selected_transcript_profile": verdict.get("selected_transcript_profile") if isinstance(verdict, dict) else None,
         "risk_items_count": len(verdict.get("risk_items") or []) if isinstance(verdict, dict) else None,
         "created_at": session_json.get("created_at"),
@@ -3015,6 +3016,7 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
         "recommendation": readiness_recommendation(gate),
         "selected_profile": profile,
         "verdict": row.get("verdict"),
+        "session_classification": row.get("session_classification"),
         "pipeline_status": row.get("pipeline_status"),
         "risk_flags": row.get("risk_flags") or [],
         "use_gate_reasons": row.get("use_gate_reasons") or [],
@@ -3028,6 +3030,7 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
         "open_commands": open_commands,
         "metrics": {
             "meeting_duration_sec": row.get("meeting_duration_sec"),
+            "session_classification": row.get("session_classification"),
             "review_burden_sec": row.get("review_burden_sec"),
             "review_burden_ratio": row.get("review_burden_ratio"),
             "notes_review_burden_sec": row.get("notes_review_burden_sec"),

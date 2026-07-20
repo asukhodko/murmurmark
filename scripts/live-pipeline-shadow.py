@@ -24,7 +24,7 @@ from scipy.io import wavfile
 
 
 SCHEMA = "murmurmark.live_pipeline_report/v1"
-SCRIPT_VERSION = "0.8.0"
+SCRIPT_VERSION = "0.8.1"
 EPSILON = 1.0e-12
 LIVE_ROLE_DUPLICATE_THRESHOLD = 0.55
 LIVE_RESCUE_SHADOW_POLICY = "audio_safe_union_v1"
@@ -457,7 +457,16 @@ def strip_hallucination_fragments(text: str) -> str:
         cleaned = cleaned[: min(marker_offsets)]
     cleaned = CORRECTOR_CREDIT_RE.sub("", cleaned)
     normalized = clean_text(cleaned).strip(".!?, ")
-    if normalized.lower() in KNOWN_HALLUCINATIONS or normalized.lower().startswith("субтитры"):
+    lowered_normalized = normalized.lower()
+    hallucination_remainder = lowered_normalized
+    for phrase in KNOWN_HALLUCINATIONS:
+        hallucination_remainder = hallucination_remainder.replace(phrase, " ")
+    hallucination_remainder = re.sub(r"[^A-Za-zА-Яа-яЁё0-9]+", "", hallucination_remainder)
+    if (
+        lowered_normalized in KNOWN_HALLUCINATIONS
+        or lowered_normalized.startswith("субтитры")
+        or not hallucination_remainder
+    ):
         return ""
     return normalized
 

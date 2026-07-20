@@ -61,6 +61,7 @@ derived/synthesis-simple/extractive/
   notes.md
   evidence_notes.json
   review_items.jsonl
+  no_speech_evidence.json  # present only when the selected dialogue is empty
 ```
 
 `quality_verdict.json` is a local quality gate:
@@ -121,6 +122,41 @@ derived/synthesis-simple/extractive/
   ]
 }
 ```
+
+### Verified no-speech result
+
+`quality_verdict/v1` keeps the existing verdict enum. A complete session with no detected speech is
+represented as:
+
+```json
+{
+  "schema": "murmurmark.quality_verdict/v1",
+  "verdict": "good",
+  "session_classification": "verified_no_speech",
+  "metrics": {
+    "utterances": 0,
+    "no_speech_evidence": {
+      "schema": "murmurmark.no_speech_evidence/v1",
+      "status": "verified_no_speech",
+      "failures": []
+    }
+  }
+}
+```
+
+The standalone `no_speech_evidence.json` uses schema `murmurmark.no_speech_evidence/v1` and records
+every check, observed values and input paths. Verification requires:
+
+- completed, non-partial capture with no ScreenCaptureKit restart and no unexplained warnings;
+- non-empty raw mic and remote files whose durations match the capture duration;
+- finite mic-derived audio with acoustic activity, plus observed remote silence;
+- zero selected utterances and raw ASR drops limited to `known_hallucination`;
+- no possible lost `Me`, unresolved local-recall row or independent live `Me` evidence;
+- successful per-track ASR chunk reconstruction.
+
+If any check fails, `session_classification` is `unverified_empty_transcript`, verdict is `failed`,
+and the normal blocked/review handoff remains in force. This contract does not infer why nobody
+spoke; it only states what the recorded and derived evidence supports.
 
 `recommended_next`, `next_commands` and `open_commands` are also copied to
 `synthesis_manifest.json`. This makes synthesis a machine-readable handoff: CLI wrappers and agents

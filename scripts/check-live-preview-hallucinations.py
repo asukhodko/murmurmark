@@ -25,6 +25,9 @@ def main() -> int:
     compound = "Продолжение следует... Редактор субтитров А.Семкин Корректор А.Егорова"
     assert module.is_hallucination(compound)
     assert module.strip_hallucination_fragments(compound) == ""
+    repeated = "Продолжение следует... Продолжение следует"
+    assert module.is_hallucination(repeated)
+    assert module.strip_hallucination_fragments(repeated) == ""
     assert module.strip_hallucination_fragments(
         "Да, все, вот она переместилась. Редактор субтитров А.Семкин Корректор А.Егорова"
     ) == "Да, все, вот она переместилась"
@@ -50,6 +53,13 @@ def main() -> int:
                     "remote": {
                         "text": "Да, все, вот она переместилась. Редактор субтитров А.Семкин Корректор А.Егорова"
                     },
+                },
+                {
+                    "index": 3,
+                    "start_sec": 60.0,
+                    "end_sec": 90.0,
+                    "mic": {"text": repeated},
+                    "remote": {"text": ""},
                 },
             ],
             commit_delay_sec=10.0,

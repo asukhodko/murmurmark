@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.1"
+SCRIPT_VERSION = "0.1.2"
 OUTCOME_SCHEMA = "murmurmark.outcome/v1"
 REVIEW_PLAN_SCHEMA = "murmurmark.outcome_review_plan/v1"
 RUN_SCHEMA = "murmurmark.pipeline_run/v1"
@@ -758,6 +758,7 @@ def build_outcome_summary(
         "next_command": next_command,
         "selected_profile": (readiness or {}).get("selected_profile"),
         "verdict": (readiness or {}).get("verdict"),
+        "session_classification": (readiness or {}).get("session_classification"),
         "use_gate": (readiness or {}).get("use_gate"),
         "export_status": export_status,
         "gate_counts": gate_counts,
@@ -867,6 +868,7 @@ def main() -> int:
         "base_outcome": base_outcome,
         "selected_profile": (readiness or {}).get("selected_profile"),
         "verdict": (readiness or {}).get("verdict"),
+        "session_classification": (readiness or {}).get("session_classification"),
         "use_gate": (readiness or {}).get("use_gate"),
         "next_command": next_command,
         "export_status": export_status,

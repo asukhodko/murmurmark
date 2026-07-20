@@ -5230,6 +5230,9 @@ enum SynthesisPrinter {
         print("  notes: \(PathDisplay.display(outDir.appendingPathComponent("notes.md")))")
         print("  selected_profile: \(profile)")
         print("  verdict: \(verdict)")
+        if let classification = string(payload["session_classification"]), classification != "conversation" {
+            print("  session_classification: \(classification)")
+        }
         print("  risk_items: \(riskItems.count)")
         ReviewSummaryPrinter.printReviewSummary(payload["review_summary"], indent: "  ")
         if let needsReview = intOptional(metrics["needs_review_count"]) {
@@ -12776,6 +12779,9 @@ enum ReadinessPrinter {
         print("  gate: \(gate)")
         print("  selected_profile: \(profile)")
         print("  verdict: \(verdict)")
+        if let classification = string(payload["session_classification"]), classification != "conversation" {
+            print("  session_classification: \(classification)")
+        }
         if exportHandoff != nil {
             print("  export_status: exported")
         } else if let exportStatus = outcome.flatMap({ string($0["export_status"]) }) {
@@ -12948,6 +12954,9 @@ enum ReadinessPrinter {
         print("  recommendation: \(recommendation)")
         print("  selected_profile: \(profile)")
         print("  verdict: \(verdict)")
+        if let classification = string(payload["session_classification"]), classification != "conversation" {
+            print("  session_classification: \(classification)")
+        }
         printAuthoritativeHandoffSummary(session)
         print(String(format: "  notes_review_burden: %.2f min / %.2f%%", reviewSeconds / 60, reviewRatio))
         if abs(transcriptReviewSeconds - reviewSeconds) > 0.05 {
@@ -13639,6 +13648,9 @@ enum ReadinessPrinter {
         print("  status: \(string(payload["outcome"]) ?? "unknown")")
         print("  selected_profile: \(string(payload["selected_profile"]) ?? "unknown")")
         print("  verdict: \(string(payload["verdict"]) ?? "unknown")")
+        if let classification = string(payload["session_classification"]), classification != "conversation" {
+            print("  session_classification: \(classification)")
+        }
         print("  use_gate: \(string(payload["use_gate"]) ?? "unknown")")
         print("  export_status: \(string(payload["export_status"]) ?? "unknown")")
         if let next = string(payload["next_command"]), !next.isEmpty {

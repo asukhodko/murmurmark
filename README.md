@@ -88,6 +88,13 @@ Recording without `--duration` continues until `Ctrl-C`. Run only one `murmurmar
 at a time. If capture is partial, sparse or silent, processing blocks instead of publishing an empty
 successful transcript.
 
+An empty conversation can still be a valid result, for example when nobody joins a call. MurmurMark
+classifies it as `verified_no_speech` only when durable capture is complete, both raw tracks cover
+the session, the microphone contains acoustic activity, remote audio is silent, ASR produced only
+known hallucinations, and the local-recall and chunk-rebuild audits are clear. The evidence is kept
+in `derived/synthesis-simple/extractive/no_speech_evidence.json`. An empty transcript without all of
+these checks remains `failed`.
+
 `process` returns after the authoritative transcript, verdict and next action are published. When
 the result still requires review, `murmurmark next "$SESSION"` first routes through deferred local
 evidence instead of sending the user straight to manual review:
@@ -186,6 +193,7 @@ sessions/<session-id>/
     preprocess/
     transcript-simple/whisper-cpp/
     synthesis-simple/extractive/
+      no_speech_evidence.json  # only for an empty selected dialogue
     readiness/
     audit/
     retention/

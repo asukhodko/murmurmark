@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
-GENERATOR_VERSION = "0.3.4"
+GENERATOR_VERSION = "0.3.5"
 TOKEN_RE = re.compile(r"[0-9A-Za-zА-Яа-яЁё_./+-]+")
 
 DEFAULT_RULES: dict[str, Any] = {
@@ -48,6 +48,26 @@ DEFAULT_RULES: dict[str, Any] = {
         "strong_pause_boundary_sec": 60,
         "min_salience_score": 18,
     },
+}
+
+PROFILE_ALIAS_PROFILES = {
+    "shadow_v2",
+    "audit_cleanup_v1",
+    "audit_cleanup_v2",
+    "audit_cleanup_v3",
+    "audit_cleanup_v4",
+    "audit_cleanup_v5",
+    "audit_cleanup_v6",
+    "audit_cleanup_v7",
+    "reviewed_v1",
+    "agent_reviewed_v1",
+    "suggested_review_v1",
+    "order_repair_v1",
+    "local_recall_repair_v1",
+    "authoritative_boundary_v1",
+    "residual_me_evidence_v1",
+    "residual_audio_arbitration_v1",
+    "residual_local_recall_v1",
 }
 
 
@@ -1521,6 +1541,157 @@ def metrics_from_quality(quality: dict[str, Any], utterances: list[dict[str, Any
     return metrics
 
 
+def verified_no_speech_evidence(session: Path, utterances: list[dict[str, Any]]) -> dict[str, Any]:
+    checks: list[dict[str, Any]] = []
+
+    def add_check(check_id: str, passed: bool, **details: Any) -> None:
+        checks.append({"id": check_id, "passed": bool(passed), **details})
+
+    if utterances:
+        add_check("empty_dialogue", False, utterances=len(utterances))
+        return {
+            "schema": "murmurmark.no_speech_evidence/v1",
+            "status": "not_applicable",
+            "checks": checks,
+            "failures": ["empty_dialogue"],
+        }
+
+    session_json, session_error = read_json(session / "session.json")
+    transcribe, transcribe_error = read_json(
+        session / "derived/transcript-simple/whisper-cpp/resolved/transcribe_simple_report.json"
+    )
+    local_fir, local_fir_error = read_json(session / "derived/preprocess/echo/local_fir_report.json")
+    local_recall, local_recall_error = read_json(session / "derived/audit/local-recall/local_recall_audit.json")
+    chunk_check, chunk_check_error = read_json(
+        session / "derived/transcript-simple/whisper-cpp/raw/chunk_rebuild_check.json"
+    )
+
+    session_json = session_json if isinstance(session_json, dict) else {}
+    health = session_json.get("health") if isinstance(session_json.get("health"), dict) else {}
+    tracks = health.get("tracks") if isinstance(health.get("tracks"), dict) else {}
+    actual_duration = safe_number(health.get("actual_duration_sec"))
+    capture_status = str(session_json.get("status") or "")
+    warnings = [str(value) for value in health.get("warnings") or []]
+    unexpected_warnings = [
+        warning
+        for warning in warnings
+        if not warning.lower().startswith("remote track appears silent or almost silent")
+    ]
+    add_check(
+        "capture_complete",
+        session_error is None
+        and capture_status in {"completed", "completed_with_warnings"}
+        and health.get("partial") is False
+        and "screen_capture_restart_count" in health
+        and safe_number(health.get("screen_capture_restart_count")) == 0,
+        status=capture_status,
+        partial=health.get("partial"),
+        screen_capture_restarts=health.get("screen_capture_restart_count"),
+    )
+    add_check("capture_duration", actual_duration >= 5.0, duration_sec=round(actual_duration, 3))
+    add_check("capture_warnings_understood", not unexpected_warnings, warnings=warnings)
+
+    listed_audio_ok = True
+    track_durations: dict[str, float] = {}
+    for track_name in ("mic", "remote"):
+        track = tracks.get(track_name) if isinstance(tracks.get(track_name), dict) else {}
+        duration = safe_number(track.get("duration_sec"))
+        track_durations[track_name] = duration
+        entries = ((session_json.get("files") or {}).get(track_name) or []) if isinstance(session_json.get("files"), dict) else []
+        files_ok = bool(entries)
+        for entry in entries:
+            raw_path = str(entry.get("path") or "") if isinstance(entry, dict) else ""
+            path = session / raw_path
+            files_ok = files_ok and path.is_file() and path.stat().st_size > 0
+        listed_audio_ok = listed_audio_ok and files_ok and track.get("empty") is False
+    duration_tolerance = max(0.25, actual_duration * 0.01)
+    duration_parity = actual_duration > 0 and all(
+        abs(duration - actual_duration) <= duration_tolerance for duration in track_durations.values()
+    )
+    add_check("raw_audio_files", listed_audio_ok)
+    add_check("raw_audio_duration_parity", duration_parity, tracks=track_durations)
+
+    local_fir = local_fir if isinstance(local_fir, dict) else {}
+    local_metrics = local_fir.get("metrics") if isinstance(local_fir.get("metrics"), dict) else {}
+    local_summary = local_fir.get("summary") if isinstance(local_fir.get("summary"), dict) else {}
+    mic_peak = safe_number(local_metrics.get("max_abs_clean"))
+    mic_floor_db = safe_number(local_summary.get("mic_floor_db"))
+    mic_liveness = (
+        local_fir_error is None
+        and local_metrics.get("finite") is True
+        and mic_peak >= 0.005
+        and mic_floor_db > -90.0
+    )
+    remote_floor_db = safe_number(local_summary.get("remote_floor_db"))
+    remote_silence_warning = any(
+        warning.lower().startswith("remote track appears silent or almost silent") for warning in warnings
+    )
+    remote_silent = local_fir_error is None and (remote_silence_warning or remote_floor_db <= -100.0)
+    add_check("mic_acoustic_liveness", mic_liveness, max_abs=mic_peak, floor_db=mic_floor_db)
+    add_check("remote_observed_silent", remote_silent, floor_db=remote_floor_db)
+
+    transcribe = transcribe if isinstance(transcribe, dict) else {}
+    dropped = safe_int(transcribe.get("dropped_segments"))
+    dropped_by_reason = (
+        transcribe.get("dropped_by_reason") if isinstance(transcribe.get("dropped_by_reason"), dict) else {}
+    )
+    only_known_hallucinations = (
+        transcribe_error is None
+        and safe_int(transcribe.get("utterances")) == 0
+        and set(str(key) for key in dropped_by_reason) <= {"known_hallucination"}
+        and sum(safe_int(value) for value in dropped_by_reason.values()) == dropped
+    )
+    add_check(
+        "asr_only_known_hallucinations",
+        only_known_hallucinations,
+        dropped_segments=dropped,
+        dropped_by_reason=dropped_by_reason,
+    )
+
+    local_recall = local_recall if isinstance(local_recall, dict) else {}
+    recall_summary = local_recall.get("summary") if isinstance(local_recall.get("summary"), dict) else {}
+    local_recall_clear = (
+        local_recall_error is None
+        and safe_int(recall_summary.get("possible_lost_me_count")) == 0
+        and safe_number(recall_summary.get("possible_lost_me_seconds")) == 0.0
+        and safe_int(recall_summary.get("needs_review_count")) == 0
+        and safe_number(recall_summary.get("needs_review_seconds")) == 0.0
+        and safe_int(recall_summary.get("independent_live_me_evidence_count")) == 0
+    )
+    add_check("local_recall_clear", local_recall_clear)
+
+    chunk_check = chunk_check if isinstance(chunk_check, dict) else {}
+    chunk_tracks = chunk_check.get("tracks") if isinstance(chunk_check.get("tracks"), list) else []
+    chunk_tracks_by_name = {
+        str(row.get("track") or ""): row for row in chunk_tracks if isinstance(row, dict)
+    }
+    chunk_rebuild_passed = (
+        chunk_check_error is None
+        and chunk_check.get("status") == "passed"
+        and all((chunk_tracks_by_name.get(name) or {}).get("status") == "pass" for name in ("mic", "remote"))
+    )
+    add_check("asr_chunk_rebuild", chunk_rebuild_passed)
+
+    failures = [str(check["id"]) for check in checks if check.get("passed") is not True]
+    status = "verified_no_speech" if not failures else "unverified_empty_transcript"
+    return {
+        "schema": "murmurmark.no_speech_evidence/v1",
+        "status": status,
+        "capture_duration_sec": round(actual_duration, 3),
+        "classification": "no_speech_observed" if not failures else "unknown",
+        "checks": checks,
+        "failures": failures,
+        "warnings": warnings,
+        "inputs": {
+            "session": "session.json",
+            "transcribe_report": "derived/transcript-simple/whisper-cpp/resolved/transcribe_simple_report.json",
+            "local_fir_report": "derived/preprocess/echo/local_fir_report.json",
+            "local_recall_audit": "derived/audit/local-recall/local_recall_audit.json",
+            "chunk_rebuild_check": "derived/transcript-simple/whisper-cpp/raw/chunk_rebuild_check.json",
+        },
+    }
+
+
 def verdict_from_metrics(
     selected_profile: str,
     metrics: dict[str, Any],
@@ -1531,9 +1702,19 @@ def verdict_from_metrics(
     utterances = int(metrics.get("utterances", 0) or 0)
     needs_ratio = metrics.get("needs_review_ratio")
 
-    if any(item.get("severity") == "fatal" for item in items) or utterances <= 0:
-        if utterances <= 0:
-            items.append({"type": "empty_transcript", "severity": "fatal", "reason": "selected clean_dialogue has no utterances"})
+    if any(item.get("severity") == "fatal" for item in items):
+        return "failed", items
+    if utterances <= 0:
+        no_speech = metrics.get("no_speech_evidence") if isinstance(metrics.get("no_speech_evidence"), dict) else {}
+        if no_speech.get("status") == "verified_no_speech":
+            return "good", items
+        items.append(
+            {
+                "type": "empty_transcript",
+                "severity": "fatal",
+                "reason": "selected clean_dialogue has no utterances and no verified no-speech evidence",
+            }
+        )
         return "failed", items
 
     if selected_profile == "shadow_v2" and (not repair_comparison or repair_comparison.get("passed") is not True):
@@ -2658,6 +2839,7 @@ def write_quality_markdown(path: Path, verdict_payload: dict[str, Any]) -> None:
         "",
         f"Verdict: `{verdict_payload['verdict']}`",
         f"Transcript profile: `{verdict_payload['selected_transcript_profile']}`",
+        f"Session classification: `{verdict_payload.get('session_classification', 'conversation')}`",
         "",
         "## Metrics",
         "",
@@ -2709,6 +2891,14 @@ def write_notes_markdown(path: Path, verdict: dict[str, Any], evidence: dict[str
         "## Conversation Outline",
         "",
     ]
+    if verdict.get("session_classification") == "verified_no_speech":
+        duration = safe_number((verdict.get("metrics") or {}).get("meeting_duration_sec"))
+        lines.extend(
+            [
+                f"- No speech was detected in the complete {format_time(duration)} capture.",
+                "- The empty transcript is the expected evidence-backed result for the recorded audio.",
+            ]
+        )
     for block in selected.get("outline_blocks", []):
         start = format_time(block.get("start"))
         end = format_time(block.get("end"))
@@ -2720,7 +2910,7 @@ def write_notes_markdown(path: Path, verdict: dict[str, Any], evidence: dict[str
         for sample in block.get("representatives", []):
             lines.append(f"  - `{sample['utterance_id']}` {sample['role']}: {sample['text']}")
         lines.append("")
-    if not selected.get("outline_blocks"):
+    if not selected.get("outline_blocks") and verdict.get("session_classification") != "verified_no_speech":
         lines.append("- no utterances")
 
     sections = (
@@ -2772,9 +2962,15 @@ def empty_evidence(session: Path, requested_profile: str, risk_items: list[dict[
     }
 
 
-def write_failed_outputs(out_dir: Path, session: Path, requested_profile: str, risk_items: list[dict[str, Any]]) -> int:
+def write_failed_outputs(
+    out_dir: Path,
+    session: Path,
+    requested_profile: str,
+    risk_items: list[dict[str, Any]],
+    metrics: dict[str, Any] | None = None,
+) -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
-    metrics = {
+    failed_metrics = {
         "utterances": 0,
         "needs_review_count": 0,
         "needs_review_ratio": None,
@@ -2784,14 +2980,23 @@ def write_failed_outputs(out_dir: Path, session: Path, requested_profile: str, r
         "unrepaired_long_mic_crossings_count": 0,
         "golden_phrase_fail_count": 0,
     }
-    evidence = empty_evidence(session, requested_profile, risk_items, metrics)
+    if metrics:
+        failed_metrics.update(metrics)
+    evidence = empty_evidence(session, requested_profile, risk_items, failed_metrics)
     review_summary = review_items_summary(evidence["review"]["items"])
+    no_speech_path = out_dir / "no_speech_evidence.json"
+    failed_inputs = (
+        {"no_speech_evidence": rel(no_speech_path, session)}
+        if no_speech_path.is_file()
+        else {}
+    )
     payload = {
         "schema": "murmurmark.quality_verdict/v1",
         "verdict": "failed",
         "selected_transcript_profile": requested_profile,
-        "inputs": {},
-        "metrics": metrics,
+        "inputs": failed_inputs,
+        "metrics": failed_metrics,
+        "session_classification": failed_metrics.get("session_classification", "unverified_empty_transcript"),
         "review_summary": review_summary,
         "risk_items": risk_items,
     }
@@ -2802,6 +3007,20 @@ def write_failed_outputs(out_dir: Path, session: Path, requested_profile: str, r
     write_json(out_dir / "evidence_notes.json", evidence)
     write_notes_markdown(out_dir / "notes.md", payload, evidence)
     write_jsonl(out_dir / "review_items.jsonl", evidence["review"]["items"])
+    profile_aliases: dict[str, str] = {}
+    if requested_profile in PROFILE_ALIAS_PROFILES:
+        profile_aliases = {
+            "quality_verdict": f"quality_verdict.{requested_profile}.json",
+            "quality_verdict_markdown": f"quality_verdict.{requested_profile}.md",
+            "notes_markdown": f"notes.{requested_profile}.md",
+            "evidence_notes": f"evidence_notes.{requested_profile}.json",
+            "review_items": f"review_items.{requested_profile}.jsonl",
+        }
+        write_json(out_dir / profile_aliases["quality_verdict"], payload)
+        write_quality_markdown(out_dir / profile_aliases["quality_verdict_markdown"], payload)
+        write_json(out_dir / profile_aliases["evidence_notes"], evidence)
+        write_notes_markdown(out_dir / profile_aliases["notes_markdown"], payload, evidence)
+        write_jsonl(out_dir / profile_aliases["review_items"], evidence["review"]["items"])
     write_json(
         out_dir / "synthesis_manifest.json",
         {
@@ -2820,6 +3039,8 @@ def write_failed_outputs(out_dir: Path, session: Path, requested_profile: str, r
                 "notes_markdown": "notes.md",
                 "evidence_notes": "evidence_notes.json",
                 "review_items": "review_items.jsonl",
+                **({"no_speech_evidence": "no_speech_evidence.json"} if no_speech_path.is_file() else {}),
+                **{f"profile_{key}": value for key, value in profile_aliases.items()},
             },
         },
     )
@@ -2843,6 +3064,16 @@ def main() -> int:
     input_risks = [item for item in overlaps_and_input_risks if "duration_sec" not in item]
     overlap_rows = [item for item in overlaps_and_input_risks if "duration_sec" in item]
     metrics = metrics_from_quality(quality, utterances, overlap_rows)
+    no_speech = verified_no_speech_evidence(session, utterances)
+    no_speech_path = out_dir / "no_speech_evidence.json"
+    if not utterances:
+        write_json(no_speech_path, no_speech)
+        metrics["no_speech_evidence"] = no_speech
+        metrics["session_classification"] = no_speech.get("status")
+        if safe_number(no_speech.get("capture_duration_sec")) > 0:
+            metrics["meeting_duration_sec"] = safe_number(no_speech.get("capture_duration_sec"))
+    elif no_speech_path.exists():
+        no_speech_path.unlink()
     verdict, risk_items = verdict_from_metrics(selected_profile, metrics, selection_risks + input_risks, repair_comparison)
 
     inputs = {
@@ -2858,6 +3089,8 @@ def main() -> int:
         inputs["review_decisions_report"] = rel(paths["review_decisions_report"], session)
     if paths.get("order_repair_report") and paths["order_repair_report"].exists():
         inputs["order_repair_report"] = rel(paths["order_repair_report"], session)
+    if no_speech_path.exists():
+        inputs["no_speech_evidence"] = rel(no_speech_path, session)
 
     verdict_payload = {
         "schema": "murmurmark.quality_verdict/v1",
@@ -2866,11 +3099,12 @@ def main() -> int:
         "requested_transcript_profile": args.transcript_profile,
         "inputs": inputs,
         "metrics": metrics,
+        "session_classification": metrics.get("session_classification", "conversation"),
         "risk_items": risk_items,
     }
 
     if verdict == "failed":
-        return write_failed_outputs(out_dir, session, selected_profile, risk_items)
+        return write_failed_outputs(out_dir, session, selected_profile, risk_items, metrics)
 
     review_items = build_review_items(utterances, overlap_rows, risk_items)
     review_summary = review_items_summary(review_items)
@@ -2892,25 +3126,7 @@ def main() -> int:
     write_notes_markdown(out_dir / "notes.md", verdict_payload, evidence)
     write_jsonl(out_dir / "review_items.jsonl", review_items)
     profile_aliases: dict[str, str] = {}
-    if selected_profile in {
-        "shadow_v2",
-        "audit_cleanup_v1",
-        "audit_cleanup_v2",
-        "audit_cleanup_v3",
-        "audit_cleanup_v4",
-        "audit_cleanup_v5",
-        "audit_cleanup_v6",
-        "audit_cleanup_v7",
-        "reviewed_v1",
-        "agent_reviewed_v1",
-        "suggested_review_v1",
-        "order_repair_v1",
-        "local_recall_repair_v1",
-        "authoritative_boundary_v1",
-        "residual_me_evidence_v1",
-        "residual_audio_arbitration_v1",
-        "residual_local_recall_v1",
-    }:
+    if selected_profile in PROFILE_ALIAS_PROFILES:
         profile_suffix = selected_profile
         profile_aliases = {
             "quality_verdict": f"quality_verdict.{profile_suffix}.json",
@@ -2945,6 +3161,7 @@ def main() -> int:
                 "notes_markdown": "notes.md",
                 "evidence_notes": "evidence_notes.json",
                 "review_items": "review_items.jsonl",
+                **({"no_speech_evidence": "no_speech_evidence.json"} if no_speech_path.exists() else {}),
                 **{f"profile_{key}": value for key, value in profile_aliases.items()},
             },
         },
