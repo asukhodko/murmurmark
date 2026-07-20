@@ -536,6 +536,7 @@ enum Commands {
         let liveOverlapSeconds = try options.optionalNonNegativeDouble("live-overlap-sec") ?? 5
         let liveWorkerEnabled = (livePipelineEnabled || experimentID != nil) && !options.flag("live-no-worker")
         let liveFinalizeEnabled = livePipelineEnabled && !options.flag("live-no-finalize")
+        let liveConsoleEnabled = experimentID != nil && liveWorkerEnabled && !options.flag("live-no-console")
         if liveOverlapSeconds >= liveSegmentSeconds / 2 {
             throw CLIError("--live-overlap-sec must be less than half of --live-segment-sec")
         }
@@ -561,6 +562,7 @@ enum Commands {
             liveOverlapSeconds: liveOverlapSeconds,
             liveWorkerEnabled: liveWorkerEnabled,
             liveFinalizeEnabled: liveFinalizeEnabled,
+            liveConsoleEnabled: liveConsoleEnabled,
             experimentID: experimentID
         )
         let stopReason = try await recorder.run()
@@ -581,7 +583,7 @@ enum Commands {
                                  [--remote-backend screencapturekit|audio-input] [--remote-device Device_UID]
                                  [--experiment live-shadow-v1]
                                  [--live-pipeline] [--live-segment-sec 30|60] [--live-overlap-sec 5]
-                                 [--live-no-worker] [--live-no-finalize]
+                                 [--live-no-worker] [--live-no-console] [--live-no-finalize]
 
         Records separate mic and remote CAF tracks into a session package.
         Without --duration, recording continues until Ctrl-C.
@@ -600,6 +602,8 @@ enum Commands {
 
         --experiment live-shadow-v1 keeps raw CAF authoritative and starts a best-effort sidecar
         from committed PCM after each raw write. If the sidecar fails, process the session normally.
+        New live turns are shown in the recording terminal by default; use --live-no-console to
+        disable that view or `murmurmark live watch SESSION` to watch from another terminal.
         The default segment size is 30s for --experiment and 60s for legacy --live-pipeline.
 
         `latest` is a mutable pointer to the newest session. For real meetings, especially with
@@ -7684,6 +7688,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     let liveOverlapSeconds: TimeInterval
     let liveWorkerEnabled: Bool
     let liveFinalizeEnabled: Bool
+    let liveConsoleEnabled: Bool
     let experimentID: String?
 
     private let fileManager = FileManager.default
@@ -7699,6 +7704,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     private var liveSegments: AsyncLiveSegmentCapture?
     private var experimentLivePreview: AsyncCommittedLiveSegmentCapture?
     private var liveWorker: LivePipelineWorker?
+    private var liveConsole: LivePreviewConsole?
     private var rawSidecarCommits: RawSegmentCommitTracker?
     private var events: EventLog?
     private var warnings: [String] = []
@@ -7732,6 +7738,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         liveOverlapSeconds: TimeInterval = 5,
         liveWorkerEnabled: Bool = false,
         liveFinalizeEnabled: Bool = false,
+        liveConsoleEnabled: Bool = false,
         experimentID: String? = nil
     ) {
         self.outputDirectory = outputDirectory
@@ -7748,6 +7755,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         self.liveOverlapSeconds = liveOverlapSeconds
         self.liveWorkerEnabled = liveWorkerEnabled
         self.liveFinalizeEnabled = liveFinalizeEnabled
+        self.liveConsoleEnabled = liveConsoleEnabled
         self.experimentID = experimentID
     }
 
@@ -7854,6 +7862,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                         "segment_sec": liveSegmentSeconds,
                         "overlap_sec": liveOverlapSeconds,
                         "worker_enabled": liveWorkerEnabled,
+                        "console_enabled": liveConsoleEnabled,
                         "writer_mode": "committed_pcm_queue_v1",
                         "fallback_writer_mode": "raw_segment_commit_log",
                         "callback_policy": "raw_write_then_nonblocking_committed_pcm_enqueue",
@@ -7954,7 +7963,12 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                 print("recording until Ctrl-C -> \(outputDirectory.path)")
             }
             if experimentID != nil {
-                print("live preview (second terminal): murmurmark live watch \(PathDisplay.display(outputDirectory))")
+                if liveConsoleEnabled {
+                    print("live preview: inline; batch remains authoritative (disable with --live-no-console)")
+                    startLiveConsole(eventLog: eventLog)
+                } else {
+                    print("live preview: murmurmark live watch \(PathDisplay.display(outputDirectory))")
+                }
             }
             let stopReason = try await waitForRecordingStop()
             finalStopReason = stopReason
@@ -8038,6 +8052,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                     )
                 }
             }
+            finishLiveConsole(eventLog: eventLog)
             if liveFinalizeEnabled, !finalizedAsPartial {
                 runLiveFinalReconcile(eventLog: eventLog)
             }
@@ -8051,6 +8066,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             }
             return stopReason
         } catch {
+            liveConsole?.terminate()
             liveWorker?.terminate()
             await stopScreenCaptureStream()
             try? remoteInputCapture?.stop()
@@ -8073,6 +8089,44 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             fields: [
                 "log": "derived/live/live_worker.log",
                 "report": "derived/live/live_pipeline_report.json",
+            ]
+        )
+    }
+
+    private func startLiveConsole(eventLog: EventLog) {
+        do {
+            let console = try LivePreviewConsole(sessionDirectory: outputDirectory)
+            liveConsole = console
+            try console.start()
+            try? eventLog.write(
+                type: "live_preview.console_started",
+                fields: [
+                    "mode": "inline_delta",
+                    "source": "derived/live/transcript.preview.md",
+                ]
+            )
+        } catch {
+            liveConsole = nil
+            print("[warn] inline live preview unavailable: \(error.localizedDescription)")
+            print("       recording continues; use `murmurmark live watch \(PathDisplay.display(outputDirectory))` if needed")
+            try? eventLog.write(
+                type: "live_preview.console_failed",
+                fields: ["error": error.localizedDescription]
+            )
+        }
+    }
+
+    private func finishLiveConsole(eventLog: EventLog) {
+        guard let console = liveConsole else { return }
+        let exited = console.wait(seconds: 2.5)
+        if !exited {
+            console.terminate()
+        }
+        try? eventLog.write(
+            type: "live_preview.console_finished",
+            fields: [
+                "exited": exited,
+                "status": console.terminationStatus.map { Int($0) } as Any? ?? NSNull(),
             ]
         )
     }
@@ -10481,6 +10535,54 @@ final class LivePipelineWorker {
             return venv
         }
         return Tooling.which("python3") ?? "/usr/bin/python3"
+    }
+}
+
+final class LivePreviewConsole {
+    private let process = Process()
+
+    init(sessionDirectory: URL) throws {
+        let script = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("scripts/watch-live-draft.py")
+        guard FileManager.default.fileExists(atPath: script.path) else {
+            throw CLIError("live preview watcher script not found: \(script.path)")
+        }
+        process.executableURL = try PythonRuntime.resolve()
+        process.arguments = [script.path, sessionDirectory.path, "--poll-sec", "1", "--embedded"]
+        process.standardInput = FileHandle.nullDevice
+        process.standardOutput = FileHandle.standardOutput
+        process.standardError = FileHandle.standardError
+        var environment = ProcessInfo.processInfo.environment
+        environment["PYTHONUNBUFFERED"] = "1"
+        process.environment = environment
+    }
+
+    func start() throws {
+        try process.run()
+    }
+
+    func wait(seconds: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(seconds)
+        while process.isRunning, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        return !process.isRunning
+    }
+
+    func terminate() {
+        guard process.isRunning else { return }
+        process.terminate()
+        let deadline = Date().addingTimeInterval(1)
+        while process.isRunning, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+        if process.isRunning {
+            process.interrupt()
+        }
+    }
+
+    var terminationStatus: Int32? {
+        process.isRunning ? nil : process.terminationStatus
     }
 }
 

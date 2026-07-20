@@ -188,6 +188,10 @@ if [[ "${MURMURMARK_RUN_LIVE_WORKER_CAPTURE_TEST:-0}" == "1" ]]; then
   }
   [[ "$draft_seen_before_stop" == "1" ]] \
     || fail "worker-enabled capture produced no chunk before recording stop"
+  grep -q '^\[live\] inline preview started; batch remains authoritative$' "$worker_log" \
+    || fail "worker-enabled capture did not start the inline delta preview"
+  grep -q '"type":"live_preview.console_started"' "$worker_session/events.jsonl" \
+    || fail "worker-enabled capture did not record inline preview provenance"
   jq -e '
     .status == "completed"
     and .provenance == "recording_time_committed_pcm"

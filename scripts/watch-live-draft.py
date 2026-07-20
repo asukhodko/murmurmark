@@ -31,6 +31,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Watch transcript.draft.md with all candidate-only evidence instead of the conservative preview.",
     )
+    parser.add_argument(
+        "--embedded",
+        action="store_true",
+        help="Use concise output when the watcher is embedded in `murmurmark record`.",
+    )
     return parser.parse_args()
 
 
@@ -140,6 +145,12 @@ def state_signature(state: dict[str, Any]) -> tuple[Any, ...]:
     )
 
 
+def start_line(draft_path: Path, embedded: bool) -> str:
+    if embedded:
+        return "[live] inline preview started; batch remains authoritative"
+    return f"watching: {draft_path}"
+
+
 def main() -> int:
     args = parse_args()
     session = args.session.expanduser().resolve()
@@ -152,7 +163,7 @@ def main() -> int:
     previous_draft = ""
     previous_state_signature: tuple[Any, ...] | None = None
     last_state_printed_at = 0.0
-    print(f"watching: {draft_path}", flush=True)
+    print(start_line(draft_path, args.embedded), flush=True)
     try:
         while True:
             desired_path = diagnostic_path if args.diagnostic_draft else preview_path

@@ -143,7 +143,11 @@ murmurmark status "$SESSION"
 murmurmark transcript "$SESSION"
 ```
 
-Second terminal while recording:
+During recording, the same terminal shows only newly added or revised conservative live turns.
+The line `[live] inline preview started` confirms that the read-only console watcher is active.
+To keep the recording terminal quiet, add `--live-no-console`.
+
+An optional second terminal can attach to the same preview without starting another capture or ASR:
 
 ```bash
 cd murmurmark
@@ -154,7 +158,9 @@ murmurmark live watch "$SESSION"
 ```
 
 The preview is advisory. Sidecar timeout, lag or backpressure may make it partial, but must not
-damage raw capture. The old `--live-pipeline` transport is unsafe and lab-only.
+damage raw capture. The inline console is a separate fail-open reader of
+`derived/live/transcript.preview.md`; it never receives audio and cannot block capture. The old
+`--live-pipeline` transport is unsafe and lab-only.
 
 ## Review And Finish
 

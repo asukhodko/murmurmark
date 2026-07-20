@@ -171,6 +171,21 @@ assert_static_capture_contract() {
   grep -q 'writeExperimentStateIfDue' "$source_file" \
     || fail "committed PCM sidecar state writes must be throttled away from packet rate"
 
+  grep -q 'final class LivePreviewConsole' "$source_file" \
+    || fail "inline live preview must run in a separate process wrapper"
+
+  grep -q 'experimentID != nil && liveWorkerEnabled && !options.flag("live-no-console")' "$source_file" \
+    || fail "experiment recording must enable the inline preview by default with an explicit opt-out"
+
+  grep -q 'scripts/watch-live-draft.py' "$source_file" \
+    || fail "inline live preview must reuse the delta watcher"
+
+  grep -q 'process.arguments = \[script.path, sessionDirectory.path, "--poll-sec", "1", "--embedded"\]' "$source_file" \
+    || fail "inline live preview must use embedded delta mode"
+
+  grep -q 'inline live preview unavailable:' "$source_file" \
+    || fail "inline live preview startup must fail open"
+
   grep -q 'final class RecordingProcessLock' "$source_file" \
     || fail "recording lock must keep concurrent record processes rejected"
 

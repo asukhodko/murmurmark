@@ -33,6 +33,13 @@ For the current live shadow experiment, `<experiment-id>` is `live-shadow-v1`.
 list, live-vs-batch comparison and final reconcile. User-facing transcripts, notes, export and
 retention continue to use batch artifacts.
 
+`record --experiment live-shadow-v1` starts an inline console reader by default. The reader consumes
+only `derived/live/transcript.preview.md`, emits deltas, and is outside both the capture callback and
+the live worker. Its lifecycle events are `live_preview.console_started`,
+`live_preview.console_failed` and `live_preview.console_finished`. Console failure is fail-open and
+must not change capture health. `--live-no-console` disables it; `murmurmark live watch SESSION`
+attaches the same reader manually.
+
 The live worker may additionally write progressive local-speaker evidence:
 
 ```text

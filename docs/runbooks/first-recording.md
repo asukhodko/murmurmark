@@ -118,8 +118,7 @@ experiment sidecar:
 ```bash
 SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)-live-evidence"
 murmurmark record --out "$SESSION" --target-bundle system --duration 120 --experiment live-shadow-v1
-# In a second terminal while recording:
-murmurmark live watch "$SESSION"
+# New conservative live turns appear in this terminal automatically.
 # After recording stops:
 murmurmark process "$SESSION"
 murmurmark experiment status "$SESSION"
@@ -160,13 +159,14 @@ The fuller `derived/live/transcript.draft.md` is diagnostic evidence and may inc
 candidate-only text. The batch transcript from raw CAF remains authoritative. The raw commit log is
 still written as evidence and as a post-stop fallback; preview never reads still-open CAF files.
 
-Watch the conservative preview from a second terminal with `murmurmark live watch "$SESSION"`.
-Start it after the recorder has printed the session directory and pass that explicit path: during
-recording the final `session.json` does not exist yet, therefore `latest` is not usable until
-finalization. Use `--diagnostic-draft` only when investigating all candidate evidence. Both modes
-print the current view once and then only new or materially revised timestamp blocks. Worker state
-appears on stage/chunk/lag changes and as a periodic heartbeat, so a stalled preview remains visible
-without repeatedly redrawing the whole transcript while raw capture continues.
+The recorder starts a read-only console watcher by default and prints new or materially revised
+conservative timestamp blocks in the same terminal. Use `--live-no-console` for quiet recording.
+An optional second terminal can attach with `murmurmark live watch "$SESSION"`; pass the explicit
+path because `latest` is not stable during another recording. Use `--diagnostic-draft` only when
+investigating all candidate evidence. The watcher also prints stage/chunk/lag changes and a periodic
+heartbeat, so a stalled preview remains visible without repeatedly redrawing the whole transcript.
+It is a separate fail-open process: failure or termination of the console view does not stop raw
+capture or the live worker.
 `murmurmark live evidence "$SESSION"` additionally checks
 `derived/live/preview_snapshots.jsonl`: at least one non-empty snapshot must predate `ended_at` and
 carry `recording_time_committed_pcm`. This is the proof that the visible preview was not rebuilt by

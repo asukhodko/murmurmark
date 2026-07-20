@@ -22,6 +22,10 @@ current = (
 delta = module.draft_delta(previous, current)
 assert "first-live-block" not in delta, delta
 assert delta.count("second-live-block") == 1, delta
+assert module.start_line(Path("preview.md"), False) == "watching: preview.md"
+assert module.start_line(Path("preview.md"), True) == (
+    "[live] inline preview started; batch remains authoritative"
+)
 PY
 
 if [[ ! -x "$bin" ]]; then

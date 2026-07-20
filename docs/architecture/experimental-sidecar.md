@@ -64,6 +64,12 @@ The raw writer path is mandatory. The sidecar only sees PCM copied from the same
 frames were accepted by the writer. It never owns capture, never reads an open CAF for normal preview
 and never runs ASR/Echo Guard/reconciliation in the callback.
 
+For `record --experiment live-shadow-v1`, the recorder also starts a separate read-only console
+process. It tails `derived/live/transcript.preview.md` and prints only new or revised timestamp
+blocks into the recording terminal. The process has no audio input and no callback connection; a
+startup error, interruption or slow terminal disables only the view. `--live-no-console` opts out,
+while `murmurmark live watch SESSION` remains an optional second-terminal attachment.
+
 Recommended v1 sidecar:
 
 ```text
