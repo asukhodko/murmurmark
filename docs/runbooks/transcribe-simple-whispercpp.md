@@ -95,7 +95,10 @@ fingerprint and readiness profile still match.
 judge, remote-forbidden/repair evidence, optional later cleanup profiles and live-vs-batch
 comparison. Each deferred step has a bounded timeout. Deferred work may update its own report but
 must not change the transcript fingerprint already published by the handoff. `audit_cleanup_v5`
-remains a separate batch step after the suggested-review shadow report. Use
+remains a separate batch step after the suggested-review shadow report.
+When the authoritative verdict still requires review and deferred work is pending, the handoff and
+`murmurmark next SESSION` recommend `murmurmark enrich SESSION` before any manual review command.
+Run `murmurmark next SESSION` again after enrichment to see only the unresolved remainder. Use
 `--force-asr` when you need to regenerate Whisper output, and `--reuse-asr-cache` when you only want
 to rebuild repair, cleanup, synthesis and reports from cached ASR JSON. The runner prints each stage
 with `[run]`, `[passed]`, `[failed]` or `[skip]`, prints heartbeat lines for long-running stages, and

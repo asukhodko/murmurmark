@@ -18,7 +18,7 @@ from typing import Any
 
 SCHEMA_ROW = "murmurmark.faster_whisper_judge/v1"
 SCHEMA_SUMMARY = "murmurmark.faster_whisper_judge_summary/v1"
-SCRIPT_VERSION = "0.1.3"
+SCRIPT_VERSION = "0.1.4"
 DEFAULT_MODEL = Path.home() / ".local/share/murmurmark/models/faster-whisper/large-v3"
 DEFAULT_MAX_ITEMS = 80
 DEFAULT_SOURCES = ("mic_role_masked", "mic_clean", "mic_raw", "remote")
@@ -862,7 +862,8 @@ def transcribe_clip(model: Any, path: Path, args: argparse.Namespace) -> dict[st
 
 def source_metrics(transcripts: dict[str, dict[str, Any]], me_text: str, remote_text: str) -> dict[str, Any]:
     metrics: dict[str, Any] = {}
-    remote_reference_text = remote_text or str(transcripts.get("remote", {}).get("text") or "")
+    decoded_remote_text = str(transcripts.get("remote", {}).get("text") or "")
+    remote_reference_text = remote_text or decoded_remote_text
     for source, result in transcripts.items():
         text = str(result.get("text") or "")
         metrics[source] = {
@@ -870,6 +871,7 @@ def source_metrics(transcripts: dict[str, dict[str, Any]], me_text: str, remote_
             "content_token_count": len(content_tokens(text)),
             "to_me": text_similarity(text, me_text),
             "to_remote": text_similarity(text, remote_reference_text),
+            "to_decoded_remote": text_similarity(text, decoded_remote_text),
             "avg_logprob": result.get("avg_logprob"),
             "no_speech_prob": result.get("no_speech_prob"),
         }
@@ -949,6 +951,11 @@ def classify_item(
     best_me, best_me_source = best_score(metrics, clean_sources or mic_sources, "to_me")
     best_me_any, best_me_any_source = best_score(metrics, mic_sources, "to_me")
     best_remote_in_mic, remote_in_mic_source = best_score(metrics, mic_sources, "to_remote")
+    best_decoded_remote_in_mic, decoded_remote_in_mic_source = best_score(
+        metrics,
+        mic_sources,
+        "to_decoded_remote",
+    )
     remote_source_to_remote = safe_float(metrics.get("remote", {}).get("to_remote", {}).get("similarity"), 0.0)
     remote_source_to_me = safe_float(metrics.get("remote", {}).get("to_me", {}).get("similarity"), 0.0)
     remote_source_to_me_containment = safe_float(metrics.get("remote", {}).get("to_me", {}).get("containment"), 0.0)
@@ -980,6 +987,32 @@ def classify_item(
     noise_fragment_me = looks_like_noise_fragment(me_text)
     no_mic_me = best_me_any < 0.24 and mic_content_tokens <= 2
     group_timing_context = group_timing_overlap_support(item)
+    group_contexts = group_overlap_contexts(item)
+    group_local_evidence = max(
+        (safe_float((context.get("scores") or {}).get("local_evidence"), 0.0) for context in group_contexts),
+        default=0.0,
+    )
+    group_remote_evidence = max(
+        (safe_float((context.get("scores") or {}).get("remote_evidence"), 0.0) for context in group_contexts),
+        default=0.0,
+    )
+    group_audio_leak = max(
+        (safe_float((context.get("scores") or {}).get("audio_leak"), 0.0) for context in group_contexts),
+        default=0.0,
+    )
+    decoded_remote_to_me = text_similarity(str(transcripts.get("remote", {}).get("text") or ""), me_text)
+    direct_decoded_remote_duplicate = (
+        audit_verdict == "probable_transcript_error"
+        and audit_label in {"remote_duplicate", "remote_leak"}
+        and local_support <= 35
+        and remote_similarity >= 70
+        and best_decoded_remote_in_mic >= 0.80
+        and safe_float(decoded_remote_to_me.get("similarity"), 0.0) >= 0.60
+        and remote_source_tokens >= max(4, mic_content_tokens - 2)
+        and group_local_evidence <= 35
+        and group_remote_evidence >= 40
+        and group_audio_leak >= 40
+    )
     mic_rejects_noise_fragment = (
         noise_fragment_me
         and best_me_any < 0.18
@@ -1049,7 +1082,15 @@ def classify_item(
         and best_remote_in_mic >= 0.35
     )
 
-    if group_timing_context and best_remote_in_mic < 0.58 and remote_duplicate is False:
+    if direct_decoded_remote_duplicate:
+        label = "confirm_remote_duplicate"
+        suggested = "drop_me"
+        confidence = min(0.92, max(0.88, best_decoded_remote_in_mic + 0.08))
+        reasons.append(
+            f"decoded mic matches decoded remote directly via {decoded_remote_in_mic_source}; "
+            "group evidence is remote/leak dominant"
+        )
+    elif group_timing_context and best_remote_in_mic < 0.58 and remote_duplicate is False:
         label = "confirm_timing_or_doubletalk"
         suggested = "keep_me"
         confidence = max(
@@ -1140,12 +1181,17 @@ def classify_item(
             "best_me_similarity": round(best_me, 6),
             "best_me_any_similarity": round(best_me_any, 6),
             "best_remote_in_mic_similarity": round(best_remote_in_mic, 6),
+            "best_decoded_remote_in_mic_similarity": round(best_decoded_remote_in_mic, 6),
             "remote_source_to_remote_similarity": round(remote_source_to_remote, 6),
             "remote_source_to_me_similarity": round(remote_source_to_me, 6),
             "remote_source_to_me_containment": round(remote_source_to_me_containment, 6),
             "mic_content_tokens": mic_content_tokens,
             "me_content_tokens": len(me_tokens),
             "remote_content_tokens": len(remote_tokens),
+            "decoded_remote_to_me_similarity": round(safe_float(decoded_remote_to_me.get("similarity"), 0.0), 6),
+            "group_local_evidence": round(group_local_evidence, 3),
+            "group_remote_evidence": round(group_remote_evidence, 3),
+            "group_audio_leak": round(group_audio_leak, 3),
             "audio_review_local_support": local_support,
             "audio_review_remote_similarity": remote_similarity,
         },
@@ -1153,6 +1199,7 @@ def classify_item(
             "me": best_me_source,
             "me_any": best_me_any_source,
             "remote_in_mic": remote_in_mic_source,
+            "decoded_remote_in_mic": decoded_remote_in_mic_source,
         },
     }
 

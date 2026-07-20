@@ -83,6 +83,32 @@ def main() -> int:
         assert checkpoint["asr_provenance"]["invocation"]["mode"] == "forced_batch"
         assert MODULE.handoff_fingerprint_matches(checkpoint, session)
 
+        review_session = Path(raw_root) / "sessions/review"
+        build_fixture(review_session)
+        write_json(
+            review_session / "derived/synthesis-simple/extractive/quality_verdict.json",
+            {"verdict": "risky", "selected_transcript_profile": "audit_cleanup_v2"},
+        )
+        readiness_path = review_session / "derived/readiness/session_readiness.json"
+        review_readiness = json.loads(readiness_path.read_text(encoding="utf-8"))
+        review_readiness.update(
+            {
+                "verdict": "risky",
+                "use_gate": "review_first",
+                "recommended_next": "murmurmark review suggested sessions/review",
+            }
+        )
+        write_json(readiness_path, review_readiness)
+        review_checkpoint = MODULE.build_authoritative_handoff(
+            session=review_session,
+            repo_root=Path(raw_root),
+            started_at="2026-07-20T00:00:00+00:00",
+            elapsed_sec=15.0,
+            report_path=review_session / "derived/pipeline-run/pipeline_run_report.json",
+        )
+        assert review_checkpoint["status"] == "review_required", review_checkpoint
+        assert review_checkpoint["recommended_next"] == "murmurmark enrich sessions/review", review_checkpoint
+
         MODULE.append_authoritative_handoff_run(
             session=session,
             mode="computed",

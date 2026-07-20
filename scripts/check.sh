@@ -15,6 +15,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-remote-role-integrity.py
 "$python_bin" scripts/check-live-voice-activity-retime.py
 "$python_bin" scripts/check-live-progressive-target-me.py
+"$python_bin" scripts/check-live-preview-hallucinations.py
 "$python_bin" scripts/check-live-profile-selection.py
 "$python_bin" scripts/check-live-order-role-reconciliation.py
 "$python_bin" scripts/check-live-local-recall-hardening.py
@@ -30,6 +31,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-authoritative-handoff-corpus.py
 "$python_bin" scripts/check-bounded-asr-parallelism.py
 "$python_bin" scripts/check-audio-review-clip-parallelism.py
+"$python_bin" scripts/check-stronger-audio-judge.py
 "$python_bin" scripts/check-independent-me-evidence.py
 "$python_bin" scripts/check-authoritative-boundary.py
 "$python_bin" scripts/check-residual-me-evidence.py

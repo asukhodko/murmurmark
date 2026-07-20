@@ -34,6 +34,13 @@ KNOWN_HALLUCINATIONS = {
     "продолжение следует",
     "спасибо за просмотр",
 }
+HALLUCINATION_SUFFIX_MARKERS = (
+    "редактор субтитров",
+    "субтитры подготовлены",
+    "субтитры сделал",
+    "спасибо за просмотр",
+)
+CORRECTOR_CREDIT_RE = re.compile(r"\bкорректор\s+[A-Za-zА-Яа-яЁё]\.\s*[A-Za-zА-Яа-яЁё-]+.*$", re.IGNORECASE)
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 SHUTDOWN_REQUESTED = False
 ACTIVE_CHILDREN: dict[int, subprocess.Popen[str]] = {}
@@ -441,9 +448,22 @@ def safe_int(value: Any, default: int = 0) -> int:
         return default
 
 
+def strip_hallucination_fragments(text: str) -> str:
+    cleaned = clean_text(text)
+    lowered = cleaned.lower()
+    marker_offsets = [lowered.find(marker) for marker in HALLUCINATION_SUFFIX_MARKERS]
+    marker_offsets = [offset for offset in marker_offsets if offset >= 0]
+    if marker_offsets:
+        cleaned = cleaned[: min(marker_offsets)]
+    cleaned = CORRECTOR_CREDIT_RE.sub("", cleaned)
+    normalized = clean_text(cleaned).strip(".!?, ")
+    if normalized.lower() in KNOWN_HALLUCINATIONS or normalized.lower().startswith("субтитры"):
+        return ""
+    return normalized
+
+
 def is_hallucination(text: str) -> bool:
-    normalized = clean_text(text).lower().strip(".!?, ")
-    return normalized in KNOWN_HALLUCINATIONS or normalized.startswith("субтитры")
+    return bool(clean_text(text)) and not strip_hallucination_fragments(text)
 
 
 def read_asr_segments(
@@ -470,7 +490,7 @@ def read_asr_segments(
         center = (global_start + global_end) / 2.0
         if not (hard_start_sec <= center < hard_end_sec):
             continue
-        text = clean_text(str(row.get("text") or ""))
+        text = strip_hallucination_fragments(str(row.get("text") or ""))
         if text and not is_hallucination(text):
             segments.append(
                 {
@@ -1243,7 +1263,7 @@ def text_inside_hard_window(json_path: Path | None, clip_start_sec: float, hard_
         global_end = clip_start_sec + local_end / 1000.0
         center = (global_start + global_end) / 2.0
         if hard_start_sec <= center < hard_end_sec:
-            text = clean_text(str(row.get("text") or ""))
+            text = strip_hallucination_fragments(str(row.get("text") or ""))
             if text and not is_hallucination(text):
                 parts.append(text)
     return clean_text(" ".join(parts))
@@ -1282,12 +1302,12 @@ def write_draft(output_dir: Path, chunks: list[dict[str, Any]], commit_delay_sec
         lines.append(f"## {fmt_time(float(chunk.get('start_sec') or 0.0))}{marker}")
         lines.append("")
         mic_row = chunk.get("mic") if isinstance(chunk.get("mic"), dict) else {}
-        mic = clean_text(str(mic_row.get("text") or ""))
+        mic = strip_hallucination_fragments(str(mic_row.get("text") or ""))
         shadow = mic_row.get("live_rescue_shadow") if isinstance(mic_row.get("live_rescue_shadow"), dict) else {}
         shadow_text = clean_text(str(shadow.get("text") or ""))
         causal = mic_row.get("causal_target_me_shadow") if isinstance(mic_row.get("causal_target_me_shadow"), dict) else {}
         causal_candidates = causal.get("candidates") if isinstance(causal.get("candidates"), list) else []
-        remote = clean_text(str((chunk.get("remote") or {}).get("text") or ""))
+        remote = strip_hallucination_fragments(str((chunk.get("remote") or {}).get("text") or ""))
         if mic:
             lines += ["**Me draft**", "", mic, ""]
         if shadow_text:
@@ -1303,7 +1323,7 @@ def write_draft(output_dir: Path, chunks: list[dict[str, Any]], commit_delay_sec
         for candidate in causal_candidates:
             if not isinstance(candidate, dict):
                 continue
-            candidate_text = clean_text(str(candidate.get("text") or ""))
+            candidate_text = strip_hallucination_fragments(str(candidate.get("text") or ""))
             if not candidate_text:
                 continue
             lines += [
@@ -1357,8 +1377,8 @@ def write_preview(
         lines += [f"## {fmt_time(float(chunk.get('start_sec') or 0.0))}{marker}", ""]
         mic_row = chunk.get("mic") if isinstance(chunk.get("mic"), dict) else {}
         remote_row = chunk.get("remote") if isinstance(chunk.get("remote"), dict) else {}
-        mic = clean_text(str(mic_row.get("text") or ""))
-        remote = clean_text(str(remote_row.get("text") or ""))
+        mic = strip_hallucination_fragments(str(mic_row.get("text") or ""))
+        remote = strip_hallucination_fragments(str(remote_row.get("text") or ""))
         causal = (
             mic_row.get("causal_target_me_shadow")
             if isinstance(mic_row.get("causal_target_me_shadow"), dict)
@@ -1382,7 +1402,7 @@ def write_preview(
         if mic:
             lines += ["**Me**", "", mic, ""]
         for candidate in accepted:
-            text = clean_text(str(candidate.get("text") or ""))
+            text = strip_hallucination_fragments(str(candidate.get("text") or ""))
             if text:
                 lines += ["**Me**", "", text, ""]
         if remote:
@@ -1505,7 +1525,7 @@ def process_segment(
             clip_start_sec=float(source_record.get("clip_start_sec") or 0.0),
             hard_start_sec=float(source_record.get("hard_start_sec") or 0.0),
             hard_end_sec=float(source_record.get("hard_end_sec") or 0.0),
-        ) or asr.get("text", "")
+        ) or strip_hallucination_fragments(str(asr.get("text") or ""))
         return source, asr, text
 
     decode_sources = [source for source in ("mic", "remote") if source in converted]

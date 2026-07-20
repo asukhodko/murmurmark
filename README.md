@@ -88,12 +88,16 @@ Recording without `--duration` continues until `Ctrl-C`. Run only one `murmurmar
 at a time. If capture is partial, sparse or silent, processing blocks instead of publishing an empty
 successful transcript.
 
-`process` returns after the authoritative transcript, verdict and next action are published.
-Optional heavier diagnostics run separately:
+`process` returns after the authoritative transcript, verdict and next action are published. When
+the result still requires review, `murmurmark next "$SESSION"` first routes through deferred local
+evidence instead of sending the user straight to manual review:
 
 ```bash
 murmurmark enrich "$SESSION"
 ```
+
+After enrichment, run `murmurmark next "$SESSION"` again. Only unresolved evidence is then offered
+for review.
 
 An interrupted processing run is resumed with the same command and session path:
 

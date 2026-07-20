@@ -1223,7 +1223,12 @@ def build_authoritative_handoff(
         status = "review_required"
     else:
         status = "ready"
-    recommended_next = first_next_command(readiness) or f"murmurmark status {rel(session, repo_root)}"
+    readiness_next = first_next_command(readiness) or f"murmurmark status {rel(session, repo_root)}"
+    recommended_next = (
+        f"murmurmark enrich {rel(session, repo_root)}"
+        if status == "review_required" and deferred_status == "pending"
+        else readiness_next
+    )
     fingerprint = file_fingerprint(transcript, session) if transcript is not None and transcript.exists() else None
     now = datetime.now(timezone.utc).isoformat()
     provenance = asr_provenance(session)
