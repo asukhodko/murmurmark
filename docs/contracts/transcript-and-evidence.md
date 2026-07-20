@@ -7196,6 +7196,63 @@ being evaluated as a speed-up candidate", not "live is now authoritative".
 `live_cache_parity_passing_compared_sessions` and `live_cache_parity_promotion_allowed_sessions`
   are copied into `corpus_gates_report.json.summary`.
 
+## Speaker-Mode Hardening Evidence
+
+`derived/preprocess/echo/local_fir_report.json` may contain:
+
+```json
+{
+  "acoustic_mode": {
+    "schema": "murmurmark.acoustic_mode_report/v1",
+    "mode": "speaker_playback | headphones_or_low_leak | uncertain",
+    "confidence": 0.9,
+    "reasons": [],
+    "metrics": {
+      "remote_only_windows": 42,
+      "similarity_p75": 0.12,
+      "coupled_window_ratio": 0.54
+    },
+    "thresholds": {}
+  }
+}
+```
+
+The mode describes measured remote-to-mic coupling. It does not assert which physical output device
+is connected and requires no user flag. Insufficient remote-only evidence must produce `uncertain`.
+
+Speaker-Mode Transcript Quality Hardening v1 writes only isolated audit/profile artifacts:
+
+```text
+derived/audit/speaker-mode-hardening-v1/
+derived/transcript-simple/whisper-cpp/speaker-mode-hardening-v1/
+sessions/_reports/speaker-mode-hardening-v1/
+```
+
+Key schemas are:
+
+```text
+murmurmark.speaker_mode_hardening_baseline/v1
+murmurmark.speaker_mode_profile_baseline/v1
+murmurmark.speaker_mode_evidence/v1
+murmurmark.speaker_mode_hardening_profile_report/v1
+murmurmark.speaker_mode_hardening_corpus_report/v1
+```
+
+Stable evidence outcomes are `genuine_me`, `remote_duplicate_or_leak`, `asr_noise`,
+`real_double_talk`, `timing_overlap` and `insufficient_evidence`. Actions are `keep_me`,
+`drop_duplicate_or_noise`, `close_as_double_talk`, `retime_lossless`, `split_lossless` or
+`needs_review`.
+
+Deletion is whole-`Me` only and requires reliable per-session Target-Me calibration, weak target
+voice in every mic view, strong independent duplicate/noise evidence, high whole-utterance coverage,
+no unique local tokens, no protected work markers and no prior confirmed-`Me` decision. Missing or
+conflicting evidence fails open. Remote utterances and raw CAF hashes are immutable gates.
+
+The frozen 2026-07-20 corpus result is `DO_NOT_PROMOTE`: `5/73` rows / `19.430s` closed, no safe
+whole-`Me` drops, duplicate reduction `2.7%` and mandatory review reduction `7.9%`. Consequently
+`speaker_mode_hardening_v1` is not eligible for automatic selection. Its evidence ceiling motivates
+the separate mixed-utterance span-separation profile; it must not weaken the whole-utterance gates.
+
 ## Authoritative Handoff
 
 The normal post-stop command publishes:

@@ -255,6 +255,16 @@ derived/preprocess/echo/speaker_state.jsonl
 derived/preprocess/echo/echo_suppression_report.json
 ```
 
+`local_fir_report.json` also contains `acoustic_mode`. The helper classifies the measured coupling
+in reliable `remote_only` windows as `speaker_playback`, `headphones_or_low_leak` or `uncertain`.
+This is automatic evidence, not a user setting. `murmurmark inspect SESSION --echo` prints the mode
+and confidence.
+
+Rare input samples above the normalized range are handled by a bounded sparse limiter before FIR
+fitting. It is applied only when the total overrange duration is at most `250ms` and at most `0.1%`
+of the track. Sustained overload still fails the quality gate; it is never hidden by global scaling.
+This prevents a handful of capture spikes from forcing a clean full-session candidate back to raw.
+
 Algorithm:
 
 1. Read the already separated mic and remote working WAV files.

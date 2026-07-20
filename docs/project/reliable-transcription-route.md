@@ -4,8 +4,9 @@ Status: active product route; stable batch capture/processing, live transport ev
 reconciliation, causal local-island, remote-active and double-talk recovery, bounded recording-time
 runtime and fast authoritative handoff complete; boundary and residual Me evidence profiles are
 promoted; residual audio arbitration is complete with `DO_NOT_PROMOTE`; residual local recall is
-promoted and residual chronology is the current bounded goal
-Date: 2026-07-19
+promoted; speaker-mode hardening and chronology evidence are complete with `DO_NOT_PROMOTE`; mixed
+utterance remote-span separation is the current bounded goal
+Date: 2026-07-20
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
 corpus-calibrated gates and explicit review burden before broader repair. Outcome Contract v1,
@@ -389,12 +390,13 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Residual Chronology Closure v1: заморозить отдельные 14 chronology строк / 62.690s из
-residual_local_recall_v1, дать каждой строке стабильный outcome и полную provenance, применять
-только доказанные lossless split, retime или reorder. Не менять слова, роли, 66 audio-review
-dispositions, local-recall outcomes, raw CAF, Echo Guard и основной ASR. Продвигать isolated
-profile только после corpus-wide order gain и всех no-regression gates; иначе выпустить
-воспроизводимый DO_NOT_PROMOTE с точным пределом доказательств.
+Mixed-Utterance Remote Span Separation v1: заморозить смешанные Me utterances, где remote-supported
+span соседствует с unique/protected local prefix или tail. Использовать paired clean/raw/role-masked
+word timestamps, authoritative remote timing, speaker state и Target-Me. Удалять только доказанный
+contiguous remote span, сохраняя порядок локальных слов, роли, remote content, local-recall outcomes,
+raw CAF, Echo Guard и основной ASR. Неясные случаи оставлять unchanged + needs_review. Продвигать
+isolated profile только после corpus-wide duplicate/review gain и всех no-regression gates; иначе
+выпустить воспроизводимый DO_NOT_PROMOTE с точным пределом доказательств.
 ```
 
 ## Consultation Prompt

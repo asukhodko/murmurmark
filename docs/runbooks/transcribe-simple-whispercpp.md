@@ -141,13 +141,38 @@ For the usual record-then-process flow:
 ```bash
 SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)"
 murmurmark record --out "$SESSION" --target-bundle system
-murmurmark process "$SESSION"
+murmurmark process "$SESSION" --full
 murmurmark status "$SESSION"
 murmurmark notes "$SESSION" --kind verdict
 murmurmark notes "$SESSION"
 murmurmark transcript "$SESSION"
 murmurmark finish "$SESSION"
 ```
+
+For the main speaker-playback scenario, no headphones or acoustic-mode flag is required. Echo Guard
+classifies measured remote-to-mic coupling automatically. Inspect the evidence with:
+
+```bash
+murmurmark inspect "$SESSION" --echo
+jq '.acoustic_mode, .input_conditioning, .decision' \
+  "$SESSION/derived/preprocess/echo/local_fir_report.json"
+```
+
+The completed `speaker_mode_hardening_v1` corpus remains a shadow experiment because its transcript
+profile did not pass promotion gates. Reproduce the bounded report without changing selected
+profiles or raw CAF with:
+
+```bash
+.venv/bin/python scripts/speaker-mode-hardening.py classify
+.venv/bin/python scripts/speaker-mode-hardening.py audit-echo
+.venv/bin/python scripts/speaker-mode-hardening.py profile || true
+
+less sessions/_reports/speaker-mode-hardening-v1/speaker_mode_hardening_corpus_report.md
+```
+
+The expected decision is the recorded `DO_NOT_PROMOTE`, so `profile` deliberately exits non-zero.
+The report is still complete and reproducible. Do not manually select `speaker_mode_hardening_v1`
+for normal meetings until a new mixed-utterance hypothesis passes the frozen corpus.
 
 After a successful recording, `record` prints `SESSION="..."`, `recommended_next` and the exact
 `murmurmark process ...` command for that session. Use the same `$SESSION` for the whole handoff;

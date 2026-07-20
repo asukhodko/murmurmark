@@ -1,87 +1,90 @@
 # Current Goal
 
-Status: active
+Status: current
 
-Updated: 2026-07-19
+Updated: 2026-07-20
 
-The stable product path remains `record -> process -> next -> finish`. Batch output is
+The stable product path remains `record -> process --full -> next -> finish`. Batch output is
 authoritative. Live output stays advisory and shadow-only.
 
 Roadmap status and dependency truth live in
-`docs/roadmap/murmurmark-cli-roadmap.plan.yaml`. This file defines the executable goal in human
-terms. The two must agree; `scripts/check-planning-consistency.py` enforces that contract.
+`docs/roadmap/murmurmark-cli-roadmap.plan.yaml`. This file expands the one executable goal in human
+terms. `scripts/check-planning-consistency.py` keeps the two representations aligned.
 
-## Residual Chronology Closure v1
+## Mixed-Utterance Remote Span Separation v1
 
-OpsKarta nearest goal: Residual Chronology Closure v1: доказательно разобрать 14 chronology строк / 62.690s и применять только lossless split, retime или reorder без изменения слов и ролей.
+OpsKarta nearest goal: Mixed-Utterance Remote Span Separation v1: доказательно отделить remote-span внутри смешанных Me-реплик, сохранив уникальные локальные префиксы, хвосты, роли и порядок слов.
 
-The selected `residual_local_recall_v1` profile has closed the separate local-recall class. The
-remaining coherent class is `14` chronology rows / `62.690s`: places where valid `Me` and
-`Colleagues` content exists, but utterance boundaries or timestamps can publish turns in the wrong
-order.
+Speaker-Mode Transcript Quality Hardening v1 established the next limiting class. Whole-utterance
+deletion is too coarse: many remaining `Me` candidates contain both remote-supported words and
+unique or protected local content. Keeping the whole utterance leaves recognizable remote speech;
+dropping it loses genuine `Me` speech.
 
-Objective: give every row a deterministic disposition and repair only when source segments,
-word-level timestamps and track evidence prove a lossless transformation.
+Objective: isolate only the remote-supported span and publish the remaining local islands when
+word-level audio evidence proves the split. Ambiguous mixtures remain unchanged and explicit.
 
 ## Completed Predecessor
 
-Residual Local Recall Closure v1 completed with `PROMOTE_RESIDUAL_LOCAL_RECALL_V1`:
+Speaker-Mode Transcript Quality Hardening v1 completed with a reproducible `DO_NOT_PROMOTE`:
 
-- all `13` rows / `48.073s` have stable outcomes and provenance;
-- `9` rows / `26.953s` closed safely;
-- `5` were already covered, `1` was a duplicate/paraphrase and `3` were remote-supported;
-- `4` rows / `21.120s` remain explicit because evidence is weak or mixed;
-- no synthetic `Me` utterance was inserted;
-- all nine session verdicts and all evidence-note utterance references passed no-regression gates;
-- the `66` audio-review rows and `14` chronology rows remained unchanged.
+- `18` acoustic sessions and `22` profile sessions were frozen with raw CAF SHA-256 identities;
+- automatic acoustic classification matched all `17` labeled sessions;
+- the sparse-overrange limiter passed the full corpus and raised accepted Echo Guard candidates
+  from `11` to `13`; the latest `97` minute speaker session now passes the clean-audio gate;
+- `59` duplicate rows / `161.720s` and `14` chronology rows / `62.690s` received deterministic local
+  evidence;
+- three chronology rows / `15.530s` support lossless retime, one / `1.460s` is confirmed
+  double-talk and one / `2.440s` is confirmed genuine `Me`;
+- no whole `Me` utterance satisfied the independent deletion gates;
+- duplicate/leak reduction was `2.7%` and mandatory review reduction `7.9%`, below the required
+  `25%` and `15%` gates;
+- raw capture, remote text, local recall and paired chronology metrics did not regress.
+
+The shadow profile `speaker_mode_hardening_v1` is therefore not selected. The promoted fallback
+remains `residual_local_recall_v1`.
 
 ## Safety Contract
 
-- freeze the exact 14-row queue, source profile and SHA-256 identities;
-- keep utterance words and roles immutable;
-- allow only proven `split`, `retime`, `reorder`, `already_correct` or `needs_review` outcomes;
-- preserve token order within every utterance and preserve all remote content;
-- do not insert local speech or revisit the 66 audio-review dispositions;
-- reject a repair when word timestamps, source segments or track evidence disagree;
-- keep the candidate in an isolated profile until corpus-wide promotion gates pass;
-- missing models or evidence fail open to `needs_review`.
+- freeze the mixed-utterance queue, source profile and raw/input SHA-256 identities;
+- use exact and speaker-bounded clean, raw, role-masked and remote clips;
+- require word timestamps from at least two mic views plus authoritative remote timing;
+- require calibrated Target-Me evidence for every retained local island;
+- remove only a contiguous remote-supported span; never synthesize missing words;
+- preserve original local token order, role, protected work markers and all remote utterances;
+- reject a patch when ASR views, speaker state, target voice or remote-forbidden checks conflict;
+- keep the candidate in an isolated profile until corpus-wide gates pass;
+- missing models or evidence fail open to unchanged text plus `needs_review`.
 
 ## Definition Of Done
 
-- all 14 rows have deterministic outcomes, reasons and provenance;
-- every applied repair is lossless and derived from frozen timing evidence;
-- known crossed-turn patterns are ordered correctly without text, role or local-recall regression;
-- the selected input profile, raw CAF and excluded queues remain unchanged;
-- verdict, review burden, evidence notes and guarded export do not regress;
-- repeated runs produce identical decisions and fingerprints;
-- the corpus publishes either `PROMOTE` or a reproducible `DO_NOT_PROMOTE` with a measured evidence
-  ceiling;
-- tests, contracts, runbook, current goal and roadmap are updated;
-- the completed change is committed and pushed.
+- every frozen mixed utterance has a deterministic disposition and provenance;
+- every applied split preserves all independently supported local tokens and remote content;
+- no previously confirmed `Me`, local-recall recovery, chronology repair, note citation or guarded
+  export regresses;
+- aggregate remote duplicate/leak seconds decrease by at least `25%` and mandatory review burden by
+  at least `15%` on the frozen speaker corpus;
+- additional processing time stays within `25%` of authoritative batch runtime;
+- repeated runs produce identical decisions and output fingerprints;
+- the corpus publishes `PROMOTE` or a reproducible `DO_NOT_PROMOTE` with the exact evidence ceiling;
+- tests, contracts, runbook, current goal, roadmap and OpsKarta are updated;
+- the completed change is committed, pushed and installed locally.
 
 ## Route After This Goal
 
 ```mermaid
 flowchart LR
-    A["Residual Chronology Closure<br/>14 rows / 62.690s"]
-    B["Operational Rebaseline"]
-    C["Echo Suppression Promotion"]
-    D["Evidence Notes And Export v2"]
-    E["Release-quality CLI"]
+    A["Mixed-Utterance<br/>Span Separation"]
+    B["Echo Suppression<br/>Promotion"]
+    C["Evidence Notes<br/>And Export v2"]
+    D["Release-quality CLI"]
 
-    A --> B --> C --> D --> E
+    A --> B --> C --> D
 ```
-
-A `DO_NOT_PROMOTE` still completes the chronology hypothesis and unblocks the operational
-rebaseline. It preserves `residual_local_recall_v1` as the selected profile.
 
 ## Out Of Scope
 
-- capture, raw CAF and Echo Guard changes;
-- primary ASR changes or new transcription;
-- local-recall insertion and audio-review reclassification;
-- Live Shadow promotion;
-- remote diarization;
-- LLM synthesis and UI.
-
-Detailed previous goal evidence is archived in the corpus artifacts and Git history.
+- capture, raw CAF and ScreenCaptureKit changes;
+- a second full-session ASR pass or replacement of whisper.cpp;
+- cloud models and manual labels required by the normal path;
+- individual remote-speaker diarization;
+- Live Shadow promotion, LLM synthesis and UI.

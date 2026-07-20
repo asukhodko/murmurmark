@@ -1,6 +1,6 @@
 # MurmurMark CLI Roadmap
 
-Updated: 2026-07-19
+Updated: 2026-07-20
 
 This is the readable view of the active OpsKarta v3 plan:
 
@@ -48,48 +48,45 @@ advisory; its promotion remains blocked by quality and runtime evidence.
 
 ## Current Goal
 
-**Residual Chronology Closure v1** handles the isolated `14` order rows / `62.690s` left by the
-selected `residual_local_recall_v1` profile. It may apply only lossless split, retime or reorder
-operations backed by frozen source timing evidence.
+**Mixed-Utterance Remote Span Separation v1** targets the class exposed by the completed
+Speaker-Mode Hardening corpus: one `Me` utterance can contain both a recognizable remote span and
+unique local speech. Whole-utterance keep leaves remote leakage; whole-utterance drop loses real
+speech. The current goal permits only evidence-backed span separation with local token preservation.
 
-Residual Local Recall Closure v1 completed with `PROMOTE`: all `13` rows / `48.073s` have outcomes,
-`9` rows / `26.953s` closed safely, no speech was inserted, and four ambiguous rows remain explicit.
+Speaker-Mode Transcript Quality Hardening v1 completed with `DO_NOT_PROMOTE`. The frozen corpus
+proved three lossless retimes, one real double-talk interval and one genuine `Me` row, but no whole
+`Me` deletion. Duplicate reduction was `2.7%` and review reduction `7.9%`, below the `25%` and `15%`
+promotion gates. The selected profile therefore remains `residual_local_recall_v1`.
 
 ## Critical Path
 
 ```mermaid
 flowchart LR
-    A["Current<br/>Chronology Closure"]
-    B["Operational Rebaseline"]
-    C["Echo Suppression Promotion"]
-    D["Evidence Notes And Export v2"]
-    E["Release-quality CLI"]
+    A["Current<br/>Mixed-Utterance Separation"]
+    B["Echo Suppression Promotion"]
+    C["Evidence Notes And Export v2"]
+    D["Release-quality CLI"]
 
-    A --> B --> C --> D --> E
+    A --> B --> C --> D
 ```
 
-### 1. Residual Chronology Closure
+### 1. Mixed-Utterance Remote Span Separation
 
-Resolve the separate `14` chronology rows / `62.690s` with lossless split, retime or reorder. Do not
-mix insertion and chronology mutation in one profile.
+Split only when clean/raw/role-masked word timestamps, authoritative remote timing, speaker state
+and Target-Me evidence agree. Preserve unique local prefixes and tails; ambiguous mixtures remain
+unchanged and reviewable.
 
-### 2. Operational Rebaseline
-
-Recompute selected profile, quality verdict, review burden, notes evidence, guarded export and
-end-to-end user metrics. This determines whether transcript repair or audio-layer suppression has
-the highest remaining value.
-
-### 3. Echo Suppression Promotion
+### 2. Echo Suppression Promotion
 
 Use one promotion contract for future audio candidates. The user-facing target is remote speech
 below the ASR-detectable threshold in `Me` while confirmed local speech remains intact.
 
-### 4. Evidence Notes And Export v2
+### 3. Evidence Notes And Export v2
 
 Improve the already working notes/export handoff over the selected transcript. Generated or
 extractive claims remain traceable to evidence IDs.
 
-### 5. Release-quality CLI
+### 4. Release-quality CLI
 
 Finalize the supported environment, installation, model/config handling, acceptance, release notes
 and public operational contract. UI is not required.
@@ -98,7 +95,7 @@ and public operational contract. UI is not required.
 
 ```mermaid
 flowchart LR
-    Q["Operational Rebaseline"]
+    Q["Mixed-Utterance Separation"]
     D["Remote diarization"]
     S["Speaker map"]
     T["transcript.rich.json"]

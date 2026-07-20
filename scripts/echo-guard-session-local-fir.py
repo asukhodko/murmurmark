@@ -24,6 +24,12 @@ EPSILON = 1.0e-12
 INPUT_PEAK_LIMIT = 0.999
 MAX_SPARSE_OVERRANGE_MS = 250.0
 MAX_SPARSE_OVERRANGE_FRACTION = 0.001
+ACOUSTIC_MIN_REMOTE_ONLY_WINDOWS = 5
+ACOUSTIC_COUPLED_SIMILARITY = 0.04
+ACOUSTIC_SPEAKER_COUPLED_RATIO_MIN = 0.30
+ACOUSTIC_LOW_LEAK_COUPLED_RATIO_MAX = 0.15
+ACOUSTIC_LOW_LEAK_P75_MAX = 0.03
+ACOUSTIC_LOW_LEAK_P90_MAX = 0.06
 
 
 def parse_args() -> argparse.Namespace:
@@ -67,6 +73,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--preview-merge-gap-sec", type=float, default=1.0)
     parser.add_argument("--preview-separator-sec", type=float, default=0.25)
     parser.add_argument("--crossfade-ms", type=float, default=50.0)
+    parser.add_argument(
+        "--metrics-only",
+        action="store_true",
+        help="Compute the full candidate report without writing derived audio or segment artifacts.",
+    )
     return parser.parse_args()
 
 
@@ -155,6 +166,65 @@ def median(values: list[float], default: float = 0.0) -> float:
     if finite.size == 0:
         return default
     return float(np.median(finite))
+
+
+def acoustic_mode_from_segments(segment_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    remote_only = [row for row in segment_rows if str(row.get("state") or "") == "remote_only"]
+    similarities = sorted(float(row.get("remote_similarity_before") or 0.0) for row in remote_only)
+
+    def quantile(value: float) -> float:
+        if not similarities:
+            return 0.0
+        index = min(len(similarities) - 1, max(0, int(math.floor(len(similarities) * value))))
+        return similarities[index]
+
+    count = len(similarities)
+    coupled = sum(1 for value in similarities if value >= ACOUSTIC_COUPLED_SIMILARITY)
+    coupled_ratio = coupled / count if count else 0.0
+    p75 = quantile(0.75)
+    p90 = quantile(0.90)
+    if count < ACOUSTIC_MIN_REMOTE_ONLY_WINDOWS:
+        mode = "uncertain"
+        confidence = 0.0
+        reasons = ["not_enough_remote_only_windows"]
+    elif coupled_ratio >= ACOUSTIC_SPEAKER_COUPLED_RATIO_MIN and p75 >= ACOUSTIC_COUPLED_SIMILARITY:
+        mode = "speaker_playback"
+        confidence = 0.9 if coupled_ratio >= 0.50 and p75 >= 0.08 else 0.75
+        reasons = ["remote_only_windows_show_repeatable_remote_to_mic_coupling"]
+    elif (
+        coupled_ratio <= ACOUSTIC_LOW_LEAK_COUPLED_RATIO_MAX
+        and p75 <= ACOUSTIC_LOW_LEAK_P75_MAX
+        and p90 <= ACOUSTIC_LOW_LEAK_P90_MAX
+    ):
+        mode = "headphones_or_low_leak"
+        confidence = 0.9 if coupled_ratio <= 0.10 and p75 <= 0.02 else 0.75
+        reasons = ["remote_only_windows_show_low_remote_to_mic_coupling"]
+    else:
+        mode = "uncertain"
+        confidence = 0.5
+        reasons = ["remote_to_mic_coupling_is_between_calibrated_modes"]
+    return {
+        "schema": "murmurmark.acoustic_mode_report/v1",
+        "mode": mode,
+        "confidence": confidence,
+        "reasons": reasons,
+        "metrics": {
+            "remote_only_windows": count,
+            "similarity_p50": round(quantile(0.50), 6),
+            "similarity_p75": round(p75, 6),
+            "similarity_p90": round(p90, 6),
+            "coupled_window_count": coupled,
+            "coupled_window_ratio": round(coupled_ratio, 6),
+        },
+        "thresholds": {
+            "min_remote_only_windows": ACOUSTIC_MIN_REMOTE_ONLY_WINDOWS,
+            "coupled_similarity": ACOUSTIC_COUPLED_SIMILARITY,
+            "speaker_coupled_ratio_min": ACOUSTIC_SPEAKER_COUPLED_RATIO_MIN,
+            "low_leak_coupled_ratio_max": ACOUSTIC_LOW_LEAK_COUPLED_RATIO_MAX,
+            "low_leak_p75_max": ACOUSTIC_LOW_LEAK_P75_MAX,
+            "low_leak_p90_max": ACOUSTIC_LOW_LEAK_P90_MAX,
+        },
+    }
 
 
 def normalized_corr(left: np.ndarray, right: np.ndarray) -> float:
@@ -751,13 +821,14 @@ def main() -> int:
         accepted = not conservative_failures
         reason = None if accepted else conservative_failures[0]
 
-    write_wav_float(args.output_clean, args.sample_rate, clean)
-    write_wav_float(args.output_echo, args.sample_rate, removed_echo)
     role_mask_path = args.output_role_mask or default_role_mask_path(args.session)
     role_preview_path = args.output_role_preview or default_role_preview_path(args.session)
     asr_segments_dir = args.asr_segments_dir or default_asr_segments_dir(args.session)
     speaker_state_path = args.speaker_state or default_speaker_state_path(args.session)
-    write_wav_float(role_mask_path, args.sample_rate, role_masked)
+    if not args.metrics_only:
+        write_wav_float(args.output_clean, args.sample_rate, clean)
+        write_wav_float(args.output_echo, args.sample_rate, removed_echo)
+        write_wav_float(role_mask_path, args.sample_rate, role_masked)
 
     merge_gap_samples = max(0, int(round(args.preview_merge_gap_sec * args.sample_rate)))
     guard_samples = max(0, int(round(args.preview_guard_sec * args.sample_rate)))
@@ -784,12 +855,14 @@ def main() -> int:
             current["confidence"] = min(float(current["confidence"]), float(interval["confidence"]))
             current["source_chunks"] = int(current["source_chunks"]) + 1
 
-    if asr_segments_dir.exists():
-        for old_chunk in asr_segments_dir.glob("mic_*.wav"):
-            old_chunk.unlink()
-    asr_segments_dir.mkdir(parents=True, exist_ok=True)
+    if not args.metrics_only:
+        if asr_segments_dir.exists():
+            for old_chunk in asr_segments_dir.glob("mic_*.wav"):
+                old_chunk.unlink()
+        asr_segments_dir.mkdir(parents=True, exist_ok=True)
     asr_segment_rows: list[dict[str, Any]] = []
     role_preview_parts: list[np.ndarray] = []
+    role_preview_samples = 0
     separator = np.zeros(max(0, int(round(args.preview_separator_sec * args.sample_rate))), dtype=np.float64)
     for index, interval in enumerate(merged_intervals, start=1):
         chunk_name = f"mic_{index:06d}.wav"
@@ -810,23 +883,26 @@ def main() -> int:
             "source_chunks": int(interval["source_chunks"]),
         }
         asr_segment_rows.append(row)
-        write_wav_float(asr_segments_dir / chunk_name, args.sample_rate, chunk_audio)
-        role_preview_parts.append(chunk_audio.astype(np.float64))
-        role_preview_parts.append(separator)
-    preview = np.concatenate(role_preview_parts) if role_preview_parts else np.zeros(1, dtype=np.float64)
-    write_wav_float(role_preview_path, args.sample_rate, preview)
-    write_json(
-        asr_segments_dir / "segments_manifest.json",
-        {
-            "schema": "murmurmark.mic_asr_segments/v1",
-            "source": str(role_mask_path),
-            "policy": args.role_policy,
-            "sample_rate": args.sample_rate,
-            "segments": asr_segment_rows,
-        },
-    )
-    write_jsonl(args.segments, segment_rows)
-    write_jsonl(speaker_state_path, speaker_state_rows)
+        role_preview_samples += chunk_audio.size + separator.size
+        if not args.metrics_only:
+            write_wav_float(asr_segments_dir / chunk_name, args.sample_rate, chunk_audio)
+            role_preview_parts.append(chunk_audio.astype(np.float64))
+            role_preview_parts.append(separator)
+    if not args.metrics_only:
+        preview = np.concatenate(role_preview_parts) if role_preview_parts else np.zeros(1, dtype=np.float64)
+        write_wav_float(role_preview_path, args.sample_rate, preview)
+        write_json(
+            asr_segments_dir / "segments_manifest.json",
+            {
+                "schema": "murmurmark.mic_asr_segments/v1",
+                "source": str(role_mask_path),
+                "policy": args.role_policy,
+                "sample_rate": args.sample_rate,
+                "segments": asr_segment_rows,
+            },
+        )
+        write_jsonl(args.segments, segment_rows)
+        write_jsonl(speaker_state_path, speaker_state_rows)
 
     report = {
         "schema": "murmurmark.local_fir_report/v1",
@@ -860,6 +936,7 @@ def main() -> int:
             "mic": mic_overrange,
             "remote": remote_overrange,
         },
+        "acoustic_mode": acoustic_mode_from_segments(segment_rows),
         "summary": {
             **delay_summary,
             "remote_only_windows": len(remote_only),
@@ -873,7 +950,7 @@ def main() -> int:
             "role_masked_double_talk_sec": round(role_masked_double_talk_sec, 3),
             "role_masked_uncertain_sec": round(role_masked_uncertain_sec, 3),
             "mic_asr_segments": len(asr_segment_rows),
-            "role_preview_sec": round(sum(part.size for part in role_preview_parts) / args.sample_rate, 3),
+            "role_preview_sec": round(role_preview_samples / args.sample_rate, 3),
             "local_only_windows": sum(1 for row in windows if row["state"] == "local_only"),
             "double_talk_windows": sum(1 for row in windows if row["state"] == "double_talk"),
             "segments_processed": processed,
@@ -900,6 +977,7 @@ def main() -> int:
             "quality_gate_failures": conservative_failures,
         },
         "outputs": {
+            "persisted": not args.metrics_only,
             "clean_mic": str(args.output_clean),
             "role_masked_mic": str(role_mask_path),
             "role_preview": str(role_preview_path),

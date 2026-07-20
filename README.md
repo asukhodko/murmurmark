@@ -75,7 +75,7 @@ murmurmark record --out "$SESSION" --target-bundle system
 # Stop with Ctrl-C.
 
 murmurmark inspect "$SESSION"
-murmurmark process "$SESSION"
+murmurmark process "$SESSION" --full
 murmurmark next "$SESSION"
 murmurmark status "$SESSION"
 murmurmark outcome "$SESSION"
@@ -95,7 +95,10 @@ known hallucinations, and the local-recall and chunk-rebuild audits are clear. T
 in `derived/synthesis-simple/extractive/no_speech_evidence.json`. An empty transcript without all of
 these checks remains `failed`.
 
-`process` returns after the authoritative transcript, verdict and next action are published. When
+`process --full` completes the authoritative transcript and the bounded local evidence stages used
+for the final readiness decision. It is the recommended one-command path for the next meeting
+without headphones. Plain `process` returns earlier after the authoritative transcript, verdict and
+next action are published. When
 the result still requires review, `murmurmark next "$SESSION"` first routes through deferred local
 evidence instead of sending the user straight to manual review:
 
@@ -222,12 +225,18 @@ guarded export and retention planning. The promoted authoritative profile is
 `residual_local_recall_v1`. It classified all `13` local-recall rows / `48.073s` and safely closed
 `9` rows / `26.953s` without inventing or inserting speech. Four ambiguous rows remain explicit.
 
-The current goal is **Residual Chronology Closure v1** for `14` isolated order rows / `62.690s`.
-The dependent critical path is:
+Speaker-Mode Transcript Quality Hardening v1 completed with a reproducible `DO_NOT_PROMOTE`.
+Automatic acoustic classification matched `17/17` labeled sessions, the sparse-overrange limiter
+raised accepted Echo Guard candidates from `11` to `13`, and the latest long speaker session now
+passes the clean-audio gate. The isolated transcript profile safely proved three lossless retimes,
+one double-talk interval and one genuine `Me` row, but reached only `2.7%` duplicate reduction and
+`7.9%` review reduction. It therefore remains shadow-only; `residual_local_recall_v1` stays selected.
+
+The current goal is **Mixed-Utterance Remote Span Separation v1**. It addresses utterances that
+combine a remote-supported span with a unique local prefix or tail. The dependent critical path is:
 
 ```text
-Residual Chronology Closure
--> Operational Rebaseline
+Mixed-Utterance Remote Span Separation
 -> Echo Suppression Promotion
 -> Evidence Notes and Export
 -> Release-quality CLI
@@ -245,6 +254,8 @@ and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
   work.
 - Echo Guard reduces remote leakage but cannot yet guarantee that remote speech is absent from every
   `Me` candidate.
+- Echo Guard records `speaker_playback`, `headphones_or_low_leak` or `uncertain` in
+  `local_fir_report.json`; no user acoustic-mode flag is required.
 - Batch transcript is authoritative; live output is not used for export or retention decisions.
 - No cloud ASR or cloud raw-audio upload is required by the normal workflow.
 - A future UI must reuse CLI contracts and is not required for a useful product.

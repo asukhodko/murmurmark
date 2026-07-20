@@ -28,7 +28,7 @@ Working now:
 - live-ASR cache bridge exists as a diagnostic/future acceleration layer; incompatible or unsafe
   chunks fall back to batch ASR.
 
-Current operating point, 2026-07-19:
+Current operating point, 2026-07-20:
 
 - stable batch capture and processing produce a transcript, verdict, evidence notes, review plan,
   guarded export and retention plan;
@@ -38,13 +38,16 @@ Current operating point, 2026-07-19:
   completed with reproducible `DO_NOT_PROMOTE`; only `1` row / `0.640s` closed safely;
 - Residual Local Recall Closure v1 classified all `13` rows / `48.073s` and safely closed `9` rows /
   `26.953s` without inserting speech; four ambiguous rows remain explicit;
-- the current goal is Residual Chronology Closure v1 for the separate `14` order rows / `62.690s`
-  under a lossless timing contract;
+- Speaker-Mode Transcript Quality Hardening v1 froze `18` acoustic and `22` profile sessions,
+  proved three lossless retimes, one real double-talk row and one genuine `Me` row, then completed
+  with `DO_NOT_PROMOTE` because duplicate/review reduction reached only `2.7%` / `7.9%`;
+- the current goal is Mixed-Utterance Remote Span Separation v1: remove only a proven remote span
+  while retaining unique or protected local prefixes and tails;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 
-Dependent work is: operational rebaseline, one consolidated Echo Suppression
-Promotion contract, Evidence Notes And Export v2 and release-quality CLI. Remote diarization,
+Dependent work is: one consolidated Echo Suppression Promotion contract, Evidence Notes And
+Export v2 and release-quality CLI. Remote diarization,
 speaker mapping and `transcript.rich.json` form a parallel future branch after base quality closure.
 Heavy validators, LLM synthesis, reviewed external integrations and UI remain research or optional
 work outside the critical path.

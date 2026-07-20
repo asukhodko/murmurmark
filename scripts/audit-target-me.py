@@ -496,6 +496,19 @@ class ResemblyzerDVectorBackend(EmbeddingBackend):
         if not ready:
             return None, {"backend": self.method, "error": reason, "path": str(path)}
         try:
+            probe, _ = librosa.load(path, sr=SAMPLE_RATE, mono=True)
+            if probe.size < int(0.35 * SAMPLE_RATE):
+                return None, {"backend": self.method, "error": "too_short", "path": str(path)}
+            probe_peak = float(np.max(np.abs(probe))) if probe.size else 0.0
+            probe_rms = float(np.sqrt(np.mean(np.square(probe, dtype=np.float64)))) if probe.size else 0.0
+            if not np.isfinite(probe_rms) or probe_peak <= EPS or probe_rms <= EPS:
+                return None, {
+                    "backend": self.method,
+                    "error": "silence",
+                    "path": str(path),
+                    "duration_sec": round(probe.size / SAMPLE_RATE, 3),
+                    "sample_rate": SAMPLE_RATE,
+                }
             self._load()
             assert self._encoder is not None
             assert self._preprocess_wav is not None

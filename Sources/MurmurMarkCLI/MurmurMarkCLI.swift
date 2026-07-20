@@ -10986,6 +10986,10 @@ enum EchoGuard {
                 print("  local_fir_delay_ms: \(delay)")
                 print("  local_fir_reliable_delay_windows: \(reliableWindows)")
                 print("  local_fir_remote_only_windows: \(remoteOnlyWindows)")
+                if let acousticMode = localFIR.acousticMode {
+                    print("  acoustic_mode: \(acousticMode.mode)")
+                    print("  acoustic_mode_confidence: \(acousticMode.confidence)")
+                }
             }
         }
     }
@@ -11348,9 +11352,23 @@ enum PythonRuntime {
 
 struct LocalFIRHelperReport: Decodable {
     let summary: LocalFIRHelperSummary?
+    let acousticMode: LocalFIRAcousticMode?
     let decision: LocalFIRHelperDecision
     let metrics: EchoSuppressionMetrics
     let warnings: [EchoSuppressionWarning]
+
+    enum CodingKeys: String, CodingKey {
+        case summary
+        case acousticMode = "acoustic_mode"
+        case decision
+        case metrics
+        case warnings
+    }
+}
+
+struct LocalFIRAcousticMode: Decodable {
+    let mode: String
+    let confidence: Double
 }
 
 struct LocalFIRHelperSummary: Decodable {

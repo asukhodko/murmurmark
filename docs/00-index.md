@@ -41,9 +41,10 @@ Read in this order:
 
 ## Current Planning Entry Points
 
-Planning snapshot: 2026-07-19. Residual Local Recall Closure v1 is promoted after safely closing
-`9/13` rows / `26.953/48.073s`; the current executable goal is Residual Chronology Closure v1 for
-the separate `14` order rows / `62.690s`.
+Planning snapshot: 2026-07-20. Speaker-Mode Transcript Quality Hardening v1 completed with
+`DO_NOT_PROMOTE`: the sparse Echo Guard fix and automatic acoustic-mode evidence passed, while the
+isolated transcript profile reached only `2.7%` duplicate and `7.9%` review reduction. The current
+executable goal is Mixed-Utterance Remote Span Separation v1.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

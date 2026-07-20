@@ -40,8 +40,7 @@ REQUIRED_ARCHIVES = (
 )
 
 CRITICAL_PATH = (
-    "quality-residual-chronology-closure-v1",
-    "quality-operational-rebaseline-v1",
+    "quality-mixed-utterance-separation-v1",
     "quality-echo-suppression-promotion",
     "product-evidence-export-v2",
     "product-release-quality-cli",
@@ -182,10 +181,13 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
         visit(node_id)
 
     require(current_goal_id == CRITICAL_PATH[0], "current goal must be the first critical-path stage")
-    require(
-        nodes["quality-residual-local-recall-closure-v1"].get("status") == "done",
-        "Residual Local Recall Closure must be done before chronology becomes current",
-    )
+    for predecessor in (
+        "quality-residual-local-recall-closure-v1",
+        "quality-residual-chronology-closure-v1",
+        "quality-operational-rebaseline-v1",
+        "quality-speaker-mode-hardening-v1",
+    ):
+        require(nodes[predecessor].get("status") == "done", f"current quality goal requires done predecessor {predecessor}")
     for previous, current in zip(CRITICAL_PATH, CRITICAL_PATH[1:]):
         require(previous in nodes[current].get("deps", []), f"critical path is broken: {current} must depend on {previous}")
 

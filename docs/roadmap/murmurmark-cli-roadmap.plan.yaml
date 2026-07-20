@@ -137,29 +137,55 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-residual-local-recall-closure-v1, corpus-regression]
-    status: current
+    status: done
     effort: 7
     notes: |
-      Единственная исполнимая продуктовая цель. Отдельный lossless contract для 14 chronology rows /
-      62.690s. Разрешены только доказанные split, retime, reorder и already-correct; слова, роли,
-      local-recall insertion и audio dispositions неизменны.
+      Завершено внутри Speaker-Mode Hardening с измеренным evidence ceiling: 3 lossless retime /
+      15.530s и 1 подтверждённый double-talk / 1.460s; 10 строк оставлены needs_review. Слова, роли,
+      local-recall insertion и audio dispositions не изменены.
 
   quality-operational-rebaseline-v1:
     title: "Operational Rebaseline v1"
     kind: task
     parent: murmurmark-cli
     deps: [quality-residual-chronology-closure-v1]
-    status: later
+    status: done
     effort: 5
     notes: |
-      Пересчитать selected profile, verdict, mandatory review burden, notes evidence, guarded export
-      и пользовательские показатели end-to-end. Выбрать следующую root-cause работу по результату.
+      Выполнено корпусом Speaker-Mode Hardening: paired local recall, chronology, duplicate/leak,
+      runtime, review burden и latest-session gates пересчитаны. Root cause локализован в смешанных
+      Me utterances, где remote span соседствует с уникальным local content.
+
+  quality-speaker-mode-hardening-v1:
+    title: "Speaker-Mode Transcript Quality Hardening v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-operational-rebaseline-v1, corpus-regression]
+    status: done
+    effort: 10
+    notes: |
+      Завершено с воспроизводимым DO_NOT_PROMOTE. 18 acoustic / 22 profile sessions заморожены;
+      acoustic classifier совпал с 17/17 labels; sparse limiter поднял accepted Echo candidates
+      11 -> 13. Из 73 risk rows доказаны 3 retime, 1 double-talk и 1 genuine Me, но safe whole-Me
+      drops отсутствуют. Duplicate reduction 2.7%, review reduction 7.9%; профиль не выбран.
+
+  quality-mixed-utterance-separation-v1:
+    title: "Mixed-Utterance Remote Span Separation v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-speaker-mode-hardening-v1, corpus-regression]
+    status: current
+    effort: 9
+    notes: |
+      Единственная исполнимая quality-цель. Отделить доказанный remote span внутри Me utterance,
+      сохранив unique/protected local prefix и tail. Требуются paired clean/raw/role-masked word
+      timestamps, authoritative remote timing, speaker state, Target-Me и fail-open provenance.
 
   quality-echo-suppression-promotion:
     title: "Echo Suppression Promotion"
     kind: task
     parent: murmurmark-cli
-    deps: [quality-operational-rebaseline-v1, corpus-regression]
+    deps: [quality-mixed-utterance-separation-v1, corpus-regression]
     status: later
     effort: 10
     notes: |
@@ -298,11 +324,11 @@ views:
         nodes: [working-capabilities, corpus-regression]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-residual-chronology-closure-v1]
+        nodes: [quality-mixed-utterance-separation-v1]
       dependent:
         title: "Зависимые этапы"
         nodes:
-          - quality-operational-rebaseline-v1
+          - quality-echo-suppression-promotion
 
   critical-path:
     title: "Критический CLI-путь"
@@ -313,6 +339,8 @@ views:
           - quality-residual-local-recall-closure-v1
           - quality-residual-chronology-closure-v1
           - quality-operational-rebaseline-v1
+          - quality-speaker-mode-hardening-v1
+          - quality-mixed-utterance-separation-v1
           - quality-echo-suppression-promotion
           - product-evidence-export-v2
           - product-release-quality-cli
@@ -353,6 +381,8 @@ views:
           - quality-residual-local-recall-closure-v1
           - quality-residual-chronology-closure-v1
           - quality-operational-rebaseline-v1
+          - quality-speaker-mode-hardening-v1
+          - quality-mixed-utterance-separation-v1
           - quality-echo-suppression-promotion
           - product-evidence-export-v2
           - product-release-quality-cli
@@ -362,8 +392,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Residual Chronology Closure v1: доказательно разобрать 14 chronology строк / 62.690s и применять только lossless split, retime или reorder без изменения слов и ролей."
-      success_by_next_sync: "Все 14 строк имеют stable outcomes и provenance; isolated candidate исправляет доказанные нарушения порядка без text, role, local-recall, notes или export regression либо опубликован воспроизводимый DO_NOT_PROMOTE."
+      nearest_goal: "Mixed-Utterance Remote Span Separation v1: доказательно отделить remote-span внутри смешанных Me-реплик, сохранив уникальные локальные префиксы, хвосты, роли и порядок слов."
+      success_by_next_sync: "Frozen mixed rows имеют stable outcomes; applied spans сохраняют весь подтверждённый local content и снижают duplicate/review gates либо опубликован точный DO_NOT_PROMOTE."
     defaults:
       status_progress:
         done: 1.0
@@ -385,16 +415,17 @@ x:
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
         title: "Текущая цель"
-        scope_nodes: [quality-residual-chronology-closure-v1]
+        scope_nodes: [quality-mixed-utterance-separation-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Local Recall Closure promoted; остались 14 отдельные chronology строки / 62.690s."
-          next_sync_goal: "Закрыть доказуемую часть lossless timing-контрактом или измерить evidence ceiling."
+          sync_note: "Speaker-Mode Hardening завершён DO_NOT_PROMOTE: whole-Me deletion слишком груб для mixed utterances."
+          next_sync_goal: "Отделить remote span без потери unique/protected local prefix и tail."
       dependent-path:
         title: "Зависимый путь"
         scope_nodes:
           - quality-operational-rebaseline-v1
+          - quality-speaker-mode-hardening-v1
           - quality-echo-suppression-promotion
           - product-evidence-export-v2
           - product-release-quality-cli
