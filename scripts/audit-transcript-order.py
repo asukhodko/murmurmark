@@ -12,7 +12,7 @@ from typing import Any
 
 SCHEMA_AUDIT = "murmurmark.transcript_order_audit/v1"
 SCHEMA_ITEM = "murmurmark.transcript_order_item/v1"
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.1.1"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 
 
@@ -54,6 +54,17 @@ def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
 
 
 def resolve_profile(session: Path, requested: str) -> str:
+    if requested == "authoritative":
+        handoff = read_json(session / "derived/pipeline-run/authoritative_handoff.json")
+        if (
+            not isinstance(handoff, dict)
+            or handoff.get("schema") != "murmurmark.authoritative_handoff/v1"
+            or handoff.get("status") not in {"ready", "review_required"}
+            or not isinstance(handoff.get("selected_transcript_profile"), str)
+            or not handoff.get("selected_transcript_profile")
+        ):
+            raise ValueError("authoritative handoff is missing, invalid, or not ready")
+        return str(handoff["selected_transcript_profile"])
     if requested != "auto":
         return requested
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"

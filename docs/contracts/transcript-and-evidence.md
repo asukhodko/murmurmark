@@ -7309,6 +7309,13 @@ matches both size and SHA-256, `paths.transcript` matches the fingerprint path, 
 may update only `deferred_enrichment` metadata in this checkpoint; it must not alter the published
 fingerprint or silently select another transcript.
 
+The deferred phase ends with an authoritative-profile refresh. Synthesis resolves
+`--transcript-profile authoritative`, order audit resolves `--profile authoritative`, and readiness
+uses `--preserve-authoritative-profile`. These modes read the valid handoff profile, refresh late
+evidence and generic aliases, and leave the transcript fingerprint unchanged. Candidate cleanup
+profiles produced during deferred work remain inspectable shadow artifacts until a later explicit
+promotion path selects them.
+
 Each successful computed handoff and valid checkpoint reuse appends one
 `murmurmark.authoritative_handoff_run/v1` row. The row records elapsed time, profile, verdict,
 fingerprint, selected quality metrics, worker bounds and whether ASR was forced or cache reuse was

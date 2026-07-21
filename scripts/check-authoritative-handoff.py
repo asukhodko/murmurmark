@@ -15,18 +15,24 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RUNNER = REPO_ROOT / "scripts/run-session-pipeline.py"
+SYNTHESIZER = REPO_ROOT / "scripts/synthesize-simple-extractive.py"
+QUALITY_REPORTER = REPO_ROOT / "scripts/report-session-quality.py"
+ORDER_AUDITOR = REPO_ROOT / "scripts/audit-transcript-order.py"
 
 
-def load_runner() -> Any:
-    spec = importlib.util.spec_from_file_location("murmurmark_session_pipeline", RUNNER)
+def load_script(name: str, path: Path) -> Any:
+    spec = importlib.util.spec_from_file_location(name, path)
     if spec is None or spec.loader is None:
-        raise RuntimeError("cannot load session pipeline runner")
+        raise RuntimeError(f"cannot load {path}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
-MODULE = load_runner()
+MODULE = load_script("murmurmark_session_pipeline", RUNNER)
+SYNTHESIS_MODULE = load_script("murmurmark_synthesis", SYNTHESIZER)
+QUALITY_MODULE = load_script("murmurmark_quality", QUALITY_REPORTER)
+ORDER_MODULE = load_script("murmurmark_order", ORDER_AUDITOR)
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -82,6 +88,9 @@ def main() -> int:
         assert checkpoint["deferred_enrichment"]["status"] == "pending"
         assert checkpoint["asr_provenance"]["invocation"]["mode"] == "forced_batch"
         assert MODULE.handoff_fingerprint_matches(checkpoint, session)
+        assert SYNTHESIS_MODULE.authoritative_handoff_profile(session) == ("audit_cleanup_v2", None)
+        assert QUALITY_MODULE.authoritative_handoff_profile(session) == "audit_cleanup_v2"
+        assert ORDER_MODULE.resolve_profile(session, "authoritative") == "audit_cleanup_v2"
 
         review_session = Path(raw_root) / "sessions/review"
         build_fixture(review_session)
@@ -231,6 +240,16 @@ def main() -> int:
         transcribe_steps = [item for item in pipeline_steps if item["name"].startswith("transcribe_")]
         assert [item["name"] for item in transcribe_steps] == ["transcribe_current"]
         assert transcribe_steps[0]["command"][-2:] == ["--repair-profile", "shadow_v2"]
+        deferred_names = [item["name"] for item in MODULE.steps_for_phase(pipeline_steps, "deferred")]
+        assert deferred_names[-3:] == [
+            "synthesize_authoritative_final",
+            "audit_transcript_order_authoritative_final",
+            "session_readiness_authoritative_final",
+        ]
+        final_synthesis = next(item for item in pipeline_steps if item["name"] == "synthesize_authoritative_final")
+        assert final_synthesis["command"][-2:] == ["--transcript-profile", "authoritative"]
+        final_readiness = next(item for item in pipeline_steps if item["name"] == "session_readiness_authoritative_final")
+        assert final_readiness["command"][-1] == "--preserve-authoritative-profile"
 
         started = time.monotonic()
         timed_out = MODULE.run_step(

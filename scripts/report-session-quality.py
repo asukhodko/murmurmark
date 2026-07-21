@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.5.1"
+SCRIPT_VERSION = "0.5.2"
 SCHEMA = "murmurmark.session_quality_report/v1"
 READINESS_SCHEMA = "murmurmark.session_readiness/v1"
 CLEANUP_PROFILES = {
@@ -55,6 +55,11 @@ def parse_args() -> argparse.Namespace:
         "--write-session-readiness",
         action="store_true",
         help="Also write SESSION/derived/readiness/session_readiness.{json,md} for every input session.",
+    )
+    parser.add_argument(
+        "--preserve-authoritative-profile",
+        action="store_true",
+        help="Keep each session's valid authoritative handoff profile while refreshing late evidence.",
     )
     return parser.parse_args()
 
@@ -2006,9 +2011,26 @@ def add_use_gate(row: dict[str, Any]) -> None:
     row["readiness_warnings"] = [reason["id"] for reason in reasons if reason.get("severity") == "warning"]
 
 
-def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
+def authoritative_handoff_profile(session: Path) -> str | None:
+    payload = read_json(session / "derived/pipeline-run/authoritative_handoff.json")
+    if (
+        not isinstance(payload, dict)
+        or payload.get("schema") != "murmurmark.authoritative_handoff/v1"
+        or payload.get("status") not in {"ready", "review_required"}
+    ):
+        return None
+    profile = payload.get("selected_transcript_profile")
+    return profile if isinstance(profile, str) and profile else None
+
+
+def collect_session(
+    session: Path,
+    labels: dict[str, str],
+    *,
+    preserved_profile: str | None = None,
+) -> dict[str, Any]:
     status = stage_status(session)
-    profile = selected_profile(session)
+    profile = preserved_profile or selected_profile(session)
     quality = read_quality(session, profile)
     verdict = read_verdict(session, profile)
     evidence = read_evidence(session, profile)
@@ -3222,7 +3244,16 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
 def main() -> int:
     args = parse_args()
     labels = parse_labels(args.label)
-    rows = [collect_session(session, labels) for session in args.sessions]
+    preserved_profiles: list[str | None] = []
+    for session in args.sessions:
+        profile = authoritative_handoff_profile(session) if args.preserve_authoritative_profile else None
+        if args.preserve_authoritative_profile and profile is None:
+            raise SystemExit(f"authoritative handoff is missing, invalid, or not ready: {session}")
+        preserved_profiles.append(profile)
+    rows = [
+        collect_session(session, labels, preserved_profile=profile)
+        for session, profile in zip(args.sessions, preserved_profiles)
+    ]
     payload = {
         "schema": SCHEMA,
         "generated_at": datetime.now(timezone.utc).isoformat(),

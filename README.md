@@ -97,8 +97,10 @@ these checks remains `failed`.
 
 `process --full` completes the authoritative transcript and the bounded local evidence stages used
 for the final readiness decision. It is the recommended one-command path for the next meeting
-without headphones. Plain `process` returns earlier after the authoritative transcript, verdict and
-next action are published. When
+without headphones. After deferred enrichment it rebuilds generic notes, order audit and readiness
+against the already published authoritative profile. Late shadow profiles may be inspected, but
+they cannot silently replace that transcript. Plain `process` returns earlier after the
+authoritative transcript, verdict and next action are published. When
 the result still requires review, `murmurmark next "$SESSION"` first routes through deferred local
 evidence instead of sending the user straight to manual review:
 

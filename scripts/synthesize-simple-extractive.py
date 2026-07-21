@@ -7,13 +7,14 @@ import json
 import os
 import re
 import shlex
+import sys
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 
-GENERATOR_VERSION = "0.3.5"
+GENERATOR_VERSION = "0.3.6"
 TOKEN_RE = re.compile(r"[0-9A-Za-zА-Яа-яЁё_./+-]+")
 
 DEFAULT_RULES: dict[str, Any] = {
@@ -563,6 +564,7 @@ def parse_args() -> argparse.Namespace:
         "--transcript-profile",
         choices=(
             "auto",
+            "authoritative",
             "current",
             "shadow_v2",
             "audit_cleanup_v1",
@@ -691,6 +693,21 @@ def read_json(path: Path) -> tuple[Any | None, str | None]:
         return None, f"missing file: {path}"
     except json.JSONDecodeError as error:
         return None, f"invalid json: {path}: {error}"
+
+
+def authoritative_handoff_profile(session: Path) -> tuple[str | None, str | None]:
+    path = session / "derived" / "pipeline-run" / "authoritative_handoff.json"
+    payload, error = read_json(path)
+    if error is not None:
+        return None, error
+    if not isinstance(payload, dict) or payload.get("schema") != "murmurmark.authoritative_handoff/v1":
+        return None, f"invalid authoritative handoff: {path}"
+    if payload.get("status") not in {"ready", "review_required"}:
+        return None, f"authoritative handoff is not ready: {path}"
+    profile = payload.get("selected_transcript_profile")
+    if not isinstance(profile, str) or not profile:
+        return None, f"authoritative handoff has no selected profile: {path}"
+    return profile, None
 
 
 def write_json(path: Path, payload: Any) -> None:
@@ -3058,7 +3075,14 @@ def main() -> int:
     out_dir = session / "derived" / "synthesis-simple" / "extractive"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    selected_profile, paths, repair_comparison, selection_risks = choose_profile(resolved_dir, args.transcript_profile)
+    requested_profile = args.transcript_profile
+    if requested_profile == "authoritative":
+        requested_profile, handoff_error = authoritative_handoff_profile(session)
+        if handoff_error is not None or requested_profile is None:
+            print(f"error: {handoff_error or 'authoritative profile is unavailable'}", file=sys.stderr)
+            return 2
+
+    selected_profile, paths, repair_comparison, selection_risks = choose_profile(resolved_dir, requested_profile)
     quality, utterances, overlaps_and_input_risks = load_inputs(selected_profile, paths)
 
     input_risks = [item for item in overlaps_and_input_risks if "duration_sec" not in item]

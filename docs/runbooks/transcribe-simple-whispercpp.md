@@ -96,6 +96,12 @@ judge, remote-forbidden/repair evidence, optional later cleanup profiles and liv
 comparison. Each deferred step has a bounded timeout. Deferred work may update its own report but
 must not change the transcript fingerprint already published by the handoff. `audit_cleanup_v5`
 remains a separate batch step after the suggested-review shadow report.
+
+At the end of deferred enrichment the runner rebuilds the generic synthesis aliases, transcript-order
+audit and session readiness using the profile recorded in the authoritative handoff. This lets late
+evidence refine risks and next actions while keeping the published transcript path and SHA-256
+unchanged. A missing or invalid handoff fails this final refresh instead of selecting a newer shadow
+profile implicitly.
 When the authoritative verdict still requires review and deferred work is pending, the handoff and
 `murmurmark next SESSION` recommend `murmurmark enrich SESSION` before any manual review command.
 Run `murmurmark next SESSION` again after enrichment to see only the unresolved remainder. Use

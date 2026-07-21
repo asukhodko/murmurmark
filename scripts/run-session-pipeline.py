@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.2.0"
+SCRIPT_VERSION = "0.2.1"
 SCHEMA = "murmurmark.session_pipeline_run/v1"
 RUN_STATE_SCHEMA = "murmurmark.pipeline_run_state/v1"
 HANDOFF_SCHEMA = "murmurmark.authoritative_handoff/v1"
@@ -906,6 +906,43 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
             [py, str(repo_root / "scripts/compare-live-batch.py"), str(session)],
             enabled=live_report_exists and not args.skip_audits,
             reason="missing live pipeline report/--skip-audits",
+            phase=DEFERRED_PHASE,
+        ),
+        step(
+            "synthesize_authoritative_final",
+            [
+                py,
+                str(repo_root / "scripts/synthesize-simple-extractive.py"),
+                str(session),
+                "--transcript-profile",
+                "authoritative",
+            ],
+            phase=DEFERRED_PHASE,
+        ),
+        step(
+            "audit_transcript_order_authoritative_final",
+            [
+                py,
+                str(repo_root / "scripts/audit-transcript-order.py"),
+                str(session),
+                "--profile",
+                "authoritative",
+            ],
+            enabled=not args.skip_audits,
+            reason="--skip-audits",
+            phase=DEFERRED_PHASE,
+        ),
+        step(
+            "session_readiness_authoritative_final",
+            [
+                py,
+                str(repo_root / "scripts/report-session-quality.py"),
+                str(session),
+                "--out-dir",
+                str(session / "derived/readiness/session-quality"),
+                "--write-session-readiness",
+                "--preserve-authoritative-profile",
+            ],
             phase=DEFERRED_PHASE,
         ),
     ]
