@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.5.0"
+SCRIPT_VERSION = "0.5.1"
 SCHEMA = "murmurmark.review_plan/v1"
 GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
 CROSS_LANE_RELATED_LANES = {"check_unique_me_content", "classify_audio"}
@@ -17,6 +17,7 @@ REVIEW_LANE_ORDER = [
     "fast_confirm_drop",
     "check_unique_me_content",
     "check_local_recall",
+    "check_transcript_text",
     "check_transcript_order",
     "confirm_benign",
     "classify_audio",
@@ -34,6 +35,10 @@ REVIEW_LANES = {
     "check_local_recall": {
         "title": "Check local recall",
         "description": "Possible missing local speech from the mic candidate stream. Usually short, but it can affect meaning.",
+    },
+    "check_transcript_text": {
+        "title": "Check transcript text",
+        "description": "The local utterance is present, but its ASR text still needs an explicit keep or review decision.",
     },
     "check_transcript_order": {
         "title": "Check transcript order",
@@ -374,26 +379,30 @@ def normalize_item(item: dict[str, Any]) -> dict[str, Any]:
     is_local_recall = str(item.get("source") or "") == "local_recall"
     is_transcript_order = str(item.get("source") or "") == "transcript_order"
     source = str(item.get("source") or "audio_review")
-    me_ids = [] if is_local_recall else [
-        str(row.get("id"))
-        for row in text_rows
-        if isinstance(row, dict)
-        and (str(row.get("source_track") or "").lower() == "mic" or str(row.get("role") or "").lower() == "me")
-        and row.get("id")
-    ]
-    remote_ids = [
-        str(row.get("id"))
-        for row in text_rows
-        if isinstance(row, dict)
-        and (
-            str(row.get("source_track") or "").lower() == "remote"
-            or str(row.get("role") or "").lower() in {"remote", "colleagues"}
-        )
-        and row.get("id")
-    ]
-    action = review_action(label, verdict, item)
+    me_ids = [str(value) for value in item.get("me_utterance_ids") or [] if value]
+    if not me_ids and not is_local_recall:
+        me_ids = [
+            str(row.get("id"))
+            for row in text_rows
+            if isinstance(row, dict)
+            and (str(row.get("source_track") or "").lower() == "mic" or str(row.get("role") or "").lower() == "me")
+            and row.get("id")
+        ]
+    remote_ids = [str(value) for value in item.get("remote_utterance_ids") or [] if value]
+    if not remote_ids:
+        remote_ids = [
+            str(row.get("id"))
+            for row in text_rows
+            if isinstance(row, dict)
+            and (
+                str(row.get("source_track") or "").lower() == "remote"
+                or str(row.get("role") or "").lower() in {"remote", "colleagues"}
+            )
+            and row.get("id")
+        ]
+    action = str(item.get("review_action") or review_action(label, verdict, item))
     suggestion = suggested_decision(label, verdict, confidence, item)
-    lane = review_lane(source, label, action, suggestion)
+    lane = str(item.get("review_lane") or review_lane(source, label, action, suggestion))
     return {
         "session_id": item.get("session_id"),
         "session": item.get("session"),

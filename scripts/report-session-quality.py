@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.5.3"
+SCRIPT_VERSION = "0.5.4"
 SCHEMA = "murmurmark.session_quality_report/v1"
 READINESS_SCHEMA = "murmurmark.session_readiness/v1"
 CLEANUP_PROFILES = {
@@ -32,6 +32,7 @@ CLEANUP_PROFILES = {
     "residual_me_evidence_v1",
     "residual_audio_arbitration_v1",
     "residual_local_recall_v1",
+    "local_speech_completion_v2",
 }
 
 
@@ -420,7 +421,55 @@ def residual_local_recall_usable(session: Path) -> bool:
     )
 
 
+def local_speech_completion_usable(session: Path) -> bool:
+    resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
+    profile_path = session / "derived/transcript-simple/whisper-cpp/local-speech-completion-v2"
+    report = read_json(profile_path / "local_speech_completion_profile_report.json")
+    corpus_dir = session.parent / "_reports/local-speech-completion-v2"
+    corpus = read_json(corpus_dir / "local_speech_completion_corpus_report.json")
+    baseline = read_json(corpus_dir / "baseline_manifest.json")
+    record = next(
+        (
+            row
+            for row in (baseline.get("sessions") or [])
+            if isinstance(row, dict) and str(row.get("session_id") or "") == session.name
+        ),
+        None,
+    ) if isinstance(baseline, dict) else None
+    corpus_session = next(
+        (
+            row
+            for row in (corpus.get("sessions") or [])
+            if isinstance(row, dict) and str(row.get("session_id") or "") == session.name
+        ),
+        None,
+    ) if isinstance(corpus, dict) else None
+    output_fingerprint = profile_output_fingerprint(resolved, "local_speech_completion_v2")
+    return bool(
+        isinstance(report, dict)
+        and isinstance(report.get("gates"), dict)
+        and report["gates"].get("passed") is True
+        and report.get("output_profile") == "local_speech_completion_v2"
+        and isinstance(corpus, dict)
+        and corpus.get("decision") == "PROMOTE_LOCAL_SPEECH_COMPLETION_V2"
+        and isinstance(corpus.get("gates"), dict)
+        and corpus["gates"].get("passed") is True
+        and isinstance(baseline, dict)
+        and isinstance(baseline.get("gates"), dict)
+        and baseline["gates"].get("passed") is True
+        and isinstance(record, dict)
+        and frozen_artifact_tree_matches(record.get("artifacts"))
+        and sha256_file(corpus_dir / "baseline_manifest.json") == corpus.get("baseline_sha256")
+        and session.name in {str(value) for value in corpus.get("promoted_sessions") or []}
+        and report.get("output_fingerprint") == output_fingerprint
+        and isinstance(corpus_session, dict)
+        and corpus_session.get("output_fingerprint") == output_fingerprint
+    )
+
+
 def selected_profile(session: Path) -> str:
+    if local_speech_completion_usable(session):
+        return "local_speech_completion_v2"
     if residual_local_recall_usable(session):
         return "residual_local_recall_v1"
     if residual_audio_arbitration_usable(session):
@@ -614,6 +663,18 @@ def local_recall_repair_input_profile(session: Path) -> str | None:
     return str(value) if value and str(value) != "local_recall_repair_v1" else None
 
 
+def local_speech_completion_input_profile(session: Path) -> str | None:
+    report = read_json(
+        session
+        / "derived/transcript-simple/whisper-cpp/local-speech-completion-v2"
+        / "local_speech_completion_profile_report.json"
+    )
+    if not isinstance(report, dict):
+        return None
+    value = report.get("input_profile")
+    return str(value) if value and str(value) != "local_speech_completion_v2" else None
+
+
 def stage_status(session: Path) -> dict[str, bool]:
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
     synthesis = session / "derived/synthesis-simple/extractive"
@@ -626,6 +687,7 @@ def stage_status(session: Path) -> dict[str, bool]:
     authoritative_boundary = session / "derived/transcript-simple/whisper-cpp/authoritative-boundary-v1"
     residual_me_evidence = session / "derived/transcript-simple/whisper-cpp/residual-me-evidence-v1"
     residual_audio_arbitration = session / "derived/transcript-simple/whisper-cpp/residual-audio-arbitration-v1"
+    local_speech_completion = session / "derived/transcript-simple/whisper-cpp/local-speech-completion-v2"
     remote_leak_repair = session / "derived/transcript-simple/whisper-cpp/remote-leak-repair"
     remote_forbidden = session / "derived/audit/remote-forbidden"
     return {
@@ -694,6 +756,9 @@ def stage_status(session: Path) -> dict[str, bool]:
         and (
             session / "derived/transcript-simple/whisper-cpp/residual-local-recall-v1/residual_local_recall_profile_report.json"
         ).exists(),
+        "local_speech_completion_v2": (resolved / "quality_report.local_speech_completion_v2.json").exists()
+        and (resolved / "clean_dialogue.local_speech_completion_v2.json").exists()
+        and (local_speech_completion / "local_speech_completion_profile_report.json").exists(),
         "synthesis": (synthesis / "quality_verdict.json").exists() and (synthesis / "evidence_notes.json").exists(),
         "synthesis_audit_cleanup_v1": (synthesis / "quality_verdict.audit_cleanup_v1.json").exists()
         and (synthesis / "evidence_notes.audit_cleanup_v1.json").exists(),
@@ -2195,7 +2260,13 @@ def collect_session(
         }
         else None
     )
-    inherited_review_profile = local_recall_repair_input_profile(session) if profile == "local_recall_repair_v1" else None
+    inherited_review_profile = (
+        local_recall_repair_input_profile(session)
+        if profile == "local_recall_repair_v1"
+        else local_speech_completion_input_profile(session)
+        if profile == "local_speech_completion_v2"
+        else None
+    )
     review_profile = inherited_review_profile if inherited_review_profile in {"reviewed_v1", "agent_reviewed_v1"} else profile
     review_report = (
         read_json(session / "derived/transcript-simple/whisper-cpp/review-decisions" / f"review_decisions_report{suffix(profile)}.json")
@@ -2232,6 +2303,15 @@ def collect_session(
             )
         )
         if profile in {"residual_me_evidence_v1", "residual_audio_arbitration_v1", "residual_local_recall_v1"}
+        else None
+    )
+    local_speech_completion_report = (
+        read_json(
+            session
+            / "derived/transcript-simple/whisper-cpp/local-speech-completion-v2"
+            / "local_speech_completion_profile_report.json"
+        )
+        if profile == "local_speech_completion_v2"
         else None
     )
     session_json = read_json(session / "session.json") or {}
@@ -2429,6 +2509,65 @@ def collect_session(
                 "transcript_order_recommended_next_step": (
                     "review_transcript_order_items" if remaining_order_seconds > 0.0 else "residual_me_evidence_order_clear"
                 ),
+            }
+        )
+    if (
+        isinstance(local_speech_completion_report, dict)
+        and (local_speech_completion_report.get("gates") or {}).get("passed") is True
+    ):
+        completion_dir = session / "derived/transcript-simple/whisper-cpp/local-speech-completion-v2"
+        remaining_rows = read_jsonl(completion_dir / "local_speech_completion_review_queue.jsonl")
+        dispositions = read_jsonl(completion_dir / "local_speech_completion_dispositions.jsonl")
+        local_rows = [
+            item
+            for item in remaining_rows
+            if str(item.get("label") or "") == "local_recall_needs_review"
+        ]
+        text_rows = [
+            item
+            for item in remaining_rows
+            if str(item.get("label") or "") == "transcript_text_needs_review"
+        ]
+        local_seconds = union_seconds([audio_review_interval(item) for item in local_rows])
+        remaining_seconds = union_seconds([audio_review_interval(item) for item in remaining_rows])
+        completion_summary = (
+            local_speech_completion_report.get("summary")
+            if isinstance(local_speech_completion_report.get("summary"), dict)
+            else {}
+        )
+        row.update(
+            {
+                "local_speech_completion_gates_passed": True,
+                "local_speech_completion_closed_items": safe_int(completion_summary.get("closed_items")),
+                "local_speech_completion_closed_seconds": round_or_none(completion_summary.get("closed_seconds")),
+                "local_speech_completion_remaining_items": len(remaining_rows),
+                "local_speech_completion_remaining_seconds": round(remaining_seconds, 3),
+                "local_speech_completion_text_review_items": len(text_rows),
+                "local_recall_possible_lost_me_count": len(local_rows),
+                "local_recall_possible_lost_me_seconds": round(local_seconds, 3),
+                "local_recall_needs_review_count": 0,
+                "local_recall_needs_review_seconds": 0.0,
+                "local_recall_meaningful_review_seconds": round(local_seconds, 3),
+                "local_recall_blocking_low_local_recall": bool(local_rows),
+                "local_recall_recommended_next_step": (
+                    "review_local_speech_completion_items" if local_rows else "local_speech_completion_clear"
+                ),
+                "review_scope_status": "incomplete" if remaining_rows else "complete",
+                "review_scope_complete": not remaining_rows,
+                "review_scope_allowed": not remaining_rows,
+                "review_scope_partial_allowed": False,
+                "review_scope_required_rows": len(remaining_rows),
+                "review_scope_closed_rows": 0,
+                "review_scope_remaining_seconds": round(remaining_seconds, 3),
+                "suggested_closure_generated_rows": len(remaining_rows),
+                "suggested_closure_generated_seconds": round(remaining_seconds, 3),
+                "suggested_closure_actionable_rows": 0,
+                "suggested_closure_actionable_seconds": 0.0,
+                "suggested_closure_needs_review_rows": len(remaining_rows),
+                "suggested_closure_needs_review_seconds": round(remaining_seconds, 3),
+                "suggested_closure_manual_remaining_rows": len(remaining_rows),
+                "suggested_closure_manual_remaining_seconds": round(remaining_seconds, 3),
+                "local_speech_completion_disposition_count": len(dispositions),
             }
         )
     row["risk_flags"] = risk_flags(row)

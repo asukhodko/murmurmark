@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.4.4"
+SCRIPT_VERSION = "0.4.5"
 SCHEMA = "murmurmark.operational_readiness_report/v1"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
@@ -24,6 +24,7 @@ REVIEW_LANE_ORDER = [
     "fast_confirm_drop",
     "check_unique_me_content",
     "check_local_recall",
+    "check_transcript_text",
     "check_transcript_order",
     "confirm_benign",
     "classify_audio",
@@ -651,6 +652,35 @@ def residual_me_evidence_resolved_ids(session_path: Path, profile: str, sources:
     }
 
 
+def local_speech_completion_input_profile(session_path: Path, profile: str) -> str | None:
+    if profile != "local_speech_completion_v2":
+        return None
+    report = read_json(
+        session_path
+        / "derived/transcript-simple/whisper-cpp/local-speech-completion-v2"
+        / "local_speech_completion_profile_report.json"
+    )
+    if not isinstance(report, dict):
+        return None
+    value = report.get("input_profile")
+    return str(value) if value and str(value) != profile else None
+
+
+def local_speech_completion_resolved_ids(session_path: Path, profile: str) -> set[str]:
+    if profile != "local_speech_completion_v2":
+        return set()
+    path = (
+        session_path
+        / "derived/transcript-simple/whisper-cpp/local-speech-completion-v2"
+        / "local_speech_completion_dispositions.jsonl"
+    )
+    return {
+        str(row.get("source_audit_id"))
+        for row in read_jsonl(path)
+        if row.get("closed") is True and row.get("source_audit_id")
+    }
+
+
 def inherited_profiles_for_review(session_path: Path, profile: str) -> list[str]:
     profiles: list[str] = []
     for candidate in (
@@ -659,6 +689,7 @@ def inherited_profiles_for_review(session_path: Path, profile: str) -> list[str]
         local_recall_repair_input_profile(session_path, profile),
         authoritative_boundary_input_profile(session_path, profile),
         residual_me_evidence_input_profile(session_path, profile),
+        local_speech_completion_input_profile(session_path, profile),
     ):
         if candidate and candidate != profile and candidate not in profiles:
             profiles.append(candidate)
@@ -801,6 +832,7 @@ def review_resolved_local_recall_ids(session_path: Path, profile: str, seen: set
     resolved: set[str] = set(inherited)
     resolved.update(authoritative_boundary_resolved_ids(session_path, profile, {"local_recall", "local_recall_repair"}))
     resolved.update(residual_me_evidence_resolved_ids(session_path, profile, {"local_recall", "local_recall_repair"}))
+    resolved.update(local_speech_completion_resolved_ids(session_path, profile))
     for row in pending_review_decision_rows(session_path, profile):
         if str(row.get("status") or "") != "reviewed":
             continue
@@ -949,6 +981,7 @@ def formal_residual_risk(row: dict[str, Any]) -> dict[str, Any] | None:
         "residual_me_evidence_v1",
         "residual_audio_arbitration_v1",
         "residual_local_recall_v1",
+        "local_speech_completion_v2",
     }:
         return None
     flags = {str(flag) for flag in row.get("risk_flags") or []}
@@ -999,6 +1032,7 @@ def session_use_gate(row: dict[str, Any]) -> str:
         "residual_me_evidence_v1",
         "residual_audio_arbitration_v1",
         "residual_local_recall_v1",
+        "local_speech_completion_v2",
     }:
         return "pipeline_incomplete_review_first"
     if formal_residual_risk(row):
@@ -1353,6 +1387,8 @@ def review_lane(item: dict[str, Any]) -> str:
         "local_recall_repair_inserted",
     }:
         return "check_local_recall"
+    if source == "transcript_text" or label == "transcript_text_needs_review":
+        return "check_transcript_text"
     if source == "transcript_order" or label in {"probable_order_risk"}:
         return "check_transcript_order"
     if label == "remote_duplicate" and verdict == "probable_transcript_error":
@@ -1583,7 +1619,12 @@ def review_queue_lane_summary(review_queue: list[dict[str, Any]]) -> dict[str, A
         safe_float((item.get("interval") if isinstance(item.get("interval"), dict) else {}).get("duration_sec"))
         for item in review_queue
     )
-    blocker_lane_order = ("check_transcript_order", "check_unique_me_content", "check_local_recall")
+    blocker_lane_order = (
+        "check_transcript_order",
+        "check_unique_me_content",
+        "check_local_recall",
+        "check_transcript_text",
+    )
     blocker_candidates = [
         lane
         for lane in blocker_lane_order
@@ -1868,6 +1909,109 @@ def compact_local_recall_item(session: dict[str, Any], row: dict[str, Any]) -> d
     }
 
 
+def compact_local_speech_completion_item(session: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
+    interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+    start = safe_float(interval.get("start"))
+    end_value = safe_float(interval.get("end"))
+    end = max(start, end_value if end_value is not None else start)
+    duration = max(0.0, end - start)
+    session_path = str(session.get("session") or "")
+    label = str(row.get("label") or "local_recall_needs_review")
+    utterance_ids = [str(value) for value in row.get("utterance_ids") or [] if value]
+    allowed = ["keep_me", "needs_review", "skip"] if label == "transcript_text_needs_review" else ["needs_review", "skip"]
+    listen_start = max(0.0, start - 1.0)
+    listen_duration = duration + 2.0
+    return {
+        "session_id": session.get("session_id"),
+        "session": session.get("session"),
+        "source_audit_id": row.get("source_audit_id") or row.get("queue_id"),
+        "source": "local_speech_completion",
+        "label": label,
+        "verdict": "needs_human_review",
+        "confidence": row.get("confidence"),
+        "priority_score": round(duration + safe_float(row.get("confidence")) * 10.0 + 180.0, 3),
+        "input_profile": "local_speech_completion_v2",
+        "review_lane": row.get("review_lane") or ("check_transcript_text" if label == "transcript_text_needs_review" else "check_local_recall"),
+        "review_action": row.get("review_action") or ("check_transcript_text" if label == "transcript_text_needs_review" else "check_lost_local_speech"),
+        "allowed_decisions": allowed,
+        "interval": {
+            "start": round(start, 3),
+            "end": round(end, 3),
+            "duration_sec": round(duration, 3),
+            "start_time": format_time(start),
+            "end_time": format_time(end),
+        },
+        "utterance_ids": utterance_ids,
+        "me_utterance_ids": utterance_ids,
+        "text": [
+            {
+                "id": utterance_ids[0] if utterance_ids else None,
+                "role": "Me",
+                "source_track": "mic",
+                "text": row.get("text"),
+            }
+        ],
+        "commands": {
+            "mic_raw": (
+                f"ffplay -hide_banner -loglevel error -ss {listen_start:.3f} "
+                f"-t {listen_duration:.3f} \"{session_path}/audio/mic/000001.caf\""
+            ),
+            "remote": (
+                f"ffplay -hide_banner -loglevel error -ss {listen_start:.3f} "
+                f"-t {listen_duration:.3f} \"{session_path}/audio/remote/000001.caf\""
+            ),
+        },
+        "reason": row.get("reason"),
+        "evidence_fingerprint": row.get("evidence_fingerprint"),
+    }
+
+
+def compact_transcript_text_utterance(session: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
+    start = safe_float(row.get("start"))
+    end_value = safe_float(row.get("end"))
+    end = max(start, end_value if end_value is not None else start)
+    duration = max(0.0, end - start)
+    session_path = str(session.get("session") or "")
+    utterance_id = str(row.get("id") or "")
+    listen_start = max(0.0, start - 1.0)
+    listen_duration = duration + 2.0
+    return {
+        "session_id": session.get("session_id"),
+        "session": session.get("session"),
+        "source_audit_id": f"transcript_text:{utterance_id}",
+        "source": "transcript_text",
+        "label": "transcript_text_needs_review",
+        "verdict": "needs_human_review",
+        "confidence": safe_float((row.get("quality") or {}).get("role_confidence")),
+        "priority_score": round(duration + 160.0, 3),
+        "input_profile": "local_speech_completion_v2",
+        "review_lane": "check_transcript_text",
+        "review_action": "check_transcript_text",
+        "allowed_decisions": ["keep_me", "needs_review", "skip"],
+        "interval": {
+            "start": round(start, 3),
+            "end": round(end, 3),
+            "duration_sec": round(duration, 3),
+            "start_time": format_time(start),
+            "end_time": format_time(end),
+        },
+        "utterance_ids": [utterance_id] if utterance_id else [],
+        "me_utterance_ids": [utterance_id] if utterance_id else [],
+        "text": [{"id": utterance_id, "role": "Me", "source_track": "mic", "text": row.get("text")}],
+        "commands": {
+            "mic_raw": (
+                f"ffplay -hide_banner -loglevel error -ss {listen_start:.3f} "
+                f"-t {listen_duration:.3f} \"{session_path}/audio/mic/000001.caf\""
+            ),
+            "remote": (
+                f"ffplay -hide_banner -loglevel error -ss {listen_start:.3f} "
+                f"-t {listen_duration:.3f} \"{session_path}/audio/remote/000001.caf\""
+            ),
+        },
+        "reason": "selected transcript marks this Me utterance as needs_review",
+    }
+
+
 def compact_local_recall_repair_patch(session: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any] | None:
     utterance = patch.get("utterance") if isinstance(patch.get("utterance"), dict) else {}
     if not utterance:
@@ -2027,6 +2171,7 @@ def select_review_queue(rows: list[dict[str, Any]], max_items: int) -> list[dict
         "check_unique_me_content": 2,
         "check_local_recall": 2,
         "check_transcript_order": 2,
+        "check_transcript_text": 2,
     }
     selected: list[dict[str, Any]] = []
     selected_keys: set[str] = set()
@@ -2091,6 +2236,37 @@ def build_review_queue_details(sessions: list[dict[str, Any]], max_items: int) -
         review_resolved_keys = review_resolved_keys_cache[cache_key]
         local_recall_resolved_ids = local_recall_resolved_cache[cache_key]
         transcript_order_resolved_ids = transcript_order_resolved_cache[cache_key]
+        completion_open_local_ids: set[str] = set()
+        completion_text_utterance_ids: set[str] = set()
+        if profile == "local_speech_completion_v2":
+            completion_dir = (
+                session_path
+                / "derived/transcript-simple/whisper-cpp/local-speech-completion-v2"
+            )
+            for completion_row in read_jsonl(completion_dir / "local_speech_completion_review_queue.jsonl"):
+                label = str(completion_row.get("label") or "")
+                if label == "local_recall_needs_review" and completion_row.get("source_audit_id"):
+                    completion_open_local_ids.add(str(completion_row.get("source_audit_id")))
+                completion_text_utterance_ids.update(
+                    str(value) for value in completion_row.get("utterance_ids") or [] if value
+                )
+                rows.append(compact_local_speech_completion_item(session, completion_row))
+            dialogue = read_json(
+                session_path
+                / "derived/transcript-simple/whisper-cpp/resolved"
+                / "clean_dialogue.local_speech_completion_v2.json"
+            ) or {}
+            for utterance in dialogue.get("utterances") or []:
+                if not isinstance(utterance, dict):
+                    continue
+                quality = utterance.get("quality") if isinstance(utterance.get("quality"), dict) else {}
+                utterance_id = str(utterance.get("id") or "")
+                if (
+                    quality.get("needs_review") is True
+                    and str(utterance.get("role") or utterance.get("speaker_label") or "").lower() in {"me", "mic"}
+                    and utterance_id not in completion_text_utterance_ids
+                ):
+                    rows.append(compact_transcript_text_utterance(session, utterance))
         audit_path = session_path / "derived/audit/audio-review-pack/audio_review_audit.jsonl"
         audit_rows = read_jsonl(audit_path)
         reliable_by_me_id = reliable_audio_review_rows_by_me_id(audit_rows, selected_ids)
@@ -2138,7 +2314,11 @@ def build_review_queue_details(sessions: list[dict[str, Any]], max_items: int) -
             if label not in {"possible_lost_me", "needs_review"}:
                 continue
             item_id = str(row.get("item_id") or "")
-            if item_id in repaired_local_recall_ids or item_id in local_recall_resolved_ids:
+            if (
+                item_id in repaired_local_recall_ids
+                or item_id in local_recall_resolved_ids
+                or item_id in completion_open_local_ids
+            ):
                 continue
             rows.append(compact_local_recall_item(session, row))
         order_path = session_path / "derived/audit/order/transcript_order_items.jsonl"
@@ -2705,6 +2885,7 @@ def operational_verdict(
         + safe_int(selected_profiles.get("residual_me_evidence_v1"))
         + safe_int(selected_profiles.get("residual_audio_arbitration_v1"))
         + safe_int(selected_profiles.get("residual_local_recall_v1"))
+        + safe_int(selected_profiles.get("local_speech_completion_v2"))
     )
     cleanup_ratio = cleanup_profiles / session_count if session_count > 0 else 0.0
 
