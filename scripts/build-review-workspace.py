@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.4.0"
+SCRIPT_VERSION = "0.4.1"
 SCHEMA = "murmurmark.review_workspace/v1"
 LANE_ORDER = [
     "fast_confirm_drop",
@@ -200,7 +200,12 @@ def review_row_key(row: dict[str, Any]) -> str:
     )
 
 
+def obsolete_audit_only_local_recall_keep(row: dict[str, Any]) -> bool:
+    return str(row.get("source") or "") == "local_recall" and str(row.get("decision") or "") == "keep_me"
+
+
 def merge_existing(template_rows: list[dict[str, Any]], existing_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    existing_rows = [row for row in existing_rows if not obsolete_audit_only_local_recall_keep(row)]
     existing_by_key = {review_row_key(row): row for row in existing_rows}
     return [{**row, **existing_by_key.get(review_row_key(row), {})} for row in template_rows]
 

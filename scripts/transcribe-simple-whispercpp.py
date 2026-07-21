@@ -20,6 +20,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -28,7 +29,7 @@ from typing import Any
 
 
 DEFAULT_MODEL = "~/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
-SCRIPT_VERSION = "0.2.1"
+SCRIPT_VERSION = "0.2.2"
 KNOWN_HALLUCINATION_RE = re.compile(
     r"("
     r"редактор\s+субтитров"
@@ -75,6 +76,7 @@ BOUNDARY_PREFIX_REPAIRS = (
 GOLDEN_PHRASE_CASES: tuple[dict[str, Any], ...] = ()
 NO_REGRESSION_CONTROL_TEXTS: tuple[str, ...] = ()
 DISPLAY_TOKEN_RE = re.compile(r"[0-9A-Za-zА-Яа-яЁё/+-]+")
+VALID_SINGLE_LETTER_RUSSIAN_UTTERANCES = {"а", "в", "и", "к", "о", "с", "у", "я"}
 OPENING_WINDOW_END_MS = 12_000
 OPENING_MAX_PATCH_END_MS = 24_000
 OPENING_LEADING_SILENCE_MS = 500
@@ -400,6 +402,59 @@ def write_cache_meta(output_base: Path, metadata: dict[str, Any]) -> None:
     )
 
 
+WHISPER_GPU_CRASH_RETURN_CODES = {-11, 139}
+_WHISPER_FORCE_CPU_AFTER_GPU_CRASH = False
+
+
+def run_whisper_cli_with_cpu_fallback(command: list[str], log_path: Path) -> dict[str, Any]:
+    global _WHISPER_FORCE_CPU_AFTER_GPU_CRASH
+
+    def invoke(candidate: list[str], mode: str, note: str | None = None) -> None:
+        with log_path.open(mode, encoding="utf-8") as log:
+            if note:
+                log.write(f"\n[murmurmark] {note}\n")
+                log.flush()
+            subprocess.run(candidate, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, check=True)
+
+    initial_command = list(command)
+    if _WHISPER_FORCE_CPU_AFTER_GPU_CRASH and "--no-gpu" not in initial_command:
+        file_index = initial_command.index("--file") if "--file" in initial_command else len(initial_command)
+        initial_command.insert(file_index, "--no-gpu")
+        invoke(initial_command, "w", "GPU disabled after an earlier whisper-cli initialization crash")
+        return {"mode": "cpu_after_previous_gpu_crash"}
+
+    try:
+        invoke(initial_command, "w")
+        return {"mode": "default"}
+    except subprocess.CalledProcessError as error:
+        if error.returncode not in WHISPER_GPU_CRASH_RETURN_CODES or "--no-gpu" in initial_command:
+            raise
+
+        _WHISPER_FORCE_CPU_AFTER_GPU_CRASH = True
+        cpu_command = list(initial_command)
+        file_index = cpu_command.index("--file") if "--file" in cpu_command else len(cpu_command)
+        cpu_command.insert(file_index, "--no-gpu")
+        print("whisper-cli crashed while initializing GPU; retrying once with --no-gpu", file=sys.stderr)
+        print("+ " + printable_command(cpu_command))
+        try:
+            invoke(
+                cpu_command,
+                "a",
+                f"GPU attempt failed with return code {error.returncode}; retrying with --no-gpu",
+            )
+        except subprocess.CalledProcessError as cpu_error:
+            cpu_error.murmurmark_execution = {
+                "mode": "cpu_fallback_failed",
+                "gpu_crash_returncode": error.returncode,
+                "cpu_returncode": cpu_error.returncode,
+            }
+            raise
+        return {
+            "mode": "cpu_fallback",
+            "gpu_crash_returncode": error.returncode,
+        }
+
+
 def run_whisper(
     *,
     whisper_cli: str,
@@ -442,8 +497,7 @@ def run_whisper(
     if duration_ms > 0:
         command.extend(["--duration", str(duration_ms)])
     print("+ " + printable_command(command))
-    with output_base.with_suffix(".run.log").open("w", encoding="utf-8") as log:
-        subprocess.run(command, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, check=True)
+    run_whisper_cli_with_cpu_fallback(command, output_base.with_suffix(".run.log"))
 
 
 def audio_duration_ms(input_wav: Path) -> int:
@@ -1291,6 +1345,29 @@ def display_token_spans(text: str) -> list[tuple[str, int, int]]:
     return tokens
 
 
+def mark_suspicious_text_fragments(rows: list[dict[str, Any]]) -> int:
+    marked = 0
+    for row in rows:
+        text = str(row.get("corrected_text") or row.get("text") or "").strip()
+        tokens = [match.group(0) for match in DISPLAY_TOKEN_RE.finditer(text)]
+        if len(tokens) != 1:
+            continue
+        token = tokens[0].lower()
+        if len(token) != 1 or not re.fullmatch(r"[а-яё]", token) or token in VALID_SINGLE_LETTER_RUSSIAN_UTTERANCES:
+            continue
+        quality = row.setdefault("quality", {})
+        if not isinstance(quality, dict):
+            quality = {}
+            row["quality"] = quality
+        quality["needs_review"] = True
+        quality["text_fragment_review"] = {
+            "reason": "single_letter_asr_fragment",
+            "token": tokens[0],
+        }
+        marked += 1
+    return marked
+
+
 def char_ngrams(text: str, size: int = 3) -> set[str]:
     normalized = normalize_for_compare(text).replace(" ", "")
     if len(normalized) <= size:
@@ -1846,6 +1923,7 @@ def materialize_micro_reasr(
     slice_wav = micro_dir / f"{stem}.wav"
     output_base = micro_dir / stem
     json_path = output_base.with_suffix(".json")
+    execution: dict[str, Any] = {"mode": "cached"}
 
     if force or not json_path.exists():
         if force:
@@ -1908,26 +1986,26 @@ def materialize_micro_reasr(
             str(slice_wav),
         ]
         print("+ " + " ".join(command))
-        with output_base.with_suffix(".run.log").open("w", encoding="utf-8") as log:
-            try:
-                subprocess.run(command, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, check=True)
-            except subprocess.CalledProcessError as error:
-                return "", {
-                    "status": "failed",
-                    "reason": "whisper_cli_failed",
-                    "returncode": error.returncode,
-                    "source": str(source),
-                    "source_label": source_label,
-                    "window_label": window_label,
-                    "slice_start_ms": recognition_start_ms,
-                    "slice_end_ms": recognition_end_ms,
-                    "leading_silence_ms": leading_silence_ms,
-                    "selection_start_ms": selection_start_ms,
-                    "selection_end_ms": selection_end_ms,
-                    "target_start_ms": target_start_ms,
-                    "target_end_ms": target_end_ms,
-                    "output_base": str(output_base),
-                }
+        try:
+            execution = run_whisper_cli_with_cpu_fallback(command, output_base.with_suffix(".run.log"))
+        except subprocess.CalledProcessError as error:
+            return "", {
+                "status": "failed",
+                "reason": "whisper_cli_failed",
+                "returncode": error.returncode,
+                "execution": getattr(error, "murmurmark_execution", {"mode": "failed"}),
+                "source": str(source),
+                "source_label": source_label,
+                "window_label": window_label,
+                "slice_start_ms": recognition_start_ms,
+                "slice_end_ms": recognition_end_ms,
+                "leading_silence_ms": leading_silence_ms,
+                "selection_start_ms": selection_start_ms,
+                "selection_end_ms": selection_end_ms,
+                "target_start_ms": target_start_ms,
+                "target_end_ms": target_end_ms,
+                "output_base": str(output_base),
+            }
     if not json_path.exists():
         return "", {
             "status": "failed",
@@ -1980,6 +2058,7 @@ def materialize_micro_reasr(
             "target_end_ms": target_end_ms,
             "json": str(json_path),
             "score": score,
+            "execution": execution,
         }
     return text, {
         "status": "ok",
@@ -2000,6 +2079,7 @@ def materialize_micro_reasr(
         "json": str(json_path),
         "rows": rows,
         "score": round(score, 6),
+        "execution": execution,
     }
 
 
@@ -2039,6 +2119,7 @@ def run_micro_reasr_current(
     slice_wav = micro_dir / f"{stem}.wav"
     output_base = micro_dir / stem
     json_path = output_base.with_suffix(".json")
+    execution: dict[str, Any] = {"mode": "cached"}
 
     if force or not json_path.exists():
         if force:
@@ -2093,22 +2174,22 @@ def run_micro_reasr_current(
             str(slice_wav),
         ]
         print("+ " + " ".join(command))
-        with output_base.with_suffix(".run.log").open("w", encoding="utf-8") as log:
-            try:
-                subprocess.run(command, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, check=True)
-            except subprocess.CalledProcessError as error:
-                return "", {
-                    "status": "failed",
-                    "reason": "whisper_cli_failed",
-                    "returncode": error.returncode,
-                    "source": str(source),
-                    "source_label": source_label,
-                    "slice_start_ms": slice_start_ms,
-                    "slice_end_ms": slice_end_ms,
-                    "target_start_ms": start_ms,
-                    "target_end_ms": end_ms,
-                    "output_base": str(output_base),
-                }
+        try:
+            execution = run_whisper_cli_with_cpu_fallback(command, output_base.with_suffix(".run.log"))
+        except subprocess.CalledProcessError as error:
+            return "", {
+                "status": "failed",
+                "reason": "whisper_cli_failed",
+                "returncode": error.returncode,
+                "execution": getattr(error, "murmurmark_execution", {"mode": "failed"}),
+                "source": str(source),
+                "source_label": source_label,
+                "slice_start_ms": slice_start_ms,
+                "slice_end_ms": slice_end_ms,
+                "target_start_ms": start_ms,
+                "target_end_ms": end_ms,
+                "output_base": str(output_base),
+            }
     if not json_path.exists():
         return "", {
             "status": "failed",
@@ -2133,6 +2214,7 @@ def run_micro_reasr_current(
             "target_start_ms": start_ms,
             "target_end_ms": end_ms,
             "json": str(json_path),
+            "execution": execution,
         }
     return text, {
         "status": "ok",
@@ -2144,6 +2226,7 @@ def run_micro_reasr_current(
         "target_end_ms": end_ms,
         "json": str(json_path),
         "rows": rows,
+        "execution": execution,
     }
 
 
@@ -3593,6 +3676,62 @@ def duplicate_preference_score(row: dict[str, Any]) -> tuple[float, int]:
     return confidence, is_original
 
 
+def reattach_split_initial_letter(
+    previous: dict[str, Any], current: dict[str, Any]
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    if previous.get("speaker_label") != current.get("speaker_label"):
+        return None, None
+    if previous.get("source_track") != "mic" or current.get("source_track") != "mic":
+        return None, None
+
+    previous_text = str(previous.get("corrected_text") or previous.get("text") or "").strip()
+    previous_tokens = [match.group(0) for match in DISPLAY_TOKEN_RE.finditer(previous_text)]
+    if len(previous_tokens) != 1:
+        return None, None
+    initial = previous_tokens[0]
+    initial_norm = initial.lower()
+    if (
+        len(initial_norm) != 1
+        or not re.fullmatch(r"[а-яё]", initial_norm)
+        or initial_norm in VALID_SINGLE_LETTER_RUSSIAN_UTTERANCES
+    ):
+        return None, None
+
+    current_text = str(current.get("corrected_text") or current.get("text") or "").strip()
+    suffix_match = re.match(r"^([а-яё][а-яё-]{1,})(.*)$", current_text)
+    if suffix_match is None:
+        return None, None
+
+    previous_start = float(previous.get("start", 0.0))
+    previous_end = float(previous.get("end", previous_start))
+    current_start = float(current.get("start", previous_end))
+    gap_sec = current_start - previous_end
+    if previous_end - previous_start > 2.0 or gap_sec < 0.0 or gap_sec > 3.5:
+        return None, None
+
+    repaired = copy.deepcopy(current)
+    repaired_text = f"{initial}{suffix_match.group(1)}{suffix_match.group(2)}"
+    repaired["corrected_text"] = repaired_text
+    meta = {
+        "reason": "split_initial_letter_reattached",
+        "dropped_utterance_id": previous.get("id"),
+        "kept_utterance_id": current.get("id"),
+        "speaker_label": current.get("speaker_label"),
+        "dropped_start": previous.get("start"),
+        "dropped_end": previous.get("end"),
+        "kept_start": current.get("start"),
+        "kept_end": current.get("end"),
+        "source_text": previous_text,
+        "matched_text": current_text,
+        "repaired_text": repaired_text,
+        "gap_sec": round(gap_sec, 3),
+        "dropped": True,
+    }
+    repaired.setdefault("corrections", []).append(meta)
+    repaired.setdefault("quality", {})["split_initial_fragment_repaired"] = True
+    return repaired, meta
+
+
 def suppress_adjacent_same_speaker_duplicates(rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     if not rows:
         return rows, []
@@ -3602,6 +3741,12 @@ def suppress_adjacent_same_speaker_duplicates(rows: list[dict[str, Any]]) -> tup
         current = copy.deepcopy(row)
         if output and output[-1].get("speaker_label") == current.get("speaker_label"):
             previous = output[-1]
+            repaired_current, split_fragment_meta = reattach_split_initial_letter(previous, current)
+            if repaired_current is not None and split_fragment_meta is not None:
+                output.pop()
+                corrections.append(split_fragment_meta)
+                output.append(repaired_current)
+                continue
             if exact_overlapping_same_speaker_duplicate(previous, current):
                 keep_current = duplicate_preference_score(current) > duplicate_preference_score(previous)
                 kept = current if keep_current else previous
@@ -4048,6 +4193,7 @@ def write_outputs(
     adjacent_duplicate_corrections: list[dict[str, Any]] = []
     if artifact_suffix == ".shadow_v2":
         json_rows, adjacent_duplicate_corrections = suppress_adjacent_same_speaker_duplicates(json_rows)
+    suspicious_text_fragment_count = mark_suspicious_text_fragments(json_rows)
     assert_remote_text_provenance(json_rows, candidates)
 
     cross_role_overlap_count = 0
@@ -4281,6 +4427,12 @@ def write_outputs(
         "boundary_prefix_repair_accepted_count": len(boundary_corrections),
         "adjacent_duplicate_repair_count": len(adjacent_duplicate_corrections),
         "adjacent_duplicate_drop_count": sum(1 for item in adjacent_duplicate_corrections if item.get("dropped")),
+        "split_initial_fragment_repair_count": sum(
+            1
+            for item in adjacent_duplicate_corrections
+            if item.get("reason") == "split_initial_letter_reattached"
+        ),
+        "suspicious_text_fragment_count": suspicious_text_fragment_count,
         "golden_phrase_fail_count": int(golden_report["golden_phrase_fail_count"]),
         "golden_phrase_checks": golden_report["golden_phrase_checks"],
         "dropped_by_reason": dict(sorted(dropped_by_reason.items())),
@@ -4345,6 +4497,8 @@ def write_outputs(
             "boundary_prefix_repair_accepted_count": quality_report["boundary_prefix_repair_accepted_count"],
             "adjacent_duplicate_repair_count": quality_report["adjacent_duplicate_repair_count"],
             "adjacent_duplicate_drop_count": quality_report["adjacent_duplicate_drop_count"],
+            "split_initial_fragment_repair_count": quality_report["split_initial_fragment_repair_count"],
+            "suspicious_text_fragment_count": quality_report["suspicious_text_fragment_count"],
             "golden_phrase_fail_count": quality_report["golden_phrase_fail_count"],
         },
         "outputs": {

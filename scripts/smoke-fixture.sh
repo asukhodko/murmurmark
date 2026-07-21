@@ -3377,8 +3377,8 @@ EOF
     --markdown "$workdir/review_decisions_progress.md" >/dev/null
   jq -e '
     .schema == "murmurmark.review_decisions_progress/v1"
-    and .summary.reviewed == 1
-    and .summary.remaining == 1
+    and .summary.reviewed == 0
+    and .summary.remaining == 2
     and .summary.action_count >= 1
     and .summary.remaining_actions >= 1
     and .summary.invalid_rows == 0
@@ -3452,7 +3452,7 @@ EOF
 
   cat >"$review_decisions" <<EOF
 {"schema":"murmurmark.review_decision/v1","status":"reviewed","decision":"keep_me","session_id":"group-session","session":"$group_session","input_profile":"audit_cleanup_v4","source_audit_id":"arp_manual_review_keep","label":"uncertain","verdict":"needs_stronger_audio_judge","review_action":"classify_audio","me_utterance_ids":["utt_audio_uncertain_me"],"remote_utterance_ids":["utt_audio_uncertain_remote"],"utterance_ids":["utt_audio_uncertain_remote","utt_audio_uncertain_me"],"text":[{"id":"utt_audio_uncertain_remote","role":"remote","source_track":"remote","text":"Там есть спорный кусок."},{"id":"utt_audio_uncertain_me","role":"me","source_track":"mic","text":"Я уточню отдельно."}],"reviewer":"smoke","notes":"confirmed local speech"}
-{"schema":"murmurmark.review_decision/v1","status":"reviewed","decision":"keep_me","allowed_decisions":["keep_me","needs_review","skip"],"session_id":"group-session","session":"$group_session","input_profile":"audit_cleanup_v4","cluster_id":"review_cluster_local_001","source":"local_recall","source_audit_id":"local_recall_0001","label":"lost_me","verdict":"needs_stronger_audio_judge","review_action":"check_lost_local_speech","me_utterance_ids":[],"remote_utterance_ids":[],"utterance_ids":[],"interval":{"start":13.0,"end":14.2,"duration_sec":1.2},"text":[{"id":"cand_mic_fixture_002","role":"Me","source_track":"local_recall","text":"Я понял."}],"commands":{"mic_raw":"ffplay -hide_banner -loglevel error -ss 12.000 -t 3.200 \"$group_session/audio/mic/000001.caf\""},"reviewer":"smoke","notes":"local recall checked as harmless"}
+{"schema":"murmurmark.review_decision/v1","status":"reviewed","decision":"needs_review","allowed_decisions":["keep_me","needs_review","skip"],"session_id":"group-session","session":"$group_session","input_profile":"audit_cleanup_v4","cluster_id":"review_cluster_local_001","source":"local_recall","source_audit_id":"local_recall_0001","label":"lost_me","verdict":"needs_stronger_audio_judge","review_action":"check_lost_local_speech","me_utterance_ids":[],"remote_utterance_ids":[],"utterance_ids":[],"interval":{"start":13.0,"end":14.2,"duration_sec":1.2},"text":[{"id":"cand_mic_fixture_002","role":"Me","source_track":"local_recall","text":"Я понял."}],"commands":{"mic_raw":"ffplay -hide_banner -loglevel error -ss 12.000 -t 3.200 \"$group_session/audio/mic/000001.caf\""},"reviewer":"smoke","notes":"local recall remains unresolved without a materialized utterance"}
 EOF
   "$repo_root/scripts/apply-review-decisions.py" "$group_session" \
     --decisions "$review_decisions" \
@@ -3463,7 +3463,7 @@ EOF
   reviewed_report="$group_session/derived/transcript-simple/whisper-cpp/review-decisions/review_decisions_report.reviewed_v1.json"
   [[ -s "$reviewed_dialogue" ]]
   [[ -s "$reviewed_report" ]]
-  jq -e '.gates.passed == true and .coverage.complete == true and .summary.applied_decision_rows == 2 and .summary.audit_only_applied_decision_rows == 1 and .summary.local_recall_cleared_decisions == 1' "$reviewed_report" >/dev/null
+  jq -e '.gates.passed == true and .coverage.complete == true and .summary.applied_decision_rows == 2 and .summary.audit_only_applied_decision_rows == 1 and .summary.local_recall_cleared_decisions == 0 and .summary.local_recall_needs_review_decisions == 1' "$reviewed_report" >/dev/null
   jq -e 'any(.utterances[]; .id == "utt_audio_uncertain_me" and .quality.human_review.decisions[0] == "keep_me")' "$reviewed_dialogue" >/dev/null
   "$repo_root/scripts/synthesize-simple-extractive.py" "$group_session" --transcript-profile auto >/dev/null
   jq -e '.selected_transcript_profile == "reviewed_v1"' "$group_session/derived/synthesis-simple/extractive/quality_verdict.json" >/dev/null
@@ -3771,12 +3771,12 @@ EOF
   echo "$local_recall_corpus_output" | grep -q '  possible_lost_me_seconds: '
   echo "$local_recall_corpus_output" | grep -q '^  recommendation: '
   echo "$local_recall_corpus_output" | grep -q '^  read: less '
-  echo "$local_recall_corpus_output" | grep -q '^  recommended_next: less '
-  tail -1 <<<"$local_recall_corpus_output" | grep -q '^next: less .*local_recall_corpus_report.md$'
+  echo "$local_recall_corpus_output" | grep -q '^  recommended_next: murmurmark process '
+  tail -1 <<<"$local_recall_corpus_output" | grep -q '^next: murmurmark process '
   [[ -s "$local_recall_corpus_dir/local_recall_corpus_report.json" ]]
   [[ -s "$local_recall_corpus_dir/local_recall_corpus_items.jsonl" ]]
   [[ -s "$local_recall_corpus_dir/local_recall_corpus_report.md" ]]
-  jq -e '.schema == "murmurmark.local_recall_corpus_report/v1" and .summary.audited_session_count == 1 and .summary.audit_by_label.possible_lost_me.count >= 1 and .summary.possible_lost_me_count == 0 and .summary.complete_blocking_session_count == 0' \
+  jq -e '.schema == "murmurmark.local_recall_corpus_report/v1" and .summary.audited_session_count == 1 and .summary.audit_by_label.possible_lost_me.count >= 1 and .summary.possible_lost_me_count >= 1 and .summary.complete_blocking_session_count == 0' \
     "$local_recall_corpus_dir/local_recall_corpus_report.json" >/dev/null
   jq -s 'any(.[]; .schema == "murmurmark.local_recall_corpus_item/v1" and .label == "possible_lost_me")' \
     "$local_recall_corpus_dir/local_recall_corpus_items.jsonl" >/dev/null
@@ -3786,7 +3786,7 @@ EOF
     --audit-profile shadow_v2 \
     --session-quality "$quality_dir/session_quality_report.json" \
     --out-dir "$local_recall_corpus_audit_dir" >/dev/null
-  jq -e '.summary.audited_session_count == 1 and .summary.audit_by_label.possible_lost_me.count >= 1 and .summary.possible_lost_me_count == 0' \
+  jq -e '.summary.audited_session_count == 1 and .summary.audit_by_label.possible_lost_me.count >= 1 and .summary.possible_lost_me_count >= 1' \
     "$local_recall_corpus_audit_dir/local_recall_corpus_report.json" >/dev/null
 
   local_recall_repair_corpus_dir="$workdir/local-recall-repair-corpus"
@@ -4565,7 +4565,7 @@ PY
     "$gates_dir/corpus_gates_report.json" >/dev/null
   jq -e '.summary.transcript_order_complete_blocking_sessions == 0 and .summary.transcript_order_missing_audits == 0' \
     "$gates_dir/corpus_gates_report.json" >/dev/null
-  jq -e '.summary.local_recall_complete_blocking_sessions == 0 and .summary.local_recall_possible_lost_me_seconds == 0' \
+  jq -e '.summary.local_recall_complete_blocking_sessions == 0 and .summary.local_recall_possible_lost_me_seconds >= 1' \
     "$gates_dir/corpus_gates_report.json" >/dev/null
   jq -e 'any(.checks[]; .id == "local_recall.no_complete_blocking_sessions" and .status == "pass")' \
     "$gates_dir/corpus_gates_report.json" >/dev/null

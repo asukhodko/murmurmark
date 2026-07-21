@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.1"
+SCRIPT_VERSION = "0.3.2"
 OUTPUT_PROFILE_DEFAULT = "reviewed_v1"
 VALID_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip", "todo", ""}
 OPEN_DECISIONS = {"", "todo"}
@@ -233,6 +233,9 @@ def normalize_decision(row: dict[str, Any]) -> dict[str, Any]:
     if is_local_recall_decision(normalized) and decision in {"drop_me", "drop_remote"}:
         normalized["_invalid"] = True
         normalized["_invalid_reason"] = f"{decision}_is_not_supported_for_local_recall"
+    if is_local_recall_decision(normalized) and decision == "keep_me":
+        normalized["_invalid"] = True
+        normalized["_invalid_reason"] = "keep_me_requires_materialized_local_recall_utterance"
     if is_transcript_order_decision(normalized) and decision in {"drop_me", "drop_remote"}:
         normalized["_invalid"] = True
         normalized["_invalid_reason"] = f"{decision}_is_not_supported_for_transcript_order"
@@ -250,6 +253,10 @@ def is_local_recall_decision(row: dict[str, Any]) -> bool:
 
 def is_local_recall_repair_decision(row: dict[str, Any]) -> bool:
     return str(row.get("source") or "").strip() == "local_recall_repair"
+
+
+def obsolete_audit_only_local_recall_keep(row: dict[str, Any]) -> bool:
+    return str(row.get("source") or "").strip() == "local_recall" and str(row.get("decision") or "").strip() == "keep_me"
 
 
 def is_transcript_order_decision(row: dict[str, Any]) -> bool:
@@ -513,7 +520,9 @@ def main() -> int:
     session = args.session.expanduser().resolve()
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
     review_dir = session / "derived/transcript-simple/whisper-cpp/review-decisions"
-    decisions = decisions_for_session(args.decisions.expanduser(), session)
+    all_decisions = decisions_for_session(args.decisions.expanduser(), session)
+    obsolete_decisions = [row for row in all_decisions if obsolete_audit_only_local_recall_keep(row)]
+    decisions = [row for row in all_decisions if not obsolete_audit_only_local_recall_keep(row)]
     template_rows, template_path = template_for_session(args, session)
     coverage = review_coverage(decisions, template_rows, template_path, args.allow_partial_review)
     invalid_decisions = [row for row in decisions if row.get("_invalid")]
@@ -670,6 +679,7 @@ def main() -> int:
         "transcript_applied_decision_rows": len(applied),
         "audit_only_applied_decision_rows": len(audit_only_applied),
         "rejected_decision_rows": len(rejected),
+        "ignored_obsolete_audit_only_local_recall_keep_rows": len(obsolete_decisions),
         "conflict_count": len(conflicts),
         "dropped_me_utterances": len(dropped_ids),
         "dropped_me_seconds": round(sum(safe_float(by_id[item].get("end")) - safe_float(by_id[item].get("start")) for item in dropped_ids), 3),
@@ -755,6 +765,8 @@ def main() -> int:
         gates["warnings"].append("no_review_decisions_applied")
     if coverage["status"] == "partial_allowed":
         gates["warnings"].append("partial_review_scope_allowed")
+    if obsolete_decisions:
+        gates["warnings"].append("obsolete_audit_only_local_recall_keep_ignored")
     if coverage["duplicate_decision_keys"]:
         gates["warnings"].append("duplicate_decision_keys")
 

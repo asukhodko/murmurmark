@@ -1367,6 +1367,11 @@ For short islands near a parent boundary, `local_recall_repair_v1` also records 
 and may use `boundary_overlap_fallback` when Whisper recognized text but the row midpoint landed
 just outside the selected local island. This is still conservative: the recovered turn is inserted
 only into the explicit repair profile and remains `needs_review`.
+If `whisper-cli` crashes while initializing Metal (`SIGSEGV` / return code `-11` or `139`), the
+transcriber retries that micro-ASR call once with `--no-gpu` and keeps CPU mode for the remaining
+calls in the same process. `local_recall_repair_micro_runs*.jsonl` records this as
+`execution.mode = cpu_fallback` or `cpu_after_previous_gpu_crash`; ordinary decoding failures are
+not hidden by this fallback.
 After operational readiness is rebuilt, inserted repair turns appear in the `check_local_recall`
 review lane as `local_recall_repair` rows. Unlike raw audit-only local-recall rows, these rows point
 to actual `Me` utterance IDs in `local_recall_repair_v1`, so review can keep or drop the inserted
@@ -1833,8 +1838,11 @@ profile for each session. The CLI wrapper prints the next `murmurmark report ...
 successful apply. It can drop whole reviewed `Me` utterances, drop reviewed `Colleagues` utterances
 when remote contains a duplicate of local speech, clear review flags for confirmed local speech,
 close checked local-recall rows, or keep an item marked `needs_review`.
-Local-recall rows are audit-only: they do not add missing words to the transcript, and `drop_me` /
-`drop_remote` are not valid decisions for them. Transcript-order rows are audit-only for timeline content: review can
+Raw local-recall rows are audit-only: they do not add missing words to the transcript, and
+`keep_me`, `drop_me` and `drop_remote` are not valid decisions for them. Even strong local audio
+evidence must first go through `murmurmark repair local-recall`, which creates an actual `Me`
+utterance in `local_recall_repair_v1`. Review can then keep or drop that materialized repair row.
+Transcript-order rows are audit-only for timeline content: review can
 clear or keep the chronology risk and records `quality.transcript_order_review` on affected
 utterances, but it does not move utterances or edit text. `reviewed_v1` gates pass only when
 the corresponding `review_decisions.template.jsonl` rows for that session are all closed with
@@ -2069,6 +2077,14 @@ counts are in `resolved/transcribe_simple_report.json` and `resolved/quality_rep
 Cross-role overlaps are written to `resolved/overlaps.json`.
 Timeline repair details are in `resolved/timeline_repair_report.json` and
 `resolved/timeline_repair_examples.jsonl`.
+`suspicious_text_fragment_count` counts clearly malformed one-letter Cyrillic ASR fragments. Such
+utterances remain in the transcript but get `quality.needs_review = true` with
+`quality.text_fragment_review.reason = single_letter_asr_fragment`, so readiness cannot silently
+treat a broken word boundary as clean output.
+When that fragment is a non-standalone consonant immediately followed by a lower-case continuation
+from the same mic source, with a gap no longer than 3.5 seconds, the pipeline rejoins the word. The
+correction is recorded as `split_initial_letter_reattached`; valid standalone one-letter Russian
+utterances remain untouched.
 
 Risky remaining places are collected in `resolved/timeline_audit_examples.jsonl`: every
 `needs_review` utterance and every cross-role overlap longer than two seconds. Each row contains the

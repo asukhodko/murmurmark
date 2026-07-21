@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.8.1"
+SCRIPT_VERSION = "0.8.3"
 SCHEMA = "murmurmark.review_lane_pack/v1"
 KNOWN_REVIEW_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip"}
 DEFAULT_ALLOWED_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip"}
@@ -357,7 +357,12 @@ def review_row_key(row: dict[str, Any]) -> str:
     )
 
 
+def obsolete_audit_only_local_recall_keep(row: dict[str, Any]) -> bool:
+    return str(row.get("source") or "") == "local_recall" and str(row.get("decision") or "") == "keep_me"
+
+
 def merge_existing(template_rows: list[dict[str, Any]], existing_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    existing_rows = [row for row in existing_rows if not obsolete_audit_only_local_recall_keep(row)]
     existing_by_key = {review_row_key(row): row for row in existing_rows}
     return [{**row, **existing_by_key.get(review_row_key(row), {})} for row in template_rows]
 
@@ -892,6 +897,16 @@ def stronger_has_inconclusive_evidence(summary: dict[str, Any] | None) -> bool:
     return not stronger_has_high_confidence_keep(summary) and not stronger_has_high_confidence_drop(summary)
 
 
+def requires_materialized_local_recall(rows: list[dict[str, Any]]) -> bool:
+    if unique_from_rows(rows, "me_utterance_ids"):
+        return False
+    return any(
+        str(row.get("source") or "") == "local_recall"
+        or str(row.get("label") or "") in {"lost_me", "local_recall_needs_review"}
+        for row in rows
+    )
+
+
 def row_confidence(row: dict[str, Any]) -> float:
     try:
         return float(row.get("confidence") or 0.0)
@@ -982,6 +997,15 @@ def suggested_decision_for_group(
         target_me_by_session,
         summary,
     )
+    materialization_required = requires_materialized_local_recall(rows)
+    if materialization_required and (stronger_decision or target_decision):
+        return (
+            "needs_review",
+            "medium",
+            "local_recall: audio evidence cannot close a missing Me phrase until a repair profile materializes it",
+            summary,
+            target_summary,
+        )
     if stronger_decision == "drop_me" and target_decision == "keep_me":
         return (
             "needs_review",
@@ -1001,6 +1025,14 @@ def suggested_decision_for_group(
     if text_guard_decision:
         return text_guard_decision, text_guard_confidence, text_guard_reason or "", summary, target_summary
     fallback_decision = group_suggested_decision(rows)
+    if materialization_required and fallback_decision in {"keep_me", "drop_me"}:
+        return (
+            "needs_review",
+            "medium",
+            "local_recall: missing Me phrase has no materialized utterance to keep or drop",
+            summary,
+            target_summary,
+        )
     if fallback_decision == "drop_me" and stronger_has_inconclusive_evidence(summary):
         return "needs_review", "low", "stronger_audio_judge: inconclusive; suppressing automatic drop", summary, target_summary
     return (

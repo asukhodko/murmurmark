@@ -51,6 +51,26 @@ Current source-of-truth order:
 3. `quality_report*.json` and `overlaps*.json` for risk review.
 4. `transcript*.md` only as a human-readable export.
 
+`quality_report*.json` includes `suspicious_text_fragment_count`. A one-letter Cyrillic utterance
+that is not a valid standalone Russian word is preserved but marked with:
+
+```json
+{
+  "quality": {
+    "needs_review": true,
+    "text_fragment_review": {
+      "reason": "single_letter_asr_fragment",
+      "token": "Н"
+    }
+  }
+}
+```
+
+`split_initial_fragment_repair_count` counts conservative repairs where a non-standalone initial
+letter is reattached to a lower-case continuation in the next `Me` utterance from the same mic
+source. Every repair is also written to `corrections*.jsonl` with reason
+`split_initial_letter_reattached` and the dropped/kept utterance ids.
+
 The current extractive synthesis spike writes:
 
 ```text
@@ -593,6 +613,9 @@ The report also carries `recommended_next`, `next_commands` and `open_commands`;
 these fields after `murmurmark repair local-recall` so terminal output and JSON handoff stay identical.
 `local_recall_repair_micro_runs.local_recall_repair_v1.jsonl` keeps per-source/per-window evidence:
 raw transcription text, selected rows, score, source label, window label and fallback metadata.
+The `execution.mode` field is `cached`, `default`, `cpu_fallback`,
+`cpu_after_previous_gpu_crash` or `cpu_fallback_failed`. A Metal initialization crash is retried
+once with `--no-gpu`; unrelated whisper-cli failures remain failures.
 Operational readiness exposes applied repair turns as review queue rows with:
 
 ```json
@@ -607,6 +630,9 @@ Operational readiness exposes applied repair turns as review queue rows with:
 
 Unlike raw `source: "local_recall"` rows, these rows target real inserted `Me` utterances, so
 `drop_me` is valid and removes the repair turn from the reviewed output profile.
+Raw local-recall rows have no transcript utterance to change. Therefore `keep_me`, `drop_me` and
+`drop_remote` are invalid for them even when an audio judge confirms local speech; the evidence must
+first be materialized by `local_recall_repair_v1`.
 
 The transcript order audit explains remaining chronology risk from long `Me` utterances crossing
 remote turns. It is audit-only and writes under:

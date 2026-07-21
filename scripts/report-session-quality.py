@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.5.2"
+SCRIPT_VERSION = "0.5.3"
 SCHEMA = "murmurmark.session_quality_report/v1"
 READINESS_SCHEMA = "murmurmark.session_readiness/v1"
 CLEANUP_PROFILES = {
@@ -1602,6 +1602,137 @@ def local_recall_metrics(local_recall: dict[str, Any] | None, review_report: dic
     }
 
 
+def profile_inherits_local_recall_repair(session: Path, profile: str, seen: set[str] | None = None) -> bool:
+    if profile == "local_recall_repair_v1":
+        return True
+    seen = set(seen or ())
+    if not profile or profile in seen:
+        return False
+    seen.add(profile)
+    if profile not in {"reviewed_v1", "agent_reviewed_v1"}:
+        return False
+    report = read_json(
+        session
+        / "derived/transcript-simple/whisper-cpp/review-decisions"
+        / f"review_decisions_report{suffix(profile)}.json"
+    )
+    input_profile = str(report.get("input_profile") or "") if isinstance(report, dict) else ""
+    return profile_inherits_local_recall_repair(session, input_profile, seen)
+
+
+def reconcile_materialized_local_recall(
+    metrics: dict[str, Any],
+    session: Path,
+    profile: str,
+    repair_report: dict[str, Any] | None,
+    review_report: dict[str, Any] | None,
+) -> dict[str, Any]:
+    result = dict(metrics)
+    report_summary = repair_report.get("summary") if isinstance(repair_report, dict) else {}
+    report_gates = repair_report.get("gates") if isinstance(repair_report, dict) else {}
+    active = bool(
+        isinstance(report_gates, dict)
+        and report_gates.get("passed") is True
+        and (safe_int(report_summary.get("applied_repairs")) or 0) > 0
+        and profile_inherits_local_recall_repair(session, profile)
+    )
+    result.update(
+        {
+            "local_recall_repair_active": active,
+            "local_recall_repair_applied_repairs": 0,
+            "local_recall_repair_inserted_me_seconds": 0.0,
+            "local_recall_repair_open_items": 0,
+            "local_recall_repair_open_seconds": 0.0,
+            "local_recall_repair_closed_items": 0,
+            "local_recall_repair_closed_seconds": 0.0,
+        }
+    )
+    if not active:
+        return result
+
+    root = session / "derived/transcript-simple/whisper-cpp"
+    patches = [
+        row
+        for row in read_jsonl(root / "local-recall-repair/local_recall_repair_patches.local_recall_repair_v1.jsonl")
+        if str(row.get("status") or "") == "applied" and isinstance(row.get("utterance"), dict)
+    ]
+    dialogue = read_json(root / "resolved" / f"clean_dialogue{suffix(profile)}.json") or {}
+    selected_rows = {
+        str(row.get("id") or ""): row
+        for row in dialogue.get("utterances") or []
+        if isinstance(row, dict)
+    }
+    audit_rows = {
+        str(row.get("item_id") or ""): row
+        for row in read_jsonl(session / "derived/audit/local-recall/local_recall_items.jsonl")
+        if row.get("item_id")
+    }
+
+    possible_count = safe_int(result.get("local_recall_possible_lost_me_count")) or 0
+    possible_seconds = safe_float(result.get("local_recall_possible_lost_me_seconds")) or 0.0
+    review_count = safe_int(result.get("local_recall_needs_review_count")) or 0
+    review_seconds = safe_float(result.get("local_recall_needs_review_seconds")) or 0.0
+    inserted_seconds = 0.0
+    open_items = 0
+    open_seconds = 0.0
+    closed_items = 0
+    closed_seconds = 0.0
+
+    for patch in patches:
+        source_id = str(patch.get("source_item_id") or "")
+        utterance = patch.get("utterance") if isinstance(patch.get("utterance"), dict) else {}
+        utterance_id = str(utterance.get("id") or "")
+        duration = max(0.0, (safe_float(utterance.get("end")) or 0.0) - (safe_float(utterance.get("start")) or 0.0))
+        inserted_seconds += duration
+
+        source = audit_rows.get(source_id, {})
+        source_duration = safe_float(source.get("duration_sec")) or duration
+        source_label = str(source.get("label") or "")
+        if source_label == "possible_lost_me":
+            possible_count = max(0, possible_count - 1)
+            possible_seconds = max(0.0, possible_seconds - source_duration)
+        elif source_label == "needs_review":
+            review_count = max(0, review_count - 1)
+            review_seconds = max(0.0, review_seconds - source_duration)
+
+        selected = selected_rows.get(utterance_id)
+        quality = selected.get("quality") if isinstance(selected, dict) and isinstance(selected.get("quality"), dict) else {}
+        if isinstance(selected, dict) and quality.get("needs_review") is True:
+            open_items += 1
+            open_seconds += duration
+            review_count += 1
+            review_seconds += duration
+        else:
+            closed_items += 1
+            closed_seconds += duration
+
+    meaningful_seconds = possible_seconds + review_seconds
+    result.update(
+        {
+            "local_recall_possible_lost_me_count": possible_count,
+            "local_recall_possible_lost_me_seconds": round(possible_seconds, 3),
+            "local_recall_needs_review_count": review_count,
+            "local_recall_needs_review_seconds": round(review_seconds, 3),
+            "local_recall_meaningful_review_seconds": round(meaningful_seconds, 3),
+            "local_recall_blocking_low_local_recall": meaningful_seconds > 0.0,
+            "local_recall_recommended_next_step": (
+                "review_materialized_local_recall_repairs"
+                if open_items > 0
+                else "review_local_recall_items"
+                if meaningful_seconds > 0.0
+                else "local_recall_repair_reviewed_clear"
+            ),
+            "local_recall_repair_applied_repairs": len(patches),
+            "local_recall_repair_inserted_me_seconds": round(inserted_seconds, 3),
+            "local_recall_repair_open_items": open_items,
+            "local_recall_repair_open_seconds": round(open_seconds, 3),
+            "local_recall_repair_closed_items": closed_items,
+            "local_recall_repair_closed_seconds": round(closed_seconds, 3),
+        }
+    )
+    return result
+
+
 def transcript_order_metrics(
     order_audit: dict[str, Any] | None,
     review_report: dict[str, Any] | None = None,
@@ -2186,20 +2317,20 @@ def collect_session(
     row.update(cleanup_metrics(quality, cleanup_report))
     row.update(review_decision_metrics(review_report))
     row.update(suggested_closure_metrics(workspace_apply_report, read_review_progress_summary(session)))
-    if profile == "local_recall_repair_v1" and isinstance(local_recall_repair_report, dict):
-        summary = local_recall_repair_report.get("summary")
-        row["local_recall_repair_applied_repairs"] = safe_int(
-            summary.get("applied_repairs") if isinstance(summary, dict) else None
-        )
-        row["local_recall_repair_inserted_me_seconds"] = round_or_none(
-            summary.get("inserted_me_seconds") if isinstance(summary, dict) else None
-        )
     row.update(synthesis_review_metrics(verdict))
     row.update(notes_needs_review_metrics(session, profile, evidence))
     row.update(audio_review_metrics(audio_summary, session, profile, evidence))
     row.update(remote_leak_segment_plan_metrics(remote_leak_plan))
     row.update(remote_forbidden_metrics(remote_forbidden))
-    row.update(local_recall_metrics(local_recall, review_report))
+    row.update(
+        reconcile_materialized_local_recall(
+            local_recall_metrics(local_recall, review_report),
+            session,
+            profile,
+            local_recall_repair_report,
+            review_report,
+        )
+    )
     row.update(transcript_order_metrics(order_audit, review_report, order_repair_report))
     if isinstance(boundary_report, dict) and (boundary_report.get("gates") or {}).get("passed") is True:
         boundary_summary = boundary_report.get("summary") if isinstance(boundary_report.get("summary"), dict) else {}
@@ -2419,6 +2550,13 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "local_recall_missing_island_count",
         "local_recall_possible_lost_me_seconds",
         "local_recall_needs_review_seconds",
+        "local_recall_repair_active",
+        "local_recall_repair_applied_repairs",
+        "local_recall_repair_inserted_me_seconds",
+        "local_recall_repair_open_items",
+        "local_recall_repair_open_seconds",
+        "local_recall_repair_closed_items",
+        "local_recall_repair_closed_seconds",
         "transcript_order_recommended_next_step",
         "transcript_order_probable_order_risk_count",
         "transcript_order_probable_order_risk_seconds",
@@ -2717,6 +2855,8 @@ def non_actionable_review_blockers(row: dict[str, Any]) -> list[dict[str, Any]]:
     if gate != "review_first" and not review_blockers:
         return []
     if row.get("pipeline_status") != "complete":
+        return []
+    if (safe_int(row.get("local_recall_repair_open_items")) or 0) > 0:
         return []
     scope_complete = row.get("review_scope_complete") is True
     remaining = safe_float(row.get("review_scope_remaining_seconds")) or 0.0
@@ -3145,6 +3285,13 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
             "local_recall_possible_lost_me_seconds": row.get("local_recall_possible_lost_me_seconds"),
             "local_recall_needs_review_seconds": row.get("local_recall_needs_review_seconds"),
             "local_recall_recommended_next_step": row.get("local_recall_recommended_next_step"),
+            "local_recall_repair_active": row.get("local_recall_repair_active"),
+            "local_recall_repair_applied_repairs": row.get("local_recall_repair_applied_repairs"),
+            "local_recall_repair_inserted_me_seconds": row.get("local_recall_repair_inserted_me_seconds"),
+            "local_recall_repair_open_items": row.get("local_recall_repair_open_items"),
+            "local_recall_repair_open_seconds": row.get("local_recall_repair_open_seconds"),
+            "local_recall_repair_closed_items": row.get("local_recall_repair_closed_items"),
+            "local_recall_repair_closed_seconds": row.get("local_recall_repair_closed_seconds"),
         },
         "outputs": outputs,
     }
