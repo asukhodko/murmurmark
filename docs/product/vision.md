@@ -37,9 +37,10 @@ about speaker identity.
 
 Development converges from evidence, not from adding output profiles. Each quality step freezes its
 input, changes one bounded error class, and either passes corpus-wide promotion gates or records a
-reproducible evidence limit. Failed promotion never weakens the selected transcript. The near-term
-order is: recover proven missing local speech, repair chronology under a separate contract,
-rebaseline the user-facing outcome, then reduce new remote leakage at the audio layer.
+reproducible evidence limit. Failed promotion never weakens the selected transcript. Proven missing
+local speech now has a bounded completion profile and an executable text-review lane. The next
+quality step separates remote-supported spans inside mixed `Me` utterances before another audio-layer
+suppression candidate is considered for promotion.
 
 Remote-speaker diarization is an independent research branch after base transcript quality closure.
 It starts with anonymous speaker intervals, then an evidence-backed speaker map and

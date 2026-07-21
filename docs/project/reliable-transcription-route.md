@@ -143,10 +143,13 @@ received stable outcomes, and `9` rows / `26.953s` closed as already covered, pa
 remote-supported. It inserted no speech, preserved all verdicts and note evidence, and left four
 ambiguous rows explicit.
 
-The selected profile is now `residual_local_recall_v1`. The recommended bounded step is Residual
-Chronology Closure v1 for the separately frozen `14` order rows / `62.690s`. It may only apply
-lossless split, retime or reorder operations while keeping all words, roles, audio-review
-dispositions and local-recall outcomes unchanged.
+Residual Chronology Closure and Speaker-Mode Hardening have since established the remaining
+evidence ceiling. Evidence-Backed Me Completion v2 is promoted for its frozen two-session scope:
+it safely closes `3/6` local-recall rows / `22.4/35.85s`, repairs one duplicate text tail and turns
+all unresolved `Me` text into concrete review lanes. `residual_local_recall_v1` remains fallback
+outside that scope. The recommended bounded step is now Mixed-Utterance Remote Span Separation v1,
+which may remove only independently proven remote-supported spans while preserving unique local
+prefixes and tails.
 
 This step does not change capture, Echo Guard, the primary ASR, live promotion or raw audio. The
 failed live-recovery profile remains diagnostic evidence rather than another user-facing branch.

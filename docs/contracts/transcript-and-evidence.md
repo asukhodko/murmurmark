@@ -1021,6 +1021,99 @@ Auto-selection accepts this profile only for promoted sessions whose baseline SH
 source hashes and output fingerprint match the corpus decision. Any stale artifact fails open to
 `residual_me_evidence_v1`.
 
+### Evidence-Backed Me Completion v2
+
+`scripts/local-speech-completion-v2.py` is a frozen-corpus completion layer over an existing selected
+profile. It handles two bounded classes: unresolved local-recall intervals and short damaged `Me`
+text fragments. It does not change capture, Echo Guard, the primary ASR or any input profile.
+
+Corpus artifacts are:
+
+```text
+sessions/_reports/local-speech-completion-v2/
+  baseline_manifest.json
+  completion_queue.jsonl
+  evidence_corpus_report.json
+  local_speech_completion_corpus_report.json
+  local_speech_completion_corpus_report.md
+  local_speech_completion_decision.json
+```
+
+The corresponding schemas are `murmurmark.local_speech_completion_baseline/v2`,
+`murmurmark.local_speech_completion_queue_item/v2`,
+`murmurmark.local_speech_completion_evidence_corpus/v2`,
+`murmurmark.local_speech_completion_corpus_report/v2` and
+`murmurmark.local_speech_completion_decision/v2`. The baseline freezes the selected input profile,
+raw CAF hashes, working audio, speaker state, source audits and the exact queue fingerprint.
+
+Per-session evidence and profile artifacts are:
+
+```text
+derived/audit/local-speech-completion-v2/
+  local_speech_completion_evidence.jsonl
+  local_speech_completion_evidence_summary.json
+  clips/
+  target-me/
+
+derived/transcript-simple/whisper-cpp/local-speech-completion-v2/
+  local_speech_completion_dispositions.jsonl
+  local_speech_completion_applied.jsonl
+  local_speech_completion_review_queue.jsonl
+  local_speech_completion_profile_report.json
+
+derived/transcript-simple/whisper-cpp/resolved/
+  clean_dialogue.local_speech_completion_v2.json
+  transcript.local_speech_completion_v2.md
+  transcript.simple.local_speech_completion_v2.json
+  quality_report.local_speech_completion_v2.json
+  overlaps.local_speech_completion_v2.json
+```
+
+Evidence rows use `murmurmark.local_speech_completion_evidence/v2`. Every row records clip hashes,
+exact and speaker-bounded intervals, speaker-state ratios, calibrated Target-Me evidence, local
+faster-whisper `large-v3` word timestamps, independent raw-plus-processed mic consensus,
+remote-text similarity, the disposition and an evidence fingerprint. Local-recall outcomes are
+`materialized`, `rejected_remote`, `rejected_conflict` or `needs_review`; text outcomes are
+`text_repaired` or `needs_review`.
+
+Insertion requires all of the following:
+
+- agreement between `mic_raw` and an independently processed mic source;
+- calibrated Target-Me confirmation and sufficient local-only/double-talk state support;
+- valid word timestamps bounded to confirmed local-only intervals;
+- low similarity to authoritative remote text and no known hallucination;
+- no overlap with existing `Me` text after boundary deduplication.
+
+Already present local text closes without changing the transcript. A damaged text fragment may be
+replaced or dropped only when the same independent evidence proves a better text and, for a drop,
+shows that the text already exists in an adjacent `Me` utterance. Missing models, weak enrollment,
+conflicting judges or changed frozen inputs fail open to `needs_review`.
+
+Unresolved rows use `murmurmark.local_speech_completion_review_item/v2`. Audit-only local-recall
+rows allow only `needs_review` or `skip` until a real utterance is materialized. Existing `Me` text
+rows use lane `check_transcript_text` and allow `keep_me`, `needs_review` or `skip`. The operational
+report also creates this lane for every selected `Me` utterance whose `quality.needs_review` remains
+true, preventing an export blocker with no executable queue.
+
+`PROMOTE_LOCAL_SPEECH_COMPLETION_V2` requires at least 50% safe closure by both local-recall rows
+and seconds, exact frozen inputs, unchanged remote utterances, valid output fingerprints, no
+chronology/remote-like/verdict/notes-evidence regression and deterministic reruns. Auto-selection
+also requires corpus membership, matching baseline SHA-256 and a matching per-session output
+fingerprint. The current frozen result closes `3/6` rows and `22.4/35.85s`, repairs one text
+fragment and leaves three rows / `13.45s` in review.
+
+Reproduce the bounded experiment locally:
+
+```bash
+.venv/bin/python scripts/local-speech-completion-v2.py freeze \
+  sessions/2026-07-21_14-27-53-live \
+  sessions/2026-07-21_15-11-15-live
+
+HF_HUB_OFFLINE=1 .venv/bin/python scripts/local-speech-completion-v2.py evidence
+.venv/bin/python scripts/local-speech-completion-v2.py evaluate --apply --synthesize
+.venv/bin/python scripts/check-local-speech-completion-corpus.py
+```
+
 `murmurmark corpus order` aggregates per-session order audits into:
 
 ```text

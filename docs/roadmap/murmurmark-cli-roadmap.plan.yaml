@@ -74,7 +74,8 @@ nodes:
     effort: 9
     notes: |
       Resumable whisper.cpp processing, timeline repair, fast authoritative handoff и isolated
-      profiles. `residual_local_recall_v1` остаётся selected profile после corpus-wide promotion.
+      profiles. `local_speech_completion_v2` выбран для frozen promotion scope;
+      `residual_local_recall_v1` остаётся fallback для остальных сессий.
 
   capability-review-evidence:
     title: "Audit, evidence и review loop"
@@ -169,11 +170,25 @@ nodes:
       11 -> 13. Из 73 risk rows доказаны 3 retime, 1 double-talk и 1 genuine Me, но safe whole-Me
       drops отсутствуют. Duplicate reduction 2.7%, review reduction 7.9%; профиль не выбран.
 
+  quality-evidence-backed-me-completion-v2:
+    title: "Evidence-Backed Me Completion v2"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-speaker-mode-hardening-v1, corpus-regression]
+    status: done
+    effort: 8
+    notes: |
+      Завершено с PROMOTE_LOCAL_SPEECH_COMPLETION_V2 для frozen two-session scope. Все 6 residual
+      local-recall rows / 35.85s получили stable outcomes; 3 rows / 22.4s закрыты безопасно, два
+      bounded local fragments материализованы, один уже присутствовал. Повреждённый duplicate text
+      tail удалён; 3 ambiguous rows / 13.45s и все unresolved Me text flags имеют executable review
+      lanes. Raw/input/remote/chronology/notes/verdict не регрессировали, повторный run byte-stable.
+
   quality-mixed-utterance-separation-v1:
     title: "Mixed-Utterance Remote Span Separation v1"
     kind: task
     parent: murmurmark-cli
-    deps: [quality-speaker-mode-hardening-v1, corpus-regression]
+    deps: [quality-evidence-backed-me-completion-v2, corpus-regression]
     status: current
     effort: 9
     notes: |
@@ -340,6 +355,7 @@ views:
           - quality-residual-chronology-closure-v1
           - quality-operational-rebaseline-v1
           - quality-speaker-mode-hardening-v1
+          - quality-evidence-backed-me-completion-v2
           - quality-mixed-utterance-separation-v1
           - quality-echo-suppression-promotion
           - product-evidence-export-v2
@@ -382,6 +398,7 @@ views:
           - quality-residual-chronology-closure-v1
           - quality-operational-rebaseline-v1
           - quality-speaker-mode-hardening-v1
+          - quality-evidence-backed-me-completion-v2
           - quality-mixed-utterance-separation-v1
           - quality-echo-suppression-promotion
           - product-evidence-export-v2
@@ -419,13 +436,14 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Speaker-Mode Hardening завершён DO_NOT_PROMOTE: whole-Me deletion слишком груб для mixed utterances."
+          sync_note: "Me Completion v2 закрыла доказуемый local-recall долг; оставшийся класс требует span-level отделения remote внутри mixed utterances."
           next_sync_goal: "Отделить remote span без потери unique/protected local prefix и tail."
       dependent-path:
         title: "Зависимый путь"
         scope_nodes:
           - quality-operational-rebaseline-v1
           - quality-speaker-mode-hardening-v1
+          - quality-evidence-backed-me-completion-v2
           - quality-echo-suppression-promotion
           - product-evidence-export-v2
           - product-release-quality-cli

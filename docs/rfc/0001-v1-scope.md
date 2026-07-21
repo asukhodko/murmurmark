@@ -2,7 +2,7 @@
 
 Status: implemented
 Date: 2026-06-22
-Last updated: 2026-07-19
+Last updated: 2026-07-22
 
 ## Summary
 
@@ -16,13 +16,15 @@ v1 proves:
 - evidence-backed synthesis;
 - privacy and retention controls.
 
-Current implementation status, 2026-07-19:
+Current implementation status, 2026-07-22:
 
 - capture, session packaging, Echo Guard preprocessing, resumable local `whisper.cpp` transcription,
   quality verdict, evidence-backed extractive notes, guarded export and retention are implemented;
-- `residual_me_evidence_v1` is the promoted authoritative transcript profile; residual audio
-  arbitration is completed with `DO_NOT_PROMOTE`, and the current bounded goal is insertion-only
-  local-recall closure;
+- `local_speech_completion_v2` is promoted for its frozen two-session scope; it safely materializes
+  independently confirmed local speech and exposes every unresolved local/text defect through an
+  executable review lane. `residual_local_recall_v1` remains the fallback outside that scope;
+- residual audio and Speaker-Mode arbitration completed with `DO_NOT_PROMOTE`; the current bounded
+  goal is span-level separation of remote-supported text inside mixed `Me` utterances;
 - committed-PCM live preview exists as an advisory shadow, while batch remains authoritative;
 - heavy-local validators, individual remote diarization, rich transcript, evidence-guarded LLM
   synthesis and UI remain future or optional work.

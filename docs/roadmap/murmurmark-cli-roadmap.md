@@ -1,6 +1,6 @@
 # MurmurMark CLI Roadmap
 
-Updated: 2026-07-20
+Updated: 2026-07-22
 
 This is the readable view of the active OpsKarta v3 plan:
 
@@ -56,19 +56,33 @@ speech. The current goal permits only evidence-backed span separation with local
 Speaker-Mode Transcript Quality Hardening v1 completed with `DO_NOT_PROMOTE`. The frozen corpus
 proved three lossless retimes, one real double-talk interval and one genuine `Me` row, but no whole
 `Me` deletion. Duplicate reduction was `2.7%` and review reduction `7.9%`, below the `25%` and `15%`
-promotion gates. The selected profile therefore remains `residual_local_recall_v1`.
+promotion gates.
+
+The immediate Evidence-Backed Me Completion v2 predecessor is now complete and promoted for its
+frozen two-session scope. It closed `3/6` residual local-recall rows and `22.4/35.85s`, repaired one
+duplicate text tail, preserved raw/remote/chronology/notes evidence, and exposed the remaining
+`13.45s` plus unresolved transcript text through concrete review lanes. Outside that frozen scope,
+`residual_local_recall_v1` remains the fallback.
 
 ## Critical Path
 
 ```mermaid
 flowchart LR
+    P["Done<br/>Me Completion v2"]
     A["Current<br/>Mixed-Utterance Separation"]
     B["Echo Suppression Promotion"]
     C["Evidence Notes And Export v2"]
     D["Release-quality CLI"]
 
-    A --> B --> C --> D
+    P --> A --> B --> C --> D
 ```
+
+### 0. Evidence-Backed Me Completion v2
+
+Completed with a scoped `PROMOTE`. Independent mic ASR, word timestamps, speaker state, calibrated
+Target-Me and remote-forbidden evidence may materialize bounded local speech. Weak or conflicting
+evidence stays unchanged and reviewable. Auto-selection requires exact frozen-input and output
+fingerprints plus corpus membership.
 
 ### 1. Mixed-Utterance Remote Span Separation
 

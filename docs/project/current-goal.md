@@ -2,7 +2,7 @@
 
 Status: current
 
-Updated: 2026-07-20
+Updated: 2026-07-22
 
 The stable product path remains `record -> process --full -> next -> finish`. Batch output is
 authoritative. Live output stays advisory and shadow-only.
@@ -23,7 +23,27 @@ dropping it loses genuine `Me` speech.
 Objective: isolate only the remote-supported span and publish the remaining local islands when
 word-level audio evidence proves the split. Ambiguous mixtures remain unchanged and explicit.
 
-## Completed Predecessor
+## Completed Immediate Predecessor
+
+Evidence-Backed Me Completion v2 completed with `PROMOTE_LOCAL_SPEECH_COMPLETION_V2` for its frozen
+two-session scope:
+
+- all six residual local-recall rows / `35.85s` received deterministic outcomes and provenance;
+- three rows / `22.4s` closed safely: two bounded local fragments were inserted from independent
+  raw-plus-processed mic ASR, calibrated Target-Me and remote-forbidden evidence, while one row was
+  already present in the selected transcript;
+- the damaged `дает сп` tail was identified as a duplicate of adjacent `не ожидают` and removed;
+- three ambiguous rows / `13.45s` remain fail-open in `check_local_recall`;
+- every selected `Me` utterance still marked `needs_review` is exposed through the executable
+  `check_transcript_text` lane, so a transcript blocker cannot hide behind an empty queue;
+- repeated evidence and apply runs produced identical SHA-256 fingerprints; raw CAF, frozen input
+  profiles, remote utterances, chronology, notes evidence and verdicts did not regress.
+
+The profile is automatically selected only for sessions named by the passing corpus decision.
+`residual_local_recall_v1` remains the fallback elsewhere. This completion removes a known local
+speech debt but does not solve remote spans embedded inside mixed `Me` utterances.
+
+## Earlier Evidence Ceiling
 
 Speaker-Mode Transcript Quality Hardening v1 completed with a reproducible `DO_NOT_PROMOTE`:
 
@@ -40,8 +60,8 @@ Speaker-Mode Transcript Quality Hardening v1 completed with a reproducible `DO_N
   `25%` and `15%` gates;
 - raw capture, remote text, local recall and paired chronology metrics did not regress.
 
-The shadow profile `speaker_mode_hardening_v1` is therefore not selected. The promoted fallback
-remains `residual_local_recall_v1`.
+The shadow profile `speaker_mode_hardening_v1` is therefore not selected. Its mixed-utterance
+evidence remains the input hypothesis for this goal.
 
 ## Safety Contract
 

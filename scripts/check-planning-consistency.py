@@ -186,6 +186,7 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
         "quality-residual-chronology-closure-v1",
         "quality-operational-rebaseline-v1",
         "quality-speaker-mode-hardening-v1",
+        "quality-evidence-backed-me-completion-v2",
     ):
         require(nodes[predecessor].get("status") == "done", f"current quality goal requires done predecessor {predecessor}")
     for previous, current in zip(CRITICAL_PATH, CRITICAL_PATH[1:]):

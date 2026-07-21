@@ -28,12 +28,13 @@ Working now:
 - live-ASR cache bridge exists as a diagnostic/future acceleration layer; incompatible or unsafe
   chunks fall back to batch ASR.
 
-Current operating point, 2026-07-20:
+Current operating point, 2026-07-22:
 
 - stable batch capture and processing produce a transcript, verdict, evidence notes, review plan,
   guarded export and retention plan;
-- `residual_local_recall_v1` is the selected authoritative profile after passing corpus, verdict
-  and notes-evidence gates;
+- `local_speech_completion_v2` is selected for its frozen two-session scope after passing corpus,
+  frozen-input, verdict and notes-evidence gates; `residual_local_recall_v1` remains fallback for
+  sessions outside that promotion scope;
 - Residual Audio Evidence Arbitration v1 classified all `66` audio-review rows / `196.920s` and
   completed with reproducible `DO_NOT_PROMOTE`; only `1` row / `0.640s` closed safely;
 - Residual Local Recall Closure v1 classified all `13` rows / `48.073s` and safely closed `9` rows /
@@ -41,6 +42,9 @@ Current operating point, 2026-07-20:
 - Speaker-Mode Transcript Quality Hardening v1 froze `18` acoustic and `22` profile sessions,
   proved three lossless retimes, one real double-talk row and one genuine `Me` row, then completed
   with `DO_NOT_PROMOTE` because duplicate/review reduction reached only `2.7%` / `7.9%`;
+- Evidence-Backed Me Completion v2 classified six residual local-recall rows / `35.85s`, safely
+  closed three / `22.4s`, repaired one damaged duplicate text fragment and left three / `13.45s`
+  in explicit local-recall review;
 - the current goal is Mixed-Utterance Remote Span Separation v1: remove only a proven remote span
   while retaining unique or protected local prefixes and tails;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does

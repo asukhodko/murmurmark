@@ -827,6 +827,43 @@ rows remain explicit because local evidence is weak or mixed. `auto`, status, re
 export select `residual_local_recall_v1` only while corpus, session, source-hash, fingerprint,
 verdict and note-evidence gates all pass.
 
+### Evidence-backed Me completion v2
+
+The bounded completion layer for the two 2026-07-21 control sessions is reproducible without
+changing raw CAF or the frozen input profiles:
+
+```bash
+.venv/bin/python scripts/local-speech-completion-v2.py freeze \
+  sessions/2026-07-21_14-27-53-live \
+  sessions/2026-07-21_15-11-15-live
+
+HF_HUB_OFFLINE=1 .venv/bin/python scripts/local-speech-completion-v2.py evidence
+.venv/bin/python scripts/local-speech-completion-v2.py evaluate --apply --synthesize
+
+jq '{decision, summary, gates, evidence_ceiling}' \
+  sessions/_reports/local-speech-completion-v2/local_speech_completion_corpus_report.json
+.venv/bin/python scripts/check-local-speech-completion-corpus.py
+```
+
+Use `freeze --force` only when intentionally replacing the immutable scope. Evidence requires local
+faster-whisper `large-v3`, word timestamps and the Target-Me embedding backend. Missing local models
+produce deterministic `needs_review` rows and `DO_NOT_PROMOTE`; they do not damage the input
+transcript.
+
+The current decision is `PROMOTE_LOCAL_SPEECH_COMPLETION_V2`: `3/6` local-recall rows and
+`22.4/35.85s` close safely, one damaged duplicate text tail is repaired, and three rows / `13.45s`
+remain in `check_local_recall`. The operational report additionally creates
+`check_transcript_text` for selected `Me` utterances whose text still carries `needs_review`:
+
+```bash
+murmurmark review lane check_transcript_text \
+  --session sessions/2026-07-21_14-27-53-live
+```
+
+Auto-selection is scoped: it requires a passing corpus decision, promoted-session membership,
+unchanged frozen artifacts, matching baseline SHA-256 and matching profile/corpus output
+fingerprints. Other sessions continue through their previous selected profile.
+
 ## Remote Leak Segment Plan
 
 Remote leak and partial remote duplicates need a different safety shape. A `remote_leak` region or
@@ -2100,7 +2137,7 @@ does not call an LLM, and does not read raw audio.
 Profile selection:
 
 ```text
-auto      -> promoted residual_local_recall_v1 when its corpus/session/hash gates pass; otherwise promoted residual_audio_arbitration_v1 when its gates pass; otherwise promoted residual_me_evidence_v1; otherwise promoted authoritative_boundary_v1; then audit_cleanup_v7 when it passed and applied material segment repair, reviewed_v1 when review gates pass, agent_reviewed_v1 when agent gates pass, audit_cleanup_v6/v5/v4/v3/v2/v1 with passing cleanup gates, a compatible passing order_repair_v1, passing shadow_v2, then current
+auto      -> promoted local_speech_completion_v2 for exact frozen members; otherwise promoted residual_local_recall_v1 when its corpus/session/hash gates pass; otherwise promoted residual_audio_arbitration_v1 when its gates pass; otherwise promoted residual_me_evidence_v1; otherwise promoted authoritative_boundary_v1; then audit_cleanup_v7 when it passed and applied material segment repair, reviewed_v1 when review gates pass, agent_reviewed_v1 when agent gates pass, audit_cleanup_v6/v5/v4/v3/v2/v1 with passing cleanup gates, a compatible passing order_repair_v1, passing shadow_v2, then current
 current   -> baseline clean_dialogue.json
 shadow_v2 -> shadow clean_dialogue.shadow_v2.json, marked risky if comparison failed
 audit_cleanup_v1..v7 -> audit-cleaned dialogue, marked risky if cleanup gates failed
@@ -2112,6 +2149,7 @@ authoritative_boundary_v1 -> frozen corpus boundary profile; eligible for auto o
 residual_me_evidence_v1 -> frozen residual evidence profile; eligible for auto only after global PROMOTE, per-session gates, promoted-session membership, frozen source hashes and output fingerprints all pass
 residual_audio_arbitration_v1 -> frozen audio-review arbitration candidate; eligible for auto only after global PROMOTE, per-session gates, promoted-session membership, frozen source hashes and output fingerprints all pass; current corpus decision is DO_NOT_PROMOTE
 residual_local_recall_v1 -> frozen local-recall closure profile; eligible for auto only after global PROMOTE, per-session and synthesis gates, promoted-session membership, frozen source hashes and output fingerprints all pass
+local_speech_completion_v2 -> frozen local/text completion profile; eligible for auto only after global PROMOTE, per-session gates, promoted-session membership, exact frozen artifact tree, baseline SHA and matching session/corpus output fingerprints all pass
 ```
 
 The script writes a quality verdict and a conservative `notes.md`. The v3 notes path is extractive

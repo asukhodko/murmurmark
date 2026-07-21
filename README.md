@@ -223,19 +223,23 @@ murmurmark open "$SESSION" --kind transcript --command-only
 ## Current Development Direction
 
 The stable batch CLI already supports durable capture, resumable processing, evidence-backed review,
-guarded export and retention planning. The promoted authoritative profile is
-`residual_local_recall_v1`. It classified all `13` local-recall rows / `48.073s` and safely closed
-`9` rows / `26.953s` without inventing or inserting speech. Four ambiguous rows remain explicit.
+guarded export and retention planning. `local_speech_completion_v2` is promoted for its frozen
+two-session scope. It classified six remaining local-recall rows / `35.85s`, safely closed three
+rows / `22.4s`, materialized two independently confirmed local fragments, recognized one fragment
+already present in the transcript, and removed the duplicate ASR tail `дает сп`. Three ambiguous
+intervals / `13.45s` remain explicit. `residual_local_recall_v1` remains the fallback outside this
+frozen promotion scope.
 
 Speaker-Mode Transcript Quality Hardening v1 completed with a reproducible `DO_NOT_PROMOTE`.
 Automatic acoustic classification matched `17/17` labeled sessions, the sparse-overrange limiter
 raised accepted Echo Guard candidates from `11` to `13`, and the latest long speaker session now
 passes the clean-audio gate. The isolated transcript profile safely proved three lossless retimes,
 one double-talk interval and one genuine `Me` row, but reached only `2.7%` duplicate reduction and
-`7.9%` review reduction. It therefore remains shadow-only; `residual_local_recall_v1` stays selected.
+`7.9%` review reduction. It therefore remains shadow-only.
 
-The current goal is **Mixed-Utterance Remote Span Separation v1**. It addresses utterances that
-combine a remote-supported span with a unique local prefix or tail. The dependent critical path is:
+The current goal is **Mixed-Utterance Remote Span Separation v1**. It addresses utterances
+that combine a remote-supported span with a unique local prefix or tail. The dependent critical
+path is:
 
 ```text
 Mixed-Utterance Remote Span Separation
@@ -258,6 +262,8 @@ and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
   `Me` candidate.
 - Echo Guard records `speaker_playback`, `headphones_or_low_leak` or `uncertain` in
   `local_fir_report.json`; no user acoustic-mode flag is required.
+- `local_speech_completion_v2` is selected only for sessions named by its passing frozen-corpus
+  decision; stale hashes, missing local models or failed gates fall back without changing text.
 - Batch transcript is authoritative; live output is not used for export or retention decisions.
 - No cloud ASR or cloud raw-audio upload is required by the normal workflow.
 - A future UI must reuse CLI contracts and is not required for a useful product.
