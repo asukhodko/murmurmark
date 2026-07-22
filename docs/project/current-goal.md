@@ -4,8 +4,9 @@ Status: current
 
 Updated: 2026-07-22
 
-The stable product path remains `record -> process -> next -> finish`. Batch output is authoritative.
-Deferred diagnostics run through `enrich`; `process --full` is an explicit blocking compatibility
+The stable product path is now `murmurmark meeting -> first Ctrl-C -> final result`. Batch
+output remains authoritative. The old `record -> process -> enrich/next -> finish` path stays
+available for diagnostics and recovery; `process --full` is an explicit blocking compatibility
 path. Live output stays advisory and shadow-only.
 
 Roadmap status and dependency truth live in
@@ -14,7 +15,9 @@ terms. `scripts/check-planning-consistency.py` keeps the two representations ali
 
 ## Mixed-Utterance Remote Span Separation v1
 
-OpsKarta nearest goal: Mixed-Utterance Remote Span Separation v1: доказательно отделить remote-span внутри смешанных Me-реплик, сохранив уникальные локальные префиксы, хвосты, роли и порядок слов.
+OpsKarta nearest goal: Mixed-Utterance Remote Span Separation v1: отделить доказанный remote span
+внутри смешанной Me-реплики, сохранив подтверждённую локальную речь и оставляя неоднозначность
+явной.
 
 Speaker-Mode Transcript Quality Hardening v1 established the next limiting class. Whole-utterance
 deletion is too coarse: many remaining `Me` candidates contain both remote-supported words and
@@ -23,6 +26,23 @@ dropping it loses genuine `Me` speech.
 
 Objective: isolate only the remote-supported span and publish the remaining local islands when
 word-level audio evidence proves the split. Ambiguous mixtures remain unchanged and explicit.
+
+## Completed Product Predecessor
+
+One-Command Meeting Lifecycle v1 is complete. `murmurmark meeting --target-bundle system` now owns
+durable capture, ordinary authoritative processing, bounded enrichment, safe suggested review and
+guarded export. The implementation is locked per session, journaled, idempotent and resumable; raw
+CAF SHA-256 identities are checked before and after processing.
+
+The final controlled soak used real ScreenCaptureKit and microphone permissions. An early `Ctrl-C`
+closed a 30-second mic/remote capture, produced a readable transcript from the test speech, ran the
+entire lifecycle without another command, exported the result and ended as `ready`. Strict
+acceptance reported healthy raw tracks and `meeting_lifecycle: ok`. The soak also exposed and fixed
+the bounded-recording signal race: `--duration` now races its timer with `Ctrl-C` instead of letting
+the default signal terminate the process before `session.json` is written. Separate real-artifact
+tests prove clean interruption and exact `meeting --resume` continuation during ASR.
+
+The lifecycle contract is defined in `docs/contracts/meeting-lifecycle.md`.
 
 ## Completed Immediate Predecessor
 

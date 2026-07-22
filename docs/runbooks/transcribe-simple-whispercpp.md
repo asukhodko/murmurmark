@@ -29,11 +29,23 @@ Install the local CLI wrapper once:
 ```bash
 scripts/install-local.sh
 export PATH="$HOME/.local/bin:$PATH"
-murmurmark doctor
 murmurmark config init
+murmurmark doctor --strict
 ```
 
-Start from a completed session and publish the first authoritative result:
+For a new meeting, let the high-level lifecycle own capture and processing:
+
+```bash
+murmurmark meeting --target-bundle system
+```
+
+The first `Ctrl-C` finalizes recording and starts plain authoritative `process`. The bounded
+supervisor then runs safe enrichment, one conservative suggested-review pass and guarded `finish`
+from structured readiness/outcome state. A processing interrupt resumes with the exact printed
+`murmurmark meeting --resume SESSION` command.
+
+For a previously recorded session or stage-level diagnostics, publish the authoritative result
+with the low-level commands:
 
 ```bash
 SESSION=./sessions/<session>
@@ -46,15 +58,17 @@ less "$SESSION/derived/readiness/session_readiness.md"
 murmurmark retention plan "$SESSION"
 ```
 
-The normal command stops after the authoritative transcript, verdict and next action are ready.
+The low-level `process` command stops after the authoritative transcript, verdict and next action
+are ready.
 Run optional heavier diagnostics separately when needed:
 
 ```bash
 murmurmark enrich "$SESSION"
 ```
 
-To retain the old one-command behavior, use `murmurmark process "$SESSION" --full`. Either phase
-can be interrupted with `Ctrl-C` and resumed with the same command.
+The compatibility command `murmurmark process "$SESSION" --full` runs authoritative and deferred
+phases in one blocking process. It is not used by `meeting`. Either low-level phase can be
+interrupted with `Ctrl-C` and resumed with the same command.
 
 To inspect the measured handoff gate across explicit sessions:
 
@@ -142,22 +156,9 @@ processed fixture and then walks `process --plan-only`, review workspace/lane ap
 `report`, `next`/`open`, `export` and `retention` through CLI commands only. The direct
 `scripts/smoke-cli-handoff.sh` entry point remains available when debugging the fixture itself.
 
-For the usual record-then-process flow:
-
-```bash
-SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)"
-murmurmark record --out "$SESSION" --target-bundle system
-murmurmark process "$SESSION"
-murmurmark status "$SESSION"
-murmurmark notes "$SESSION" --kind verdict
-murmurmark notes "$SESSION"
-murmurmark transcript "$SESSION"
-murmurmark finish "$SESSION"
-```
-
-If `murmurmark next "$SESSION"` requests more local evidence, run `murmurmark enrich "$SESSION"`
-and then repeat `next`. Use `process --full` only for an intentional blocking handoff plus all
-deferred diagnostics.
+Use the individual `record`, `process`, `enrich`, `next` and `finish` commands when debugging a
+stage or recovering an older session. Use `process --full` only for an intentional blocking handoff
+plus all deferred diagnostics. See `docs/contracts/meeting-lifecycle.md`.
 
 For the main speaker-playback scenario, no headphones or acoustic-mode flag is required. Echo Guard
 classifies measured remote-to-mic coupling automatically. Inspect the evidence with:

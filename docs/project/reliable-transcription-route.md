@@ -4,15 +4,17 @@ Status: active product route; stable batch capture/processing, live transport ev
 reconciliation, causal local-island, remote-active and double-talk recovery, bounded recording-time
 runtime and fast authoritative handoff complete; boundary and residual Me evidence profiles are
 promoted; residual audio arbitration is complete with `DO_NOT_PROMOTE`; residual local recall is
-promoted; speaker-mode hardening and chronology evidence are complete with `DO_NOT_PROMOTE`; mixed
-utterance remote-span separation is the current bounded goal
-Date: 2026-07-20
+promoted; speaker-mode hardening and chronology evidence are complete with `DO_NOT_PROMOTE`;
+one-command meeting orchestration is complete and mixed-utterance remote-span separation is the
+current bounded quality goal
+Date: 2026-07-22
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
 corpus-calibrated gates and explicit review burden before broader repair. Outcome Contract v1,
 Reliable Processing UX v1, resumable ASR and durable committed-PCM Live Evidence are implemented.
-The stable production path is intentionally boring: a normal recording produces a usable two-track
-session or fails explicitly before ASR. Order/role reconciliation classified all `23` auditable
+The stable production path is intentionally boring: `murmurmark meeting` produces a usable
+two-track session and final result, or fails explicitly before publication. Order/role
+reconciliation classified all `23` auditable
 rows and reduced the `15` previous effective blockers to `0` without changing turns. Local-recall
 hardening then classified all `118` bounded rows and materialized the causal remote-energy shadow
 profile. It reduces aggregate missing `Me` from `2844.88s` to `2166.56s` without increasing
@@ -83,11 +85,7 @@ The user should not have to watch ASR progress or understand which repair profil
 able to run:
 
 ```bash
-SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)"
-murmurmark record --out "$SESSION" --target-bundle system
-murmurmark process "$SESSION"
-murmurmark status "$SESSION"
-murmurmark finish "$SESSION"
+murmurmark meeting --target-bundle system
 ```
 
 The pipeline can still take time. The reliability requirement is that it is resumable, observable and

@@ -32,9 +32,11 @@ The automated gate must pass these checks:
 1. `scripts/install-local.sh` installs a working `murmurmark` wrapper into a temporary prefix.
 2. `murmurmark doctor --strict` succeeds through the installed wrapper.
 3. `murmurmark self-test` succeeds through the installed wrapper.
-4. `murmurmark config init --config <temp>` creates a local config without writing to the repository.
-5. `scripts/check-open-source-readiness.sh` succeeds.
-6. `scripts/build-release-bundle.sh --verify` succeeds unless the gate is intentionally run with `--skip-release`.
+4. `scripts/check-meeting-lifecycle.py` proves bounded states, signals, resume, lock, fail-open,
+   raw preservation and cache reuse.
+5. `murmurmark config init --config <temp>` creates a local config without writing to the repository.
+6. `scripts/check-open-source-readiness.sh` succeeds.
+7. `scripts/build-release-bundle.sh --verify` succeeds unless the gate is intentionally run with `--skip-release`.
 
 When `murmurmark acceptance` runs from a release bundle instead of a developer checkout, it verifies
 the bundle with `doctor --strict`, `self-test` and local config initialization. Open-source readiness
@@ -74,19 +76,20 @@ Run this on a machine with macOS recording permissions granted:
 murmurmark doctor
 murmurmark self-test
 murmurmark config init
-SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)"
-murmurmark record --out "$SESSION" --target-bundle system
-murmurmark inspect "$SESSION"
-murmurmark process "$SESSION"
-murmurmark status "$SESSION"
-murmurmark next "$SESSION"
-murmurmark acceptance --live-session "$SESSION" --report /tmp/murmurmark-live-session.json
+SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)-meeting-soak"
+murmurmark meeting --out "$SESSION" --target-bundle system
+murmurmark acceptance --live-session "$SESSION" \
+  --require-meeting-lifecycle \
+  --report /tmp/murmurmark-live-session.json
 ```
 
-Then follow the printed review command when readiness says `review_first`.
-When the session is exportable, run:
+The first `Ctrl-C` stops capture; the command continues through the bounded lifecycle. A final
+`ready_with_review` is acceptable only when the exact unresolved queue is present. When export is
+allowed, the lifecycle runs guarded `finish` automatically. The low-level equivalent remains:
 
 ```bash
+murmurmark inspect "$SESSION"
+murmurmark process "$SESSION"
 murmurmark finish "$SESSION"
 ```
 
@@ -96,8 +99,7 @@ run:
 ```bash
 MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh
 SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)-live-evidence"
-murmurmark record --out "$SESSION" --target-bundle system --duration 120 --experiment live-shadow-v1
-murmurmark process "$SESSION"
+murmurmark meeting --out "$SESSION" --target-bundle system --experiment live-shadow-v1
 murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
 murmurmark corpus live all --refresh
 jq '.promotion_policy' sessions/_reports/live-pipeline/live_corpus_gates_report.json
@@ -114,7 +116,8 @@ The manual gate passes when:
 - the recording creates separate non-empty mic and remote tracks;
 - the recording status is not `partial`, and `inspect "$SESSION"` shows an explicit stop reason such as
   `sigint` or `duration_elapsed`;
-- `process "$SESSION"` completes or prints a concrete next command;
+- the lifecycle reports `ready` or `ready_with_review`, names the selected transcript and proves raw
+  SHA-256 preservation;
 - `status "$SESSION"` reports a clear readiness state;
 - `acceptance --live-session "$SESSION"` reports `status: ok` and writes a report with
   `manual_gates.live_recording.status = passed`;

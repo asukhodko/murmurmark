@@ -189,6 +189,21 @@ assert_static_capture_contract() {
   grep -q 'final class RecordingProcessLock' "$source_file" \
     || fail "recording lock must keep concurrent record processes rejected"
 
+  grep -q 'final class CaptureFinalizationSignalGuard' "$source_file" \
+    || fail "capture finalization must protect raw writers from repeated termination signals"
+
+  grep -q 'capture finalization in progress; please wait' "$source_file" \
+    || fail "capture finalization must explain why a repeated Ctrl-C is deferred"
+
+  grep -q 'finalizationSignalGuard.start()' "$source_file" \
+    || fail "capture finalization signal guard must start before raw writers are closed"
+
+  grep -q 'await withTaskGroup(of: StopReason.self)' "$source_file" \
+    || fail "recording stop must race the duration timer with terminal signals"
+
+  grep -q 'await waitForSignal()' "$source_file" \
+    || fail "bounded recording must continue listening for Ctrl-C"
+
   grep -q 'sampleRate: micSampleRateWritten() ?? Double(sampleRate)' "$source_file" \
     || fail "mic pre-finish coverage must use the actual mic writer sample rate"
 
@@ -590,6 +605,63 @@ run_system_audio_capture_probe() {
     || fail "remote system audio is too quiet in capture probe: ${remote_mean} dB"
 }
 
+run_duration_interrupt_probe() {
+  require_tool jq
+
+  local bin="${MURMURMARK_BIN:-$repo_root/.build/debug/murmurmark}"
+  if [[ ! -x "$bin" ]]; then
+    swift build >/dev/null
+  fi
+
+  local workdir
+  workdir="$(mktemp -d "${TMPDIR:-/tmp}/murmurmark-duration-interrupt.XXXXXX")"
+  trap 'rm -rf "$workdir"' RETURN
+
+  local session="$workdir/session"
+  local record_log="$workdir/record.log"
+  local events="$session/events.jsonl"
+  "$bin" record --target-bundle system --duration 30 --out "$session" >"$record_log" 2>&1 &
+  local pid=$!
+  local ready=0
+  for _ in {1..100}; do
+    if [[ -f "$events" ]] && grep -q '"type":"capture.started"' "$events"; then
+      ready=1
+      break
+    fi
+    if ! kill -0 "$pid" 2>/dev/null; then
+      break
+    fi
+    sleep 0.1
+  done
+  [[ "$ready" -eq 1 ]] || {
+    wait "$pid" || true
+    cat "$record_log" >&2
+    fail "bounded recording did not reach the active capture state"
+  }
+
+  # capture.started is durable before the async stop task installs its signal bridge.
+  sleep 1
+  kill -INT "$pid"
+  local status=0
+  wait "$pid" || status=$?
+  [[ "$status" -eq 0 ]] || {
+    cat "$record_log" >&2
+    fail "bounded recording did not finalize cleanly after SIGINT"
+  }
+  [[ -s "$session/session.json" ]] || {
+    cat "$record_log" >&2
+    fail "bounded recording SIGINT did not create session.json"
+  }
+  jq -e '
+    .health.stop_reason == "sigint"
+    and .health.explicit_stop == true
+    and (.health.actual_duration_sec < .health.requested_duration_sec)
+  ' "$session/session.json" >/dev/null || {
+    jq '.health' "$session/session.json" >&2
+    fail "bounded recording did not preserve the explicit SIGINT stop reason"
+  }
+}
+
 require_tool jq
 
 assert_static_capture_contract
@@ -603,6 +675,11 @@ record_check "live_pipeline_guard" "passed" "static" "live pipeline remains disa
 
 if [[ "${MURMURMARK_RUN_LIVE_CAPTURE_TEST:-0}" == "1" ]]; then
   run_live_probe_step \
+    "duration_interrupt_probe" \
+    "live_probe" \
+    "bounded recording finalized early SIGINT as an explicit healthy stop" \
+    run_duration_interrupt_probe
+  run_live_probe_step \
     "system_audio_capture_probe" \
     "live_probe" \
     "short system-audio capture produced healthy remote audio" \
@@ -615,6 +692,7 @@ if [[ "${MURMURMARK_RUN_LIVE_CAPTURE_TEST:-0}" == "1" ]]; then
   write_report "static_system_audio_live_fail_open" "passed"
   echo "capture regression check ok (static + system-audio probe + live fail-open probe)"
 else
+  record_check "duration_interrupt_probe" "skipped" "live_probe" "set MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 to test early SIGINT with --duration"
   record_check "system_audio_capture_probe" "skipped" "live_probe" "set MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 to run the local system-audio probe"
   record_check "live_segment_fail_open_probe" "skipped" "live_probe" "set MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 to run the overloaded live segment fail-open probe"
   write_report "static_only" "passed"

@@ -40,7 +40,7 @@ flowchart LR
 The supported product path is:
 
 ```text
-record -> process -> next -> review when required -> finish
+murmurmark meeting -> first Ctrl-C -> bounded authoritative lifecycle -> honest result
 ```
 
 Raw CAF files and batch output are authoritative. Committed-PCM Live Shadow is capture-safe and
@@ -51,7 +51,14 @@ advisory; its promotion remains blocked by quality and runtime evidence.
 **Mixed-Utterance Remote Span Separation v1** targets the class exposed by the completed
 Speaker-Mode Hardening corpus: one `Me` utterance can contain both a recognizable remote span and
 unique local speech. Whole-utterance keep leaves remote leakage; whole-utterance drop loses real
-speech. The current goal permits only evidence-backed span separation with local token preservation.
+speech. The bounded goal is to split only spans supported by independent word-level audio evidence,
+while ambiguous mixtures stay unchanged and reviewable.
+
+**One-Command Meeting Lifecycle v1** is complete. `murmurmark meeting` owns durable capture,
+authoritative processing, evidence enrichment, conservative review and guarded export. It uses
+machine-readable readiness, checkpoints every action and gives a precise resume command after
+interruption. Automated checks, real-artifact interrupt/resume, a fresh permission-capable capture
+soak and strict lifecycle acceptance all pass.
 
 Speaker-Mode Transcript Quality Hardening v1 completed with `DO_NOT_PROMOTE`. The frozen corpus
 proved three lossless retimes, one real double-talk interval and one genuine `Me` row, but no whole
@@ -69,12 +76,13 @@ duplicate text tail, preserved raw/remote/chronology/notes evidence, and exposed
 ```mermaid
 flowchart LR
     P["Done<br/>Me Completion v2"]
+    L["Done<br/>One-Command Lifecycle"]
     A["Current<br/>Mixed-Utterance Separation"]
     B["Echo Suppression Promotion"]
     C["Evidence Notes And Export v2"]
     D["Release-quality CLI"]
 
-    P --> A --> B --> C --> D
+    P --> L --> A --> B --> C --> D
 ```
 
 ### 0. Evidence-Backed Me Completion v2
@@ -84,23 +92,29 @@ Target-Me and remote-forbidden evidence may materialize bounded local speech. We
 evidence stays unchanged and reviewable. Auto-selection requires exact frozen-input and output
 fingerprints plus corpus membership.
 
-### 1. Mixed-Utterance Remote Span Separation
+### 1. One-Command Meeting Lifecycle
+
+Completed. One command now runs durable capture and plain authoritative processing, applies only
+allowlisted enrichment and suggested-review actions, guards export from structured outcome state,
+verifies raw SHA-256 identities and supports lock-safe resume after a second `Ctrl-C`.
+
+### 2. Mixed-Utterance Remote Span Separation
 
 Split only when clean/raw/role-masked word timestamps, authoritative remote timing, speaker state
 and Target-Me evidence agree. Preserve unique local prefixes and tails; ambiguous mixtures remain
 unchanged and reviewable.
 
-### 2. Echo Suppression Promotion
+### 3. Echo Suppression Promotion
 
 Use one promotion contract for future audio candidates. The user-facing target is remote speech
 below the ASR-detectable threshold in `Me` while confirmed local speech remains intact.
 
-### 3. Evidence Notes And Export v2
+### 4. Evidence Notes And Export v2
 
 Improve the already working notes/export handoff over the selected transcript. Generated or
 extractive claims remain traceable to evidence IDs.
 
-### 4. Release-quality CLI
+### 5. Release-quality CLI
 
 Finalize the supported environment, installation, model/config handling, acceptance, release notes
 and public operational contract. UI is not required.

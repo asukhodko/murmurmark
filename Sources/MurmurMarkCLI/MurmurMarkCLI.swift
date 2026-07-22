@@ -80,6 +80,8 @@ struct MurmurMark {
                 Commands.listAudioDevices()
             case "record":
                 try await Commands.record(args)
+            case "meeting":
+                try await MeetingCommands.meeting(args)
             case "latest":
                 try PipelineCommands.latest(args)
             case "sessions":
@@ -156,14 +158,12 @@ struct MurmurMark {
           murmurmark self-test
           murmurmark config init
           murmurmark acceptance --skip-release
+          murmurmark meeting --target-bundle system
+
+        Low-level flow:
           SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)"
           murmurmark record --out "$SESSION" --target-bundle system
           murmurmark process "$SESSION"
-          murmurmark next "$SESSION"
-          murmurmark next corpus
-          murmurmark status "$SESSION"
-          # follow printed review commands when the gate is review_first
-          murmurmark finish "$SESSION"
 
         Handoff rule:
           When a command ends with `next: ...`, that final line is the primary command to run next.
@@ -173,12 +173,15 @@ struct MurmurMark {
           murmurmark doctor [--strict]
           murmurmark self-test
           murmurmark acceptance [--skip-release] [--python PATH] [--live-checklist] [--report PATH]
-                              [--live-session SESSION|latest] [--sessions-root ./sessions]
+                              [--live-session SESSION|latest] [--require-meeting-lifecycle]
+                              [--sessions-root ./sessions]
           murmurmark record [--out ./session] [--duration 60] [--target-bundle com.example.App]
                             [--mic default] [--mic-backend screencapturekit|voice-processing]
                             [--remote-backend screencapturekit|audio-input] [--remote-device Device_UID]
                             [--live-pipeline] [--live-segment-sec 60] [--live-overlap-sec 5]
                             [--live-no-worker] [--live-no-finalize]
+          murmurmark meeting [record options]
+          murmurmark meeting --resume ./session
           murmurmark sessions [--limit 10] [--status exported|exportable|review_required|incomplete] [--path-only|--next-only|--json]
                               [--sessions-root ./sessions]
           murmurmark latest [--sessions-root ./sessions]
@@ -440,7 +443,7 @@ enum Commands {
         print("""
         usage: murmurmark acceptance [--skip-release] [--python PATH] [--live-checklist]
                                      [--live-session SESSION|latest] [--sessions-root ./sessions]
-                                     [--report PATH]
+                                     [--require-meeting-lifecycle] [--report PATH]
 
         Runs the CLI MVP acceptance gate.
 
@@ -454,6 +457,9 @@ enum Commands {
 
         Use --live-session SESSION|latest after recording and processing a real
         session to verify the manual live gate from session artifacts.
+
+        Add --require-meeting-lifecycle for the one-command meeting soak. It rejects
+        sessions that were produced only through the legacy manual command chain.
 
         Use --report PATH to write a machine-readable acceptance report.
         """)
@@ -506,6 +512,19 @@ enum Commands {
             printRecordHelp()
             return
         }
+        let invocation = try prepareRecording(args, handoffEnabled: true)
+        let stopReason = try await invocation.recorder.run()
+        if stopReason.isUnexpectedCaptureStop {
+            let session = PathDisplay.display(invocation.outputDirectory)
+            throw CLIError(
+                "recording interrupted before requested end; partial session saved: \(session). " +
+                    "Inspect it with `murmurmark inspect \(session)`, then re-record if this was a live meeting. " +
+                    "Use `murmurmark process \(session) --allow-partial` only for debugging."
+            )
+        }
+    }
+
+    static func prepareRecording(_ args: [String], handoffEnabled: Bool) throws -> RecordingInvocation {
         let options = try Options(args)
         let livePipelineEnabled = options.flag("live-pipeline")
         let experimentID = options.string("experiment")
@@ -563,17 +582,10 @@ enum Commands {
             liveWorkerEnabled: liveWorkerEnabled,
             liveFinalizeEnabled: liveFinalizeEnabled,
             liveConsoleEnabled: liveConsoleEnabled,
-            experimentID: experimentID
+            experimentID: experimentID,
+            handoffEnabled: handoffEnabled
         )
-        let stopReason = try await recorder.run()
-        if stopReason.isUnexpectedCaptureStop {
-            let session = PathDisplay.display(out)
-            throw CLIError(
-                "recording interrupted before requested end; partial session saved: \(session). " +
-                    "Inspect it with `murmurmark inspect \(session)`, then re-record if this was a live meeting. " +
-                    "Use `murmurmark process \(session) --allow-partial` only for debugging."
-            )
-        }
+        return RecordingInvocation(outputDirectory: out, recorder: recorder)
     }
 
     static func printRecordHelp() {
@@ -608,6 +620,138 @@ enum Commands {
 
         `latest` is a mutable pointer to the newest session. For real meetings, especially with
         multiple terminals, set SESSION before recording and pass --out "$SESSION".
+        """)
+    }
+}
+
+struct RecordingInvocation {
+    let outputDirectory: URL
+    let recorder: SessionRecorder
+}
+
+enum MeetingCommands {
+    static func meeting(_ args: [String]) async throws {
+        if ArgumentEditing.hasHelpFlag(args) {
+            printHelp()
+            return
+        }
+
+        var remaining = args
+        if let resumeTarget = ArgumentEditing.takeOption("resume", from: &remaining) {
+            let sessionsRoot = PathURLs.fileURL(
+                ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions"
+            )
+            guard remaining.isEmpty else {
+                throw CLIError("meeting --resume accepts only SESSION and --sessions-root")
+            }
+            let session = try SessionResolver.resolve(resumeTarget, sessionsRoot: sessionsRoot)
+            try runSupervisor(session: session, captureElapsed: nil, resume: true)
+            return
+        }
+
+        try validateRecordingArguments(args)
+        let invocation = try Commands.prepareRecording(args, handoffEnabled: false)
+        print("SESSION=\"\(PathDisplay.display(invocation.outputDirectory))\"")
+        fflush(stdout)
+        let startedAt = Date()
+        let stopReason = try await invocation.recorder.run()
+        let captureElapsed = Date().timeIntervalSince(startedAt)
+        try runSupervisor(
+            session: invocation.outputDirectory,
+            captureElapsed: captureElapsed,
+            resume: false
+        )
+        if stopReason.isUnexpectedCaptureStop {
+            throw CLIError(
+                "meeting capture ended unexpectedly; raw partial session was preserved and processing was blocked"
+            )
+        }
+    }
+
+    private static func runSupervisor(session: URL, captureElapsed: TimeInterval?, resume: Bool) throws {
+        let script = PathURLs.fileURL("scripts/run-meeting-lifecycle.py")
+        guard FileManager.default.fileExists(atPath: script.path) else {
+            throw CLIError("meeting lifecycle supervisor not found: \(script.path)")
+        }
+        var command = [
+            script.path,
+            session.path,
+            "--murmurmark-bin", ExecutablePath.current(),
+        ]
+        if let captureElapsed {
+            command += ["--record-elapsed-sec", String(format: "%.3f", captureElapsed)]
+        }
+        if resume {
+            command.append("--resume")
+        }
+        fflush(stdout)
+        let status = try Tooling.runPathForwardingInterruptsAllowingExitCodes(
+            try PythonRuntime.resolve(),
+            command,
+            allowedExitCodes: [0, 2, 3, 130]
+        )
+        switch status {
+        case 0:
+            return
+        case 130:
+            throw CLIError("meeting processing interrupted; use the resume command printed above")
+        case 3:
+            throw CLIError("another meeting lifecycle supervisor already owns this session")
+        default:
+            throw CLIError("meeting lifecycle failed; inspect derived/meeting-lifecycle/report.json")
+        }
+    }
+
+    private static func validateRecordingArguments(_ args: [String]) throws {
+        let valueOptions: Set<String> = [
+            "out", "duration", "target-bundle", "mic", "mic-backend", "remote-backend",
+            "remote-device", "experiment", "live-segment-sec", "live-overlap-sec", "sample-rate",
+            "channels",
+        ]
+        let flagOptions: Set<String> = [
+            "live-no-worker", "live-no-console", "live-no-finalize",
+        ]
+        var index = 0
+        while index < args.count {
+            let argument = args[index]
+            guard argument.hasPrefix("--") else {
+                throw CLIError("unexpected meeting argument: \(argument)")
+            }
+            let name = String(argument.dropFirst(2))
+            if valueOptions.contains(name) {
+                guard index + 1 < args.count, !args[index + 1].hasPrefix("--") else {
+                    throw CLIError("--\(name) requires a value")
+                }
+                index += 2
+            } else if flagOptions.contains(name) {
+                index += 1
+            } else {
+                throw CLIError(
+                    "unsupported meeting option --\(name); use low-level record/process commands for diagnostics"
+                )
+            }
+        }
+    }
+
+    private static func printHelp() {
+        print("""
+        usage: murmurmark meeting [--out ./session] [--duration 60] [--target-bundle system|com.example.App]
+                                  [--mic default] [--mic-backend screencapturekit|voice-processing]
+                                  [--remote-backend screencapturekit|audio-input] [--remote-device Device_UID]
+                                  [--experiment live-shadow-v1]
+               murmurmark meeting --resume ./session [--sessions-root ./sessions]
+
+        Records a durable two-track session and, after the first Ctrl-C, runs the bounded
+        authoritative lifecycle through transcript, notes, verdict, safe suggested review and
+        guarded export. A second Ctrl-C checkpoints processing and prints the exact resume command.
+
+        Common:
+          murmurmark meeting --target-bundle system
+          murmurmark meeting --target-bundle system --experiment live-shadow-v1
+          murmurmark meeting --resume sessions/<id>
+
+        The high-level command never adds --full, --force-asr or --allow-partial. Use record and
+        process directly for low-level diagnostics.
         """)
     }
 }
@@ -730,6 +874,7 @@ enum DoctorChecks {
     static func checkScripts(_ report: inout DoctorReport) {
         for path in [
             "scripts/run-session-pipeline.py",
+            "scripts/run-meeting-lifecycle.py",
             "scripts/evaluate-outcome.py",
             "scripts/live-pipeline-shadow.py",
             "scripts/watch-live-draft.py",
@@ -7727,6 +7872,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     let liveFinalizeEnabled: Bool
     let liveConsoleEnabled: Bool
     let experimentID: String?
+    let handoffEnabled: Bool
 
     private let fileManager = FileManager.default
     private let queue = DispatchQueue(label: "murmurmark.capture.samples")
@@ -7776,7 +7922,8 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         liveWorkerEnabled: Bool = false,
         liveFinalizeEnabled: Bool = false,
         liveConsoleEnabled: Bool = false,
-        experimentID: String? = nil
+        experimentID: String? = nil,
+        handoffEnabled: Bool = true
     ) {
         self.outputDirectory = outputDirectory
         self.targetBundleID = targetBundleID
@@ -7794,6 +7941,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         self.liveFinalizeEnabled = liveFinalizeEnabled
         self.liveConsoleEnabled = liveConsoleEnabled
         self.experimentID = experimentID
+        self.handoffEnabled = handoffEnabled
     }
 
     func run() async throws -> StopReason {
@@ -8008,6 +8156,9 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                 }
             }
             let stopReason = try await waitForRecordingStop()
+            let finalizationSignalGuard = CaptureFinalizationSignalGuard()
+            finalizationSignalGuard.start()
+            defer { finalizationSignalGuard.cancel() }
             finalStopReason = stopReason
             if stopReason == .interrupt {
                 print("\nstopping...")
@@ -8096,10 +8247,14 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             refreshExperimentContract(eventLog: eventLog)
             if finalizedAsPartial {
                 print("partial session finalized")
-                printInterruptedHandoff()
+                if handoffEnabled {
+                    printInterruptedHandoff()
+                }
             } else {
                 print("done")
-                printHandoff()
+                if handoffEnabled {
+                    printHandoff()
+                }
             }
             return stopReason
         } catch {
@@ -12924,7 +13079,7 @@ enum ReadinessPrinter {
         }
         let displayStatus = exportHandoff == nil
             ? effectiveStatus(readinessStatus: status, outcome: outcome)
-            : status
+            : "exported"
         let canReadOutputs = outcomeSummary.flatMap { bool($0["can_read_notes"]) }
             ?? canReadOutputsForStatus(displayStatus)
 
@@ -15895,11 +16050,28 @@ enum StopReason: String {
 
 enum RecordingStopper {
     static func wait(duration: TimeInterval?) async throws -> StopReason {
-        if let duration {
-            try await Task.sleep(nanoseconds: UInt64(max(duration, 0.1) * 1_000_000_000))
-            return .durationElapsed
-        }
+        await withTaskGroup(of: StopReason.self) { group in
+            group.addTask {
+                await waitForSignal()
+            }
+            if let duration {
+                group.addTask {
+                    do {
+                        try await Task.sleep(nanoseconds: UInt64(max(duration, 0.1) * 1_000_000_000))
+                        return .durationElapsed
+                    } catch {
+                        return .terminated
+                    }
+                }
+            }
 
+            let reason = await group.next() ?? .durationElapsed
+            group.cancelAll()
+            return reason
+        }
+    }
+
+    private static func waitForSignal() async -> StopReason {
         let bridgeBox = SignalBridgeBox()
         return await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
@@ -15991,6 +16163,57 @@ final class SignalBridge: @unchecked Sendable {
     }
 
     private func restoreDefaults() {
+        signal(SIGINT, SIG_DFL)
+        signal(SIGTERM, SIG_DFL)
+        signal(SIGHUP, SIG_DFL)
+    }
+}
+
+final class CaptureFinalizationSignalGuard: @unchecked Sendable {
+    private let queue = DispatchQueue(label: "murmurmark.capture.finalization.signals")
+    private let lock = NSLock()
+    private var sources: [DispatchSourceSignal] = []
+    private var active = false
+
+    func start() {
+        lock.lock()
+        guard !active else {
+            lock.unlock()
+            return
+        }
+        active = true
+        lock.unlock()
+
+        signal(SIGINT, SIG_IGN)
+        signal(SIGTERM, SIG_IGN)
+        signal(SIGHUP, SIG_IGN)
+        for signalNumber in [SIGINT, SIGTERM, SIGHUP] {
+            let source = DispatchSource.makeSignalSource(signal: signalNumber, queue: queue)
+            source.setEventHandler {
+                fputs("\ncapture finalization in progress; please wait\n", stderr)
+                fflush(stderr)
+            }
+            lock.lock()
+            sources.append(source)
+            lock.unlock()
+            source.resume()
+        }
+    }
+
+    func cancel() {
+        lock.lock()
+        guard active else {
+            lock.unlock()
+            return
+        }
+        active = false
+        let activeSources = sources
+        sources.removeAll()
+        lock.unlock()
+
+        for source in activeSources {
+            source.cancel()
+        }
         signal(SIGINT, SIG_DFL)
         signal(SIGTERM, SIG_DFL)
         signal(SIGHUP, SIG_DFL)

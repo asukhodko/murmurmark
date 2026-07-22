@@ -16,7 +16,7 @@ Run:
 ```bash
 scripts/install-local.sh
 export PATH="$HOME/.local/bin:$PATH"
-murmurmark doctor
+murmurmark doctor --strict
 murmurmark self-test
 murmurmark config init
 murmurmark acceptance --skip-release
@@ -93,19 +93,36 @@ When testing a real call without headphones, the microphone track may also conta
 
 ## Real Task Recording
 
-For real meetings, install the local wrapper once and then use the `murmurmark` command:
+For real meetings, install the local wrapper once and use the one-command lifecycle:
 
 ```bash
-scripts/install-local.sh
-export PATH="$HOME/.local/bin:$PATH"
-murmurmark doctor
-murmurmark self-test
-murmurmark config init
-murmurmark acceptance --live-checklist
+murmurmark meeting --target-bundle system
+```
 
-SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)"
-murmurmark record --out "$SESSION" --target-bundle system
-murmurmark inspect "$SESSION"
+Installation, configuration, `doctor --strict` and `self-test` belong to the one-time permission
+check above and are repeated after an update or environment change, not before every meeting.
+
+Stop capture with the first `Ctrl-C`. MurmurMark finalizes both raw tracks, runs the authoritative
+batch pipeline, bounded local enrichment, safe suggested review and guarded finish. A second
+`Ctrl-C` during processing preserves checkpoints and prints:
+
+```bash
+murmurmark meeting --resume sessions/<id>
+```
+
+Use the low-level `record -> inspect -> process` sequence only for diagnostics or older sessions.
+The lifecycle contract and artifact paths are documented in
+`docs/contracts/meeting-lifecycle.md`.
+
+For the one-time implementation acceptance, validate the resulting session after the lifecycle
+summary:
+
+```bash
+SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)-meeting-soak"
+murmurmark meeting --out "$SESSION" --target-bundle system --duration 30
+murmurmark acceptance --live-session "$SESSION" \
+  --require-meeting-lifecycle \
+  --report /tmp/murmurmark-meeting-lifecycle.json
 ```
 
 `acceptance --live-checklist` intentionally prints two gates. Use `live_recording_gate` for normal
@@ -587,7 +604,9 @@ session.
 murmurmark process "$SESSION"
 murmurmark status "$SESSION"
 murmurmark next "$SESSION"
-murmurmark acceptance --live-session "$SESSION" --report /tmp/murmurmark-live-session.json
+murmurmark acceptance --live-session "$SESSION" \
+  --require-meeting-lifecycle \
+  --report /tmp/murmurmark-live-session.json
 
 # If readiness says review_first, follow the printed review command first.
 murmurmark notes "$SESSION" --kind verdict

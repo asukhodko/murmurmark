@@ -14,9 +14,9 @@ that cannot replace or weaken the durable recording.
 MurmurMark turns sensitive working conversations into reliable local transcripts and
 evidence-backed meeting memory without sending raw meeting audio to a cloud recorder.
 
-The user should be able to record a meeting, start processing and receive an honest result without
-supervising internal stages. Uncertain regions remain explicit review items. Notes and exports point
-back to transcript or audit evidence.
+The user should be able to start and stop a meeting recording once and receive an honest result
+without launching or supervising internal stages. Uncertain regions remain explicit review items.
+Notes and exports point back to transcript or audit evidence.
 
 ## Reliability Contract
 
@@ -58,35 +58,22 @@ normal pipeline; `murmurmark doctor` reports it as an optional warning.
 
 ## Stable Meeting Workflow
 
-Use one explicit session path for every command. Avoid `latest` when another terminal may start a
-new session.
+The normal meeting path is one command:
 
 ```bash
-cd murmurmark
-source .venv/bin/activate
-export PATH="$HOME/.local/bin:$PATH"
-
-murmurmark doctor --strict
-
-SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)"
-echo "SESSION=\"$SESSION\""
-
-murmurmark record --out "$SESSION" --target-bundle system
-# Stop with Ctrl-C.
-
-murmurmark inspect "$SESSION"
-murmurmark process "$SESSION"
-murmurmark next "$SESSION"
-murmurmark status "$SESSION"
-murmurmark outcome "$SESSION"
-murmurmark transcript "$SESSION"
-murmurmark notes "$SESSION"
-murmurmark finish "$SESSION"
+murmurmark meeting --target-bundle system
 ```
 
-Recording without `--duration` continues until `Ctrl-C`. Run only one `murmurmark record` process
-at a time. If capture is partial, sparse or silent, processing blocks instead of publishing an empty
-successful transcript.
+Run the install-time `doctor --strict` and `self-test` checks after an update or environment
+change, not before every meeting.
+
+The command prints `SESSION="sessions/<id>"`. The first `Ctrl-C` stops and finalizes capture, then
+authoritative processing continues automatically. A second `Ctrl-C` checkpoints processing and
+prints an exact `murmurmark meeting --resume SESSION` command. The final summary names the
+transcript, notes, verdict, unresolved review burden, export status and raw preservation result.
+
+Run only one capture process at a time. If capture is partial, sparse or silent, processing blocks
+instead of publishing an empty successful transcript.
 
 An empty conversation can still be a valid result, for example when nobody joins a call. MurmurMark
 classifies it as `verified_no_speech` only when durable capture is complete, both raw tracks cover
@@ -95,27 +82,29 @@ known hallucinations, and the local-recall and chunk-rebuild audits are clear. T
 in `derived/synthesis-simple/extractive/no_speech_evidence.json`. An empty transcript without all of
 these checks remains `failed`.
 
-Plain `process` is the normal path. It returns as soon as the authoritative transcript, verdict and
-next action are published. When the result still requires more local evidence,
-`murmurmark next "$SESSION"` routes to deferred enrichment before manual review:
+### Low-Level Recovery And Diagnostics
+
+The individual commands remain available when diagnosing a stage or recovering an older session:
 
 ```bash
+SESSION="sessions/<id>"
+murmurmark inspect "$SESSION"
+murmurmark process "$SESSION"
 murmurmark enrich "$SESSION"
+murmurmark next "$SESSION"
+murmurmark status "$SESSION"
+murmurmark finish "$SESSION"
 ```
 
-After enrichment, run `murmurmark next "$SESSION"` again. Only unresolved evidence is then offered
-for review. `process --full` retains the compatibility behavior of running both phases in one
-foreground command. It can take much longer because local audio judges and live-vs-batch
-diagnostics run after the authoritative transcript is already ready; use it only when waiting for
-all diagnostics is intentional.
+Plain `process` is the authoritative path. `process --full` is a blocking compatibility mode and is
+not used by `meeting`. `--force-asr` and `--allow-partial` are diagnostics only and are never added
+by the meeting supervisor.
 
 An interrupted processing run is resumed with the same command and session path:
 
 ```bash
-murmurmark process "$SESSION"
+murmurmark meeting --resume "$SESSION"
 ```
-
-Use `--force-asr` only when intentionally invalidating the expensive ASR cache.
 
 ## Live Shadow Workflow
 
@@ -130,20 +119,7 @@ capture -> durable raw writer -> stable session
 Recording terminal:
 
 ```bash
-SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)-live"
-echo "SESSION=\"$SESSION\""
-
-murmurmark record \
-  --out "$SESSION" \
-  --target-bundle system \
-  --experiment live-shadow-v1
-
-murmurmark process "$SESSION"
-murmurmark experiment status "$SESSION"
-murmurmark experiment report "$SESSION"
-murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
-murmurmark status "$SESSION"
-murmurmark transcript "$SESSION"
+murmurmark meeting --target-bundle system --experiment live-shadow-v1
 ```
 
 During recording, the same terminal shows only newly added or revised conservative live turns.
@@ -167,7 +143,11 @@ damage raw capture. The inline console is a separate fail-open reader of
 
 ## Review And Finish
 
-Follow the exact command printed by `murmurmark next`. Common commands are:
+`meeting` automatically previews suggested review and applies only rows accepted by the existing
+conservative gates. It attempts guarded export only when the structured outcome permits it.
+Uncertain rows remain explicit and are reported as `ready_with_review`.
+
+Manual commands remain available for those unresolved rows:
 
 ```bash
 murmurmark review next "$SESSION"
@@ -220,6 +200,16 @@ murmurmark open "$SESSION" --kind transcript --command-only
 
 ## Current Development Direction
 
+**One-Command Meeting Lifecycle v1** is complete. The command, bounded supervisor, resume contract,
+automated regression coverage, fresh permission-capable capture soak and strict lifecycle acceptance
+all pass. The normal user path is now one command plus `Ctrl-C`; the older commands remain available
+for diagnostics and recovery.
+
+The current quality goal is **Mixed-Utterance Remote Span Separation v1**. It addresses retained
+`Me` utterances that contain both a remote-supported span and unique local speech. The intended
+repair removes only independently proven remote spans, preserves local prefixes/tails and fails open
+when evidence conflicts.
+
 The stable batch CLI already supports durable capture, resumable processing, evidence-backed review,
 guarded export and retention planning. `local_speech_completion_v2` is promoted for its frozen
 two-session scope. It classified six remaining local-recall rows / `35.85s`, safely closed three
@@ -235,12 +225,12 @@ passes the clean-audio gate. The isolated transcript profile safely proved three
 one double-talk interval and one genuine `Me` row, but reached only `2.7%` duplicate reduction and
 `7.9%` review reduction. It therefore remains shadow-only.
 
-The current goal is **Mixed-Utterance Remote Span Separation v1**. It addresses utterances
-that combine a remote-supported span with a unique local prefix or tail. The dependent critical
-path is:
+The dependent critical path is:
 
 ```text
-Mixed-Utterance Remote Span Separation
+One-Command Meeting Lifecycle (done)
+->
+Mixed-Utterance Remote Span Separation (current)
 -> Echo Suppression Promotion
 -> Evidence Notes and Export
 -> Release-quality CLI
@@ -275,6 +265,8 @@ and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 - [Reliable transcription route](docs/project/reliable-transcription-route.md)
 - [Readable roadmap](docs/roadmap/murmurmark-cli-roadmap.md)
 - [OpsKarta v3 roadmap](docs/roadmap/murmurmark-cli-roadmap.plan.yaml)
+- [Meeting lifecycle contract](docs/contracts/meeting-lifecycle.md)
+- [Meeting cheat sheet](docs/runbooks/meeting-cheatsheet.md)
 - [First recording runbook](docs/runbooks/first-recording.md)
 - [Transcription and review runbook](docs/runbooks/transcribe-simple-whispercpp.md)
 - [Transcript and evidence contracts](docs/contracts/transcript-and-evidence.md)

@@ -18,34 +18,37 @@ Read in this order:
 14. [Echo Guard architecture](architecture/echo-suppression.md)
 15. [Evidence and synthesis](architecture/evidence-synthesis.md)
 16. [Session package contract](contracts/session-package.md)
-17. [Experimental sidecar contract](contracts/experimental-sidecar.md)
-18. [Transcript and evidence contracts](contracts/transcript-and-evidence.md)
-19. [Release bundle contract](contracts/release-bundle.md)
-20. [Retention policy contract](contracts/retention-policy.md)
-21. [Privacy and threat model](security/privacy-and-threat-model.md)
-22. [First recording runbook](runbooks/first-recording.md)
-23. [Echo Guard delay lab](runbooks/echo-guard-lab.md)
-24. [Simple whisper.cpp transcription](runbooks/transcribe-simple-whispercpp.md)
-25. [Causal recovery generalization runbook](runbooks/causal-recovery-generalization.md)
-26. [Tradeoffs](decisions/tradeoffs.md)
-27. [RFC-0001](rfc/0001-v1-scope.md)
-28. [ADR directory](adr/)
-29. [ADR-0008](adr/0008-use-screencapturekit-for-first-cli-smoke.md)
-30. [ADR-0009](adr/0009-derived-echo-suppression-only.md)
-31. [ADR-0010](adr/0010-use-preserve-local-fir-for-current-echo-guard.md)
-32. [Talk validation log](testing/2026-06-22-talk-validation.md)
-33. [Echo Guard Local FIR validation log](testing/2026-06-23-echo-guard-local-fir.md)
-34. [Mic remote bleed reduction](backlog/mic-remote-bleed-reduction.md)
-35. [Complete echo removal research](research/2026-06-30-complete-echo-removal.md)
-36. [Planning and development history](history/README.md)
+17. [Meeting lifecycle contract](contracts/meeting-lifecycle.md)
+18. [Experimental sidecar contract](contracts/experimental-sidecar.md)
+19. [Transcript and evidence contracts](contracts/transcript-and-evidence.md)
+20. [Release bundle contract](contracts/release-bundle.md)
+21. [Retention policy contract](contracts/retention-policy.md)
+22. [Privacy and threat model](security/privacy-and-threat-model.md)
+23. [First recording runbook](runbooks/first-recording.md)
+24. [Meeting cheat sheet](runbooks/meeting-cheatsheet.md)
+25. [Echo Guard delay lab](runbooks/echo-guard-lab.md)
+26. [Simple whisper.cpp transcription](runbooks/transcribe-simple-whispercpp.md)
+27. [Causal recovery generalization runbook](runbooks/causal-recovery-generalization.md)
+28. [Tradeoffs](decisions/tradeoffs.md)
+29. [RFC-0001](rfc/0001-v1-scope.md)
+30. [ADR directory](adr/)
+31. [ADR-0008](adr/0008-use-screencapturekit-for-first-cli-smoke.md)
+32. [ADR-0009](adr/0009-derived-echo-suppression-only.md)
+33. [ADR-0010](adr/0010-use-preserve-local-fir-for-current-echo-guard.md)
+34. [Talk validation log](testing/2026-06-22-talk-validation.md)
+35. [Echo Guard Local FIR validation log](testing/2026-06-23-echo-guard-local-fir.md)
+36. [Mic remote bleed reduction](backlog/mic-remote-bleed-reduction.md)
+37. [Complete echo removal research](research/2026-06-30-complete-echo-removal.md)
+38. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
 Planning snapshot: 2026-07-22. Evidence-Backed Me Completion v2 completed with
 `PROMOTE_LOCAL_SPEECH_COMPLETION_V2` for its frozen two-session scope: three of six local-recall
 rows and `22.4/35.85s` were safely closed, one damaged text tail was removed, and the remaining
-`13.45s` became an executable review queue. The current executable goal is Mixed-Utterance Remote
-Span Separation v1.
+`13.45s` became an executable review queue. One-Command Meeting Lifecycle v1 is complete after a
+fresh capture-to-export soak; Mixed-Utterance Remote Span Separation v1 is the current executable
+quality goal.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

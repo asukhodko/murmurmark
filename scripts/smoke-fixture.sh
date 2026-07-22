@@ -530,8 +530,17 @@ echo "$status_output" | grep -q '^    can_export: false$'
 tail -1 <<<"$status_output" | grep -q '^next: murmurmark process '
 live_acceptance_session="$workdir/_live-acceptance-session"
 mkdir -p "$live_acceptance_session/derived/readiness"
+mkdir -p "$live_acceptance_session/derived/transcript-simple/whisper-cpp/resolved"
+mkdir -p "$live_acceptance_session/derived/synthesis-simple/extractive"
 cp "$session/session.json" "$live_acceptance_session/session.json"
 cp -R "$session/audio" "$live_acceptance_session/audio"
+echo '# Live Acceptance Fixture Transcript' \
+  >"$live_acceptance_session/derived/transcript-simple/whisper-cpp/resolved/transcript.fixture.md"
+jq -n '{
+  schema: "murmurmark.quality_verdict/v1",
+  selected_transcript_profile: "fixture",
+  verdict: "usable_with_review"
+}' >"$live_acceptance_session/derived/synthesis-simple/extractive/quality_verdict.json"
 jq -n --arg session_path "$live_acceptance_session" '{
   schema: "murmurmark.session_readiness/v1",
   use_gate: "ready_for_notes",
@@ -573,6 +582,59 @@ jq -e '
   and any(.checks[]; .name == "live_recording" and .status == "passed")
   and any(.manual_gates[]; .name == "live_recording" and .status == "passed")
 ' "$live_acceptance_report" >/dev/null
+required_lifecycle_missing_output="$workdir/live-acceptance-required-missing.out"
+if "$bin" acceptance \
+  --live-session "$live_acceptance_session" \
+  --require-meeting-lifecycle >"$required_lifecycle_missing_output" 2>&1; then
+  echo "acceptance unexpectedly allowed a missing required meeting lifecycle report" >&2
+  exit 1
+fi
+grep -q '^error: required meeting lifecycle report is missing:' "$required_lifecycle_missing_output"
+
+mkdir -p "$live_acceptance_session/derived/meeting-lifecycle"
+acceptance_mic_bytes="$(stat -f%z "$live_acceptance_session/audio/mic/000001.caf")"
+acceptance_remote_bytes="$(stat -f%z "$live_acceptance_session/audio/remote/000001.caf")"
+acceptance_mic_sha="$(shasum -a 256 "$live_acceptance_session/audio/mic/000001.caf" | awk '{print $1}')"
+acceptance_remote_sha="$(shasum -a 256 "$live_acceptance_session/audio/remote/000001.caf" | awk '{print $1}')"
+jq -n \
+  --arg transcript "$live_acceptance_session/derived/transcript-simple/whisper-cpp/resolved/transcript.fixture.md" \
+  --arg session "$live_acceptance_session" \
+  --arg mic_sha "$acceptance_mic_sha" \
+  --arg remote_sha "$acceptance_remote_sha" \
+  --argjson mic_bytes "$acceptance_mic_bytes" \
+  --argjson remote_bytes "$acceptance_remote_bytes" '{
+  schema: "murmurmark.meeting_lifecycle_report/v1",
+  session: $session,
+  result: "ready",
+  transcript: $transcript,
+  actions: {
+    capture_validate: {status: "passed"},
+    inspect: {status: "passed", command: ["murmurmark", "inspect", $session]},
+    process: {status: "passed", command: ["murmurmark", "process", $session, "--skip-build"]}
+  },
+  raw: {
+    preserved: true,
+    before: [
+      {source: "mic", path: "audio/mic/000001.caf", bytes: $mic_bytes, sha256: $mic_sha},
+      {source: "remote", path: "audio/remote/000001.caf", bytes: $remote_bytes, sha256: $remote_sha}
+    ],
+    after: [
+      {source: "mic", path: "audio/mic/000001.caf", bytes: $mic_bytes, sha256: $mic_sha},
+      {source: "remote", path: "audio/remote/000001.caf", bytes: $remote_bytes, sha256: $remote_sha}
+    ]
+  }
+}' >"$live_acceptance_session/derived/meeting-lifecycle/report.json"
+strict_live_acceptance_report="$workdir/live-acceptance-strict-report.json"
+strict_live_acceptance_output="$("$bin" acceptance \
+  --live-session "$live_acceptance_session" \
+  --require-meeting-lifecycle \
+  --report "$strict_live_acceptance_report")"
+echo "$strict_live_acceptance_output" | grep -q '^  meeting_lifecycle: ok$'
+jq -e '
+  .status == "ok"
+  and any(.checks[]; .name == "meeting_lifecycle" and .status == "passed")
+  and (.manual_gates[0].command | contains("--require-meeting-lifecycle"))
+' "$strict_live_acceptance_report" >/dev/null
 next_output="$("$bin" next "$session")"
 assert_no_helper_prefix "$next_output"
 echo "$next_output" | grep -q '^next:$'
@@ -1412,7 +1474,7 @@ grep -q '^# Transcript$' "$ready_export_dir/$(basename "$ready_export_session")/
 ready_next_output="$("$bin" next "$ready_export_session" --export-manifest "$ready_export_dir/$(basename "$ready_export_session")/export_manifest.json")"
 assert_no_helper_prefix "$ready_next_output"
 echo "$ready_next_output" | grep -q '^next:$'
-echo "$ready_next_output" | grep -q '^  status: exportable$'
+echo "$ready_next_output" | grep -q '^  status: exported$'
 echo "$ready_next_output" | grep -q '^  command: murmurmark retention plan '
 echo "$ready_next_output" | grep -q '^  source: export_manifest$'
 echo "$ready_next_output" | grep -q '^  export_manifest: '
@@ -1486,6 +1548,11 @@ echo "$default_status_output" | grep -q '^  export_manifest: .*exports/private/e
 echo "$default_status_output" | grep -q '^  recommended_next: murmurmark retention plan '
 echo "$default_status_output" | grep -q '^    retention: murmurmark retention plan '
 tail -1 <<<"$default_status_output" | grep -q '^next: murmurmark retention plan '
+default_next_output="$(cd "$workdir" && "$bin" next "$ready_export_session")"
+assert_no_helper_prefix "$default_next_output"
+echo "$default_next_output" | grep -q '^  status: exported$'
+echo "$default_next_output" | grep -q '^  source: export_manifest$'
+echo "$default_next_output" | grep -q '^  export_status: exported$'
 default_sessions_output="$(cd "$workdir" && "$bin" sessions --sessions-root "$workdir" --status exported --limit 1)"
 assert_no_helper_prefix "$default_sessions_output"
 echo "$default_sessions_output" | grep -q '^      status: exported$'
@@ -3602,19 +3669,17 @@ EOF
   echo "$main_help" | grep -q '^Everyday usage:$'
   echo "$main_help" | grep -q '^  murmurmark config init$'
   echo "$main_help" | grep -q '^  murmurmark acceptance --skip-release$'
+  echo "$main_help" | grep -q '^  murmurmark meeting --target-bundle system$'
   echo "$main_help" | grep -q '^Quality and corpus maintenance:$'
   echo "$main_help" | grep -q '^Setup and diagnostics:$'
   echo "$main_help" | grep -q '^Advanced/debugging:$'
   echo "$main_help" | grep -q '^  SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)"$'
   echo "$main_help" | grep -q '^  murmurmark record --out "$SESSION" --target-bundle system$'
   echo "$main_help" | grep -q '^  murmurmark process "$SESSION"$'
-  echo "$main_help" | grep -q '^  murmurmark next "$SESSION"$'
-  echo "$main_help" | grep -q '^  murmurmark next corpus$'
-  echo "$main_help" | grep -q '^  murmurmark status "$SESSION"$'
   echo "$main_help" | grep -q '^  murmurmark live gate \[--sessions-root ./sessions\]$'
-  echo "$main_help" | grep -q '^  murmurmark finish "$SESSION"$'
   echo "$main_help" | grep -q '^  murmurmark acceptance \[--skip-release\] \[--python PATH\] \[--live-checklist\] \[--report PATH\]$'
-  echo "$main_help" | grep -q '\[--live-session SESSION|latest\] \[--sessions-root ./sessions\]'
+  echo "$main_help" | grep -q '\[--live-session SESSION|latest\] \[--require-meeting-lifecycle\]'
+  echo "$main_help" | grep -Eq '^[[:space:]]*\[--sessions-root ./sessions\]$'
   echo "$main_help" | grep -q '^  murmurmark inspect ./session|latest \[--echo\] \[--sessions-root ./sessions\]$'
   echo "$main_help" | grep -q '^  murmurmark review --help$'
   inspect_help="$("$bin" inspect --help)"
@@ -3622,17 +3687,18 @@ EOF
   acceptance_help="$("$bin" acceptance --help)"
   echo "$acceptance_help" | grep -q 'usage: murmurmark acceptance'
   echo "$acceptance_help" | grep -q -- '--live-session SESSION|latest'
+  echo "$acceptance_help" | grep -q -- '--require-meeting-lifecycle'
   echo "$acceptance_help" | grep -q -- '--report PATH'
   acceptance_live="$("$bin" acceptance --live-checklist)"
   echo "$acceptance_live" | grep -q '^live_recording_gate:$'
   echo "$acceptance_live" | grep -q '^  scope: production batch-first recording, not near-realtime live-pipeline$'
-  echo "$acceptance_live" | grep -q '^    - murmurmark inspect "$SESSION"$'
-  echo "$acceptance_live" | grep -q '^    - murmurmark acceptance --live-session "$SESSION" --report /tmp/murmurmark-live-session.json$'
+  echo "$acceptance_live" | grep -q '^    - murmurmark meeting --out "$SESSION" --target-bundle system$'
+  echo "$acceptance_live" | grep -q '^    - murmurmark acceptance --live-session "$SESSION" --require-meeting-lifecycle --report /tmp/murmurmark-live-session.json$'
   echo "$acceptance_live" | grep -q '^near_realtime_shadow_gate:$'
   echo "$acceptance_live" | grep -q '^  scope: durable raw recording plus committed-PCM live-shadow evidence; batch remains authoritative$'
   echo "$acceptance_live" | grep -q '^    - MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh$'
   echo "$acceptance_live" | grep -q '^    - SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)-live-evidence"$'
-  echo "$acceptance_live" | grep -q '^    - murmurmark record --out "$SESSION" --target-bundle system --duration 120 --experiment live-shadow-v1$'
+  echo "$acceptance_live" | grep -q '^    - murmurmark meeting --out "$SESSION" --target-bundle system --experiment live-shadow-v1$'
   echo "$acceptance_live" | grep -q '^    - murmurmark experiment status "$SESSION"$'
   echo "$acceptance_live" | grep -q '^    - murmurmark experiment report "$SESSION"$'
   echo "$acceptance_live" | grep -q '^    - murmurmark experiment compare "$SESSION" --experiment live-shadow-v1$'

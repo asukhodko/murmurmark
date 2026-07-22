@@ -20,8 +20,21 @@ fi
 
 export MURMURMARK_HOME="$repo_root"
 
+meeting_option_output="$(mktemp "${TMPDIR:-/tmp}/murmurmark-meeting-unsafe-option.XXXXXX")"
+"$bin" meeting -h | grep -q '^usage: murmurmark meeting'
+if "$bin" meeting --force-asr >"$meeting_option_output" 2>&1; then
+  echo "expected meeting to reject --force-asr" >&2
+  exit 1
+fi
+grep -q 'unsupported meeting option --force-asr' "$meeting_option_output"
+if "$bin" meeting --sessions-root sessions >"$meeting_option_output" 2>&1; then
+  echo "expected meeting capture to reject --sessions-root without --resume" >&2
+  exit 1
+fi
+grep -q 'unsupported meeting option --sessions-root' "$meeting_option_output"
+
 workdir="$(mktemp -d "${TMPDIR:-/tmp}/murmurmark-cli-handoff.XXXXXX")"
-trap 'rm -rf "$workdir"' EXIT
+trap 'rm -rf "$workdir"; rm -f "$meeting_option_output"' EXIT
 
 write_full_capture_regression_proof() {
   mkdir -p "$workdir/sessions/_reports/capture-regression"
@@ -608,7 +621,7 @@ cat >"$review_session/derived/readiness/review-plan/review_workspace_apply_repor
   }
 }
 EOF
-eval_python="$repo_root/.venv/bin/python"
+eval_python="${MURMURMARK_PYTHON:-$repo_root/.venv/bin/python}"
 if [[ ! -x "$eval_python" ]]; then
   eval_python="python3"
 fi
@@ -677,7 +690,7 @@ grep -Fq '## Can I Use This?' "$workdir/finish/private/cli-handoff/index.md"
 [[ -s "$session/derived/retention/provider_payload_manifest.json" ]]
 
 post_export_next="$("$bin" next "$session" --export-manifest "$manifest")"
-echo "$post_export_next" | grep -q '^  status: exportable$'
+echo "$post_export_next" | grep -q '^  status: exported$'
 echo "$post_export_next" | grep -q '^  command: murmurmark retention plan '
 
 live_cache_session="$workdir/sessions/live-cache-smoke"

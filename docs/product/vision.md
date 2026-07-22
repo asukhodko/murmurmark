@@ -38,9 +38,10 @@ about speaker identity.
 Development converges from evidence, not from adding output profiles. Each quality step freezes its
 input, changes one bounded error class, and either passes corpus-wide promotion gates or records a
 reproducible evidence limit. Failed promotion never weakens the selected transcript. Proven missing
-local speech now has a bounded completion profile and an executable text-review lane. The next
-quality step separates remote-supported spans inside mixed `Me` utterances before another audio-layer
-suppression candidate is considered for promotion.
+local speech now has a bounded completion profile and an executable text-review lane. The product
+path hides safe pipeline mechanics behind `murmurmark meeting`, while retaining checkpoints,
+review evidence and honest failure. The current quality step separates remote-supported spans inside
+mixed `Me` utterances before another audio-layer suppression candidate is considered for promotion.
 
 Remote-speaker diarization is an independent research branch after base transcript quality closure.
 It starts with anonymous speaker intervals, then an evidence-backed speaker map and

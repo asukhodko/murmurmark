@@ -118,9 +118,12 @@ done
 # Include this script before it is committed, so local verification can inspect
 # the same bundle layout during development.
 copy_file "scripts/build-release-bundle.sh"
+copy_file "scripts/run-meeting-lifecycle.py"
 copy_file "scripts/apply-retention-policy.py"
 copy_file "scripts/build-provider-payload-manifest.py"
 copy_file "examples/retention-policy.local-first.json"
+copy_file "docs/contracts/meeting-lifecycle.md"
+copy_file "docs/runbooks/meeting-cheatsheet.md"
 copy_file "docs/contracts/retention-policy.md"
 
 cat > "$bundle_root/bin/murmurmark" <<'EOF'
@@ -149,7 +152,7 @@ Run:
 
 ```bash
 bin/murmurmark doctor
-bin/murmurmark process ./sessions/<session>
+bin/murmurmark meeting --target-bundle system
 ```
 
 Verify the bundle:

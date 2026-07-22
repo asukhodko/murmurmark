@@ -36,7 +36,7 @@ nodes:
     effort: 120
     notes: |
       Активная CLI-first, local-first и evidence-backed программа. Batch transcript остаётся
-      authoritative. В работе одновременно может быть только одна исполнимая quality-цель.
+      authoritative. В работе одновременно может быть только одна исполнимая продуктовая цель.
       Подробная история экспериментов сохранена в
       docs/history/murmurmark-cli-roadmap-through-2026-07-19.plan.yaml.
 
@@ -110,6 +110,21 @@ nodes:
     status: done
     effort: 4
     notes: "doctor, self-test, acceptance, local installer, public docs, license и readiness checks."
+
+  product-one-command-meeting-lifecycle-v1:
+    title: "One-Command Meeting Lifecycle v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [working-capabilities, corpus-regression]
+    status: done
+    effort: 8
+    notes: |
+      Свести обычную встречу к `murmurmark meeting`: durable capture, первый Ctrl-C, plain
+      authoritative process, bounded enrich, safe suggested review, guarded finish и честный
+      ready/ready_with_review/failed summary. Supervisor lock/journal/checkpoints/resume обязателен;
+      raw CAF проверяется SHA-256 до и после обработки. Реализация, local install, release self-test,
+      fresh permission-capable capture soak и strict lifecycle acceptance пройдены. Ранний Ctrl-C
+      при заданном --duration также финализирует raw и запускает lifecycle безопасно.
 
   corpus-regression:
     title: "Corpus regression и evidence store"
@@ -188,11 +203,11 @@ nodes:
     title: "Mixed-Utterance Remote Span Separation v1"
     kind: task
     parent: murmurmark-cli
-    deps: [quality-evidence-backed-me-completion-v2, corpus-regression]
+    deps: [product-one-command-meeting-lifecycle-v1, quality-evidence-backed-me-completion-v2, corpus-regression]
     status: current
     effort: 9
     notes: |
-      Единственная исполнимая quality-цель. Отделить доказанный remote span внутри Me utterance,
+      Следующая transcript-quality цель. Отделить доказанный remote span внутри Me utterance,
       сохранив unique/protected local prefix и tail. Требуются paired clean/raw/role-masked word
       timestamps, authoritative remote timing, speaker state, Target-Me и fail-open provenance.
 
@@ -341,7 +356,7 @@ views:
         title: "Единственная исполнимая цель"
         nodes: [quality-mixed-utterance-separation-v1]
       dependent:
-        title: "Зависимые этапы"
+        title: "Следующие зависимые этапы"
         nodes:
           - quality-echo-suppression-promotion
 
@@ -356,6 +371,7 @@ views:
           - quality-operational-rebaseline-v1
           - quality-speaker-mode-hardening-v1
           - quality-evidence-backed-me-completion-v2
+          - product-one-command-meeting-lifecycle-v1
           - quality-mixed-utterance-separation-v1
           - quality-echo-suppression-promotion
           - product-evidence-export-v2
@@ -399,6 +415,7 @@ views:
           - quality-operational-rebaseline-v1
           - quality-speaker-mode-hardening-v1
           - quality-evidence-backed-me-completion-v2
+          - product-one-command-meeting-lifecycle-v1
           - quality-mixed-utterance-separation-v1
           - quality-echo-suppression-promotion
           - product-evidence-export-v2
@@ -409,8 +426,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Mixed-Utterance Remote Span Separation v1: доказательно отделить remote-span внутри смешанных Me-реплик, сохранив уникальные локальные префиксы, хвосты, роли и порядок слов."
-      success_by_next_sync: "Frozen mixed rows имеют stable outcomes; applied spans сохраняют весь подтверждённый local content и снижают duplicate/review gates либо опубликован точный DO_NOT_PROMOTE."
+      nearest_goal: "Mixed-Utterance Remote Span Separation v1: отделить доказанный remote span внутри смешанной Me-реплики, сохранив подтверждённую локальную речь и оставляя неоднозначность явной."
+      success_by_next_sync: "Frozen mixed-Me корпус получает детерминированный PROMOTE или DO_NOT_PROMOTE без потери unique/protected Me content и без регрессий chronology, local recall и export gates."
     defaults:
       status_progress:
         done: 1.0
@@ -424,11 +441,11 @@ x:
     blocks:
       working-now:
         title: "Работает сейчас"
-        scope_nodes: [working-capabilities, corpus-regression]
+        scope_nodes: [working-capabilities, corpus-regression, product-one-command-meeting-lifecycle-v1]
         kind: main
         mgmt:
           health: green
-          sync_note: "Durable capture, batch transcript, review, notes/export и Live Shadow уже работают."
+          sync_note: "Durable capture, one-command lifecycle, batch transcript, review, notes/export и Live Shadow уже работают."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
         title: "Текущая цель"
@@ -436,8 +453,8 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Me Completion v2 закрыла доказуемый local-recall долг; оставшийся класс требует span-level отделения remote внутри mixed utterances."
-          next_sync_goal: "Отделить remote span без потери unique/protected local prefix и tail."
+          sync_note: "One-command lifecycle закрыт. Остаточный вред сосредоточен в смешанных Me utterances, где remote span соседствует с уникальным local prefix или tail."
+          next_sync_goal: "Заморозить mixed-Me очередь, доказательно разделить remote/local spans и выпустить corpus-wide PROMOTE или точный DO_NOT_PROMOTE."
       dependent-path:
         title: "Зависимый путь"
         scope_nodes:

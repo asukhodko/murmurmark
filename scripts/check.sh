@@ -49,6 +49,8 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-local-speech-completion-corpus.py
 "$python_bin" scripts/check-experiment-compare-timeout.py
 "$python_bin" scripts/check-planning-consistency.py
+MURMURMARK_BIN="$repo_root/.build/debug/murmurmark" \
+  "$python_bin" scripts/check-meeting-lifecycle.py
 scripts/check-open-source-readiness.sh
 scripts/check-capture-regressions.sh
 scripts/smoke-experimental-sidecar-contract.sh
@@ -86,6 +88,7 @@ else
     and .mode == "automated"
     and .next == "murmurmark acceptance --live-checklist"
     and any(.checks[]; .name == "self_test" and .status == "passed")
+    and any(.checks[]; .name == "meeting_lifecycle" and .status == "passed")
     and any(.manual_gates[]; .name == "live_recording" and .status == "manual")
   ' "$acceptance_report" >/dev/null
 
