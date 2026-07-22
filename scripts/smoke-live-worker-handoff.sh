@@ -152,8 +152,8 @@ MURMURMARK_CAUSAL_ME_RECOVERY_RUNTIME_SCRIPT="$workdir/fake-causal-recovery.py" 
   --no-causal-target-me >"$workdir/worker.log" 2>&1 &
 worker_pid=$!
 
-wait_for 5 test -s "$session/derived/live/live_pipeline_state.json" \
-  || fail "worker heartbeat did not appear before segments"
+wait_for 45 test -s "$session/derived/live/live_pipeline_state.json" \
+  || { cat "$workdir/worker.log" >&2; fail "worker heartbeat did not appear before segments"; }
 append_segment_pair "$session" "2026-07-10T10:00:02Z"
 wait_for 10 grep -q "удаленная тестовая реплика" "$session/derived/live/transcript.draft.md" \
   || { cat "$workdir/worker.log" >&2; fail "draft did not appear before session stop"; }

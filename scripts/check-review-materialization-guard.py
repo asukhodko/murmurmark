@@ -33,8 +33,10 @@ def main() -> int:
         "suggested_decision": "keep_me",
         "suggested_decision_confidence": "high",
         "allowed_decisions": ["keep_me", "needs_review", "skip"],
-        "me_utterance_ids": [],
-        "utterance_ids": [],
+        # Audit candidates have an id, but are not transcript utterances until
+        # the local-recall repair profile materializes them.
+        "me_utterance_ids": ["live_candidate_1"],
+        "utterance_ids": ["live_candidate_1"],
     }
     assert lane.requires_materialized_local_recall([raw]) is True
     suggestion = lane.suggested_decision_for_group([raw], {}, {})
@@ -86,6 +88,42 @@ def main() -> int:
     merged = workspace_apply.merge_existing([template_row], [stale_keep, unrelated_review])
     assert merged[0]["decision"] == "todo", merged
     assert any(row.get("cluster_id") == "audio_1" for row in merged), merged
+
+    merge_modules = [
+        workspace_apply,
+        lane,
+        load_module("build-review-workspace.py", "murmurmark_build_workspace_fresh_todo"),
+        load_module("apply-review-lane-pack-decisions.py", "murmurmark_apply_lane_fresh_todo"),
+        load_module("report-review-decisions-progress.py", "murmurmark_review_progress_fresh_todo"),
+        load_module("review-decisions-cli.py", "murmurmark_review_cli_fresh_todo"),
+    ]
+    fresh_template = {
+        "session_id": "session",
+        "cluster_id": "fresh_1",
+        "interval": {"start": 5.0, "end": 6.0},
+        "label": "timing_overlap",
+        "source": "audio_review",
+        "source_audit_id": "fresh_audit_id",
+        "decision": "todo",
+        "status": "todo",
+        "utterance_ids": ["utt_2"],
+    }
+    stale_todo = {**fresh_template, "source_audit_id": "stale_audit_id"}
+    reviewed = {
+        **stale_todo,
+        "decision": "keep_me",
+        "status": "reviewed",
+        "reviewer": "test",
+    }
+    for merge_module in merge_modules:
+        refreshed = merge_module.merge_existing([fresh_template], [stale_todo])
+        assert refreshed[0]["source_audit_id"] == "fresh_audit_id", (
+            merge_module.__name__,
+            refreshed,
+        )
+        preserved = merge_module.merge_existing([fresh_template], [reviewed])
+        assert preserved[0]["decision"] == "keep_me", (merge_module.__name__, preserved)
+        assert preserved[0]["reviewer"] == "test", (merge_module.__name__, preserved)
 
     quality = load_module("report-session-quality.py", "murmurmark_report_materialization")
     with tempfile.TemporaryDirectory(prefix="murmurmark-review-materialization-") as temp_dir:

@@ -55,6 +55,74 @@ def candidate(
 def main() -> int:
     module = load_module()
     assert module.token_containment("Global своя", "Global. своя...") == 1.0
+    shifted_covered, shifted_evidence = module.independent_candidate_is_already_covered(
+        {
+            "start": 78.0,
+            "end": 84.0,
+            "text": "Я помню твой главный наброс был в том что он внезапно исчезал.",
+        },
+        [
+            {
+                "id": "shifted_me",
+                "role": "me",
+                "start": 80.0,
+                "end": 90.0,
+                "text": "Образ был в том, что он внезапно исчезал.",
+            }
+        ],
+    )
+    assert shifted_covered is True, shifted_evidence
+    assert shifted_evidence["coverage_reason"] == "candidate_already_present_in_me", shifted_evidence
+
+    combined_covered, combined_evidence = module.independent_candidate_is_already_covered(
+        {
+            "start": 101.0,
+            "end": 109.0,
+            "text": "Когда берем заранее, такие сели. Тут противоречие, потому что не внедряли.",
+        },
+        [
+            {
+                "id": "combined_remote",
+                "role": "remote",
+                "start": 100.0,
+                "end": 105.0,
+                "text": "Когда берем заранее, такие сели.",
+            },
+            {
+                "id": "combined_me",
+                "role": "me",
+                "start": 105.0,
+                "end": 110.0,
+                "text": "Тут противоречие, потому что не внедряли.",
+            },
+        ],
+    )
+    assert combined_covered is True, combined_evidence
+    assert combined_evidence["coverage_reason"] == "candidate_content_present_in_batch", combined_evidence
+
+    unique_continuation_covered, unique_continuation_evidence = (
+        module.independent_candidate_is_already_covered(
+            {
+                "start": 120.0,
+                "end": 130.0,
+                "text": (
+                    "Уровень счастья или несчастья, в зависимости от того, "
+                    "выше нуля или ниже."
+                ),
+            },
+            [
+                {
+                    "id": "partial_me",
+                    "role": "me",
+                    "start": 120.0,
+                    "end": 124.0,
+                    "text": "Уровень счастья или несчастья.",
+                }
+            ],
+        )
+    )
+    assert unique_continuation_covered is False, unique_continuation_evidence
+    assert len(unique_continuation_evidence["batch_me_missing_content_tokens"]) >= 3
     utterances = [
         {
             "id": "remote_1",
@@ -144,6 +212,8 @@ def main() -> int:
     assert [row["parent_candidate_id"] for row in items] == ["missing_me", "speaker_overlap"], items
     assert all(row["label"] == "possible_lost_me" for row in items), items
     assert all(row["evidence_source"] == "live_causal_target_me" for row in items), items
+    assert items[0]["item_id"] == "local_recall_independent_missing_me", items
+    assert items[1]["item_id"] == "local_recall_independent_speaker_overlap", items
     assert rejected["candidate_matches_authoritative_remote"] == 1, rejected
     assert rejected["candidate_already_present_in_me"] == 2, rejected
     assert rejected["target_speaker_evidence_too_weak"] == 1, rejected

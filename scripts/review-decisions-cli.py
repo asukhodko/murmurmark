@@ -112,7 +112,11 @@ def review_row_key(row: dict[str, Any]) -> str:
 
 
 def merge_existing(template_rows: list[dict[str, Any]], existing_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    existing_by_key = {review_row_key(row): row for row in existing_rows}
+    existing_by_key = {
+        review_row_key(row): row
+        for row in existing_rows
+        if str(row.get("decision") or "todo") not in {"", "todo"}
+    }
     merged: list[dict[str, Any]] = []
     for row in template_rows:
         existing = existing_by_key.get(review_row_key(row))

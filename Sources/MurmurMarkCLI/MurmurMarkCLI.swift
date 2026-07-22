@@ -2441,7 +2441,7 @@ enum ReviewSessionLocalPlan {
         let sessionQualityOut = readinessRoot.appendingPathComponent("session-quality")
         let operationalOut = readinessRoot.appendingPathComponent("operational-readiness")
         let planOut = readinessRoot.appendingPathComponent("review-plan")
-        if hasPreparedReviewPlan(planOut) {
+        if hasPreparedReviewPlan(planOut), !hasNewerReviewEvidence(session: session, planOut: planOut) {
             return
         }
         try Tooling.runPathQuiet(try PythonRuntime.resolve(), [
@@ -2473,6 +2473,28 @@ enum ReviewSessionLocalPlan {
             return false
         }
         return size.intValue > 0
+    }
+
+    private static func hasNewerReviewEvidence(session: URL, planOut: URL) -> Bool {
+        let template = planOut.appendingPathComponent("review_decisions.template.jsonl")
+        guard let templateDate = modificationDate(template) else {
+            return true
+        }
+        let evidence = [
+            session.appendingPathComponent("derived/audit/local-recall/local_recall_audit.json"),
+            session.appendingPathComponent("derived/audit/order/transcript_order_audit.json"),
+        ]
+        return evidence.contains { url in
+            guard let evidenceDate = modificationDate(url) else { return false }
+            return evidenceDate > templateDate
+        }
+    }
+
+    private static func modificationDate(_ url: URL) -> Date? {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path) else {
+            return nil
+        }
+        return attributes[.modificationDate] as? Date
     }
 
     private static func planDir(_ session: URL) -> URL {
@@ -2730,6 +2752,11 @@ enum ReviewSuggestedCommand {
             workspaceApplyArgs.append("--dry-run")
         }
         try Tooling.runPathQuiet(python, [try script("apply-review-workspace-decisions.py").path] + workspaceApplyArgs)
+        var progressArgs: [String] = []
+        ReviewSessionLocalPlan.addProgressDefaults(for: session, to: &progressArgs)
+        try ReviewProgressRunner.run(args: progressArgs)
+        try refreshSessionReadiness(session: session, python: python)
+        try refreshOutcome(session: session, python: python)
 
         print("SESSION=\"\(PathDisplay.display(session))\"")
         let workspaceReport = ReviewPaths.workspaceApplyReport(from: workspaceApplyArgs)
@@ -2745,10 +2772,6 @@ enum ReviewSuggestedCommand {
         guard readyForProfile else {
             return
         }
-
-        var progressArgs: [String] = []
-        ReviewSessionLocalPlan.addProgressDefaults(for: session, to: &progressArgs)
-        try ReviewProgressRunner.run(args: progressArgs)
 
         var batchArgs = ["--allow-partial-review", "--session", session.lastPathComponent, "--synthesize", "--refresh-reports"]
         ReviewSessionLocalPlan.addReviewApplyDefaults(for: session, to: &batchArgs)
@@ -2798,6 +2821,16 @@ enum ReviewSuggestedCommand {
         try Tooling.runPathQuiet(python, [
             try script("evaluate-outcome.py").path,
             session.path,
+        ])
+    }
+
+    private static func refreshSessionReadiness(session: URL, python: URL) throws {
+        try Tooling.runPathQuiet(python, [
+            try script("report-session-quality.py").path,
+            session.path,
+            "--out-dir",
+            session.appendingPathComponent("derived/readiness/session-quality").path,
+            "--write-session-readiness",
         ])
     }
 

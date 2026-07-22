@@ -1883,6 +1883,9 @@ Raw local-recall rows are audit-only: they do not add missing words to the trans
 `keep_me`, `drop_me` and `drop_remote` are not valid decisions for them. Even strong local audio
 evidence must first go through `murmurmark repair local-recall`, which creates an actual `Me`
 utterance in `local_recall_repair_v1`. Review can then keep or drop that materialized repair row.
+An independent live candidate ID is evidence provenance, not a transcript utterance ID, so it never
+makes an audit-only row auto-closable. Re-running local-recall or order audit refreshes unreviewed
+lane metadata from the new audit while preserving decisions that were already reviewed.
 Transcript-order rows are audit-only for timeline content: review can
 clear or keep the chronology risk and records `quality.transcript_order_review` on affected
 utterances, but it does not move utterances or edit text. `reviewed_v1` gates pass only when

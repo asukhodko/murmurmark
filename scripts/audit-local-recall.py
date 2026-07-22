@@ -11,7 +11,7 @@ from typing import Any
 
 SCHEMA_AUDIT = "murmurmark.local_recall_audit/v1"
 SCHEMA_ITEM = "murmurmark.local_recall_item/v1"
-SCRIPT_VERSION = "0.5.1"
+SCRIPT_VERSION = "0.5.2"
 DIALOGUE_PROFILE_ORDER = [
     "reviewed_v1",
     "order_repair_v1",
@@ -206,6 +206,11 @@ def token_containment(left: Any, right: Any) -> float:
     return len(left_tokens & right_tokens) / max(1, len(left_tokens))
 
 
+def missing_content_tokens(left: Any, right: Any) -> list[str]:
+    right_tokens = set(content_tokens(right))
+    return sorted(set(content_tokens(left)) - right_tokens)
+
+
 def safe_float(value: Any, default: float = 0.0) -> float:
     try:
         return float(value)
@@ -301,11 +306,14 @@ def independent_candidate_is_already_covered(
     start = safe_float(row.get("start"))
     end = safe_float(row.get("end"), start)
     text = str(row.get("text") or "")
+    # Batch segmentation can move a short Me fragment several seconds away from
+    # the causal live window. Use a wider text context while keeping interval
+    # coverage tied to the candidate's exact bounds.
     me_rows = [
         item
         for item in utterances
         if is_me_utterance(item)
-        and interval_overlap_sec(start - 3.0, end + 3.0, safe_float(item.get("start")), safe_float(item.get("end"))) > 0
+        and interval_overlap_sec(start - 8.0, end + 8.0, safe_float(item.get("start")), safe_float(item.get("end"))) > 0
     ]
     remote_rows = [
         item
@@ -324,12 +332,30 @@ def independent_candidate_is_already_covered(
     )
     me_text_containment = token_containment(text, context_text(me_rows))
     remote_text_containment = token_containment(text, context_text(remote_rows))
+    combined_rows = [
+        item
+        for item in utterances
+        if interval_overlap_sec(
+            start - 3.0,
+            end + 3.0,
+            safe_float(item.get("start")),
+            safe_float(item.get("end")),
+        )
+        > 0
+    ]
+    combined_text = context_text(combined_rows)
+    combined_text_containment = token_containment(text, combined_text)
+    me_missing_tokens = missing_content_tokens(text, context_text(me_rows))
+    combined_missing_tokens = missing_content_tokens(text, combined_text)
     diagnostics = {
         "batch_me_interval_coverage": round(me_coverage, 6),
         "batch_me_text_containment": round(me_text_containment, 6),
         "batch_me_max_utterance_text_containment": round(me_max_utterance_containment, 6),
         "batch_remote_text_containment": round(remote_text_containment, 6),
         "batch_remote_max_utterance_text_containment": round(remote_max_utterance_containment, 6),
+        "batch_combined_text_containment": round(combined_text_containment, 6),
+        "batch_me_missing_content_tokens": me_missing_tokens,
+        "batch_combined_missing_content_tokens": combined_missing_tokens,
         "nearby_me_utterance_ids": [str(item.get("id") or "") for item in me_rows if item.get("id")],
         "nearby_remote_utterance_ids": [
             str(item.get("id") or "") for item in remote_rows if item.get("id")
@@ -337,8 +363,17 @@ def independent_candidate_is_already_covered(
     }
     if remote_text_containment >= 0.65:
         return True, {**diagnostics, "coverage_reason": "candidate_matches_authoritative_remote"}
-    if me_text_containment >= 0.75 or (me_coverage >= 0.70 and me_text_containment >= 0.45):
+    if (
+        me_text_containment >= 0.75
+        or (me_coverage >= 0.85 and me_text_containment >= 0.35)
+        or (me_coverage >= 0.50 and me_text_containment >= 0.45)
+        or (me_text_containment >= 0.60 and len(me_missing_tokens) <= 2)
+    ):
         return True, {**diagnostics, "coverage_reason": "candidate_already_present_in_me"}
+    if combined_text_containment >= 0.72 or (
+        combined_text_containment >= 0.60 and len(combined_missing_tokens) <= 2
+    ):
+        return True, {**diagnostics, "coverage_reason": "candidate_content_present_in_batch"}
     return False, diagnostics
 
 
@@ -420,14 +455,16 @@ def independent_live_me_items(
         selected.append((row, diagnostics))
 
     items: list[dict[str, Any]] = []
-    for index, (row, diagnostics) in enumerate(
-        sorted(selected, key=lambda value: (safe_float(value[0].get("start")), safe_float(value[0].get("end")))),
-        start=1,
+    for row, diagnostics in sorted(
+        selected,
+        key=lambda value: (safe_float(value[0].get("start")), safe_float(value[0].get("end"))),
     ):
         start = safe_float(row.get("start"))
         end = safe_float(row.get("end"), start)
         speaker_scores = row.get("speaker_scores")
         speaker_scores = speaker_scores if isinstance(speaker_scores, dict) else {}
+        candidate_id = str(row.get("id") or f"{start:.3f}_{end:.3f}")
+        stable_candidate_id = re.sub(r"[^0-9A-Za-z_]+", "_", candidate_id).strip("_")
         confidence = min(
             0.95,
             0.55 + 0.25 * safe_float(row.get("score")) + 0.45 * safe_float(speaker_scores.get("target")),
@@ -435,7 +472,7 @@ def independent_live_me_items(
         items.append(
             {
                 "schema": SCHEMA_ITEM,
-                "item_id": f"local_recall_independent_{index:04d}",
+                "item_id": f"local_recall_independent_{stable_candidate_id}",
                 "label": "possible_lost_me",
                 "confidence": round(confidence, 3),
                 "reason": "independent causal live evidence contains a probable Me phrase absent from batch",

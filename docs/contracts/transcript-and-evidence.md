@@ -609,6 +609,10 @@ evidence. Synthesis accepts `--transcript-profile local_recall_repair_v1` explic
 risk when inserted local turns exist. Auto-promotion of the raw repair profile is intentionally left
 out. The normal promotion path is `local_recall_repair_v1` as an input to `murmurmark review agent`,
 which may keep high-confidence repair insertions inside the confirmed `agent_reviewed_v1` profile.
+Independent live candidates keep stable item IDs derived from their causal candidate IDs. These IDs
+are provenance only: review must not treat them as materialized `Me` utterances. When a newer
+local-recall or order audit exists, session-local review planning rebuilds pending rows from that
+audit; only rows with an explicit reviewed decision may override refreshed template metadata.
 The report also carries `recommended_next`, `next_commands` and `open_commands`; the Swift CLI prints
 these fields after `murmurmark repair local-recall` so terminal output and JSON handoff stay identical.
 `local_recall_repair_micro_runs.local_recall_repair_v1.jsonl` keeps per-source/per-window evidence:

@@ -137,7 +137,11 @@ def obsolete_audit_only_local_recall_keep(row: dict[str, Any]) -> bool:
 
 def merge_existing(template_rows: list[dict[str, Any]], existing_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     existing_rows = [row for row in existing_rows if not obsolete_audit_only_local_recall_keep(row)]
-    existing_by_key = {review_row_key(row): row for row in existing_rows}
+    existing_by_key = {
+        review_row_key(row): row
+        for row in existing_rows
+        if is_reviewed(row)
+    }
     template_keys = {review_row_key(row) for row in template_rows}
     merged = [{**row, **existing_by_key.get(review_row_key(row), {})} for row in template_rows]
     merged.extend(row for row in existing_rows if review_row_key(row) not in template_keys and is_reviewed(row))
