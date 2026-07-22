@@ -1009,6 +1009,10 @@ enum PipelineCommands {
         command += forwarded
 
         print("SESSION=\"\(PathDisplay.display(session))\"")
+        if ArgumentEditing.hasOption("full", in: forwarded) {
+            print("note: --full waits for optional heavy enrichment after the authoritative transcript is ready")
+            print("      use plain `murmurmark process SESSION` for the fastest final transcript handoff")
+        }
         fflush(stdout)
         try Tooling.runPathForwardingInterrupts(python, command)
         let planOnly = ArgumentEditing.hasOption("plan-only", in: forwarded)

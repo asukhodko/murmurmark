@@ -698,12 +698,7 @@ def selected_lab_policies(args: argparse.Namespace) -> tuple[str, ...]:
         return tuple(dict.fromkeys(str(policy) for policy in only_lab_policies))
     if args.with_labs:
         return MATERIALIZED_TARGET_ME_SHADOW_POLICIES
-    return tuple(
-        dict.fromkeys(
-            DEFAULT_TARGET_ME_SHADOW_POLICIES
-            + tuple(str(policy) for policy in args.lab_policy)
-        )
-    )
+    return tuple(dict.fromkeys(str(policy) for policy in args.lab_policy))
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
@@ -3941,16 +3936,32 @@ def order_mismatch_rows_for_turns(
     include_batch_interval_overlap_ambiguity: bool = False,
     only_batch_interval_overlap_ambiguity: bool = False,
 ) -> list[dict[str, Any]]:
-    order_mismatches: list[dict[str, Any]] = []
-    previous: dict[str, Any] | None = None
-    for turn in matched_turn_rows(
+    matched = matched_turn_rows(
         turns,
         batch_utterances,
         same_role_only=same_role_only,
         contentful_only=contentful_only,
         min_token_recall=min_token_recall,
         min_score=min_score,
-    ):
+    )
+    return order_mismatch_rows_from_matches(
+        matched,
+        match_mode=match_mode,
+        include_batch_interval_overlap_ambiguity=include_batch_interval_overlap_ambiguity,
+        only_batch_interval_overlap_ambiguity=only_batch_interval_overlap_ambiguity,
+    )
+
+
+def order_mismatch_rows_from_matches(
+    matched: list[dict[str, Any]],
+    *,
+    match_mode: str = "best_overall",
+    include_batch_interval_overlap_ambiguity: bool = False,
+    only_batch_interval_overlap_ambiguity: bool = False,
+) -> list[dict[str, Any]]:
+    order_mismatches: list[dict[str, Any]] = []
+    previous: dict[str, Any] | None = None
+    for turn in matched:
         if previous is not None:
             previous_batch_start = safe_float((previous.get("match") or {}).get("batch_start"))
             current_batch_start = safe_float((turn.get("match") or {}).get("batch_start"))
@@ -5250,96 +5261,90 @@ def assess_live_vs_batch(
     local_missing_not_visible_in_suppressed_mic: list[dict[str, Any]] = []
     remote_leak = remote_leak_rows_for_turns(turns, batch_utterances)
     shadow_remote_leak = remote_leak_rows_for_turns(rescue_shadow_turns, batch_utterances)
-    order_mismatches = order_mismatch_rows_for_turns(turns, batch_utterances)
-    shadow_order_mismatches = order_mismatch_rows_for_turns(turns + rescue_shadow_turns, batch_utterances)
-    order_ambiguities = order_mismatch_rows_for_turns(
-        turns,
-        batch_utterances,
-        match_mode="best_overall_batch_overlap_ambiguity",
-        only_batch_interval_overlap_ambiguity=True,
-    )
-    shadow_order_ambiguities = order_mismatch_rows_for_turns(
-        turns + rescue_shadow_turns,
-        batch_utterances,
-        match_mode="rescue_shadow_best_overall_batch_overlap_ambiguity",
-        only_batch_interval_overlap_ambiguity=True,
-    )
-    role_constrained_order_mismatches = order_mismatch_rows_for_turns(
+    shadow_turns = turns + rescue_shadow_turns
+    matched_turns = matched_turn_rows(turns, batch_utterances)
+    shadow_matched_turns = matched_turn_rows(shadow_turns, batch_utterances)
+    role_matched_turns = matched_turn_rows(
         turns,
         batch_utterances,
         same_role_only=True,
         min_token_recall=0.45,
         min_score=0.65,
-        match_mode="role_constrained_strict",
     )
-    role_constrained_order_ambiguities = order_mismatch_rows_for_turns(
-        turns,
-        batch_utterances,
-        same_role_only=True,
-        min_token_recall=0.45,
-        min_score=0.65,
-        match_mode="role_constrained_strict_batch_overlap_ambiguity",
-        only_batch_interval_overlap_ambiguity=True,
-    )
-    contentful_role_constrained_order_mismatches = order_mismatch_rows_for_turns(
+    contentful_role_matched_turns = matched_turn_rows(
         turns,
         batch_utterances,
         same_role_only=True,
         contentful_only=True,
         min_token_recall=0.45,
         min_score=0.65,
+    )
+    shadow_role_matched_turns = matched_turn_rows(
+        shadow_turns,
+        batch_utterances,
+        same_role_only=True,
+        min_token_recall=0.45,
+        min_score=0.65,
+    )
+    shadow_contentful_role_matched_turns = matched_turn_rows(
+        shadow_turns,
+        batch_utterances,
+        same_role_only=True,
+        contentful_only=True,
+        min_token_recall=0.45,
+        min_score=0.65,
+    )
+    order_mismatches = order_mismatch_rows_from_matches(matched_turns)
+    shadow_order_mismatches = order_mismatch_rows_from_matches(shadow_matched_turns)
+    order_ambiguities = order_mismatch_rows_from_matches(
+        matched_turns,
+        match_mode="best_overall_batch_overlap_ambiguity",
+        only_batch_interval_overlap_ambiguity=True,
+    )
+    shadow_order_ambiguities = order_mismatch_rows_from_matches(
+        shadow_matched_turns,
+        match_mode="rescue_shadow_best_overall_batch_overlap_ambiguity",
+        only_batch_interval_overlap_ambiguity=True,
+    )
+    role_constrained_order_mismatches = order_mismatch_rows_from_matches(
+        role_matched_turns,
+        match_mode="role_constrained_strict",
+    )
+    role_constrained_order_ambiguities = order_mismatch_rows_from_matches(
+        role_matched_turns,
+        match_mode="role_constrained_strict_batch_overlap_ambiguity",
+        only_batch_interval_overlap_ambiguity=True,
+    )
+    contentful_role_constrained_order_mismatches = order_mismatch_rows_from_matches(
+        contentful_role_matched_turns,
         match_mode="role_constrained_contentful",
     )
     blocking_contentful_order_mismatches = [
         row for row in contentful_role_constrained_order_mismatches if order_mismatch_is_blocking(row)
     ]
-    contentful_role_constrained_order_ambiguities = order_mismatch_rows_for_turns(
-        turns,
-        batch_utterances,
-        same_role_only=True,
-        contentful_only=True,
-        min_token_recall=0.45,
-        min_score=0.65,
+    contentful_role_constrained_order_ambiguities = order_mismatch_rows_from_matches(
+        contentful_role_matched_turns,
         match_mode="role_constrained_contentful_batch_overlap_ambiguity",
         only_batch_interval_overlap_ambiguity=True,
     )
-    shadow_role_constrained_order_mismatches = order_mismatch_rows_for_turns(
-        turns + rescue_shadow_turns,
-        batch_utterances,
-        same_role_only=True,
-        min_token_recall=0.45,
-        min_score=0.65,
+    shadow_role_constrained_order_mismatches = order_mismatch_rows_from_matches(
+        shadow_role_matched_turns,
         match_mode="role_constrained_strict",
     )
-    shadow_role_constrained_order_ambiguities = order_mismatch_rows_for_turns(
-        turns + rescue_shadow_turns,
-        batch_utterances,
-        same_role_only=True,
-        min_token_recall=0.45,
-        min_score=0.65,
+    shadow_role_constrained_order_ambiguities = order_mismatch_rows_from_matches(
+        shadow_role_matched_turns,
         match_mode="rescue_shadow_role_constrained_strict_batch_overlap_ambiguity",
         only_batch_interval_overlap_ambiguity=True,
     )
-    shadow_contentful_role_constrained_order_mismatches = order_mismatch_rows_for_turns(
-        turns + rescue_shadow_turns,
-        batch_utterances,
-        same_role_only=True,
-        contentful_only=True,
-        min_token_recall=0.45,
-        min_score=0.65,
+    shadow_contentful_role_constrained_order_mismatches = order_mismatch_rows_from_matches(
+        shadow_contentful_role_matched_turns,
         match_mode="role_constrained_contentful",
     )
-    shadow_contentful_role_constrained_order_ambiguities = order_mismatch_rows_for_turns(
-        turns + rescue_shadow_turns,
-        batch_utterances,
-        same_role_only=True,
-        contentful_only=True,
-        min_token_recall=0.45,
-        min_score=0.65,
+    shadow_contentful_role_constrained_order_ambiguities = order_mismatch_rows_from_matches(
+        shadow_contentful_role_matched_turns,
         match_mode="rescue_shadow_role_constrained_contentful_batch_overlap_ambiguity",
         only_batch_interval_overlap_ambiguity=True,
     )
-    matched_turns = matched_turn_rows(turns, batch_utterances)
     for row in batch_utterances:
         if row.get("role") != "Me" or len(row.get("tokens") or []) < 2:
             continue

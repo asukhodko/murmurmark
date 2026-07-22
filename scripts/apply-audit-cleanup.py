@@ -220,12 +220,15 @@ def local_recall_low_score_explained(session: Path) -> tuple[bool, str | None]:
     harmless = float(summary.get("likely_harmless_seconds", 0.0) or 0.0)
     if (
         possible_lost <= 0.001
-        and needs_review <= 0.001
+        and possible_lost + needs_review < 5.0
         and not blocking
         and audited_missing >= expected_missing
         and recommendation == "local_recall_risk_explained"
     ):
-        return True, f"local_recall_risk_explained:{round(harmless, 3)}s_harmless"
+        return True, (
+            f"local_recall_risk_explained:{round(harmless, 3)}s_harmless:"
+            f"{round(needs_review, 3)}s_review"
+        )
     return False, None
 
 

@@ -183,9 +183,9 @@ Use `murmurmark live replay "$SESSION" --refresh` to iterate without another rec
 policy matrix under `derived/live/replay-lab/`, keeps batch authoritative and accepts a candidate
 only when local recall improves without extra remote leakage or blocking order errors. The same
 report records why the current live chunk geometry can or cannot seed the batch ASR cache.
-The default comparison computes the required parity gates and a paired direct comparison between
-`online_live_me_remote_overlap_filter_v1` and `live_runtime_causal_target_me_direct_v1`.
-For an additional focused shadow experiment, materialize the selected policy explicitly:
+The default comparison computes only the required parity gates. Exploratory Target-Me profiles are
+excluded because they can add several minutes on a long meeting and cannot change the authoritative
+transcript. For a focused shadow experiment, materialize the selected policy explicitly:
 
 ```bash
 POLICY=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_target_me_remote_gap_trim_micro_asr_v1
@@ -195,7 +195,7 @@ POLICY=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_saf
 scripts/compare-live-batch.py "$SESSION" --lab-policy "$POLICY"
 ```
 
-`--lab-policy` is repeatable. Keep `--with-labs` for deliberate full laboratory sweeps; it runs all
+`--lab-policy` is repeatable. Use `--with-labs` only for deliberate full laboratory sweeps; it runs all
 exploratory profiles and can take many minutes on a long meeting.
 
 The completed Causal Local-Island Micro-ASR v2 remains an explicit-only corpus experiment. To

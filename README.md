@@ -75,7 +75,7 @@ murmurmark record --out "$SESSION" --target-bundle system
 # Stop with Ctrl-C.
 
 murmurmark inspect "$SESSION"
-murmurmark process "$SESSION" --full
+murmurmark process "$SESSION"
 murmurmark next "$SESSION"
 murmurmark status "$SESSION"
 murmurmark outcome "$SESSION"
@@ -95,21 +95,19 @@ known hallucinations, and the local-recall and chunk-rebuild audits are clear. T
 in `derived/synthesis-simple/extractive/no_speech_evidence.json`. An empty transcript without all of
 these checks remains `failed`.
 
-`process --full` completes the authoritative transcript and the bounded local evidence stages used
-for the final readiness decision. It is the recommended one-command path for the next meeting
-without headphones. After deferred enrichment it rebuilds generic notes, order audit and readiness
-against the already published authoritative profile. Late shadow profiles may be inspected, but
-they cannot silently replace that transcript. Plain `process` returns earlier after the
-authoritative transcript, verdict and next action are published. When
-the result still requires review, `murmurmark next "$SESSION"` first routes through deferred local
-evidence instead of sending the user straight to manual review:
+Plain `process` is the normal path. It returns as soon as the authoritative transcript, verdict and
+next action are published. When the result still requires more local evidence,
+`murmurmark next "$SESSION"` routes to deferred enrichment before manual review:
 
 ```bash
 murmurmark enrich "$SESSION"
 ```
 
 After enrichment, run `murmurmark next "$SESSION"` again. Only unresolved evidence is then offered
-for review.
+for review. `process --full` retains the compatibility behavior of running both phases in one
+foreground command. It can take much longer because local audio judges and live-vs-batch
+diagnostics run after the authoritative transcript is already ready; use it only when waiting for
+all diagnostics is intentional.
 
 An interrupted processing run is resumed with the same command and session path:
 

@@ -4,8 +4,9 @@ Status: current
 
 Updated: 2026-07-22
 
-The stable product path remains `record -> process --full -> next -> finish`. Batch output is
-authoritative. Live output stays advisory and shadow-only.
+The stable product path remains `record -> process -> next -> finish`. Batch output is authoritative.
+Deferred diagnostics run through `enrich`; `process --full` is an explicit blocking compatibility
+path. Live output stays advisory and shadow-only.
 
 Roadmap status and dependency truth live in
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`. This file expands the one executable goal in human

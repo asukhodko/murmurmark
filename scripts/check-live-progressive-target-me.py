@@ -461,15 +461,7 @@ def main() -> int:
         ) is True
         assert compare.selected_lab_policies(
             SimpleNamespace(with_labs=False, lab_policy=[])
-        ) == (
-            compare.RUNTIME_CAUSAL_TARGET_ME_BASELINE_PROFILE_POLICY,
-            compare.BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
-            compare.BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_SPEAKER_ONLY_PROFILE_POLICY,
-            compare.BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_REMOTE_ENERGY_PROFILE_POLICY,
-            compare.RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
-            compare.RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY,
-            compare.RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY,
-        )
+        ) == ()
 
         overlap = compare.bag_overlap_metrics(
             ["один", "два", "три"],

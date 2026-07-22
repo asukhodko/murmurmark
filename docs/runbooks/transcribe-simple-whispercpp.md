@@ -147,13 +147,17 @@ For the usual record-then-process flow:
 ```bash
 SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)"
 murmurmark record --out "$SESSION" --target-bundle system
-murmurmark process "$SESSION" --full
+murmurmark process "$SESSION"
 murmurmark status "$SESSION"
 murmurmark notes "$SESSION" --kind verdict
 murmurmark notes "$SESSION"
 murmurmark transcript "$SESSION"
 murmurmark finish "$SESSION"
 ```
+
+If `murmurmark next "$SESSION"` requests more local evidence, run `murmurmark enrich "$SESSION"`
+and then repeat `next`. Use `process --full` only for an intentional blocking handoff plus all
+deferred diagnostics.
 
 For the main speaker-playback scenario, no headphones or acoustic-mode flag is required. Echo Guard
 classifies measured remote-to-mic coupling automatically. Inspect the evidence with:

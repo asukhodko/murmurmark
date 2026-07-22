@@ -428,7 +428,12 @@ with log_path.open("w", encoding="utf-8") as log_file:
         stderr=subprocess.STDOUT,
         start_new_session=True,
     )
-    for _ in range(100):
+    deadline = time.monotonic() + 30.0
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            print("pipeline exited before fake whisper reached the second chunk", file=sys.stderr)
+            print(log_path.read_text(encoding="utf-8", errors="replace"), file=sys.stderr)
+            sys.exit(98)
         if count_path.exists():
             try:
                 if int(count_path.read_text(encoding="utf-8") or "0") >= 2:
