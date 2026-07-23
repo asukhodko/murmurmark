@@ -19,6 +19,17 @@ def load_transcribe_module():
     return module
 
 
+def load_local_recall_repair_module():
+    script = Path(__file__).with_name("apply-local-recall-repair.py")
+    spec = importlib.util.spec_from_file_location("murmurmark_local_recall_repair", script)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot import {script}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 def row(identifier: str, text: str, start: float, end: float, confidence: float = 0.8) -> dict:
     return {
         "id": identifier,
@@ -32,6 +43,7 @@ def row(identifier: str, text: str, start: float, end: float, confidence: float 
 
 def main() -> int:
     module = load_transcribe_module()
+    local_recall_repair = load_local_recall_repair_module()
 
     assert module.KNOWN_HALLUCINATION_RE.search("Субтитры подогнал «Симон»")
     assert not module.KNOWN_HALLUCINATION_RE.search("Обсудили подготовку субтитров к докладу")
@@ -104,6 +116,27 @@ def main() -> int:
         ]
     )
     assert len(output) == 2, output
+
+    existing = {
+        "id": "existing_tail",
+        "speaker_label": "Me",
+        "source_track": "mic",
+        "text": "Мы этого особо не заметили.",
+        "start": 2692.0,
+        "end": 2694.75,
+    }
+    duplicate = local_recall_repair.existing_overlap(
+        [existing],
+        {"start_sec": 2690.822, "end_sec": 2694.942, "duration_sec": 4.12},
+        "Падет, чтобы упал АИКС, и мы этого особо не заметили, нам нужна",
+    )
+    assert duplicate is existing
+    distinct = local_recall_repair.existing_overlap(
+        [existing],
+        {"start_sec": 2690.822, "end_sec": 2694.942, "duration_sec": 4.12},
+        "Нужно проверить алерты после выкладки",
+    )
+    assert distinct is None
 
     print("transcript dedupe checks ok")
     return 0

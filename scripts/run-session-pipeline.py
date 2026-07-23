@@ -801,6 +801,34 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
         ),
         step("synthesize_v2", [py, str(repo_root / "scripts/synthesize-simple-extractive.py"), str(session), "--transcript-profile", "audit_cleanup_v2"]),
         step(
+            "session_operational_readiness_for_audio_review",
+            [
+                py,
+                str(repo_root / "scripts/report-operational-readiness.py"),
+                "--session-quality",
+                str(session / "derived/readiness/session-quality/session_quality_report.json"),
+                "--out-dir",
+                str(session / "derived/readiness/operational-readiness"),
+            ],
+            enabled=not args.skip_audits,
+            reason="--skip-audits",
+            phase=DEFERRED_PHASE,
+        ),
+        step(
+            "review_plan_for_audio_review",
+            [
+                py,
+                str(repo_root / "scripts/build-review-plan.py"),
+                "--operational-readiness",
+                str(session / "derived/readiness/operational-readiness/operational_readiness_report.json"),
+                "--out-dir",
+                str(session / "derived/readiness/review-plan"),
+            ],
+            enabled=not args.skip_audits,
+            reason="--skip-audits",
+            phase=DEFERRED_PHASE,
+        ),
+        step(
             "rebuild_audio_review_pack_v2",
             [
                 py,

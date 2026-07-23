@@ -241,6 +241,15 @@ def main() -> int:
         assert [item["name"] for item in transcribe_steps] == ["transcribe_current"]
         assert transcribe_steps[0]["command"][-2:] == ["--repair-profile", "shadow_v2"]
         deferred_names = [item["name"] for item in MODULE.steps_for_phase(pipeline_steps, "deferred")]
+        assert deferred_names.index("session_operational_readiness_for_audio_review") < deferred_names.index(
+            "review_plan_for_audio_review"
+        )
+        assert deferred_names.index("review_plan_for_audio_review") < deferred_names.index(
+            "rebuild_audio_review_pack_v2"
+        )
+        assert deferred_names.index("rebuild_audio_review_pack_v2") < deferred_names.index(
+            "audit_stronger_audio_judge"
+        )
         assert deferred_names[-3:] == [
             "synthesize_authoritative_final",
             "audit_transcript_order_authoritative_final",

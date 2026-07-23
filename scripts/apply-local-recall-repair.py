@@ -195,7 +195,11 @@ def normalize_text(value: Any) -> str:
 
 
 def tokens(text: Any) -> list[str]:
-    return [token.lower().replace("ё", "е") for token in TOKEN_RE.findall(str(text or ""))]
+    values = [
+        token.lower().replace("ё", "е").strip("./+-")
+        for token in TOKEN_RE.findall(str(text or ""))
+    ]
+    return [token for token in values if token]
 
 
 def content_tokens(text: Any) -> list[str]:
@@ -319,13 +323,27 @@ def load_transcribe_bridge() -> Any:
 def existing_overlap(utterances: list[dict[str, Any]], item: dict[str, Any], text: str) -> dict[str, Any] | None:
     item_row = {"start": item.get("start_sec"), "end": item.get("end_sec")}
     duration = max(0.001, safe_float(item.get("duration_sec")))
+    candidate_tokens = set(content_tokens(text))
     for row in utterances:
         if not is_me(row):
             continue
         overlap = interval_overlap(item_row, row)
-        if overlap / duration < 0.5:
+        row_duration = max(0.001, safe_float(row.get("end")) - safe_float(row.get("start")))
+        candidate_coverage = overlap / duration
+        existing_coverage = overlap / row_duration
+        if candidate_coverage < 0.5 and existing_coverage < 0.8:
             continue
-        if text_similarity(text, row.get("text")) >= 0.55 or overlap / duration >= 0.85:
+        existing_tokens = set(content_tokens(row.get("text")))
+        existing_text_containment = (
+            len(candidate_tokens & existing_tokens) / len(existing_tokens)
+            if len(existing_tokens) >= 3
+            else 0.0
+        )
+        if (
+            text_similarity(text, row.get("text")) >= 0.55
+            or candidate_coverage >= 0.85
+            or existing_text_containment >= 0.8
+        ):
             return row
     return None
 
