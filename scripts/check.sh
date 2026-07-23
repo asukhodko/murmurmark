@@ -47,6 +47,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-residual-local-recall-corpus.py
 "$python_bin" scripts/check-local-speech-completion-v2.py
 "$python_bin" scripts/check-local-speech-completion-corpus.py
+"$python_bin" scripts/check-mixed-utterance-separation.py
 "$python_bin" scripts/check-experiment-compare-timeout.py
 "$python_bin" scripts/check-planning-consistency.py
 MURMURMARK_BIN="$repo_root/.build/debug/murmurmark" \

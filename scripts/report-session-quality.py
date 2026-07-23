@@ -33,6 +33,7 @@ CLEANUP_PROFILES = {
     "residual_audio_arbitration_v1",
     "residual_local_recall_v1",
     "local_speech_completion_v2",
+    "mixed_utterance_separation_v1",
 }
 
 
@@ -467,7 +468,64 @@ def local_speech_completion_usable(session: Path) -> bool:
     )
 
 
+def mixed_utterance_separation_usable(session: Path) -> bool:
+    resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
+    profile_dir = (
+        session
+        / "derived/transcript-simple/whisper-cpp/mixed-utterance-separation-v1"
+    )
+    report = read_json(profile_dir / "mixed_utterance_profile_report.json")
+    corpus_dir = session.parent / "_reports/mixed-utterance-separation-v1"
+    corpus = read_json(corpus_dir / "mixed_utterance_separation_corpus_report.json")
+    baseline = read_json(corpus_dir / "baseline_manifest.json")
+    record = next(
+        (
+            row
+            for row in (baseline.get("sessions") or [])
+            if isinstance(row, dict)
+            and str(row.get("session_id") or "") == session.name
+        ),
+        None,
+    ) if isinstance(baseline, dict) else None
+    corpus_session = next(
+        (
+            row
+            for row in (corpus.get("sessions") or [])
+            if isinstance(row, dict)
+            and str(row.get("session_id") or "") == session.name
+        ),
+        None,
+    ) if isinstance(corpus, dict) else None
+    output_fingerprint = profile_output_fingerprint(
+        resolved, "mixed_utterance_separation_v1"
+    )
+    return bool(
+        isinstance(report, dict)
+        and isinstance(report.get("gates"), dict)
+        and report["gates"].get("passed") is True
+        and report.get("output_profile") == "mixed_utterance_separation_v1"
+        and isinstance(corpus, dict)
+        and corpus.get("decision") == "PROMOTE_MIXED_UTTERANCE_SEPARATION_V1"
+        and isinstance(corpus.get("gates"), dict)
+        and corpus["gates"].get("passed") is True
+        and isinstance(baseline, dict)
+        and isinstance(baseline.get("gates"), dict)
+        and baseline["gates"].get("passed") is True
+        and isinstance(record, dict)
+        and frozen_artifact_tree_matches(record.get("artifacts"))
+        and sha256_file(corpus_dir / "baseline_manifest.json")
+        == corpus.get("baseline_sha256")
+        and session.name
+        in {str(value) for value in corpus.get("promoted_sessions") or []}
+        and report.get("output_fingerprint") == output_fingerprint
+        and isinstance(corpus_session, dict)
+        and corpus_session.get("output_fingerprint") == output_fingerprint
+    )
+
+
 def selected_profile(session: Path) -> str:
+    if mixed_utterance_separation_usable(session):
+        return "mixed_utterance_separation_v1"
     if local_speech_completion_usable(session):
         return "local_speech_completion_v2"
     if residual_local_recall_usable(session):
@@ -675,6 +733,22 @@ def local_speech_completion_input_profile(session: Path) -> str | None:
     return str(value) if value and str(value) != "local_speech_completion_v2" else None
 
 
+def mixed_utterance_input_profile(session: Path) -> str | None:
+    report = read_json(
+        session
+        / "derived/transcript-simple/whisper-cpp/mixed-utterance-separation-v1"
+        / "mixed_utterance_profile_report.json"
+    )
+    if not isinstance(report, dict):
+        return None
+    value = report.get("input_profile")
+    return (
+        str(value)
+        if value and str(value) != "mixed_utterance_separation_v1"
+        else None
+    )
+
+
 def stage_status(session: Path) -> dict[str, bool]:
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
     synthesis = session / "derived/synthesis-simple/extractive"
@@ -688,6 +762,10 @@ def stage_status(session: Path) -> dict[str, bool]:
     residual_me_evidence = session / "derived/transcript-simple/whisper-cpp/residual-me-evidence-v1"
     residual_audio_arbitration = session / "derived/transcript-simple/whisper-cpp/residual-audio-arbitration-v1"
     local_speech_completion = session / "derived/transcript-simple/whisper-cpp/local-speech-completion-v2"
+    mixed_utterance = (
+        session
+        / "derived/transcript-simple/whisper-cpp/mixed-utterance-separation-v1"
+    )
     remote_leak_repair = session / "derived/transcript-simple/whisper-cpp/remote-leak-repair"
     remote_forbidden = session / "derived/audit/remote-forbidden"
     return {
@@ -759,6 +837,13 @@ def stage_status(session: Path) -> dict[str, bool]:
         "local_speech_completion_v2": (resolved / "quality_report.local_speech_completion_v2.json").exists()
         and (resolved / "clean_dialogue.local_speech_completion_v2.json").exists()
         and (local_speech_completion / "local_speech_completion_profile_report.json").exists(),
+        "mixed_utterance_separation_v1": (
+            resolved / "quality_report.mixed_utterance_separation_v1.json"
+        ).exists()
+        and (
+            resolved / "clean_dialogue.mixed_utterance_separation_v1.json"
+        ).exists()
+        and (mixed_utterance / "mixed_utterance_profile_report.json").exists(),
         "synthesis": (synthesis / "quality_verdict.json").exists() and (synthesis / "evidence_notes.json").exists(),
         "synthesis_audit_cleanup_v1": (synthesis / "quality_verdict.audit_cleanup_v1.json").exists()
         and (synthesis / "evidence_notes.audit_cleanup_v1.json").exists(),
@@ -792,6 +877,12 @@ def stage_status(session: Path) -> dict[str, bool]:
         and (synthesis / "evidence_notes.residual_audio_arbitration_v1.json").exists(),
         "synthesis_residual_local_recall_v1": (synthesis / "quality_verdict.residual_local_recall_v1.json").exists()
         and (synthesis / "evidence_notes.residual_local_recall_v1.json").exists(),
+        "synthesis_mixed_utterance_separation_v1": (
+            synthesis / "quality_verdict.mixed_utterance_separation_v1.json"
+        ).exists()
+        and (
+            synthesis / "evidence_notes.mixed_utterance_separation_v1.json"
+        ).exists(),
         "audio_review_pack": (audio_review / "review_pack_summary.json").exists()
         and (audio_review / "review_pack_items.jsonl").exists(),
         "audio_review_audit": (audio_review / "audio_review_summary.json").exists()
@@ -2265,6 +2356,8 @@ def collect_session(
         if profile == "local_recall_repair_v1"
         else local_speech_completion_input_profile(session)
         if profile == "local_speech_completion_v2"
+        else mixed_utterance_input_profile(session)
+        if profile == "mixed_utterance_separation_v1"
         else None
     )
     review_profile = inherited_review_profile if inherited_review_profile in {"reviewed_v1", "agent_reviewed_v1"} else profile

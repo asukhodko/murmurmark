@@ -2,130 +2,137 @@
 
 Status: current
 
-Updated: 2026-07-22
+Updated: 2026-07-23
 
-The stable product path is now `murmurmark meeting -> first Ctrl-C -> final result`. Batch
-output remains authoritative. The old `record -> process -> enrich/next -> finish` path stays
-available for diagnostics and recovery; `process --full` is an explicit blocking compatibility
-path. Live output stays advisory and shadow-only.
+The stable product path is `murmurmark meeting -> first Ctrl-C -> final result`. Batch output remains
+authoritative. The old `record -> process -> enrich/next -> finish` path stays available for
+diagnostics and recovery; `process --full` remains an explicit compatibility path. Live output is
+advisory and shadow-only.
 
 Roadmap status and dependency truth live in
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`. This file expands the one executable goal in human
-terms. `scripts/check-planning-consistency.py` keeps the two representations aligned.
+terms. `scripts/check-planning-consistency.py` keeps the representations aligned.
 
-## Mixed-Utterance Remote Span Separation v1
+## Echo Suppression Promotion
 
-OpsKarta nearest goal: Mixed-Utterance Remote Span Separation v1: отделить доказанный remote span
-внутри смешанной Me-реплики, сохранив подтверждённую локальную речь и оставляя неоднозначность
-явной.
+OpsKarta nearest goal: Echo Suppression Promotion: выбрать на замороженном корпусе один
+воспроизводимый derived-audio candidate, который заметно уменьшает распознаваемую remote-речь в Me,
+сохраняет подтверждённую локальную речь и проходит единый corpus-wide no-regression contract.
 
-Speaker-Mode Transcript Quality Hardening v1 established the next limiting class. Whole-utterance
-deletion is too coarse: many remaining `Me` candidates contain both remote-supported words and
-unique or protected local content. Keeping the whole utterance leaves recognizable remote speech;
-dropping it loses genuine `Me` speech.
+Post-ASR cleanup has reached a measured ceiling. Mixed-Utterance Remote Span Separation v1 found
+remote-supported spans in retained `Me` utterances, but no row had enough independent evidence to
+remove the remote words while proving the identity of every local prefix or tail. More permissive
+text cleanup would trade remote leakage for lost genuine speech.
 
-Objective: isolate only the remote-supported span and publish the remaining local islands when
-word-level audio evidence proves the split. Ambiguous mixtures remain unchanged and explicit.
-
-## Completed Product Predecessor
-
-One-Command Meeting Lifecycle v1 is complete. `murmurmark meeting --target-bundle system` now owns
-durable capture, ordinary authoritative processing, bounded enrichment, safe suggested review and
-guarded export. The implementation is locked per session, journaled, idempotent and resumable; raw
-CAF SHA-256 identities are checked before and after processing.
-
-The final controlled soak used real ScreenCaptureKit and microphone permissions. An early `Ctrl-C`
-closed a 30-second mic/remote capture, produced a readable transcript from the test speech, ran the
-entire lifecycle without another command, exported the result and ended as `ready`. Strict
-acceptance reported healthy raw tracks and `meeting_lifecycle: ok`. The soak also exposed and fixed
-the bounded-recording signal race: `--duration` now races its timer with `Ctrl-C` instead of letting
-the default signal terminate the process before `session.json` is written. Separate real-artifact
-tests prove clean interruption and exact `meeting --resume` continuation during ASR.
-
-The lifecycle contract is defined in `docs/contracts/meeting-lifecycle.md`.
+Objective: move the quality boundary back to derived audio. Compare the existing `local_fir`
+baseline with bounded echo-suppression candidates, then promote exactly one candidate only if
+remote speech falls below the ASR-detectable threshold while confirmed local speech, order,
+verdict, notes and export remain intact. A reproducible `DO_NOT_PROMOTE` is valid when no candidate
+passes.
 
 ## Completed Immediate Predecessor
 
-Evidence-Backed Me Completion v2 completed with `PROMOTE_LOCAL_SPEECH_COMPLETION_V2` for its frozen
-two-session scope:
+Mixed-Utterance Remote Span Separation v1 completed with a reproducible `DO_NOT_PROMOTE`:
 
-- all six residual local-recall rows / `35.85s` received deterministic outcomes and provenance;
-- three rows / `22.4s` closed safely: two bounded local fragments were inserted from independent
-  raw-plus-processed mic ASR, calibrated Target-Me and remote-forbidden evidence, while one row was
-  already present in the selected transcript;
-- the damaged `дает сп` tail was identified as a duplicate of adjacent `не ожидают` and removed;
-- three ambiguous rows / `13.45s` remain fail-open in `check_local_recall`;
-- every selected `Me` utterance still marked `needs_review` is exposed through the executable
-  `check_transcript_text` lane, so a transcript blocker cannot hide behind an empty queue;
-- repeated evidence and apply runs produced identical SHA-256 fingerprints; raw CAF, frozen input
-  profiles, remote utterances, chronology, notes evidence and verdicts did not regress.
+- the frozen scope contains `12` mixed `Me` rows / `54.940s` across `7` sessions;
+- all rows have deterministic word-level evidence and explicit provenance;
+- `7` rows are `probable_asr_noise`, `5` are `ambiguous`, and all remain `needs_review`;
+- remote spans are often supported by clean/raw mic views and authoritative remote ASR, but the
+  surrounding local islands lack reliable Target-Me identity or conflict with remote timing/state;
+- no split was applied, so duplicate/leak and mandatory-review reduction are both `0%`, below the
+  required `25%` and `15%`;
+- raw CAF, frozen inputs, remote utterances, local recall, chronology, notes evidence, verdict and
+  output fingerprints did not regress;
+- the final cached evidence replay added `0.11%` of authoritative batch runtime, below the `25%`
+  ceiling;
+- `mixed_utterance_separation_v1` remains isolated and is not eligible for automatic selection.
 
-The profile is automatically selected only for sessions named by the passing corpus decision.
-`residual_local_recall_v1` remains the fallback elsewhere. This completion removes a known local
-speech debt but does not solve remote spans embedded inside mixed `Me` utterances.
+The corpus report is
+`sessions/_reports/mixed-utterance-separation-v1/mixed_utterance_separation_corpus_report.json`.
+The result closes the hypothesis responsibly: current evidence can identify suspicious mixed
+utterances, but cannot safely edit them.
 
-## Earlier Evidence Ceiling
+## Other Completed Foundations
 
-Speaker-Mode Transcript Quality Hardening v1 completed with a reproducible `DO_NOT_PROMOTE`:
+One-Command Meeting Lifecycle v1 is complete. `murmurmark meeting --target-bundle system` owns
+durable capture, ordinary authoritative processing, bounded enrichment, conservative suggested
+review and guarded export. It is journaled, idempotent and resumable, and checks raw CAF SHA-256
+before and after processing.
 
-- `18` acoustic sessions and `22` profile sessions were frozen with raw CAF SHA-256 identities;
-- automatic acoustic classification matched all `17` labeled sessions;
-- the sparse-overrange limiter passed the full corpus and raised accepted Echo Guard candidates
-  from `11` to `13`; the latest `97` minute speaker session now passes the clean-audio gate;
-- `59` duplicate rows / `161.720s` and `14` chronology rows / `62.690s` received deterministic local
-  evidence;
-- three chronology rows / `15.530s` support lossless retime, one / `1.460s` is confirmed
-  double-talk and one / `2.440s` is confirmed genuine `Me`;
-- no whole `Me` utterance satisfied the independent deletion gates;
-- duplicate/leak reduction was `2.7%` and mandatory review reduction `7.9%`, below the required
-  `25%` and `15%` gates;
-- raw capture, remote text, local recall and paired chronology metrics did not regress.
+Evidence-Backed Me Completion v2 is promoted for its frozen two-session scope. It closed `3/6`
+local-recall rows / `22.4/35.85s`, materialized two independently confirmed local fragments,
+recognized one already-present fragment and removed one duplicate ASR tail. Ambiguous intervals
+remain explicit.
 
-The shadow profile `speaker_mode_hardening_v1` is therefore not selected. Its mixed-utterance
-evidence remains the input hypothesis for this goal.
+Speaker-Mode Transcript Quality Hardening v1 completed with `DO_NOT_PROMOTE`. It proved acoustic
+mode classification and several safe retimes, but whole-utterance cleanup reached only `2.7%`
+duplicate reduction and `7.9%` review reduction. Together with the mixed-span ceiling, this is the
+reason to improve the audio layer next.
+
+## Execution Scope
+
+1. Freeze the representative speaker/headphone/open-space corpus, selected input profiles and all
+   raw/derived SHA-256 identities.
+2. Reuse the existing ASR-positive echo-candidate laboratory and compare `local_fir` with available
+   classical candidates such as WebRTC AEC3 and SpeexDSP; add another candidate only when evidence
+   justifies it.
+3. Measure remote ASR detectability, remote-forbidden hits, calibrated Target-Me preservation,
+   local-only island recall, chronology, clean-audio integrity and runtime per session.
+4. Reject candidates independently per session before considering corpus promotion. Missing tools,
+   weak calibration, silent/sparse output or local loss must fail open to `local_fir`.
+5. Publish one frozen corpus report with exact candidate fingerprints, session decisions and
+   `PROMOTE_ECHO_SUPPRESSION` or `DO_NOT_PROMOTE`.
+6. Integrate automatic selection only after promotion; preserve `local_fir` as fallback outside the
+   proven scope.
 
 ## Safety Contract
 
-- freeze the mixed-utterance queue, source profile and raw/input SHA-256 identities;
-- use exact and speaker-bounded clean, raw, role-masked and remote clips;
-- require word timestamps from at least two mic views plus authoritative remote timing;
-- require calibrated Target-Me evidence for every retained local island;
-- remove only a contiguous remote-supported span; never synthesize missing words;
-- preserve original local token order, role, protected work markers and all remote utterances;
-- reject a patch when ASR views, speaker state, target voice or remote-forbidden checks conflict;
-- keep the candidate in an isolated profile until corpus-wide gates pass;
-- missing models or evidence fail open to unchanged text plus `needs_review`.
+- raw mic/remote CAF and capture code remain unchanged;
+- every candidate is derived, reproducible and removable;
+- remote speech reduction alone never authorizes promotion;
+- confirmed local words, short reactions and double-talk must survive;
+- a candidate may be accepted for one session and rejected for another;
+- missing helpers, models or calibration produce baseline fallback, not a broken transcript;
+- the primary whisper.cpp model and transcript timeline contract do not change;
+- selection requires exact corpus decision, session membership, input hashes and output
+  fingerprints;
+- no experiment may silently replace the authoritative transcript.
 
 ## Definition Of Done
 
-- every frozen mixed utterance has a deterministic disposition and provenance;
-- every applied split preserves all independently supported local tokens and remote content;
-- no previously confirmed `Me`, local-recall recovery, chronology repair, note citation or guarded
-  export regresses;
-- aggregate remote duplicate/leak seconds decrease by at least `25%` and mandatory review burden by
-  at least `15%` on the frozen speaker corpus;
-- additional processing time stays within `25%` of authoritative batch runtime;
-- repeated runs produce identical decisions and output fingerprints;
-- the corpus publishes `PROMOTE` or a reproducible `DO_NOT_PROMOTE` with the exact evidence ceiling;
-- tests, contracts, runbook, current goal, roadmap and OpsKarta are updated;
-- the completed change is committed, pushed and installed locally.
+- one immutable corpus and baseline are published with reproducible SHA-256 identities;
+- every candidate/session pair has an explicit accept/reject reason and complete provenance;
+- promoted output, if any, reduces ASR-detectable remote leakage by at least `25%`;
+- confirmed local-speech recall is at least `99%` of baseline and no protected local utterance is
+  lost;
+- chronology, remote content, verdict, notes evidence, guarded export and capture health do not
+  regress;
+- additional ordinary processing time stays within `25%`, or the candidate remains an explicit
+  optional slow path;
+- repeated runs produce identical decisions and fingerprints;
+- automatic selection remains impossible without corpus-wide promotion;
+- tests cover clean speaker playback, headphones/low leak, double-talk, short local reactions,
+  missing helpers, candidate failure and stale hashes;
+- README, contracts, runbooks, current goal, roadmap and OpsKarta are synchronized;
+- the completed work is installed locally, committed and pushed with a clean tree.
 
 ## Route After This Goal
 
 ```mermaid
 flowchart LR
-    A["Mixed-Utterance<br/>Span Separation"]
-    B["Echo Suppression<br/>Promotion"]
-    C["Evidence Notes<br/>And Export v2"]
-    D["Release-quality CLI"]
+    A["Echo Suppression<br/>Promotion"]
+    B["Evidence Notes<br/>And Export v2"]
+    C["Release-quality CLI"]
+    D["Remote diarization<br/>parallel branch"]
 
-    A --> B --> C --> D
+    A --> B --> C
+    A -.-> D
 ```
 
 ## Out Of Scope
 
-- capture, raw CAF and ScreenCaptureKit changes;
-- a second full-session ASR pass or replacement of whisper.cpp;
-- cloud models and manual labels required by the normal path;
+- capture or raw CAF format changes;
+- replacement of the primary whisper.cpp ASR;
+- cloud models or manual labels required by the normal path;
 - individual remote-speaker diarization;
 - Live Shadow promotion, LLM synthesis and UI.

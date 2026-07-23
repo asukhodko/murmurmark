@@ -7376,6 +7376,77 @@ whole-`Me` drops, duplicate reduction `2.7%` and mandatory review reduction `7.9
 `speaker_mode_hardening_v1` is not eligible for automatic selection. Its evidence ceiling motivates
 the separate mixed-utterance span-separation profile; it must not weaken the whole-utterance gates.
 
+## Mixed-Utterance Remote Span Separation
+
+`scripts/mixed-utterance-span-separation.py` is an isolated, frozen-corpus experiment for a retained
+`Me` utterance that contains both a remote-supported span and possible local speech. It never
+rewrites its input profile.
+
+The corpus contract is:
+
+```text
+sessions/_reports/mixed-utterance-separation-v1/
+  baseline_manifest.json
+  mixed_utterance_queue.jsonl
+  mixed_utterance_separation_corpus_report.json
+  mixed_utterance_separation_corpus_report.md
+```
+
+Per-session evidence and profile artifacts are:
+
+```text
+derived/audit/mixed-utterance-separation-v1/
+  target_me_session_calibration.json
+  mixed_utterance_evidence.jsonl
+  mixed_utterance_evidence_summary.json
+  clips/
+
+derived/transcript-simple/whisper-cpp/mixed-utterance-separation-v1/
+  mixed_utterance_profile_report.json
+  mixed_utterance_dispositions.jsonl
+  mixed_utterance_applied.jsonl
+  mixed_utterance_rejected.jsonl
+
+derived/transcript-simple/whisper-cpp/resolved/
+  clean_dialogue.mixed_utterance_separation_v1.json
+  transcript.mixed_utterance_separation_v1.md
+  transcript.simple.mixed_utterance_separation_v1.json
+  quality_report.mixed_utterance_separation_v1.json
+  overlaps.mixed_utterance_separation_v1.json
+```
+
+Key schemas are:
+
+```text
+murmurmark.mixed_utterance_separation_baseline/v1
+murmurmark.mixed_utterance_queue/v1
+murmurmark.mixed_utterance_evidence/v1
+murmurmark.mixed_utterance_evidence_summary/v1
+murmurmark.mixed_utterance_disposition/v1
+murmurmark.mixed_utterance_patch/v1
+murmurmark.mixed_utterance_profile_report/v1
+murmurmark.mixed_utterance_separation_corpus_report/v1
+```
+
+Evidence outcomes are `confirmed_local`, `confirmed_remote_duplicate`,
+`confirmed_remote_leak`, `confirmed_double_talk`, `probable_asr_noise` and `ambiguous`. Actions are
+`keep_unchanged`, `split_remove_remote_span`, `split_keep_local_prefix`,
+`split_keep_local_tail`, `split_keep_both_local_islands` and `needs_review`.
+
+A split is allowed only when authoritative remote timing/text, at least two mic ASR views, speaker
+state, calibrated Target-Me evidence and remote-forbidden checks agree. The output may contain only
+exact text from the original local prefix/tail in the original order. Remote utterances, unrelated
+utterances, protected work content and raw CAF identities are immutable gates. Missing or
+conflicting evidence fails open.
+
+Candidate synthesis writes profile aliases but restores generic synthesis outputs byte-for-byte
+afterwards. Evaluation therefore cannot mutate the frozen input or the user's selected notes.
+
+The frozen 2026-07-23 result is `DO_NOT_PROMOTE`: `12` rows / `54.940s` across `7` sessions,
+`7` `probable_asr_noise`, `5` `ambiguous`, no safe split and no transcript change. The only failed
+promotion gates are the required `25%` duplicate/leak and `15%` review reductions. Therefore
+`mixed_utterance_separation_v1` is not eligible for automatic selection.
+
 ## Authoritative Handoff
 
 The normal post-stop command publishes:

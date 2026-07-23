@@ -70,6 +70,7 @@ PROFILE_ALIAS_PROFILES = {
     "residual_audio_arbitration_v1",
     "residual_local_recall_v1",
     "local_speech_completion_v2",
+    "mixed_utterance_separation_v1",
 }
 
 
@@ -585,6 +586,7 @@ def parse_args() -> argparse.Namespace:
             "residual_audio_arbitration_v1",
             "residual_local_recall_v1",
             "local_speech_completion_v2",
+            "mixed_utterance_separation_v1",
         ),
         default="auto",
         help="Transcript artifact profile to synthesize from.",
@@ -801,6 +803,9 @@ def source_profile_paths(resolved_dir: Path, requested_profile: str) -> dict[str
         "local_speech_completion_report": resolved_dir.parent
         / "local-speech-completion-v2"
         / "local_speech_completion_profile_report.json",
+        "mixed_utterance_separation_report": resolved_dir.parent
+        / "mixed-utterance-separation-v1"
+        / "mixed_utterance_profile_report.json",
     }
 
 
@@ -1148,6 +1153,78 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
             and corpus_session.get("output_fingerprint") == output_fingerprint
         ) else None
 
+    def mixed_utterance_separation_paths_if_promoted() -> dict[str, Path] | None:
+        paths = source_profile_paths(resolved_dir, "mixed_utterance_separation_v1")
+        report, report_error = read_json(paths["mixed_utterance_separation_report"])
+        try:
+            session = resolved_dir.parents[3]
+        except IndexError:
+            return None
+        corpus_dir = session.parent / "_reports/mixed-utterance-separation-v1"
+        corpus, corpus_error = read_json(
+            corpus_dir / "mixed_utterance_separation_corpus_report.json"
+        )
+        baseline, baseline_error = read_json(corpus_dir / "baseline_manifest.json")
+        record = next(
+            (
+                row
+                for row in (baseline.get("sessions") or [])
+                if isinstance(row, dict)
+                and str(row.get("session_id") or "") == session.name
+            ),
+            None,
+        ) if isinstance(baseline, dict) else None
+        corpus_session = next(
+            (
+                row
+                for row in (corpus.get("sessions") or [])
+                if isinstance(row, dict)
+                and str(row.get("session_id") or "") == session.name
+            ),
+            None,
+        ) if isinstance(corpus, dict) else None
+        output_fingerprint = authoritative_boundary_output_fingerprint(paths)
+        candidate_mode = os.environ.get("MURMURMARK_MIXED_UTTERANCE_CANDIDATE") == "1"
+        corpus_gate = candidate_mode or (
+            isinstance(corpus, dict)
+            and corpus.get("decision")
+            == "PROMOTE_MIXED_UTTERANCE_SEPARATION_V1"
+            and isinstance(corpus.get("gates"), dict)
+            and corpus["gates"].get("passed") is True
+        )
+        membership_gate = candidate_mode or session.name in {
+            str(value)
+            for value in (
+                corpus.get("promoted_sessions") or []
+                if isinstance(corpus, dict)
+                else []
+            )
+        }
+        corpus_output_gate = candidate_mode or (
+            isinstance(corpus_session, dict)
+            and corpus_session.get("output_fingerprint") == output_fingerprint
+        )
+        return paths if (
+            report_error is None
+            and isinstance(report, dict)
+            and isinstance(report.get("gates"), dict)
+            and report["gates"].get("passed") is True
+            and report.get("output_profile") == "mixed_utterance_separation_v1"
+            and corpus_error is None
+            and corpus_gate
+            and baseline_error is None
+            and isinstance(baseline, dict)
+            and isinstance(baseline.get("gates"), dict)
+            and baseline["gates"].get("passed") is True
+            and isinstance(record, dict)
+            and frozen_artifact_tree_matches(record.get("artifacts"))
+            and sha256_file(corpus_dir / "baseline_manifest.json")
+            == corpus.get("baseline_sha256")
+            and membership_gate
+            and report.get("output_fingerprint") == output_fingerprint
+            and corpus_output_gate
+        ) else None
+
     def order_repair_for(base_profile: str) -> tuple[str, dict[str, Path]] | None:
         order_paths = source_profile_paths(resolved_dir, "order_repair_v1")
         order_report, order_error = read_json(order_paths["order_repair_report"])
@@ -1170,6 +1247,14 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
         return None
 
     if requested_profile == "auto":
+        mixed_paths = mixed_utterance_separation_paths_if_promoted()
+        if mixed_paths:
+            return (
+                "mixed_utterance_separation_v1",
+                mixed_paths,
+                repair_comparison,
+                risk_items,
+            )
         completion_paths = local_speech_completion_paths_if_promoted()
         if completion_paths:
             return "local_speech_completion_v2", completion_paths, repair_comparison, risk_items
@@ -1537,6 +1622,50 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
             )
         return "local_speech_completion_v2", paths, repair_comparison, risk_items
 
+    if requested_profile == "mixed_utterance_separation_v1":
+        paths = source_profile_paths(resolved_dir, "mixed_utterance_separation_v1")
+        report, report_error = read_json(paths["mixed_utterance_separation_report"])
+        if report_error is not None:
+            risk_items.append(
+                {
+                    "type": "missing_mixed_utterance_separation_report",
+                    "severity": "high",
+                    "reason": report_error,
+                }
+            )
+        elif (
+            not isinstance(report, dict)
+            or not isinstance(report.get("gates"), dict)
+            or report["gates"].get("passed") is not True
+        ):
+            risk_items.append(
+                {
+                    "type": "mixed_utterance_separation_gates_failed",
+                    "severity": "high",
+                    "reason": (
+                        "mixed utterance profile was requested but per-session "
+                        "gates did not pass"
+                    ),
+                }
+            )
+        elif mixed_utterance_separation_paths_if_promoted() is None:
+            risk_items.append(
+                {
+                    "type": "mixed_utterance_separation_not_currently_promoted",
+                    "severity": "high",
+                    "reason": (
+                        "the corpus promotion, frozen input SHA, or output "
+                        "fingerprint is missing or stale"
+                    ),
+                }
+            )
+        return (
+            "mixed_utterance_separation_v1",
+            paths,
+            repair_comparison,
+            risk_items,
+        )
+
     if requested_profile == "shadow_v2":
         paths = source_profile_paths(resolved_dir, "shadow_v2")
         comparison, error = read_json(paths["repair_comparison"])
@@ -1863,6 +1992,7 @@ def verdict_from_metrics(
         "residual_audio_arbitration_v1",
         "residual_local_recall_v1",
         "local_speech_completion_v2",
+        "mixed_utterance_separation_v1",
     } and "audit_harmful_seconds_after" in metrics:
         duration = max(1.0, float(metrics.get("meeting_duration_sec", 0.0) or 0.0))
         harmful = float(metrics.get("audit_harmful_seconds_after", 0.0) or 0.0)

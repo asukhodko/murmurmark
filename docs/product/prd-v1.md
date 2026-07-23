@@ -28,7 +28,7 @@ Working now:
 - live-ASR cache bridge exists as a diagnostic/future acceleration layer; incompatible or unsafe
   chunks fall back to batch ASR.
 
-Current operating point, 2026-07-22:
+Current operating point, 2026-07-23:
 
 - stable batch capture and processing produce a transcript, verdict, evidence notes, review plan,
   guarded export and retention plan;
@@ -45,13 +45,14 @@ Current operating point, 2026-07-22:
 - Evidence-Backed Me Completion v2 classified six residual local-recall rows / `35.85s`, safely
   closed three / `22.4s`, repaired one damaged duplicate text fragment and left three / `13.45s`
   in explicit local-recall review;
-- the current goal is Mixed-Utterance Remote Span Separation v1: remove only a proven remote span
-  while retaining unique or protected local prefixes and tails;
+- Mixed-Utterance Remote Span Separation v1 classified all `12` mixed `Me` rows / `54.940s` but
+  completed with `DO_NOT_PROMOTE`: no split had enough independent local-island evidence;
+- the current goal is Echo Suppression Promotion: reduce ASR-detectable remote leakage in derived
+  mic audio while preserving at least `99%` of confirmed local speech;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 
-Dependent work is: one consolidated Echo Suppression Promotion contract, Evidence Notes And
-Export v2 and release-quality CLI. Remote diarization,
+Dependent work is: Evidence Notes And Export v2 and release-quality CLI. Remote diarization,
 speaker mapping and `transcript.rich.json` form a parallel future branch after base quality closure.
 Heavy validators, LLM synthesis, reviewed external integrations and UI remain research or optional
 work outside the critical path.

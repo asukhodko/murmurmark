@@ -43,12 +43,13 @@ Read in this order:
 
 ## Current Planning Entry Points
 
-Planning snapshot: 2026-07-22. Evidence-Backed Me Completion v2 completed with
+Planning snapshot: 2026-07-23. Evidence-Backed Me Completion v2 completed with
 `PROMOTE_LOCAL_SPEECH_COMPLETION_V2` for its frozen two-session scope: three of six local-recall
 rows and `22.4/35.85s` were safely closed, one damaged text tail was removed, and the remaining
-`13.45s` became an executable review queue. One-Command Meeting Lifecycle v1 is complete after a
-fresh capture-to-export soak; Mixed-Utterance Remote Span Separation v1 is the current executable
-quality goal.
+`13.45s` became an executable review queue. Mixed-Utterance Remote Span Separation v1 then
+completed with `DO_NOT_PROMOTE`: all `12` rows / `54.940s` received stable evidence, but none could
+be edited without risking genuine local speech. Echo Suppression Promotion is now the current
+executable quality goal.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

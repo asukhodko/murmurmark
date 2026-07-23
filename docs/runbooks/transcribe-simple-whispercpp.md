@@ -869,6 +869,46 @@ Auto-selection is scoped: it requires a passing corpus decision, promoted-sessio
 unchanged frozen artifacts, matching baseline SHA-256 and matching profile/corpus output
 fingerprints. Other sessions continue through their previous selected profile.
 
+### Mixed-utterance remote span separation
+
+The frozen mixed-`Me` maintenance experiment is reproducible without changing the selected
+transcript:
+
+```bash
+.venv/bin/python scripts/mixed-utterance-span-separation.py freeze \
+  --sessions-root sessions
+
+HF_HUB_OFFLINE=1 .venv/bin/python \
+  scripts/mixed-utterance-span-separation.py evidence \
+  --sessions-root sessions
+
+.venv/bin/python scripts/mixed-utterance-span-separation.py evaluate \
+  --sessions-root sessions \
+  --apply \
+  --synthesize
+
+jq '{decision, summary, gates, evidence_limit}' \
+  sessions/_reports/mixed-utterance-separation-v1/mixed_utterance_separation_corpus_report.json
+
+less \
+  sessions/_reports/mixed-utterance-separation-v1/mixed_utterance_separation_corpus_report.md
+```
+
+Use `freeze --force` only when intentionally replacing the immutable baseline. `evidence` uses
+speaker-bounded clean/raw/role-masked/remote clips, local faster-whisper word timestamps,
+authoritative remote timing, speaker state, Target-Me calibration and remote-forbidden checks.
+Missing models or conflicting evidence leave the original utterance unchanged.
+
+The 2026-07-23 result is `DO_NOT_PROMOTE`: all `12` rows / `54.940s` across `7` sessions have stable
+outcomes, but none proves both a removable remote span and every retained local island. Seven rows
+are `probable_asr_noise`, five are `ambiguous`, and every row remains `needs_review`. The profile
+applies no split and fails only the required `25%` duplicate/leak and `15%` review-reduction gates.
+
+Candidate notes are written to profile aliases. The evaluator restores generic notes and verdict
+files byte-for-byte, so this maintenance run does not change the user's selected synthesis.
+`auto`, status, readiness, notes and export keep their previous promoted profile because
+`mixed_utterance_separation_v1` has no corpus promotion.
+
 ## Remote Leak Segment Plan
 
 Remote leak and partial remote duplicates need a different safety shape. A `remote_leak` region or
@@ -2145,7 +2185,7 @@ does not call an LLM, and does not read raw audio.
 Profile selection:
 
 ```text
-auto      -> promoted local_speech_completion_v2 for exact frozen members; otherwise promoted residual_local_recall_v1 when its corpus/session/hash gates pass; otherwise promoted residual_audio_arbitration_v1 when its gates pass; otherwise promoted residual_me_evidence_v1; otherwise promoted authoritative_boundary_v1; then audit_cleanup_v7 when it passed and applied material segment repair, reviewed_v1 when review gates pass, agent_reviewed_v1 when agent gates pass, audit_cleanup_v6/v5/v4/v3/v2/v1 with passing cleanup gates, a compatible passing order_repair_v1, passing shadow_v2, then current
+auto      -> promoted mixed_utterance_separation_v1 for exact frozen members; otherwise promoted local_speech_completion_v2; otherwise promoted residual_local_recall_v1 when its corpus/session/hash gates pass; otherwise promoted residual_audio_arbitration_v1 when its gates pass; otherwise promoted residual_me_evidence_v1; otherwise promoted authoritative_boundary_v1; then audit_cleanup_v7 when it passed and applied material segment repair, reviewed_v1 when review gates pass, agent_reviewed_v1 when agent gates pass, audit_cleanup_v6/v5/v4/v3/v2/v1 with passing cleanup gates, a compatible passing order_repair_v1, passing shadow_v2, then current
 current   -> baseline clean_dialogue.json
 shadow_v2 -> shadow clean_dialogue.shadow_v2.json, marked risky if comparison failed
 audit_cleanup_v1..v7 -> audit-cleaned dialogue, marked risky if cleanup gates failed
@@ -2158,6 +2198,7 @@ residual_me_evidence_v1 -> frozen residual evidence profile; eligible for auto o
 residual_audio_arbitration_v1 -> frozen audio-review arbitration candidate; eligible for auto only after global PROMOTE, per-session gates, promoted-session membership, frozen source hashes and output fingerprints all pass; current corpus decision is DO_NOT_PROMOTE
 residual_local_recall_v1 -> frozen local-recall closure profile; eligible for auto only after global PROMOTE, per-session and synthesis gates, promoted-session membership, frozen source hashes and output fingerprints all pass
 local_speech_completion_v2 -> frozen local/text completion profile; eligible for auto only after global PROMOTE, per-session gates, promoted-session membership, exact frozen artifact tree, baseline SHA and matching session/corpus output fingerprints all pass
+mixed_utterance_separation_v1 -> frozen mixed-Me span profile; currently DO_NOT_PROMOTE, so auto never selects it; any future selection requires global PROMOTE, per-session gates, promoted-session membership, exact frozen artifacts, baseline SHA and matching output fingerprints
 ```
 
 The script writes a quality verdict and a conservative `notes.md`. The v3 notes path is extractive

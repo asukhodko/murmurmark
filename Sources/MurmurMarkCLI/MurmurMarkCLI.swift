@@ -907,6 +907,7 @@ enum DoctorChecks {
             "scripts/audit-stronger-audio-judge.py",
             "scripts/audit-target-me.py",
             "scripts/authoritative-boundary.py",
+            "scripts/mixed-utterance-span-separation.py",
             "scripts/run-asr-positive-echo-candidate.py",
             "scripts/report-asr-positive-echo-candidate-corpus.py",
             "scripts/probe-review-lane-pack-audio.py",

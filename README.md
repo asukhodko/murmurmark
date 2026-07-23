@@ -205,10 +205,10 @@ automated regression coverage, fresh permission-capable capture soak and strict 
 all pass. The normal user path is now one command plus `Ctrl-C`; the older commands remain available
 for diagnostics and recovery.
 
-The current quality goal is **Mixed-Utterance Remote Span Separation v1**. It addresses retained
-`Me` utterances that contain both a remote-supported span and unique local speech. The intended
-repair removes only independently proven remote spans, preserves local prefixes/tails and fails open
-when evidence conflicts.
+The current quality goal is **Echo Suppression Promotion**. Post-ASR cleanup has reached a measured
+ceiling, so the next bounded step moves the quality boundary back to derived audio: compare existing
+echo-suppression candidates against `local_fir`, then promote one only when remote speech becomes
+materially less ASR-detectable without losing confirmed local speech.
 
 The stable batch CLI already supports durable capture, resumable processing, evidence-backed review,
 guarded export and retention planning. `local_speech_completion_v2` is promoted for its frozen
@@ -225,13 +225,19 @@ passes the clean-audio gate. The isolated transcript profile safely proved three
 one double-talk interval and one genuine `Me` row, but reached only `2.7%` duplicate reduction and
 `7.9%` review reduction. It therefore remains shadow-only.
 
+Mixed-Utterance Remote Span Separation v1 also completed with a reproducible `DO_NOT_PROMOTE`. Its
+frozen scope contains `12` mixed `Me` rows / `54.940s` across `7` sessions. All rows received stable
+word-level evidence, but none had enough independent proof to remove a remote span while preserving
+every local island. The profile applied no edits, did not regress raw inputs, remote text, local
+recall, chronology, notes or verdict, and remains ineligible for automatic selection.
+
 The dependent critical path is:
 
 ```text
 One-Command Meeting Lifecycle (done)
 ->
-Mixed-Utterance Remote Span Separation (current)
--> Echo Suppression Promotion
+Mixed-Utterance Remote Span Separation (done, DO_NOT_PROMOTE)
+-> Echo Suppression Promotion (current)
 -> Evidence Notes and Export
 -> Release-quality CLI
 ```
@@ -252,6 +258,8 @@ and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
   `local_fir_report.json`; no user acoustic-mode flag is required.
 - `local_speech_completion_v2` is selected only for sessions named by its passing frozen-corpus
   decision; stale hashes, missing local models or failed gates fall back without changing text.
+- `mixed_utterance_separation_v1` is audit-only after `DO_NOT_PROMOTE`; it never replaces the
+  selected transcript.
 - Batch transcript is authoritative; live output is not used for export or retention decisions.
 - No cloud ASR or cloud raw-audio upload is required by the normal workflow.
 - A future UI must reuse CLI contracts and is not required for a useful product.

@@ -145,9 +145,14 @@ Residual Chronology Closure and Speaker-Mode Hardening have since established th
 evidence ceiling. Evidence-Backed Me Completion v2 is promoted for its frozen two-session scope:
 it safely closes `3/6` local-recall rows / `22.4/35.85s`, repairs one duplicate text tail and turns
 all unresolved `Me` text into concrete review lanes. `residual_local_recall_v1` remains fallback
-outside that scope. The recommended bounded step is now Mixed-Utterance Remote Span Separation v1,
-which may remove only independently proven remote-supported spans while preserving unique local
-prefixes and tails.
+outside that scope. Mixed-Utterance Remote Span Separation v1 then froze `12` mixed `Me` rows /
+`54.940s` and classified all of them, but completed with `DO_NOT_PROMOTE`: remote spans were often
+visible while the identity of every retained local prefix/tail could not be proven independently.
+No transcript edit was applied.
+
+The recommended bounded step is now Echo Suppression Promotion. It moves the intervention before
+ASR, compares derived echo candidates against `local_fir`, and requires both material
+ASR-detectable remote reduction and at least `99%` confirmed local-speech preservation.
 
 This step does not change capture, Echo Guard, the primary ASR, live promotion or raw audio. The
 failed live-recovery profile remains diagnostic evidence rather than another user-facing branch.
@@ -391,13 +396,13 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Mixed-Utterance Remote Span Separation v1: заморозить смешанные Me utterances, где remote-supported
-span соседствует с unique/protected local prefix или tail. Использовать paired clean/raw/role-masked
-word timestamps, authoritative remote timing, speaker state и Target-Me. Удалять только доказанный
-contiguous remote span, сохраняя порядок локальных слов, роли, remote content, local-recall outcomes,
-raw CAF, Echo Guard и основной ASR. Неясные случаи оставлять unchanged + needs_review. Продвигать
-isolated profile только после corpus-wide duplicate/review gain и всех no-regression gates; иначе
-выпустить воспроизводимый DO_NOT_PROMOTE с точным пределом доказательств.
+Echo Suppression Promotion: заморозить representative acoustic corpus и сравнить local_fir с
+доступными derived-audio candidates. Для каждого session/candidate измерить ASR-detectable remote
+leakage, remote-forbidden hits, Target-Me preservation, local-only recall, chronology, clean-audio
+integrity и runtime. Продвигать один candidate только при remote reduction >=25%, confirmed local
+recall >=99%, полном отсутствии content/order/notes/export regressions и точных SHA/fingerprint
+gates. Missing helpers, weak calibration или failed session gate дают fallback на local_fir.
+Если ни один candidate не проходит, выпустить воспроизводимый DO_NOT_PROMOTE с точным пределом.
 ```
 
 ## Consultation Prompt
