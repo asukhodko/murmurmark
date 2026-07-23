@@ -425,6 +425,68 @@ This is still not default promotion. The architecture now has a repeatable promo
 candidate audio can improve under ASR-visible metrics, but default Echo Guard changes require a
 separate goal with broader corpus gates and explicit rollback semantics.
 
+## Echo Suppression Promotion v1
+
+Status: completed with reproducible `DO_NOT_PROMOTE`; `local_fir_role_masked` remains production.
+
+The promotion profile fixes one timeline contract for every engine:
+
+```text
+echo_at_mic(t) ~= remote(t - delay(t))
+```
+
+Positive delay means remote render precedes the echo observed at the microphone. The signed delay
+curve is applied before WebRTC AEC3, SpeexDSP or Offline AEC runs. Engine-native output and the
+canonical role-aware ASR view are stored separately.
+
+The normal pipeline invokes one policy after `local_fir`:
+
+```text
+local_fir role-aware baseline
+-> echo_suppression_production_v1 policy
+-> proven candidate or exact baseline fallback
+-> one authoritative mic ASR
+```
+
+The current frozen policy is `DO_NOT_PROMOTE`; it restores the exact baseline and does not run a
+second full ASR.
+
+The nine-session corpus compared the baseline with bounded coverage, aligned WebRTC AEC3, aligned
+SpeexDSP and Offline AEC candidates. `coverage_v2_remote_gate_local_fir` was best:
+
+- ASR-visible remote-risk fell from `38.53s` to `12.22s` (`68.2845%`);
+- ordinary local-only and explicit double-talk probes retained `100%`;
+- worst runtime ratio was `1.1135x`;
+- only `3/5` applicable speaker-playback sessions passed;
+- protected-local retention fell to `45.45%` and chronology recall to `0%` on the failed sessions.
+
+The failure explains the remaining architecture gap. A remote-only floor is effective when
+speaker-state is correct, but it removes near-end speech when a quiet or short local phrase occurs
+during remote activity. The next candidate must use the remote reference inside mixed speech rather
+than mute a whole state interval. See the
+[frozen result](../research/2026-07-23-echo-suppression-promotion-v1.md).
+
+Promotion artifacts are isolated under:
+
+```text
+derived/preprocess/echo-promotion-v1/
+  canonical/timeline_contract.json
+  candidates/<candidate>/
+  asr_probe_report.json
+  freeze_manifest.json
+  session_report.json
+  session_report.md
+
+sessions/_reports/echo-suppression-promotion-v1/
+  frozen_corpus.json
+  echo_suppression_promotion_corpus_report.json
+  echo_suppression_promotion_corpus_report.md
+```
+
+Neural Residual Echo Suppression v1 reuses this contract and the two failed intervals as hard
+negative tests. It remains local, derived and shadow-only until a new corpus decision says
+otherwise.
+
 ## Other Conservative Cleanup Engines
 
 Cleanup is for ASR quality, not for rewriting history.

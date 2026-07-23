@@ -1,0 +1,10 @@
+{
+  "schema": "murmurmark.echo_suppression_production_policy/v1",
+  "decision": "DO_NOT_PROMOTE",
+  "candidate": null,
+  "fallback": "local_fir_role_masked",
+  "corpus_report": "sessions/_reports/echo-suppression-promotion-v1/echo_suppression_promotion_corpus_report.json",
+  "corpus_report_sha256": "8f59e5fd0388576175b6865f1db21d6fb500905132059917c7f63264dfc74a83",
+  "decision_fingerprint": "8e12f7e60e25bf73a4969bcf7f0f55062de8cf9ca601561e2362be5bf80e4009",
+  "reason": "coverage_v2 passed 3 of 5 speaker-playback sessions; protected-local and chronology gates failed"
+}

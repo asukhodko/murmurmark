@@ -1,9 +1,6 @@
 use std::{env, error::Error, path::Path};
 
-use webrtc_audio_processing::{
-    Config, Processor,
-    config::{EchoCanceller, HighPassFilter},
-};
+use webrtc_audio_processing::{Config, Processor, config::EchoCanceller};
 
 struct MonoAudio {
     samples: Vec<f32>,
@@ -25,8 +22,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let delay_ms = args
         .get(4)
-        .and_then(|value| value.parse::<u16>().ok())
-        .filter(|value| *value > 0);
+        .map(|value| value.parse::<f64>())
+        .transpose()?
+        .unwrap_or(0.0);
+    if !delay_ms.is_finite() {
+        return Err("delay_ms must be finite".into());
+    }
     let cleaned = process_webrtc_apm(&mic, &remote, delay_ms)?;
     write_wav(&args[3], mic.sample_rate, &cleaned)?;
     Ok(())
@@ -35,19 +36,21 @@ fn main() -> Result<(), Box<dyn Error>> {
 fn process_webrtc_apm(
     mic: &MonoAudio,
     remote: &MonoAudio,
-    delay_ms: Option<u16>,
+    delay_ms: f64,
 ) -> Result<Vec<f32>, Box<dyn Error>> {
     let processor = Processor::new(mic.sample_rate)?;
     processor.set_config(Config {
+        // The render reference is placed on the capture timeline below. Do not
+        // pass a second unsigned delay into APM and accidentally shift it twice.
         echo_canceller: Some(EchoCanceller::Full {
-            stream_delay_ms: delay_ms,
+            stream_delay_ms: None,
         }),
-        high_pass_filter: Some(HighPassFilter::default()),
         ..Default::default()
     });
 
     let frame_size = processor.num_samples_per_frame();
     let mut output = vec![0.0f32; mic.samples.len()];
+    let delay_samples = (delay_ms * f64::from(mic.sample_rate) / 1_000.0).round() as i64;
 
     let mut position = 0usize;
     while position < mic.samples.len() {
@@ -57,8 +60,10 @@ fn process_webrtc_apm(
 
         for index in 0..count {
             capture_frame[0][index] = mic.samples[position + index].clamp(-1.0, 1.0);
-            if position + index < remote.samples.len() {
-                render_frame[0][index] = remote.samples[position + index].clamp(-1.0, 1.0);
+            let destination = position + index;
+            if let Some(sample) = aligned_remote_sample(&remote.samples, destination, delay_samples)
+            {
+                render_frame[0][index] = sample.clamp(-1.0, 1.0);
             }
         }
 
@@ -69,6 +74,14 @@ fn process_webrtc_apm(
     }
 
     Ok(output)
+}
+
+fn aligned_remote_sample(samples: &[f32], destination: usize, delay_samples: i64) -> Option<f32> {
+    let source = destination as i64 - delay_samples;
+    if source < 0 || source >= samples.len() as i64 {
+        return None;
+    }
+    Some(samples[source as usize])
 }
 
 fn read_wav(path: impl AsRef<Path>) -> Result<MonoAudio, Box<dyn Error>> {
@@ -120,4 +133,25 @@ fn write_wav(
     }
     writer.finalize()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::aligned_remote_sample;
+
+    #[test]
+    fn positive_delay_places_remote_later_on_mic_timeline() {
+        let remote = [1.0, 2.0, 3.0, 4.0];
+        assert_eq!(aligned_remote_sample(&remote, 0, 2), None);
+        assert_eq!(aligned_remote_sample(&remote, 2, 2), Some(1.0));
+        assert_eq!(aligned_remote_sample(&remote, 3, 2), Some(2.0));
+    }
+
+    #[test]
+    fn negative_delay_advances_remote_on_mic_timeline() {
+        let remote = [1.0, 2.0, 3.0, 4.0];
+        assert_eq!(aligned_remote_sample(&remote, 0, -2), Some(3.0));
+        assert_eq!(aligned_remote_sample(&remote, 1, -2), Some(4.0));
+        assert_eq!(aligned_remote_sample(&remote, 2, -2), None);
+    }
 }

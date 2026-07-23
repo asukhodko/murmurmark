@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -226,15 +227,16 @@ static void free_audio(MonoAudio *audio) {
 }
 
 int main(int argc, char **argv) {
-    if (argc < 4 || argc > 6) {
-        fprintf(stderr, "usage: %s mic.wav remote.wav out.wav [frame_ms] [tail_ms]\n", argv[0]);
+    if (argc < 4 || argc > 7) {
+        fprintf(stderr, "usage: %s mic.wav remote.wav out.wav [frame_ms] [tail_ms] [signed_delay_ms]\n", argv[0]);
         return 2;
     }
 
     int frame_ms = argc >= 5 ? atoi(argv[4]) : 20;
     int tail_ms = argc >= 6 ? atoi(argv[5]) : 500;
-    if (frame_ms <= 0 || tail_ms <= 0) {
-        fprintf(stderr, "frame_ms and tail_ms must be positive\n");
+    double delay_ms = argc >= 7 ? strtod(argv[6], NULL) : 0.0;
+    if (frame_ms <= 0 || tail_ms <= 0 || !isfinite(delay_ms)) {
+        fprintf(stderr, "frame_ms/tail_ms must be positive and signed_delay_ms must be finite\n");
         return 2;
     }
 
@@ -255,6 +257,7 @@ int main(int argc, char **argv) {
     }
 
     uint32_t sample_rate = mic.sample_rate;
+    int64_t delay_samples = (int64_t)llround(delay_ms * (double)sample_rate / 1000.0);
     int frame_size = (int)((uint64_t)sample_rate * (uint64_t)frame_ms / 1000u);
     int filter_length = (int)((uint64_t)sample_rate * (uint64_t)tail_ms / 1000u);
     if (frame_size <= 0 || filter_length <= frame_size) {
@@ -308,8 +311,10 @@ int main(int argc, char **argv) {
         }
         for (int index = 0; index < actual; index++) {
             rec[index] = float_to_i16(mic.samples[pos + (uint64_t)index]);
-            if (pos + (uint64_t)index < remote.frames) {
-                play[index] = float_to_i16(remote.samples[pos + (uint64_t)index]);
+            int64_t destination = (int64_t)(pos + (uint64_t)index);
+            int64_t source = destination - delay_samples;
+            if (source >= 0 && (uint64_t)source < remote.frames) {
+                play[index] = float_to_i16(remote.samples[(uint64_t)source]);
             }
         }
         speex_echo_cancellation(state, rec, play, clean);

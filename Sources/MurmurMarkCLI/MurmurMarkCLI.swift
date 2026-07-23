@@ -910,6 +910,7 @@ enum DoctorChecks {
             "scripts/mixed-utterance-span-separation.py",
             "scripts/run-asr-positive-echo-candidate.py",
             "scripts/report-asr-positive-echo-candidate-corpus.py",
+            "scripts/echo-suppression-promotion-v1.py",
             "scripts/probe-review-lane-pack-audio.py",
             "scripts/report-session-quality.py",
             "scripts/apply-retention-policy.py",
@@ -3915,6 +3916,15 @@ enum AuditCommands {
             }
             try Tooling.runPath(python, [try script("run-asr-positive-echo-candidate.py").path, session.path] + remaining)
             try AuditPrinter.printASRPositiveEchoCandidate(session: session)
+        case "echo-suppression-promotion", "echo_suppression_promotion":
+            try Tooling.runPath(
+                python,
+                [
+                    try script("echo-suppression-promotion-v1.py").path,
+                    "session",
+                    session.path,
+                ] + remaining
+            )
         case "remote-forbidden", "remote_forbidden":
             var forwarded = remaining
             let skipLab = ArgumentEditing.takeFlag("skip-lab", from: &forwarded)
@@ -4032,6 +4042,9 @@ enum AuditCommands {
           murmurmark audit asr-positive-echo-candidate ./session|latest
                                              [--candidate coverage_v2_remote_gate_local_fir]
                                              [--skip-lab] [--sessions-root ./sessions]
+          murmurmark audit echo-suppression-promotion ./session|latest
+                                             [--asr-probes] [--full-shadow] [--refresh]
+                                             [--sessions-root ./sessions]
           murmurmark audit remote-forbidden ./session|latest [--profile auto]
                                              [--asr-window-profile coverage_v2] [--asr-max-clips 2]
                                              [--asr-max-risk-clips 2] [--asr-max-local-clips 1]
@@ -4050,6 +4063,8 @@ enum AuditCommands {
           target-me       runs audit-target-me.py as a shadow voice-evidence layer
           asr-positive-echo-candidate
                           runs/reuses offline_aec_v2 and writes an explicit shadow audio-candidate report
+          echo-suppression-promotion
+                          compares timeline-correct AEC candidates without changing authoritative audio
           remote-forbidden
                           runs offline_aec_v2 ASR audit, then materializes remote-forbidden
                           evidence rows and a review report
@@ -6059,6 +6074,15 @@ enum CorpusCommands {
             try CorpusRemoteLeakCommands.run(args: forwarded, sessionsRoot: sessionsRoot)
         case "echo-candidate", "asr-positive-echo-candidate", "asr_positive_echo_candidate":
             try CorpusEchoCandidateCommands.run(args: forwarded, sessionsRoot: sessionsRoot)
+        case "echo-suppression-promotion", "echo_suppression_promotion":
+            let sessions = try takeSessions(from: &forwarded, sessionsRoot: sessionsRoot)
+            try Tooling.runPath(
+                try PythonRuntime.resolve(),
+                [
+                    try script("echo-suppression-promotion-v1.py").path,
+                    "corpus",
+                ] + sessions.map(\.path) + forwarded
+            )
         case "live":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 try Tooling.runPath(try PythonRuntime.resolve(), [try script("report-live-corpus-gates.py").path] + forwarded)
@@ -6216,6 +6240,9 @@ enum CorpusHelp {
           murmurmark corpus boundary [freeze|evaluate|run] [--sessions-root ./sessions]
           murmurmark corpus remote-leak [all|latest|./session...] [--plan] [--sessions-root ./sessions]
           murmurmark corpus echo-candidate [all|latest|./session...] [--run] [--sessions-root ./sessions]
+          murmurmark corpus echo-suppression-promotion [all|latest|./session...]
+                                             [--run] [--asr-probes] [--full-shadow]
+                                             [--sessions-root ./sessions]
           murmurmark corpus live [all|latest|./session...] [--refresh] [--target-live-sessions 3] [--sessions-root ./sessions]
           murmurmark corpus report
 
@@ -11452,6 +11479,7 @@ enum SpeexDSPEchoSuppressor {
             outputURL.path,
             "\(frameMs)",
             "\(tailMs)",
+            "\(canonicalDelayMs(segments: segments))",
         ])
 
         return try EchoCleanupEvaluation.evaluate(
@@ -11471,6 +11499,12 @@ enum SpeexDSPEchoSuppressor {
         let maxDelay = segments.map(\.delayMs).max() ?? 0
         let roomTail = profile == "experimental_aggressive" ? 800 : 400
         return min(max(maxDelay + roomTail, 300), 2400)
+    }
+
+    private static func canonicalDelayMs(segments: [EchoSegment]) -> Double {
+        let values = segments.map { Double($0.delayMs) }.sorted()
+        guard !values.isEmpty else { return 0 }
+        return values[values.count / 2]
     }
 }
 
@@ -11628,7 +11662,7 @@ enum WebRTCAPMEchoSuppressor {
             outputURL.path,
         ]
         if let delayMs = diagnostics.summary.medianDelayMs {
-            arguments.append("\(delayMs)")
+            arguments.append("\(Double(delayMs))")
         }
         try Tooling.runPath(helper, arguments)
 

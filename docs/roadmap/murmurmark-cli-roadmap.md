@@ -1,6 +1,6 @@
 # MurmurMark CLI Roadmap
 
-Updated: 2026-07-22
+Updated: 2026-07-23
 
 This is the readable view of the active OpsKarta v3 plan:
 
@@ -48,11 +48,12 @@ advisory; its promotion remains blocked by quality and runtime evidence.
 
 ## Current Goal
 
-**Echo Suppression Promotion** is the current goal. Two conservative post-ASR experiments have now
-measured the same limit: remote speech can be identified, but deleting it safely requires stronger
-proof that every retained local island belongs to `Me`. The next bounded step compares derived-audio
-echo candidates against `local_fir` and promotes one only after corpus-wide remote-reduction,
-local-preservation and no-regression gates pass.
+**Neural Residual Echo Suppression v1** is the current goal. Echo Suppression Promotion v1 completed
+with reproducible `DO_NOT_PROMOTE`: its best mute-like candidate reduced bounded ASR-visible
+remote-risk by `68.2845%` and met runtime, but passed only `3/5` applicable speaker sessions.
+Protected-local retention fell to `45.45%` and chronology recall to `0%` on the two counterexamples.
+The next bounded candidate must suppress remote-conditioned residual echo inside mixed speech while
+preserving near-end speech.
 
 **One-Command Meeting Lifecycle v1** is complete. `murmurmark meeting` owns durable capture,
 authoritative processing, evidence enrichment, conservative review and guarded export. It uses
@@ -77,6 +78,10 @@ Seven rows are probable ASR noise and five remain ambiguous, but no row proved b
 remote span and the identity of every retained local edge. It applied no text changes and introduced
 no raw, remote, local-recall, chronology, notes or verdict regression.
 
+Echo Suppression Promotion v1 then aligned Offline AEC, WebRTC AEC3 and SpeexDSP under one signed
+timeline and automatic fail-open policy. The nine-session corpus kept `local_fir` in production and
+froze the exact overlap intervals that classical state-level suppression could not handle safely.
+
 ## Critical Path
 
 ```mermaid
@@ -84,11 +89,12 @@ flowchart LR
     P["Done<br/>Me Completion v2"]
     L["Done<br/>One-Command Lifecycle"]
     A["Done<br/>Mixed-Utterance Separation"]
-    B["Current<br/>Echo Suppression Promotion"]
+    B["Done<br/>Echo Suppression Promotion v1"]
+    N["Current<br/>Neural Residual Echo v1"]
     C["Evidence Notes And Export v2"]
     D["Release-quality CLI"]
 
-    P --> L --> A --> B --> C --> D
+    P --> L --> A --> B --> N --> C --> D
 ```
 
 ### 0. Evidence-Backed Me Completion v2
@@ -113,17 +119,23 @@ never selected automatically.
 
 ### 3. Echo Suppression Promotion
 
-Current. Freeze one representative acoustic corpus and use one promotion contract for `local_fir`,
-WebRTC AEC3, SpeexDSP and any justified bounded candidate. The user-facing target is remote speech
-below the ASR-detectable threshold in `Me` while at least `99%` of confirmed local speech remains
-intact. Missing helpers or failed session gates fall back to `local_fir`.
+Completed with `DO_NOT_PROMOTE`. The exact role-aware `local_fir` baseline, signed delay contract,
+candidate matrix, bounded ASR probes and policy are reproducible. Coverage passed `3/5` applicable
+speaker sessions; the failed protected-local and chronology gates keep production on `local_fir`.
 
-### 4. Evidence Notes And Export v2
+### 4. Neural Residual Echo Suppression v1
+
+Current. Evaluate at most two justified local speech-aware candidates over the frozen promotion
+corpus. Inputs are the aligned authoritative remote, mic mixture, classical echo estimate and
+optional reliable speaker enrollment. Missing models or contradictory evidence fail open. Full
+shadow ASR runs only for a candidate that first preserves every protected interval.
+
+### 5. Evidence Notes And Export v2
 
 Improve the already working notes/export handoff over the selected transcript. Generated or
 extractive claims remain traceable to evidence IDs.
 
-### 5. Release-quality CLI
+### 6. Release-quality CLI
 
 Finalize the supported environment, installation, model/config handling, acceptance, release notes
 and public operational contract. UI is not required.
@@ -132,7 +144,7 @@ and public operational contract. UI is not required.
 
 ```mermaid
 flowchart LR
-    Q["Echo Suppression Promotion"]
+    Q["Neural Residual Echo Suppression"]
     D["Remote diarization"]
     S["Speaker map"]
     T["transcript.rich.json"]

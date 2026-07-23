@@ -39,17 +39,16 @@ Read in this order:
 35. [Echo Guard Local FIR validation log](testing/2026-06-23-echo-guard-local-fir.md)
 36. [Mic remote bleed reduction](backlog/mic-remote-bleed-reduction.md)
 37. [Complete echo removal research](research/2026-06-30-complete-echo-removal.md)
-38. [Planning and development history](history/README.md)
+38. [Echo Suppression Promotion v1 result](research/2026-07-23-echo-suppression-promotion-v1.md)
+39. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
-Planning snapshot: 2026-07-23. Evidence-Backed Me Completion v2 completed with
-`PROMOTE_LOCAL_SPEECH_COMPLETION_V2` for its frozen two-session scope: three of six local-recall
-rows and `22.4/35.85s` were safely closed, one damaged text tail was removed, and the remaining
-`13.45s` became an executable review queue. Mixed-Utterance Remote Span Separation v1 then
-completed with `DO_NOT_PROMOTE`: all `12` rows / `54.940s` received stable evidence, but none could
-be edited without risking genuine local speech. Echo Suppression Promotion is now the current
-executable quality goal.
+Planning snapshot: 2026-07-23. Echo Suppression Promotion v1 completed with a reproducible
+`DO_NOT_PROMOTE`. Its best candidate removed `68.2845%` of bounded ASR-visible remote-risk and met
+the runtime limit, but passed only `3/5` speaker-playback sessions; protected-local retention fell
+to `45.45%` and chronology recall to `0%` on the counterexamples. `local_fir` remains production.
+Neural Residual Echo Suppression v1 is now the current executable quality goal.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

@@ -43,6 +43,7 @@ CRITICAL_PATH = (
     "product-one-command-meeting-lifecycle-v1",
     "quality-mixed-utterance-separation-v1",
     "quality-echo-suppression-promotion",
+    "quality-neural-residual-echo-v1",
     "product-evidence-export-v2",
     "product-release-quality-cli",
 )

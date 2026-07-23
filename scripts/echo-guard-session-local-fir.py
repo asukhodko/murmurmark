@@ -19,6 +19,8 @@ from scipy import linalg, signal
 from scipy.fft import irfft, next_fast_len, rfft
 from scipy.io import wavfile
 
+from echo_promotion_timeline import align_remote_constant, gcc_phat_signed
+
 
 EPSILON = 1.0e-12
 INPUT_PEAK_LIMIT = 0.999
@@ -241,55 +243,19 @@ def gcc_phat(
     max_delay_ms: float,
     second_peak_radius_ms: float = 50.0,
 ) -> dict[str, Any]:
-    mic = mic.astype(np.float32, copy=False)
-    remote = remote.astype(np.float32, copy=False)
-    mic = mic - float(np.mean(mic))
-    remote = remote - float(np.mean(remote))
-    taper = np.hanning(min(len(mic), len(remote))).astype(np.float32)
-    mic = mic[: taper.size] * taper
-    remote = remote[: taper.size] * taper
-
-    fft_size = next_fast_len(len(mic) + len(remote) - 1)
-    mic_fft = rfft(mic, fft_size)
-    remote_fft = rfft(remote, fft_size)
-    cross_power = mic_fft * np.conj(remote_fft)
-    cross_power /= np.maximum(np.abs(cross_power), EPSILON)
-    corr = irfft(cross_power, fft_size)
-    corr = np.concatenate((corr[-(len(remote) - 1) :], corr[: len(mic)]))
-    lags = np.arange(-len(remote) + 1, len(mic))
-
-    min_lag = int(round(min_delay_ms * sample_rate / 1_000.0))
-    max_lag = int(round(max_delay_ms * sample_rate / 1_000.0))
-    mask = (lags >= min_lag) & (lags <= max_lag)
-    limited_corr = corr[mask]
-    limited_lags = lags[mask]
-    if limited_corr.size == 0:
-        return {"delay_ms": None, "confidence": 0.0, "peak": 0.0}
-
-    abs_corr = np.abs(limited_corr)
-    peak_index = int(np.argmax(abs_corr))
-    peak_lag = int(limited_lags[peak_index])
-    peak = float(abs_corr[peak_index])
-    radius = int(round(second_peak_radius_ms * sample_rate / 1_000.0))
-    second_mask = np.abs(limited_lags - peak_lag) > radius
-    second = float(np.max(abs_corr[second_mask])) if np.any(second_mask) else 0.0
-    return {
-        "delay_ms": peak_lag * 1_000.0 / sample_rate,
-        "confidence": peak / (second + EPSILON),
-        "peak": peak,
-    }
+    return gcc_phat_signed(
+        mic,
+        remote,
+        sample_rate,
+        min_delay_ms,
+        max_delay_ms,
+        second_peak_radius_ms=second_peak_radius_ms,
+    )
 
 
-def shift_reference(remote: np.ndarray, delay_samples: int) -> np.ndarray:
-    shifted = np.zeros_like(remote)
-    if delay_samples > 0:
-        shifted[delay_samples:] = remote[:-delay_samples]
-    elif delay_samples < 0:
-        lead = -delay_samples
-        shifted[:-lead] = remote[lead:]
-    else:
-        shifted[:] = remote
-    return shifted
+def shift_reference(remote: np.ndarray, delay_samples: int, sample_rate: int) -> np.ndarray:
+    delay_ms = delay_samples * 1_000.0 / sample_rate
+    return align_remote_constant(remote, sample_rate, delay_ms)
 
 
 def fit_local_fir(remote_fit: np.ndarray, mic_fit: np.ndarray, taps: int, regularization: float) -> np.ndarray:
@@ -485,7 +451,7 @@ def main() -> int:
     if delay_ms is None:
         delay_ms = 0.0
     delay_samples = int(round(float(delay_ms) * args.sample_rate / 1_000.0))
-    remote_aligned = shift_reference(remote, delay_samples)
+    remote_aligned = shift_reference(remote, delay_samples, args.sample_rate)
 
     remote_only = [window for window in windows if window["state"] == "remote_only"]
     taps = int(round(args.fit_tail_ms * args.sample_rate / 1_000.0))

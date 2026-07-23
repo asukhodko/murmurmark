@@ -150,11 +150,17 @@ outside that scope. Mixed-Utterance Remote Span Separation v1 then froze `12` mi
 visible while the identity of every retained local prefix/tail could not be proven independently.
 No transcript edit was applied.
 
-The recommended bounded step is now Echo Suppression Promotion. It moves the intervention before
-ASR, compares derived echo candidates against `local_fir`, and requires both material
-ASR-detectable remote reduction and at least `99%` confirmed local-speech preservation.
+Echo Suppression Promotion v1 moved the intervention before ASR and completed with reproducible
+`DO_NOT_PROMOTE`. Its best candidate reduced bounded ASR-visible remote-risk by `68.2845%`, but
+passed only `3/5` speaker sessions: protected-local retention fell to `45.45%` and chronology recall
+to `0%` on the counterexamples.
 
-This step does not change capture, Echo Guard, the primary ASR, live promotion or raw audio. The
+The recommended bounded step is now Neural Residual Echo Suppression v1. It reuses the signed
+timeline, exact `local_fir` baseline and frozen failures, but tests a local remote-conditioned
+residual suppressor inside mixed speech instead of muting whole remote-active intervals.
+
+This step does not change capture, the production Echo Guard baseline, the primary ASR, live
+promotion or raw audio. The
 failed live-recovery profile remains diagnostic evidence rather than another user-facing branch.
 
 ## Route To Reliability
@@ -396,13 +402,14 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Echo Suppression Promotion: заморозить representative acoustic corpus и сравнить local_fir с
-доступными derived-audio candidates. Для каждого session/candidate измерить ASR-detectable remote
-leakage, remote-forbidden hits, Target-Me preservation, local-only recall, chronology, clean-audio
-integrity и runtime. Продвигать один candidate только при remote reduction >=25%, confirmed local
-recall >=99%, полном отсутствии content/order/notes/export regressions и точных SHA/fingerprint
-gates. Missing helpers, weak calibration или failed session gate дают fallback на local_fir.
-Если ни один candidate не проходит, выпустить воспроизводимый DO_NOT_PROMOTE с точным пределом.
+Neural Residual Echo Suppression v1: сохранить frozen corpus и local_fir baseline после
+DO_NOT_PROMOTE классической матрицы; проверить один локальный remote-conditioned residual
+suppressor и, только при надёжном enrollment, один target-speaker rescue. Обязательные hard
+negatives — protected-local и chronology интервалы из двух провалившихся speaker sessions.
+Продвигать candidate только при remote reduction >=25%, review reduction >=15%, confirmed и
+protected local recall >=99%, полном отсутствии content/order/notes/export regressions, runtime
+<=1.25x и точных SHA/fingerprint gates. Missing model, слабое evidence или failed session gate дают
+fallback на local_fir. Допустим воспроизводимый DO_NOT_PROMOTE с точным пределом.
 ```
 
 ## Consultation Prompt

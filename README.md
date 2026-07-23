@@ -205,10 +205,16 @@ automated regression coverage, fresh permission-capable capture soak and strict 
 all pass. The normal user path is now one command plus `Ctrl-C`; the older commands remain available
 for diagnostics and recovery.
 
-The current quality goal is **Echo Suppression Promotion**. Post-ASR cleanup has reached a measured
-ceiling, so the next bounded step moves the quality boundary back to derived audio: compare existing
-echo-suppression candidates against `local_fir`, then promote one only when remote speech becomes
-materially less ASR-detectable without losing confirmed local speech.
+**Echo Suppression Promotion v1** is complete with a reproducible `DO_NOT_PROMOTE`. The best
+candidate, `coverage_v2_remote_gate_local_fir`, reduced bounded ASR-visible remote-risk seconds by
+`68.2845%` and stayed within the runtime budget, but passed only `3/5` applicable speaker sessions.
+Two real counterexamples lost protected local speech or a short overlap acknowledgement. The
+automatic production policy therefore keeps the exact `local_fir` baseline.
+
+The current quality goal is **Neural Residual Echo Suppression v1**. It keeps the signed timeline,
+frozen corpus and fail-open policy, but tests a local remote-conditioned suppressor that can operate
+inside mixed speech instead of hard-gating whole remote-active regions. Promotion still requires
+local recall, chronology, review-burden, runtime and full-shadow gates.
 
 The stable batch CLI already supports durable capture, resumable processing, evidence-backed review,
 guarded export and retention planning. `local_speech_completion_v2` is promoted for its frozen
@@ -237,7 +243,8 @@ The dependent critical path is:
 One-Command Meeting Lifecycle (done)
 ->
 Mixed-Utterance Remote Span Separation (done, DO_NOT_PROMOTE)
--> Echo Suppression Promotion (current)
+-> Echo Suppression Promotion v1 (done, DO_NOT_PROMOTE)
+-> Neural Residual Echo Suppression v1 (current)
 -> Evidence Notes and Export
 -> Release-quality CLI
 ```
@@ -260,6 +267,8 @@ and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
   decision; stale hashes, missing local models or failed gates fall back without changing text.
 - `mixed_utterance_separation_v1` is audit-only after `DO_NOT_PROMOTE`; it never replaces the
   selected transcript.
+- `echo_suppression_promotion_v1` is also audit-only after `DO_NOT_PROMOTE`; the production policy
+  selects `local_fir_role_masked` and never launches a second full ASR.
 - Batch transcript is authoritative; live output is not used for export or retention decisions.
 - No cloud ASR or cloud raw-audio upload is required by the normal workflow.
 - A future UI must reuse CLI contracts and is not required for a useful product.
@@ -270,6 +279,7 @@ and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 - [Mission and vision](docs/product/vision.md)
 - [Product requirements](docs/product/prd-v1.md)
 - [Current goal](docs/project/current-goal.md)
+- [Echo Suppression Promotion v1 result](docs/research/2026-07-23-echo-suppression-promotion-v1.md)
 - [Reliable transcription route](docs/project/reliable-transcription-route.md)
 - [Readable roadmap](docs/roadmap/murmurmark-cli-roadmap.md)
 - [OpsKarta v3 roadmap](docs/roadmap/murmurmark-cli-roadmap.plan.yaml)

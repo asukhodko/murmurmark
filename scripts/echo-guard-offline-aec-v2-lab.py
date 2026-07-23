@@ -22,6 +22,8 @@ from scipy import linalg, signal
 from scipy.fft import irfft, next_fast_len, rfft
 from scipy.io import wavfile
 
+from echo_promotion_timeline import align_remote_curve, gcc_phat_signed
+
 
 EPSILON = 1.0e-12
 SCRIPT_VERSION = "0.1.0"
@@ -55,6 +57,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sample-rate", type=int, default=16_000)
     parser.add_argument("--highpass-hz", type=float, default=100.0)
     parser.add_argument("--lowpass-hz", type=float, default=7_600.0)
+    parser.add_argument(
+        "--inputs-preconditioned",
+        action="store_true",
+        help="Inputs already share canonical promotion speech-band conditioning.",
+    )
     parser.add_argument("--delay-window-sec", type=float, default=2.0)
     parser.add_argument("--delay-hop-sec", type=float, default=1.0)
     parser.add_argument("--min-delay-ms", type=float, default=-500.0)
@@ -65,6 +72,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--remote-only-max-mask-db", type=float, default=24.0)
     parser.add_argument("--double-talk-max-mask-db", type=float, default=6.0)
     parser.add_argument("--fit-max-sec", type=float, default=240.0)
+    parser.add_argument(
+        "--candidate-config",
+        action="append",
+        default=None,
+        help="Evaluate only the named base candidate config. Repeat for a bounded subset.",
+    )
     parser.add_argument("--out-dir", type=Path, default=None)
     parser.add_argument("--write-all-audio", action="store_true")
     parser.add_argument("--asr-audit", action="store_true", help="Run local faster-whisper clip audit.")
@@ -217,34 +230,7 @@ def gcc_phat(mic: np.ndarray, remote: np.ndarray, sample_rate: int, min_delay_ms
     size = min(mic.size, remote.size)
     if size < sample_rate // 4:
         return {"delay_ms": None, "confidence": 0.0, "peak": 0.0}
-    mic = mic[:size].astype(np.float32) - float(np.mean(mic[:size]))
-    remote = remote[:size].astype(np.float32) - float(np.mean(remote[:size]))
-    taper = np.hanning(size).astype(np.float32)
-    mic *= taper
-    remote *= taper
-    fft_size = next_fast_len(size * 2 - 1)
-    cross_power = rfft(mic, fft_size) * np.conj(rfft(remote, fft_size))
-    cross_power /= np.maximum(np.abs(cross_power), EPSILON)
-    corr = irfft(cross_power, fft_size)
-    corr = np.concatenate((corr[-(size - 1) :], corr[:size]))
-    lags = np.arange(-size + 1, size)
-    min_lag = int(round(min_delay_ms * sample_rate / 1_000.0))
-    max_lag = int(round(max_delay_ms * sample_rate / 1_000.0))
-    mask = (lags >= min_lag) & (lags <= max_lag)
-    if not np.any(mask):
-        return {"delay_ms": None, "confidence": 0.0, "peak": 0.0}
-    limited = np.abs(corr[mask])
-    limited_lags = lags[mask]
-    peak_index = int(np.argmax(limited))
-    peak_lag = int(limited_lags[peak_index])
-    peak = float(limited[peak_index])
-    second_mask = np.abs(limited_lags - peak_lag) > int(round(sample_rate * 0.05))
-    second = float(np.max(limited[second_mask])) if np.any(second_mask) else 0.0
-    return {
-        "delay_ms": peak_lag * 1_000.0 / sample_rate,
-        "confidence": peak / (second + EPSILON),
-        "peak": peak,
-    }
+    return gcc_phat_signed(mic[:size], remote[:size], sample_rate, min_delay_ms, max_delay_ms)
 
 
 def load_speaker_state(session: Path) -> list[dict[str, Any]]:
@@ -363,27 +349,15 @@ def aligned_remote_from_delay_curve(
     delay_rows: list[dict[str, Any]],
     sample_rate: int,
 ) -> np.ndarray:
-    aligned = np.zeros_like(remote)
+    timeline_rows = []
     for index, row in enumerate(delay_rows):
-        start = int(round(float(row["start_sec"]) * sample_rate))
-        end = int(round(float(row["end_sec"]) * sample_rate))
-        if end <= start:
-            continue
-        delay_ms = float(delay_curve[min(index, delay_curve.size - 1)])
-        delay_samples = int(round(delay_ms * sample_rate / 1_000.0))
-        source_start = start - delay_samples
-        source_end = end - delay_samples
-        dest_start = start
-        dest_end = end
-        if source_start < 0:
-            dest_start += -source_start
-            source_start = 0
-        if source_end > remote.size:
-            dest_end -= source_end - remote.size
-            source_end = remote.size
-        if dest_end > dest_start and source_end > source_start:
-            aligned[dest_start:dest_end] = remote[source_start:source_end]
-    return aligned.astype(np.float32)
+        timeline_rows.append(
+            {
+                **row,
+                "smoothed_delay_ms": float(delay_curve[min(index, delay_curve.size - 1)]),
+            }
+        )
+    return align_remote_curve(remote, sample_rate, timeline_rows).astype(np.float32)
 
 
 def basis_signal(name: str, remote: np.ndarray, sample_rate: int) -> np.ndarray:
@@ -1857,7 +1831,9 @@ def compute_local_fir_baseline(
         return read_local_fir_baseline(session)
     clean_rate, clean_raw = read_wav_float(clean_path)
     clean = resample_if_needed(clean_raw, clean_rate, sample_rate)
-    clean = speech_band(clean[: mic.size], sample_rate, args.highpass_hz, args.lowpass_hz)
+    clean = clean[: mic.size] if args.inputs_preconditioned else speech_band(
+        clean[: mic.size], sample_rate, args.highpass_hz, args.lowpass_hz
+    )
     count = min(mic.size, clean.size, remote_aligned.size)
     metrics, _, leak_report, preservation_report = candidate_metrics(
         "local_fir",
@@ -1925,8 +1901,12 @@ def main() -> int:
     remote = resample_if_needed(remote_raw, remote_rate, args.sample_rate)
     mic = resample_if_needed(mic_raw, mic_rate, args.sample_rate)
     count = min(remote.size, mic.size)
-    remote = speech_band(remote[:count], args.sample_rate, args.highpass_hz, args.lowpass_hz)
-    mic = speech_band(mic[:count], args.sample_rate, args.highpass_hz, args.lowpass_hz)
+    if args.inputs_preconditioned:
+        remote = remote[:count]
+        mic = mic[:count]
+    else:
+        remote = speech_band(remote[:count], args.sample_rate, args.highpass_hz, args.lowpass_hz)
+        mic = speech_band(mic[:count], args.sample_rate, args.highpass_hz, args.lowpass_hz)
 
     speaker_rows = load_speaker_state(session)
     if not speaker_rows:
@@ -1959,7 +1939,15 @@ def main() -> int:
         "asr_selected_candidate": None,
     }
 
-    for config in default_candidate_configs():
+    configs = default_candidate_configs()
+    if args.candidate_config:
+        requested_configs = set(args.candidate_config)
+        known_configs = {config.key for config in configs}
+        unknown_configs = sorted(requested_configs - known_configs)
+        if unknown_configs:
+            raise SystemExit(f"unknown candidate config(s): {', '.join(unknown_configs)}")
+        configs = [config for config in configs if config.key in requested_configs]
+    for config in configs:
         echo_hat, fit_report = build_echo_hat(
             mic,
             basis_refs,
@@ -2017,7 +2005,11 @@ def main() -> int:
     if local_fir_path.exists():
         local_fir_rate, local_fir_raw = read_wav_float(local_fir_path)
         local_fir_clean = resample_if_needed(local_fir_raw, local_fir_rate, args.sample_rate)
-        local_fir_clean = speech_band(local_fir_clean[: mic.size], args.sample_rate, args.highpass_hz, args.lowpass_hz)
+        local_fir_clean = (
+            local_fir_clean[: mic.size]
+            if args.inputs_preconditioned
+            else speech_band(local_fir_clean[: mic.size], args.sample_rate, args.highpass_hz, args.lowpass_hz)
+        )
     switch_plan: list[dict[str, Any]] = []
     switch_clean, switch_plan = build_segment_switch_candidate(
         mic,

@@ -7447,6 +7447,91 @@ The frozen 2026-07-23 result is `DO_NOT_PROMOTE`: `12` rows / `54.940s` across `
 promotion gates are the required `25%` duplicate/leak and `15%` review reductions. Therefore
 `mixed_utterance_separation_v1` is not eligible for automatic selection.
 
+## Echo Suppression Promotion
+
+Echo Suppression Promotion v1 is a derived-audio experiment and automatic fail-open production
+policy. It does not create or edit transcript rows directly.
+
+Key schemas are:
+
+```text
+murmurmark.echo.timeline_contract/v1
+murmurmark.echo_suppression_candidate/v1
+murmurmark.echo_suppression_asr_probe/v1
+murmurmark.echo_suppression_freeze/v1
+murmurmark.echo_suppression_full_shadow/v1
+murmurmark.echo_suppression_promotion_session/v1
+murmurmark.echo_suppression_frozen_corpus/v1
+murmurmark.echo_suppression_promotion_corpus/v1
+murmurmark.echo_suppression_production_policy/v1
+murmurmark.echo_suppression_selection/v1
+```
+
+The canonical timing sign is:
+
+```text
+echo_at_mic(t) ~= remote(t - delay(t))
+```
+
+Positive delay means the remote render precedes its microphone echo. Every engine must receive the
+same signed aligned remote signal. An unsigned conversion or engine-specific sign convention is a
+contract failure.
+
+Per-session artifacts are:
+
+```text
+derived/preprocess/echo-promotion-v1/
+  canonical/
+    mic.wav
+    remote.wav
+    remote_aligned.wav
+    timeline_contract.json
+  candidates/<candidate>/
+    engine_native.wav
+    mic_for_asr.wav
+    metrics.json
+    decision.json
+    asr_probe.json
+  asr_probe_report.json
+  freeze_manifest.json
+  selected_mic_for_asr.wav
+  session_report.json
+  session_report.md
+```
+
+Corpus artifacts are:
+
+```text
+sessions/_reports/echo-suppression-promotion-v1/
+  frozen_corpus.json
+  echo_suppression_promotion_corpus_report.json
+  echo_suppression_promotion_corpus_report.md
+```
+
+`engine_native.wav` is the direct helper/laboratory output. Candidate `mic_for_asr.wav` is the
+canonical role-aware view used for fair comparison. The baseline is the exact existing
+`mic_role_masked_for_asr.wav`.
+
+Candidates pass in this order:
+
+1. finite, clipping, local-energy, double-talk and silence-cheat audio gates;
+2. ordinary runtime at most `1.25x` baseline;
+3. bounded local `large-v3` ASR probes;
+4. full isolated shadow transcription only for a session finalist;
+5. corpus-wide promotion and deterministic replay.
+
+Protected-local and chronology windows subtract authoritative remote tokens before local retention
+is measured. A candidate must not be rejected for successfully removing remote words, and it must
+not pass after removing the unique local continuation.
+
+`policies/echo-suppression-production-v1.json` is the only normal-path selector. A promoted policy
+is valid only when its corpus report path, SHA-256, decision and candidate agree. Missing or stale
+evidence, low-leak/no-speech mode, helper failure or failed session audio gates restore
+`local_fir_role_masked`.
+
+The frozen 2026-07-23 result is `DO_NOT_PROMOTE`. The best candidate passed `3/5` applicable
+speaker sessions; therefore the policy never changes the authoritative ASR input.
+
 ## Authoritative Handoff
 
 The normal post-stop command publishes:

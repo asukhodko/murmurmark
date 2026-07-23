@@ -218,20 +218,34 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-mixed-utterance-separation-v1, corpus-regression]
+    status: done
+    effort: 10
+    notes: |
+      Завершено с воспроизводимым DO_NOT_PROMOTE. На 9 frozen sessions
+      coverage_v2_remote_gate_local_fir уменьшил bounded ASR-visible remote-risk на 68.2845% и
+      уложился в runtime, но прошёл только 3/5 speaker-playback sessions. На двух контрпримерах
+      protected-local retention упал до 45.45%, chronology recall до 0%. Signed timeline, matrix и
+      fail-open policy готовы; production остаётся на local_fir.
+
+  quality-neural-residual-echo-v1:
+    title: "Neural Residual Echo Suppression v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-echo-suppression-promotion, corpus-regression]
     status: current
     effort: 10
     notes: |
-      Текущая цель. Заморозить representative acoustic corpus и сравнить local_fir с WebRTC AEC3,
-      SpeexDSP и только обоснованными bounded candidates. Цель: снизить ASR-detectable remote
-      leakage минимум на 25% при сохранении не менее 99% confirmed local speech. Promotion только по
-      ASR-positive, Target-Me, chronology, runtime и per-session no-regression gates; иначе
-      reproducible DO_NOT_PROMOTE и fallback на local_fir.
+      Текущая цель. Проверить один локальный remote-conditioned residual suppressor и, только при
+      надёжном enrollment, один target-speaker rescue. Кандидат должен работать внутри mixed speech,
+      сохранить оба frozen protected-local контрпримера и пройти прежние ASR, chronology, review,
+      runtime и full-shadow gates. Missing model и слабое evidence дают local_fir fallback;
+      допустим reproducible DO_NOT_PROMOTE.
 
   product-evidence-export-v2:
     title: "Evidence Notes And Export v2"
     kind: task
     parent: murmurmark-cli
-    deps: [quality-echo-suppression-promotion]
+    deps: [quality-neural-residual-echo-v1]
     status: later
     effort: 7
     notes: |
@@ -358,11 +372,11 @@ views:
         nodes: [working-capabilities, corpus-regression]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-mixed-utterance-separation-v1]
+        nodes: [quality-neural-residual-echo-v1]
       dependent:
         title: "Следующие зависимые этапы"
         nodes:
-          - quality-echo-suppression-promotion
+          - product-evidence-export-v2
 
   critical-path:
     title: "Критический CLI-путь"
@@ -378,6 +392,7 @@ views:
           - product-one-command-meeting-lifecycle-v1
           - quality-mixed-utterance-separation-v1
           - quality-echo-suppression-promotion
+          - quality-neural-residual-echo-v1
           - product-evidence-export-v2
           - product-release-quality-cli
 
@@ -422,6 +437,7 @@ views:
           - product-one-command-meeting-lifecycle-v1
           - quality-mixed-utterance-separation-v1
           - quality-echo-suppression-promotion
+          - quality-neural-residual-echo-v1
           - product-evidence-export-v2
           - product-release-quality-cli
           - parallel-research
@@ -430,8 +446,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Echo Suppression Promotion: выбрать на замороженном корпусе один воспроизводимый derived-audio candidate, который заметно уменьшает распознаваемую remote-речь в Me, сохраняет подтверждённую локальную речь и проходит единый corpus-wide no-regression contract."
-      success_by_next_sync: "Заморожены baseline и acoustic corpus, все доступные кандидаты получили session-level dispositions, а корпус выпустил воспроизводимый PROMOTE или точный DO_NOT_PROMOTE."
+      nearest_goal: "Neural Residual Echo Suppression v1: проверить локальный remote-conditioned suppressor на frozen overlap-контрпримерах и выпустить corpus-wide PROMOTE либо точный DO_NOT_PROMOTE без изменения local_fir baseline."
+      success_by_next_sync: "Модельный inference-контракт воспроизводим, оба protected-local контрпримера имеют dispositions, а corpus report доказывает PROMOTE или точный evidence ceiling."
     defaults:
       status_progress:
         done: 1.0
@@ -453,12 +469,12 @@ x:
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
         title: "Текущая цель"
-        scope_nodes: [quality-echo-suppression-promotion]
+        scope_nodes: [quality-neural-residual-echo-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Mixed-Utterance Separation доказал предел post-ASR cleanup: remote span виден, но local island identity недостаточна для безопасного редактирования."
-          next_sync_goal: "Заморозить acoustic corpus, сравнить derived echo candidates и выпустить corpus-wide PROMOTE или точный DO_NOT_PROMOTE."
+          sync_note: "Classical promotion дал 68.2845% remote-risk reduction, но потерял protected Me в 2/5 speaker sessions; local_fir остаётся production."
+          next_sync_goal: "Проверить remote-conditioned residual suppression на frozen mixed-speech counterexamples и выпустить corpus decision."
       dependent-path:
         title: "Зависимый путь"
         scope_nodes:
@@ -466,12 +482,13 @@ x:
           - quality-speaker-mode-hardening-v1
           - quality-evidence-backed-me-completion-v2
           - quality-echo-suppression-promotion
+          - quality-neural-residual-echo-v1
           - product-evidence-export-v2
           - product-release-quality-cli
         kind: main
         mgmt:
           health: neutral
-          sync_note: "Chronology, rebaseline, root-cause Echo и release следуют по явным зависимостям."
+          sync_note: "Classical Echo закрыт DO_NOT_PROMOTE; neural residual candidate предшествует notes/export и release."
           next_sync_goal: "Не начинать зависимый этап до завершения текущего gate."
       research:
         title: "Параллельные исследования"

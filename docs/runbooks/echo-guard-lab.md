@@ -577,9 +577,59 @@ Run the d-vector smoke:
 less sessions/_reports/target-me-resemblyzer/target_me_corpus_report.md
 ```
 
+## Echo Suppression Promotion v1
+
+This laboratory compares timeline-correct audio candidates without changing the authoritative
+transcript:
+
+```bash
+SESSION="sessions/<session-id>"
+
+murmurmark audit echo-suppression-promotion "$SESSION" \
+  --asr-probes \
+  --max-windows-per-class 1
+
+less "$SESSION/derived/preprocess/echo-promotion-v1/session_report.md"
+```
+
+The command:
+
+- freezes raw, derived and risk-evidence hashes;
+- applies the signed delay contract
+  `echo_at_mic(t) ~= remote(t - delay(t))`;
+- stores engine-native and canonical ASR audio separately;
+- rejects signal, clipping, local-loss and runtime failures before bounded ASR;
+- probes remote-risk, local-only, opening, double-talk, protected-local and chronology windows;
+- never replaces the current `mic_for_asr.wav`.
+
+Aggregate already prepared session reports:
+
+```bash
+murmurmark corpus echo-suppression-promotion \
+  sessions/2026-06-23_14-04-37 \
+  sessions/2026-06-30_11-15-56 \
+  sessions/2026-06-30_17-17-20 \
+  sessions/2026-07-14_15-01-19-live \
+  sessions/2026-07-16_11-15-15-live \
+  sessions/2026-07-20_14-00-54-live \
+  sessions/2026-07-20_15-15-26-live \
+  sessions/2026-07-20_16-30-42-live \
+  sessions/2026-07-22_14-02-55-live
+
+less sessions/_reports/echo-suppression-promotion-v1/echo_suppression_promotion_corpus_report.md
+```
+
+Current frozen result: reproducible `DO_NOT_PROMOTE`.
+`coverage_v2_remote_gate_local_fir` passed `3/5` speaker-playback sessions and removed `68.2845%`
+of bounded ASR-visible remote-risk, but failed protected-local and chronology gates on two sessions.
+The tracked policy therefore keeps `local_fir_role_masked`.
+
+The normal pipeline applies that policy automatically. Do not copy a candidate WAV into
+`mic_for_asr.wav` by hand. Neural Residual Echo Suppression v1 is the next isolated laboratory.
+
 ## Stop Rules
 
-Stop audio cleanup work and prefer transcript-level suppression when:
+Stop the current audio candidate and keep the production baseline when:
 
 - delay confidence is unstable on remote-only clips;
 - a static FIR model cannot reduce held-out remote-only leakage by at least 6 dB;
@@ -587,4 +637,9 @@ Stop audio cleanup work and prefer transcript-level suppression when:
 - double-talk becomes worse by ear or by ASR;
 - ASR on clean mic is not better than ASR on raw mic.
 
-The product goal is not studio-quality microphone audio. The product goal is to avoid treating leaked remote speech as the user's speech.
+Transcript-level suppression remains a final safety net, but the mixed-utterance experiment proved
+that it cannot safely compensate for every audio-layer error. After a reproducible candidate
+failure, move to a materially different bounded hypothesis rather than loosening deletion gates.
+
+The product goal is not studio-quality microphone audio. The product goal is to avoid treating
+leaked remote speech as the user's speech without deleting the user's real words.

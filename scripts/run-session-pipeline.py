@@ -48,6 +48,10 @@ STEP_COST_HINTS: dict[str, dict[str, str]] = {
         "cost": "medium",
         "reason": "runs Echo Guard and writes ASR-ready mic audio",
     },
+    "echo_suppression_policy": {
+        "cost": "light",
+        "reason": "validates the frozen Echo Guard promotion policy and fails open to local_fir",
+    },
     "transcribe_current": {
         "cost": "heavy",
         "reason": "runs whisper.cpp ASR unless cached raw ASR is reused",
@@ -708,6 +712,17 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
             reason="--skip-preprocess",
         ),
         step("inspect_echo", [str(args.murmurmark_bin), "inspect", str(session), "--echo"], enabled=not args.skip_preprocess, reason="--skip-preprocess"),
+        step(
+            "echo_suppression_policy",
+            [
+                py,
+                str(repo_root / "scripts/echo-suppression-promotion-v1.py"),
+                "apply-policy",
+                str(session),
+            ],
+            enabled=not args.skip_preprocess,
+            reason="--skip-preprocess",
+        ),
         step(
             "materialize_live_asr_cache",
             live_cache_materialize,

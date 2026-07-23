@@ -771,6 +771,24 @@ vNext first spike on 2026-06-30:
 - this supports token-level remote-forbidden decoding as the next safety layer, but it is not
   waveform-level echo removal.
 
+Promotion result on 2026-07-23:
+
+- one canonical signed delay contract now drives Offline AEC, WebRTC AEC3 and SpeexDSP;
+- the exact role-aware `local_fir` ASR input is the baseline;
+- a nine-session corpus covered five speaker-playback, three headphones/low-leak and one no-speech
+  session;
+- `coverage_v2_remote_gate_local_fir` reduced bounded ASR-visible remote-risk by `68.2845%` and met
+  the runtime limit;
+- it passed only `3/5` applicable speaker sessions;
+- two counterexamples lost protected near-end speech during remote activity, with minimum
+  protected-local retention `45.45%` and chronology recall `0%`;
+- the corpus issued reproducible `DO_NOT_PROMOTE`, and production remains on `local_fir`.
+
+The result rules out stronger state-level muting as the next move. The active hypothesis is Neural
+Residual Echo Suppression v1: use the aligned authoritative remote and classical echo estimate to
+remove residual echo inside mixed speech while preserving near-end speech. Detailed evidence is in
+[Echo Suppression Promotion v1 Result](2026-07-23-echo-suppression-promotion-v1.md).
+
 ## Library and Dataset Watchlist
 
 Priority references for the first implementation:

@@ -19,6 +19,8 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-live-progressive-target-me.py
 "$python_bin" scripts/check-live-preview-hallucinations.py
 "$python_bin" scripts/check-echo-sparse-overrange.py
+"$python_bin" scripts/check-echo-promotion-timeline.py
+"$python_bin" scripts/check-echo-suppression-promotion.py
 "$python_bin" scripts/check-speaker-mode-hardening.py
 "$python_bin" scripts/check-target-me-silence.py
 "$python_bin" scripts/check-no-speech-outcome.py

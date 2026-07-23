@@ -47,8 +47,12 @@ Current operating point, 2026-07-23:
   in explicit local-recall review;
 - Mixed-Utterance Remote Span Separation v1 classified all `12` mixed `Me` rows / `54.940s` but
   completed with `DO_NOT_PROMOTE`: no split had enough independent local-island evidence;
-- the current goal is Echo Suppression Promotion: reduce ASR-detectable remote leakage in derived
-  mic audio while preserving at least `99%` of confirmed local speech;
+- Echo Suppression Promotion v1 completed with reproducible `DO_NOT_PROMOTE`: its best candidate
+  reduced bounded remote-risk by `68.2845%`, but passed only `3/5` speaker sessions and lost
+  protected local speech on two counterexamples;
+- the current goal is Neural Residual Echo Suppression v1: use aligned authoritative remote
+  evidence inside mixed speech while preserving at least `99%` of confirmed and protected local
+  speech;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 
