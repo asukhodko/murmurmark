@@ -7532,6 +7532,90 @@ evidence, low-leak/no-speech mode, helper failure or failed session audio gates 
 The frozen 2026-07-23 result is `DO_NOT_PROMOTE`. The best candidate passed `3/5` applicable
 speaker sessions; therefore the policy never changes the authoritative ASR input.
 
+## Neural Residual Echo Suppression
+
+Neural Residual Echo Suppression v1 is an offline, derived-audio experiment with no production
+apply path. Its schemas are:
+
+```text
+murmurmark.neural_residual_echo_model_manifest/v1
+murmurmark.neural_residual_echo_inference/v1
+murmurmark.neural_residual_echo_inference_manifest/v1
+murmurmark.neural_residual_echo_integrity/v1
+murmurmark.neural_residual_echo_freeze_check/v1
+murmurmark.neural_residual_echo_bounded_asr/v1
+murmurmark.neural_residual_echo_protected_local/v1
+murmurmark.neural_residual_echo_session/v1
+murmurmark.neural_residual_echo_frozen_corpus/v1
+murmurmark.neural_residual_echo_corpus/v1
+```
+
+The model-neutral inference request contains equal-length mono mic and aligned far-end arrays plus
+their sample rate. The v1 adapter converts deterministically to 16 kHz, preserves the exact sample
+count and emits no normalized or gain-adjusted view. Its inference row records:
+
+```json
+{
+  "schema": "murmurmark.neural_residual_echo_inference/v1",
+  "suppressor": "microsoft_icassp2022_dec",
+  "status": "completed",
+  "fail_open": false,
+  "selected": "candidate",
+  "integrity": {
+    "passed": true,
+    "checks": {
+      "nonempty": true,
+      "mono": true,
+      "exact_length": true,
+      "finite": true,
+      "not_clipped": true
+    }
+  }
+}
+```
+
+Any failed check, model exception, missing weight or checksum mismatch changes the row to
+`failed_open` and selects the exact `local_fir_role_masked` baseline. The failed candidate evidence
+and fallback integrity are both retained. AECMOS is provenance-bearing secondary evidence and
+cannot satisfy a promotion gate.
+
+Per-session artifacts are:
+
+```text
+derived/preprocess/neural-residual-echo-v1/
+  model_manifest.json
+  freeze_manifest.json
+  inference_manifest.json
+  integrity_report.json
+  bounded_asr_report.json
+  protected_local_report.json
+  session_decision.json
+  canonical/
+  candidates/
+    local_fir_role_masked/
+    ms_dec_local_fir_v1/
+    ms_dec_raw_mic_control_v1/
+```
+
+Corpus artifacts are:
+
+```text
+sessions/_reports/neural-residual-echo-v1/
+  model_manifest.json
+  frozen_corpus.json
+  neural_residual_echo_corpus_report.json
+  neural_residual_echo_corpus_report.md
+```
+
+The corpus runner evaluates mandatory protected-local counterexamples first. A local-loss failure
+turns subsequent expensive inference into an explicit skipped disposition; it does not weaken the
+requirement that every frozen session have a stable outcome. Full shadow ASR is legal only after
+all bounded, runtime and local-preservation gates pass.
+
+The frozen v1 decision is `DO_NOT_PROMOTE`, fingerprint
+`eff4119d7e19b90dc2b7e6f03caf1b762d29f6c46c97b3141764db76764200f3`.
+It leaves all authoritative transcript, synthesis, export and retention artifacts unchanged.
+
 ## Authoritative Handoff
 
 The normal post-stop command publishes:

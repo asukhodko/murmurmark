@@ -40,15 +40,17 @@ Read in this order:
 36. [Mic remote bleed reduction](backlog/mic-remote-bleed-reduction.md)
 37. [Complete echo removal research](research/2026-06-30-complete-echo-removal.md)
 38. [Echo Suppression Promotion v1 result](research/2026-07-23-echo-suppression-promotion-v1.md)
-39. [Planning and development history](history/README.md)
+39. [Neural Residual Echo Suppression v1 result](research/2026-07-23-neural-residual-echo-v1.md)
+40. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
-Planning snapshot: 2026-07-23. Echo Suppression Promotion v1 completed with a reproducible
-`DO_NOT_PROMOTE`. Its best candidate removed `68.2845%` of bounded ASR-visible remote-risk and met
-the runtime limit, but passed only `3/5` speaker-playback sessions; protected-local retention fell
-to `45.45%` and chronology recall to `0%` on the counterexamples. `local_fir` remains production.
-Neural Residual Echo Suppression v1 is now the current executable quality goal.
+Planning snapshot: 2026-07-23. Neural Residual Echo Suppression v1 completed with reproducible
+`DO_NOT_PROMOTE`. Pinned Microsoft DEC removed all `3.49s` of bounded ASR-visible remote-risk in the
+two hard sessions, but protected-local recall fell to `45.45%`, chronology and double-talk recall
+to `0%`, and runtime exceeded the gate. `local_fir` remains production. Speaker-Preserving Echo
+Adaptation Corpus v1 is now the current executable quality goal: prove `READY_FOR_ADAPTATION` or
+exact `DO_NOT_TRAIN` before any training.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

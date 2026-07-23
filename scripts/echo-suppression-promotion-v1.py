@@ -1088,6 +1088,8 @@ def run_asr_probes(
     model_path: Path,
     max_windows_per_class: int,
     refresh: bool,
+    windows_override: list[dict[str, Any]] | None = None,
+    candidate_keys: tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
     try:
         from faster_whisper import WhisperModel
@@ -1095,14 +1097,34 @@ def run_asr_probes(
         return {"status": "unavailable", "reason": f"faster_whisper_import_failed:{error}"}
     if not model_path.exists():
         return {"status": "unavailable", "reason": f"model_missing:{model_path}"}
+    selected_candidates = (
+        {
+            key: payload
+            for key, payload in candidates.items()
+            if key in candidate_keys
+        }
+        if candidate_keys is not None
+        else candidates
+    )
+    if BASELINE not in selected_candidates:
+        raise RuntimeError("bounded ASR candidate selection must include baseline")
     candidate_fingerprints = {
         key: payload["fingerprints"]["canonical_mic_for_asr"]["sha256"]
-        for key, payload in candidates.items()
+        for key, payload in selected_candidates.items()
     }
     duration = min(canonical["mic"].size, canonical["remote"].size) / 16_000.0
-    windows = select_probe_windows(canonical["state_rows"], max_windows_per_class, duration)
-    windows.extend(risk_probe_windows(session, duration))
-    windows.extend(evidence_probe_windows(session, duration, max_windows_per_class))
+    if windows_override is None:
+        windows = select_probe_windows(
+            canonical["state_rows"],
+            max_windows_per_class,
+            duration,
+        )
+        windows.extend(risk_probe_windows(session, duration))
+        windows.extend(
+            evidence_probe_windows(session, duration, max_windows_per_class)
+        )
+    else:
+        windows = list(windows_override)
     probe_plan_fingerprint = hashlib.sha256(
         json.dumps(windows, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
@@ -1122,7 +1144,7 @@ def run_asr_probes(
     rows: list[dict[str, Any]] = []
     audio_by_candidate = {
         key: read_wav(output_root / "candidates" / key / "mic_for_asr.wav")
-        for key in candidates
+        for key in selected_candidates
     }
     for window in windows:
         start = int(round(float(window["start"]) * 16_000))
@@ -1180,7 +1202,7 @@ def run_asr_probes(
         )
 
     summaries: dict[str, Any] = {}
-    for key in candidates:
+    for key in selected_candidates:
         remote_rows = [
             row for row in rows if row["category"] in {"remote_only", "remote_risk"}
         ]

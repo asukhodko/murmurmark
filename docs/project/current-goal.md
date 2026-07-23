@@ -11,108 +11,109 @@ Roadmap status and dependency truth live in
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`. This file expands the one executable goal in human
 terms. `scripts/check-planning-consistency.py` keeps the representations aligned.
 
-## Neural Residual Echo Suppression v1
+## Speaker-Preserving Echo Adaptation Corpus v1
 
-OpsKarta nearest goal: Neural Residual Echo Suppression v1: проверить локальный remote-conditioned
-suppressor на frozen overlap-контрпримерах и выпустить corpus-wide PROMOTE либо точный
-DO_NOT_PROMOTE без изменения local_fir baseline.
+OpsKarta nearest goal: Speaker-Preserving Echo Adaptation Corpus v1: доказать, что из локальных
+MurmurMark-сессий можно воспроизводимо собрать privacy-safe и session-disjoint supervision для
+remote-only, local-only и double-talk, а затем выпустить READY_FOR_ADAPTATION либо точный
+DO_NOT_TRAIN без обучения и изменения production.
 
-Echo Suppression Promotion v1 completed with a reproducible `DO_NOT_PROMOTE`. Its best classical
-candidate, `coverage_v2_remote_gate_local_fir`, reduced bounded ASR-visible remote-risk seconds by
-`68.2845%` and stayed within the runtime budget, but passed only `3/5` applicable speaker sessions.
-On the two failures, protected local retention fell to `45.45%` and chronology recall to `0%`.
-`local_fir_role_masked` therefore remains the production input.
+Two increasingly capable suppression attempts now have the same safety ceiling:
 
-Objective: test whether a local speech-aware residual suppressor can distinguish transformed remote
-echo from near-end speech during double-talk. The result must be an isolated candidate and a
-reproducible `PROMOTE_NEURAL_RESIDUAL_ECHO_V1` or `DO_NOT_PROMOTE`; no model may silently enter the
-normal path.
+- classical state-level suppression removed remote-risk but deleted quiet or short `Me` inside
+  remote-active intervals;
+- pretrained Microsoft DEC removed all bounded remote-risk in the hard counterexamples, but
+  protected-local recall fell to `45.45%`, chronology recall to `0%`, and incremental runtime
+  reached `52.85%` of `local_fir`.
+
+The second result rules out a simple engine swap. The next shortest reliable step is to prove
+whether MurmurMark has enough local, legally usable and correctly separated supervision to adapt a
+model around its real acoustic domain. Training before that proof would be expensive guesswork.
 
 ## Completed Immediate Predecessor
 
-[Echo Suppression Promotion v1](../research/2026-07-23-echo-suppression-promotion-v1.md) established:
+[Neural Residual Echo Suppression v1](../research/2026-07-23-neural-residual-echo-v1.md) established:
 
-- one canonical signed timing contract:
-  `echo_at_mic(t) ~= remote(t - delay(t))`;
-- exact role-aware `local_fir` baseline and separate engine-native/canonical candidate audio;
-- aligned WebRTC AEC3, SpeexDSP, Offline AEC and bounded coverage candidates;
-- cheap audio/runtime gates, bounded `large-v3` ASR probes and deterministic corpus decisions;
-- a frozen nine-session corpus with speaker, headphones/low-leak, office, group, long and no-speech
-  examples;
-- an automatic fail-open production policy;
-- `DO_NOT_PROMOTE` because no candidate preserved protected local speech and chronology on every
-  applicable session.
+- a pinned, offline Microsoft DEC ONNX adapter and secondary AECMOS metric;
+- exact 16 kHz duration, no hidden normalization and fail-open baseline selection;
+- two modes: post-`local_fir` primary and raw-mic domain-shift control;
+- deterministic candidate audio and corpus decision;
+- `3.49s -> 0s` bounded ASR-visible remote-risk;
+- mandatory failure on protected local speech, chronology, double-talk and runtime;
+- no full shadow run and no production apply path;
+- final `DO_NOT_PROMOTE` fingerprint
+  `eff4119d7e19b90dc2b7e6f03caf1b762d29f6c46c97b3141764db76764200f3`.
 
-The decisive counterexamples are frozen:
-
-- `2026-07-20_15-15-26-live`: a longer local phrase starts during remote activity;
-- `2026-07-20_16-30-42-live`: a short local acknowledgement occurs in a mixed/order interval.
-
-They are mandatory hard negatives for the next candidate.
+`local_fir_role_masked` remains production.
 
 ## Execution Scope
 
-1. Freeze the promotion corpus, failed intervals, input hashes, exact baseline and current
-   `DO_NOT_PROMOTE` policy.
-2. Define a model-neutral local inference contract:
-   aligned remote, mic mixture, classical echo estimate and optional speaker state in; residual
-   cleaned mic and provenance out.
-3. Select at most two justified local candidates:
-   one pretrained remote-conditioned residual AEC model, plus an optional target-speaker rescue only
-   when reliable per-session enrollment exists.
-4. Wrap inference in an offline, deterministic, bounded worker. Missing model, unsupported runtime,
-   excessive latency, NaN, clipping or sparse output must fail open.
-5. Run cheap signal gates, then bounded ASR on remote-risk, protected-local, opening, double-talk and
-   chronology windows. Use full shadow transcription only for a candidate passing every session
-   gate.
-6. Publish a corpus report and keep production on `local_fir` unless every promotion gate passes.
+1. Freeze eligible local-only, remote-only, double-talk, opening and chronology intervals with raw,
+   aligned-remote, speaker-state, transcript and evidence hashes.
+2. Define inclusion and exclusion rules. Ambiguous speaker identity, clipped audio, uncertain
+   alignment, stale evidence or missing local references stay out of training supervision.
+3. Build session-disjoint train, development and immutable hard-test splits. No interval from one
+   session may cross split boundaries.
+4. Materialize paired examples locally:
+   clean/protected near-end target, aligned remote reference, measured or replayed echo mixture,
+   speaker state and word-level protected content.
+5. Cover both measured speaker playback and controlled synthetic augmentation. Preserve a separate
+   real hard-test split so synthetic success cannot hide domain failure.
+6. Define pre-training oracle checks: reconstruction, exact duration, no target leakage,
+   remote-removal headroom, protected-word coverage and licensing/privacy manifest.
+7. Publish `READY_FOR_ADAPTATION` only if the corpus supports a meaningful, leakage-free training
+   experiment; otherwise publish exact `DO_NOT_TRAIN`.
 
 ## Safety Contract
 
-- raw CAF, capture, `local_fir`, primary whisper.cpp and current transcript profiles do not change;
-- all model inference is local and derived;
-- no model training is required in the normal pipeline;
-- candidate audio may not pass by muting or globally attenuating the mic;
-- every protected local utterance, greeting, acknowledgement and double-talk phrase must survive;
-- remote content, chronology, verdict, notes evidence and guarded export may not regress;
-- weak enrollment, missing weights, model failure or contradictory judges select baseline;
-- a second full-session ASR is laboratory-only and runs only for a passing finalist;
-- automatic selection requires an exact corpus decision and matching fingerprints.
+- raw CAF and current derived inputs are read-only;
+- corpus artifacts are local and excluded from public source control;
+- no speech or text is uploaded;
+- split assignment is by session, never by random clip;
+- protected `Me` words and chronology intervals remain immutable acceptance examples;
+- a synthetic target may not be treated as real evidence;
+- AECMOS and signal similarity remain secondary; word-level local preservation owns the gate;
+- this goal does not train, promote or apply a model;
+- absent consent, uncertain provenance or inadequate supervision yields `DO_NOT_TRAIN`.
 
 ## Definition Of Done
 
-- the model interface, weights provenance, license and reproducible local setup are documented;
-- at least one remote-conditioned residual candidate is evaluated on all applicable frozen sessions;
-- the two known local-loss counterexamples have explicit ASR and audio dispositions;
-- ASR-visible remote-risk seconds improve by at least `25%`;
-- remote-caused mandatory review seconds improve by at least `15%`;
-- confirmed and protected local recall are at least `99%`, with no individual protected loss;
-- chronology, double-talk, remote content, verdict, notes and export do not regress;
-- ordinary runtime overhead is at most `25%`, or the candidate remains a clearly optional slow lab;
-- repeated runs produce identical decisions and fingerprints;
-- missing models and helper failures pass automated fail-open tests;
-- a corpus-wide `PROMOTE_NEURAL_RESIDUAL_ECHO_V1` or exact `DO_NOT_PROMOTE` is published;
+- every candidate interval has provenance, inclusion reason and SHA-256 inputs;
+- train/dev/hard-test splits are deterministic and session-disjoint;
+- local-only, remote-only and double-talk coverage is measured by seconds and sessions;
+- both known hard counterexamples are immutable test items, never training items;
+- paired audio has exact duration/timeline and passes finite, clipping and leakage checks;
+- a privacy/licensing manifest states what may remain local, be redistributed or never leave the
+  machine;
+- an oracle report quantifies whether the target is learnable and useful for MurmurMark;
+- repeated runs produce identical manifests and split fingerprints;
+- missing or ambiguous evidence fails closed for corpus inclusion and leaves production untouched;
+- the final report says `READY_FOR_ADAPTATION` or exact `DO_NOT_TRAIN`;
 - README, architecture, contracts, runbook, roadmap and OpsKarta are synchronized;
-- the completed work is installed locally, committed and pushed with a clean tree.
+- tests pass, changes are committed and pushed, and the tree is clean.
 
 ## Route After This Goal
 
 ```mermaid
 flowchart LR
-    A["Neural Residual Echo<br/>Suppression v1"]
-    B["Evidence Notes<br/>And Export v2"]
-    C["Release-quality CLI"]
-    D["Remote diarization<br/>parallel branch"]
+    A["Speaker-Preserving Echo<br/>Adaptation Corpus v1"]
+    B{"Corpus decision"}
+    C["Neural Echo Adaptation v2"]
+    D["Evidence Notes<br/>And Export v2"]
+    E["Release-quality CLI"]
 
-    A --> B --> C
-    A -.-> D
+    A --> B
+    B -->|"READY_FOR_ADAPTATION"| C
+    B -->|"DO_NOT_TRAIN"| D
+    C --> D --> E
 ```
 
 ## Out Of Scope
 
-- capture or raw CAF format changes;
-- replacement of the primary whisper.cpp ASR;
+- neural training or fine-tuning;
+- production Echo Guard changes;
+- capture, raw CAF, whisper.cpp or Live Shadow changes;
 - cloud models or cloud audio;
-- broad neural-model training;
+- target-speaker extraction;
 - individual remote-speaker diarization;
-- Live Shadow promotion, LLM synthesis and UI.
+- UI.

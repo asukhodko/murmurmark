@@ -48,12 +48,17 @@ advisory; its promotion remains blocked by quality and runtime evidence.
 
 ## Current Goal
 
-**Neural Residual Echo Suppression v1** is the current goal. Echo Suppression Promotion v1 completed
-with reproducible `DO_NOT_PROMOTE`: its best mute-like candidate reduced bounded ASR-visible
-remote-risk by `68.2845%` and met runtime, but passed only `3/5` applicable speaker sessions.
-Protected-local retention fell to `45.45%` and chronology recall to `0%` on the two counterexamples.
-The next bounded candidate must suppress remote-conditioned residual echo inside mixed speech while
-preserving near-end speech.
+**Speaker-Preserving Echo Adaptation Corpus v1** is the current goal. It does not train or apply a
+model. It must first prove that local MurmurMark sessions contain enough privacy-safe,
+session-disjoint supervision for remote-only, local-only and double-talk. The result is
+`READY_FOR_ADAPTATION` or an exact `DO_NOT_TRAIN`.
+
+Two suppression families established the same safety ceiling. Classical state-level suppression
+removed `68.2845%` of bounded remote-risk, but lost protected `Me` in two speaker sessions. The
+pinned Microsoft DEC model removed all `3.49s` of bounded remote-risk in those hard sessions, yet
+protected-local recall fell to `45.45%`, chronology and double-talk recall to `0%`, and incremental
+runtime reached `52.85%` of `local_fir`. AECMOS still rated the audio well, so it remains a secondary
+metric rather than a word-preservation gate. `local_fir_role_masked` remains production.
 
 **One-Command Meeting Lifecycle v1** is complete. `murmurmark meeting` owns durable capture,
 authoritative processing, evidence enrichment, conservative review and guarded export. It uses
@@ -85,6 +90,11 @@ Echo Suppression Promotion v1 then aligned Offline AEC, WebRTC AEC3 and SpeexDSP
 timeline and automatic fail-open policy. The nine-session corpus kept `local_fir` in production and
 froze the exact overlap intervals that classical state-level suppression could not handle safely.
 
+Neural Residual Echo Suppression v1 then tested a pinned, offline Microsoft DEC ONNX model against
+those failures. It completed with deterministic `DO_NOT_PROMOTE`; full shadow was intentionally
+skipped after the mandatory local-loss stop rule fired. This rules out another blind engine swap
+and motivates proving supervision quality before any adaptation.
+
 ## Critical Path
 
 ```mermaid
@@ -93,11 +103,12 @@ flowchart LR
     L["Done<br/>One-Command Lifecycle"]
     A["Done<br/>Mixed-Utterance Separation"]
     B["Done<br/>Echo Suppression Promotion v1"]
-    N["Current<br/>Neural Residual Echo v1"]
+    N["Done<br/>Neural Residual Echo v1"]
+    S["Current<br/>Speaker-Preserving<br/>Adaptation Corpus v1"]
     C["Evidence Notes And Export v2"]
     D["Release-quality CLI"]
 
-    P --> L --> A --> B --> N --> C --> D
+    P --> L --> A --> B --> N --> S --> C --> D
 ```
 
 ### 0. Evidence-Backed Me Completion v2
@@ -129,17 +140,25 @@ speaker sessions; the failed protected-local and chronology gates keep productio
 
 ### 4. Neural Residual Echo Suppression v1
 
-Current. Evaluate at most two justified local speech-aware candidates over the frozen promotion
-corpus. Inputs are the aligned authoritative remote, mic mixture, classical echo estimate and
-optional reliable speaker enrollment. Missing models or contradictory evidence fail open. Full
-shadow ASR runs only for a candidate that first preserves every protected interval.
+Completed with deterministic `DO_NOT_PROMOTE`. The model-neutral adapter, pinned DEC and AECMOS
+models, exact-duration inference, fail-open checks and frozen corpus are reproducible. The candidate
+removed bounded remote-risk but failed protected-word, chronology, double-talk and runtime gates.
+Production output was never changed.
 
-### 5. Evidence Notes And Export v2
+### 5. Speaker-Preserving Echo Adaptation Corpus v1
+
+Current. Freeze provenance-rich remote-only, local-only and double-talk examples; create
+session-disjoint train/dev/hard-test splits; reserve both known counterexamples for immutable test;
+and run duration, leakage, protected-word, privacy and licensing oracle checks. Publish
+`READY_FOR_ADAPTATION` only when the data can support a meaningful experiment. Otherwise publish
+`DO_NOT_TRAIN` and move on without spending compute on training.
+
+### 6. Evidence Notes And Export v2
 
 Improve the already working notes/export handoff over the selected transcript. Generated or
 extractive claims remain traceable to evidence IDs.
 
-### 6. Release-quality CLI
+### 7. Release-quality CLI
 
 Finalize the supported environment, installation, model/config handling, acceptance, release notes
 and public operational contract. UI is not required.
@@ -148,16 +167,21 @@ and public operational contract. UI is not required.
 
 ```mermaid
 flowchart LR
-    Q["Neural Residual Echo Suppression"]
+    Q["Adaptation corpus decision"]
+    E["Speaker-Preserving Neural Echo v2"]
     D["Remote diarization"]
     S["Speaker map"]
     T["transcript.rich.json"]
     V["Heavy local validators"]
     L["Evidence-guarded LLM"]
 
+    Q -.-> E
     Q -.-> D --> S --> T --> L
     Q -.-> V
 ```
+
+Speaker-Preserving Neural Echo v2 is conditional on `READY_FOR_ADAPTATION`. A `DO_NOT_TRAIN`
+decision skips that branch and continues the product path.
 
 Remote diarization works on authoritative `remote` and does not require complete Echo suppression.
 It starts after base quality closure, first produces anonymous stable speaker IDs, then an

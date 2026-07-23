@@ -625,7 +625,45 @@ of bounded ASR-visible remote-risk, but failed protected-local and chronology ga
 The tracked policy therefore keeps `local_fir_role_masked`.
 
 The normal pipeline applies that policy automatically. Do not copy a candidate WAV into
-`mic_for_asr.wav` by hand. Neural Residual Echo Suppression v1 is the next isolated laboratory.
+`mic_for_asr.wav` by hand.
+
+## Neural Residual Echo Suppression v1
+
+This completed shadow laboratory evaluates the pinned Microsoft DEC ONNX model without changing
+authoritative preprocessing:
+
+```bash
+MODEL_DIR="$HOME/.local/share/murmurmark/models/neural-residual-echo-v1"
+
+.venv/bin/python scripts/bootstrap-neural-residual-echo-v1.py \
+  --model-dir "$MODEL_DIR"
+
+.venv/bin/python scripts/neural-residual-echo-v1.py corpus \
+  --model-dir "$MODEL_DIR" \
+  --run \
+  --max-windows-per-class 2
+
+less sessions/_reports/neural-residual-echo-v1/neural_residual_echo_corpus_report.md
+```
+
+Use `--download` with the bootstrap only when network access is intentionally allowed. Normal
+inference is offline. The expected model hashes are:
+
+```text
+4436ee4f80e5f1d0299196bd7057137a3cad7cac324409dce7540f2a113bb931
+  dec-baseline-model-icassp2022.onnx
+b517d8d9ca2f91ea55d15f605a15917c19be5d832868fe115c7c5bc48986dae1
+  aecmos-16k-no-scenarios.onnx
+```
+
+Current frozen result: reproducible `DO_NOT_PROMOTE`, fingerprint
+`eff4119d7e19b90dc2b7e6f03caf1b762d29f6c46c97b3141764db76764200f3`.
+Remote-risk probes improved `3.49s -> 0s`, but protected-local recall fell to `45.45%`, chronology
+recall to `0%`, and incremental runtime reached `52.85%` of `local_fir`.
+
+The stop rule deliberately avoids full shadow ASR and the remaining expensive corpus inference
+after either mandatory counterexample loses `Me`. All skipped sessions retain explicit reasons and
+exact baseline fingerprints. There is no production apply command for this experiment.
 
 ## Stop Rules
 

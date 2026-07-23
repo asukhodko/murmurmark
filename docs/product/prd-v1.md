@@ -50,9 +50,12 @@ Current operating point, 2026-07-23:
 - Echo Suppression Promotion v1 completed with reproducible `DO_NOT_PROMOTE`: its best candidate
   reduced bounded remote-risk by `68.2845%`, but passed only `3/5` speaker sessions and lost
   protected local speech on two counterexamples;
-- the current goal is Neural Residual Echo Suppression v1: use aligned authoritative remote
-  evidence inside mixed speech while preserving at least `99%` of confirmed and protected local
-  speech;
+- Neural Residual Echo Suppression v1 completed with reproducible `DO_NOT_PROMOTE`: pinned
+  Microsoft DEC removed all bounded remote-risk in the hard sessions, but protected-local recall
+  fell to `45.45%`, chronology and double-talk recall to `0%`, and runtime exceeded the gate;
+- the current goal is Speaker-Preserving Echo Adaptation Corpus v1: prove that local sessions can
+  form privacy-safe, session-disjoint remote-only/local-only/double-talk supervision, then publish
+  `READY_FOR_ADAPTATION` or exact `DO_NOT_TRAIN` before any training;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 

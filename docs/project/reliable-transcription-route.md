@@ -155,13 +155,18 @@ Echo Suppression Promotion v1 moved the intervention before ASR and completed wi
 passed only `3/5` speaker sessions: protected-local retention fell to `45.45%` and chronology recall
 to `0%` on the counterexamples.
 
-The recommended bounded step is now Neural Residual Echo Suppression v1. It reuses the signed
-timeline, exact `local_fir` baseline and frozen failures, but tests a local remote-conditioned
-residual suppressor inside mixed speech instead of muting whole remote-active intervals.
+Neural Residual Echo Suppression v1 reused the signed timeline, exact `local_fir` baseline and
+frozen failures with a pinned Microsoft DEC model. It removed all bounded remote-risk in the two
+hard sessions, but protected-local recall fell to `45.45%`, chronology and double-talk recall to
+`0%`, and incremental runtime reached `52.85%`. The reproducible `DO_NOT_PROMOTE` rules out a
+simple pretrained-engine swap.
 
-This step does not change capture, the production Echo Guard baseline, the primary ASR, live
-promotion or raw audio. The
-failed live-recovery profile remains diagnostic evidence rather than another user-facing branch.
+The recommended bounded step is now Speaker-Preserving Echo Adaptation Corpus v1. It first proves
+whether local sessions can provide privacy-safe, session-disjoint remote-only, local-only and
+double-talk supervision. It ends in `READY_FOR_ADAPTATION` or exact `DO_NOT_TRAIN`, without
+training or changing capture, production Echo Guard, primary ASR, live promotion or raw audio.
+The failed live-recovery profile remains diagnostic evidence rather than another user-facing
+branch.
 
 ## Route To Reliability
 
@@ -402,14 +407,12 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Neural Residual Echo Suppression v1: сохранить frozen corpus и local_fir baseline после
-DO_NOT_PROMOTE классической матрицы; проверить один локальный remote-conditioned residual
-suppressor и, только при надёжном enrollment, один target-speaker rescue. Обязательные hard
-negatives — protected-local и chronology интервалы из двух провалившихся speaker sessions.
-Продвигать candidate только при remote reduction >=25%, review reduction >=15%, confirmed и
-protected local recall >=99%, полном отсутствии content/order/notes/export regressions, runtime
-<=1.25x и точных SHA/fingerprint gates. Missing model, слабое evidence или failed session gate дают
-fallback на local_fir. Допустим воспроизводимый DO_NOT_PROMOTE с точным пределом.
+Speaker-Preserving Echo Adaptation Corpus v1: заморозить provenance-rich remote-only, local-only и
+double-talk интервалы; исключить uncertain identity, stale alignment и clipped inputs; создать
+детерминированные session-disjoint train/dev/hard-test splits; оставить оба известных
+protected-local контрпримера только в immutable hard-test; проверить duration, target leakage,
+protected words, privacy и licensing. Выпустить READY_FOR_ADAPTATION только при достаточном
+supervision, иначе точный DO_NOT_TRAIN. Не обучать модель и не менять production.
 ```
 
 ## Consultation Prompt

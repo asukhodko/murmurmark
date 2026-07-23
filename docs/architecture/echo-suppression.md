@@ -483,9 +483,44 @@ sessions/_reports/echo-suppression-promotion-v1/
   echo_suppression_promotion_corpus_report.md
 ```
 
-Neural Residual Echo Suppression v1 reuses this contract and the two failed intervals as hard
-negative tests. It remains local, derived and shadow-only until a new corpus decision says
-otherwise.
+## Neural Residual Echo Suppression v1
+
+Status: completed with reproducible `DO_NOT_PROMOTE`; `local_fir_role_masked` remains production.
+
+The laboratory reused the same signed alignment, frozen nine-session corpus and exact fallback.
+Microsoft's ICASSP 2022 DEC ONNX model ran locally in two modes:
+
+```text
+ms_dec_local_fir_v1
+  local_fir clean mic + aligned remote -> neural mask -> canonical role view
+
+ms_dec_raw_mic_control_v1
+  raw mic + aligned remote -> neural mask -> canonical role view
+```
+
+The adapter is mono 16 kHz, CPU-only and deterministic. It preserves exact duration and applies no
+gain normalization. Missing or stale weights, inference errors, NaN, clipping and wrong output
+length fail open to the exact baseline. AECMOS no-scenario is recorded only as a secondary metric.
+
+The model removed all `3.49s` of bounded ASR-visible remote-risk in the two mandatory
+counterexamples, but minimum protected-local recall fell to `45.45%`, chronology recall to `0%`,
+and one double-talk probe to `0%`. Incremental inference cost was `52.85%` of the preceding
+`local_fir` stage, above the `25%` gate. Full shadow ASR was therefore correctly skipped.
+
+This closes the off-the-shelf-model hypothesis. The architecture gap is now sharper: remote
+conditioning alone is insufficient when model training does not represent MurmurMark's quiet
+near-end speech and echo paths. The next bounded prerequisite is a session-disjoint,
+speaker-preserving adaptation corpus; it must prove usable supervision before any fine-tuning.
+See the [frozen result](../research/2026-07-23-neural-residual-echo-v1.md).
+
+Neural experiment artifacts are isolated under:
+
+```text
+derived/preprocess/neural-residual-echo-v1/
+sessions/_reports/neural-residual-echo-v1/
+```
+
+There is deliberately no apply command or production selector for this profile.
 
 ## Other Conservative Cleanup Engines
 

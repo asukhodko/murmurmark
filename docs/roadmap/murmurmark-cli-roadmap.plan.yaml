@@ -234,20 +234,32 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-echo-suppression-promotion, corpus-regression]
-    status: current
+    status: done
     effort: 10
     notes: |
-      Текущая цель. Проверить один локальный remote-conditioned residual suppressor и, только при
-      надёжном enrollment, один target-speaker rescue. Кандидат должен работать внутри mixed speech,
-      сохранить оба frozen protected-local контрпримера и пройти прежние ASR, chronology, review,
-      runtime и full-shadow gates. Missing model и слабое evidence дают local_fir fallback;
-      допустим reproducible DO_NOT_PROMOTE.
+      Завершено с воспроизводимым DO_NOT_PROMOTE. Pinned Microsoft DEC удалил 100% bounded
+      ASR-visible remote-risk на двух hard sessions, но protected-local recall упал до 45.45%,
+      chronology и double-talk recall до 0%, а incremental runtime достиг 52.85% от local_fir.
+      AECMOS не обнаружил потерю слов, поэтому остаётся secondary metric. Production не менялся.
+
+  quality-speaker-preserving-echo-adaptation-corpus-v1:
+    title: "Speaker-Preserving Echo Adaptation Corpus v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-neural-residual-echo-v1, corpus-regression]
+    status: current
+    effort: 9
+    notes: |
+      Доказать, что локальные сессии дают privacy-safe, session-disjoint supervision для
+      remote-only, local-only и double-talk. Заморозить provenance, train/dev/hard-test splits,
+      protected words и oracle checks. Завершить READY_FOR_ADAPTATION либо точным DO_NOT_TRAIN;
+      не обучать модель и не менять production.
 
   product-evidence-export-v2:
     title: "Evidence Notes And Export v2"
     kind: task
     parent: murmurmark-cli
-    deps: [quality-neural-residual-echo-v1]
+    deps: [quality-speaker-preserving-echo-adaptation-corpus-v1]
     status: later
     effort: 7
     notes: |
@@ -310,6 +322,17 @@ nodes:
     status: idea
     effort: 4
     notes: "Тяжёлые локальные модели сначала работают как bounded judges, не как обязательный ASR."
+
+  research-speaker-preserving-neural-echo-v2:
+    title: "Speaker-Preserving Neural Echo v2"
+    kind: task
+    parent: parallel-research
+    deps: [quality-speaker-preserving-echo-adaptation-corpus-v1]
+    status: idea
+    effort: 6
+    notes: |
+      Условная ветка только после READY_FOR_ADAPTATION: обучить или адаптировать локальный
+      remote-conditioned suppressor на session-disjoint corpus и повторить immutable hard gates.
 
   research-evidence-guarded-llm:
     title: "Evidence-guarded LLM synthesis"
@@ -374,7 +397,7 @@ views:
         nodes: [working-capabilities, corpus-regression]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-neural-residual-echo-v1]
+        nodes: [quality-speaker-preserving-echo-adaptation-corpus-v1]
       dependent:
         title: "Следующие зависимые этапы"
         nodes:
@@ -395,6 +418,7 @@ views:
           - quality-mixed-utterance-separation-v1
           - quality-echo-suppression-promotion
           - quality-neural-residual-echo-v1
+          - quality-speaker-preserving-echo-adaptation-corpus-v1
           - product-evidence-export-v2
           - product-release-quality-cli
 
@@ -411,6 +435,7 @@ views:
         title: "Validators and synthesis"
         nodes:
           - research-heavy-local-validators
+          - research-speaker-preserving-neural-echo-v2
           - research-evidence-guarded-llm
 
   parking-lot-view:
@@ -440,6 +465,7 @@ views:
           - quality-mixed-utterance-separation-v1
           - quality-echo-suppression-promotion
           - quality-neural-residual-echo-v1
+          - quality-speaker-preserving-echo-adaptation-corpus-v1
           - product-evidence-export-v2
           - product-release-quality-cli
           - parallel-research
@@ -448,8 +474,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Neural Residual Echo Suppression v1: проверить локальный remote-conditioned suppressor на frozen overlap-контрпримерах и выпустить corpus-wide PROMOTE либо точный DO_NOT_PROMOTE без изменения local_fir baseline."
-      success_by_next_sync: "Модельный inference-контракт воспроизводим, оба protected-local контрпримера имеют dispositions, а corpus report доказывает PROMOTE или точный evidence ceiling."
+      nearest_goal: "Speaker-Preserving Echo Adaptation Corpus v1: доказать, что из локальных MurmurMark-сессий можно воспроизводимо собрать privacy-safe и session-disjoint supervision для remote-only, local-only и double-talk, а затем выпустить READY_FOR_ADAPTATION либо точный DO_NOT_TRAIN без обучения и изменения production."
+      success_by_next_sync: "Frozen corpus manifest, session-disjoint splits и oracle report воспроизводимо доказывают READY_FOR_ADAPTATION либо точный предел доступного supervision."
     defaults:
       status_progress:
         done: 1.0
@@ -471,12 +497,12 @@ x:
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
         title: "Текущая цель"
-        scope_nodes: [quality-neural-residual-echo-v1]
+        scope_nodes: [quality-speaker-preserving-echo-adaptation-corpus-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Classical promotion дал 68.2845% remote-risk reduction, но потерял protected Me в 2/5 speaker sessions; local_fir остаётся production."
-          next_sync_goal: "Проверить remote-conditioned residual suppression на frozen mixed-speech counterexamples и выпустить corpus decision."
+          sync_note: "Classical и pretrained neural candidates удаляют remote-risk ценой protected Me; простой engine swap исчерпан."
+          next_sync_goal: "Доказать наличие leakage-free session-disjoint supervision до любого обучения."
       dependent-path:
         title: "Зависимый путь"
         scope_nodes:
@@ -485,12 +511,13 @@ x:
           - quality-evidence-backed-me-completion-v2
           - quality-echo-suppression-promotion
           - quality-neural-residual-echo-v1
+          - quality-speaker-preserving-echo-adaptation-corpus-v1
           - product-evidence-export-v2
           - product-release-quality-cli
         kind: main
         mgmt:
           health: neutral
-          sync_note: "Classical Echo закрыт DO_NOT_PROMOTE; neural residual candidate предшествует notes/export и release."
+          sync_note: "Neural residual v1 закрыт DO_NOT_PROMOTE; corpus decision определит, оправдана ли адаптация, но не блокирует честный переход к notes/export при DO_NOT_TRAIN."
           next_sync_goal: "Не начинать зависимый этап до завершения текущего gate."
       research:
         title: "Параллельные исследования"
