@@ -124,7 +124,9 @@ nodes:
       ready/ready_with_review/failed summary. Supervisor lock/journal/checkpoints/resume обязателен;
       raw CAF проверяется SHA-256 до и после обработки. Реализация, local install, release self-test,
       fresh permission-capable capture soak и strict lifecycle acceptance пройдены. Ранний Ctrl-C
-      при заданном --duration также финализирует raw и запускает lifecycle безопасно.
+      при заданном --duration также финализирует raw и запускает lifecycle безопасно. Capture
+      изолирован в короткоживущем child process: ScreenCaptureKit/ReplayKit освобождается до
+      post-processing, а зависший startup ограничен timeout и не удерживает recording lock.
 
   corpus-regression:
     title: "Corpus regression и evidence store"

@@ -213,12 +213,18 @@ Example:
 ```jsonl
 {"t":"2026-06-20T14:30:00.120Z","type":"permission.system_audio.granted"}
 {"t":"2026-06-20T14:30:00.420Z","type":"permission.microphone.granted"}
+{"t":"2026-06-20T14:30:00.900Z","type":"capture.starting"}
 {"t":"2026-06-20T14:30:01.001Z","type":"capture.started"}
 {"t":"2026-06-20T14:32:15.300Z","type":"health.remote.level_ok","rms_db":-24.1}
 {"t":"2026-06-20T14:32:15.301Z","type":"health.mic.level_ok","rms_db":-18.7}
 {"t":"2026-06-20T14:45:00.000Z","type":"user.marker","label":"decision"}
 {"t":"2026-06-20T15:05:42.900Z","type":"capture.stopped","reason":"sigint","partial":false,"explicit_stop":true}
 ```
+
+`capture.starting` records the attempt. `capture.started` is written only after ScreenCaptureKit (or
+the selected non-ScreenCaptureKit backends) confirms startup. A bounded startup failure writes
+`capture.failed` with `phase: "startup"`, removes `session.lock` and does not produce `session.json`;
+such a directory is diagnostic evidence, not a processable session.
 
 Partial stop example:
 

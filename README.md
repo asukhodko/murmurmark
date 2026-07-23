@@ -72,8 +72,17 @@ authoritative processing continues automatically. A second `Ctrl-C` checkpoints 
 prints an exact `murmurmark meeting --resume SESSION` command. The final summary names the
 transcript, notes, verdict, unresolved review burden, export status and raw preservation result.
 
-Run only one capture process at a time. If capture is partial, sparse or silent, processing blocks
-instead of publishing an empty successful transcript.
+Capture runs in a short-lived child process. It exits and releases ScreenCaptureKit/ReplayKit before
+batch processing begins. A new meeting may therefore start while an earlier meeting is still being
+processed in another terminal. Run only one active capture at a time; the recording lock rejects a
+second one. If ScreenCaptureKit startup does not complete, MurmurMark fails within a bounded timeout,
+releases the lock and does not start post-processing. If capture is partial, sparse or silent,
+processing blocks instead of publishing an empty successful transcript.
+
+`meeting` already owns status, notes and transcript production. Do not paste unconditional
+`status/outcome/transcript` commands after it: when capture startup fails, no finalized session
+exists for those commands. Run low-level accessors only after a successful lifecycle or while
+diagnosing an existing finalized session.
 
 An empty conversation can still be a valid result, for example when nobody joins a call. MurmurMark
 classifies it as `verified_no_speech` only when durable capture is complete, both raw tracks cover

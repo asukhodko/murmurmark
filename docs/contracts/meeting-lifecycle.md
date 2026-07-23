@@ -2,7 +2,7 @@
 
 Status: experimental v1
 
-Updated: 2026-07-22
+Updated: 2026-07-23
 
 ## Purpose
 
@@ -19,9 +19,20 @@ at a checkpoint and prints the exact resume command.
 `murmurmark record` remains the low-level capture-only command. Existing `process`, `enrich`,
 `review`, `next` and `finish` commands remain available for diagnostics and recovery.
 
+The high-level command runs capture through a short-lived internal `record` child. The child is the
+only process that initializes ScreenCaptureKit/ReplayKit. It finalizes raw CAF and exits before the
+parent starts the lifecycle supervisor. This process boundary prevents a stopped `SCStream` or its
+ReplayKit XPC connection from surviving throughout a long ASR run and interfering with the next
+meeting.
+
 ## Safety Boundary
 
 - Raw `audio/mic/*.caf` and `audio/remote/*.caf` are the source of truth.
+- `capture.starting` means startup was requested; `capture.started` is emitted only after
+  `SCStream.startCapture` confirms success.
+- Shareable-content lookup and stream start/stop use bounded callback bridges. A missing
+  ScreenCaptureKit completion fails capture, releases the global recording lock and never starts the
+  lifecycle supervisor.
 - The lifecycle records SHA-256 identities before post-processing and verifies them at the end.
 - Capture is finalized before any processing action starts.
 - A non-partial `completed_with_warnings` capture may continue; its warnings remain visible and the
@@ -179,6 +190,10 @@ fails without changing state.
 
 An existing non-terminal lifecycle is continued only through explicit `meeting --resume`; an
 ordinary invocation cannot silently adopt interrupted state.
+
+The separate global recording lock covers only the short-lived capture child. It is released before
+batch processing. Thus one active capture and any number of older post-processing sessions may
+coexist, while two concurrent captures remain forbidden.
 
 - First `Ctrl-C` while capturing means `stop capture`, not `abort meeting`.
 - The same rule applies when `--duration` is set: the duration timer and terminal signal race, and an

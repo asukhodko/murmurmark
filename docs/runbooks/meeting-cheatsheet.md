@@ -1,6 +1,6 @@
 # Meeting Cheat Sheet
 
-Updated: 2026-07-22
+Updated: 2026-07-23
 
 ## Update
 
@@ -27,6 +27,15 @@ prints the selected transcript and whether manual review remains.
 
 The setup checks above are repeated after an update or environment change, not before every
 meeting.
+
+After capture is finalized, a new meeting may be started in another terminal even while this one is
+still being processed. MurmurMark releases ScreenCaptureKit before post-processing. Processing
+sessions may coexist; any second simultaneous active recording is forbidden.
+
+If `meeting` exits with an error before it prints a final result, stop there. Do not run a pasted
+tail of `status`, `outcome`, `notes` and `transcript` commands against that path: a failed startup
+does not have `session.json`. MurmurMark now bounds ScreenCaptureKit startup and releases the
+recording lock on this path.
 
 ## Meeting With Live Shadow
 

@@ -58,8 +58,11 @@ preserving near-end speech.
 **One-Command Meeting Lifecycle v1** is complete. `murmurmark meeting` owns durable capture,
 authoritative processing, evidence enrichment, conservative review and guarded export. It uses
 machine-readable readiness, checkpoints every action and gives a precise resume command after
-interruption. Automated checks, real-artifact interrupt/resume, a fresh permission-capable capture
-soak and strict lifecycle acceptance all pass.
+interruption. Capture now runs in a short-lived child: ScreenCaptureKit/ReplayKit is gone before
+post-processing, so the next meeting can start while an older one is still being recognized.
+Startup and shutdown are bounded, and a failed startup releases the recording lock. Automated
+checks, real-artifact interrupt/resume, a fresh permission-capable capture soak and strict lifecycle
+acceptance all pass.
 
 Speaker-Mode Transcript Quality Hardening v1 completed with `DO_NOT_PROMOTE`. The frozen corpus
 proved three lossless retimes, one real double-talk interval and one genuine `Me` row, but no whole
@@ -108,7 +111,8 @@ fingerprints plus corpus membership.
 
 Completed. One command now runs durable capture and plain authoritative processing, applies only
 allowlisted enrichment and suggested-review actions, guards export from structured outcome state,
-verifies raw SHA-256 identities and supports lock-safe resume after a second `Ctrl-C`.
+verifies raw SHA-256 identities, isolates capture from post-processing in a short-lived process and
+supports lock-safe resume after a second `Ctrl-C`.
 
 ### 2. Mixed-Utterance Remote Span Separation
 

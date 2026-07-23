@@ -26,30 +26,121 @@ final class SingleResumeBox<Value>: @unchecked Sendable {
     }
 }
 
+final class UncheckedSendableValue<Value>: @unchecked Sendable {
+    let value: Value
+
+    init(_ value: Value) {
+        self.value = value
+    }
+}
+
 enum ScreenCaptureContent {
     static func current(timeoutSeconds: TimeInterval = 5) async throws -> SCShareableContent {
-        try await withCheckedThrowingContinuation { continuation in
-            let box = SingleResumeBox(continuation)
-            let contentTask = Task {
-                do {
-                    box.resume(.success(try await SCShareableContent.current))
-                } catch {
+        let transferred: UncheckedSendableValue<SCShareableContent> = try await withCheckedThrowingContinuation { continuation in
+            let box = SingleResumeBox<UncheckedSendableValue<SCShareableContent>>(continuation)
+            SCShareableContent.getExcludingDesktopWindows(
+                false,
+                onScreenWindowsOnly: false
+            ) { content, error in
+                if let error {
                     box.resume(.failure(error))
+                } else if let content {
+                    box.resume(.success(UncheckedSendableValue(content)))
+                } else {
+                    box.resume(.failure(CLIError("ScreenCaptureKit returned no shareable content")))
                 }
             }
-            Task {
-                let nanoseconds = UInt64(max(timeoutSeconds, 0.1) * 1_000_000_000)
-                try? await Task.sleep(nanoseconds: nanoseconds)
-                contentTask.cancel()
+            let boundedTimeout = max(timeoutSeconds, 0.1)
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + boundedTimeout) {
                 box.resume(
                     .failure(
                         CLIError(
-                            "ScreenCaptureKit shareable content timed out after \(Int(timeoutSeconds))s"
+                            "ScreenCaptureKit shareable content timed out after "
+                                + "\(String(format: "%.1f", boundedTimeout))s"
                         )
                     )
                 )
             }
         }
+        return transferred.value
+    }
+}
+
+struct ScreenCaptureOperationTimeout: LocalizedError {
+    let operation: String
+    let timeoutSeconds: TimeInterval
+
+    var errorDescription: String? {
+        "ScreenCaptureKit \(operation) timed out after \(String(format: "%.1f", timeoutSeconds))s"
+    }
+}
+
+enum ScreenCaptureStreamLifecycle {
+    static func start(
+        _ stream: SCStream,
+        timeoutSeconds: TimeInterval? = nil
+    ) async throws {
+        let timeout = timeoutSeconds ?? configuredTimeout(
+            key: "MURMURMARK_SCREEN_CAPTURE_START_TIMEOUT_SEC",
+            fallback: 10
+        )
+        try await run(operation: "startCapture", timeoutSeconds: timeout) { completion in
+            if ProcessInfo.processInfo.environment["MURMURMARK_TEST_SCREEN_CAPTURE_START_HANG"] == "1" {
+                return
+            }
+            stream.startCapture(completionHandler: completion)
+        }
+    }
+
+    static func stop(
+        _ stream: SCStream,
+        timeoutSeconds: TimeInterval? = nil
+    ) async throws {
+        let timeout = timeoutSeconds ?? configuredTimeout(
+            key: "MURMURMARK_SCREEN_CAPTURE_STOP_TIMEOUT_SEC",
+            fallback: 5
+        )
+        try await run(operation: "stopCapture", timeoutSeconds: timeout) { completion in
+            stream.stopCapture(completionHandler: completion)
+        }
+    }
+
+    private static func run(
+        operation: String,
+        timeoutSeconds: TimeInterval,
+        begin: (@escaping @Sendable (Error?) -> Void) -> Void
+    ) async throws {
+        let boundedTimeout = max(timeoutSeconds, 0.1)
+        try await withCheckedThrowingContinuation { continuation in
+            let box = SingleResumeBox<Void>(continuation)
+            begin { error in
+                if let error {
+                    box.resume(.failure(error))
+                } else {
+                    box.resume(.success(()))
+                }
+            }
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + boundedTimeout) {
+                box.resume(
+                    .failure(
+                        ScreenCaptureOperationTimeout(
+                            operation: operation,
+                            timeoutSeconds: boundedTimeout
+                        )
+                    )
+                )
+            }
+        }
+    }
+
+    private static func configuredTimeout(key: String, fallback: TimeInterval) -> TimeInterval {
+        guard let value = ProcessInfo.processInfo.environment[key],
+              let seconds = TimeInterval(value),
+              seconds > 0
+        else {
+            return fallback
+        }
+        return seconds
     }
 }
 
@@ -512,7 +603,9 @@ enum Commands {
             printRecordHelp()
             return
         }
-        let invocation = try prepareRecording(args, handoffEnabled: true)
+        var remaining = args
+        let meetingCaptureChild = ArgumentEditing.takeFlag("meeting-capture-child", from: &remaining)
+        let invocation = try prepareRecording(remaining, handoffEnabled: !meetingCaptureChild)
         let stopReason = try await invocation.recorder.run()
         if stopReason.isUnexpectedCaptureStop {
             let session = PathDisplay.display(invocation.outputDirectory)
@@ -650,22 +743,43 @@ enum MeetingCommands {
         }
 
         try validateRecordingArguments(args)
-        let invocation = try Commands.prepareRecording(args, handoffEnabled: false)
-        print("SESSION=\"\(PathDisplay.display(invocation.outputDirectory))\"")
+        let outputDirectory: URL = try {
+            let invocation = try Commands.prepareRecording(args, handoffEnabled: false)
+            return invocation.outputDirectory
+        }()
+        print("SESSION=\"\(PathDisplay.display(outputDirectory))\"")
         fflush(stdout)
+
+        var captureArguments = args
+        _ = ArgumentEditing.takeOption("out", from: &captureArguments)
+        captureArguments += [
+            "--out", outputDirectory.path,
+            "--meeting-capture-child",
+        ]
         let startedAt = Date()
-        let stopReason = try await invocation.recorder.run()
+        do {
+            try Tooling.runPathForwardingInterrupts(
+                URL(fileURLWithPath: ExecutablePath.current()),
+                ["record"] + captureArguments
+            )
+        } catch {
+            if !FileManager.default.fileExists(
+                atPath: outputDirectory.appendingPathComponent("session.json").path
+            ) {
+                fputs(
+                    "meeting capture did not produce a finalized session; "
+                        + "post-processing was not started for \(PathDisplay.display(outputDirectory))\n",
+                    stderr
+                )
+            }
+            throw error
+        }
         let captureElapsed = Date().timeIntervalSince(startedAt)
         try runSupervisor(
-            session: invocation.outputDirectory,
+            session: outputDirectory,
             captureElapsed: captureElapsed,
             resume: false
         )
-        if stopReason.isUnexpectedCaptureStop {
-            throw CLIError(
-                "meeting capture ended unexpectedly; raw partial session was preserved and processing was blocked"
-            )
-        }
     }
 
     private static func runSupervisor(session: URL, captureElapsed: TimeInterval?, resume: Bool) throws {
@@ -7928,10 +8042,12 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     private var streamStoppedUnexpectedly = false
     private var restartingScreenCapture = false
     private var screenCaptureRestartCount = 0
+    private var screenCaptureStartupRetryCount = 0
     private var lastSampleDate: Date?
     private var screenCaptureSampleBufferCount = 0
     private var captureSilenceWarningCount = 0
     private var captureSilenceRestartCount = 0
+    private var captureStarted = false
     private var recordingActivity: NSObjectProtocol?
 
     init(
@@ -8161,12 +8277,15 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             if let duration {
                 startedFields["duration_sec"] = duration
             }
-            try eventLog.write(type: "capture.started", fields: startedFields)
+            try eventLog.write(type: "capture.starting", fields: startedFields)
             try voiceProcessingMic?.start()
             try remoteInputCapture?.start()
             if needsScreenCaptureKit {
                 try await startScreenCaptureStream()
             }
+            captureStarted = true
+            startedFields["screen_capture_startup_retry_count"] = screenCaptureStartupRetryCount
+            try eventLog.write(type: "capture.started", fields: startedFields)
             if liveWorkerEnabled {
                 try startLiveWorker(eventLog: eventLog)
             }
@@ -8294,7 +8413,15 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             liveSegments?.closeAll()
             experimentLivePreview?.closeAll()
             rawSidecarCommits?.closeAll(finalFramesBySource: [:])
-            try? eventLog.write(type: "capture.failed", fields: ["error": error.localizedDescription])
+            let failurePhase = captureStarted ? "recording_or_finalization" : "startup"
+            try? eventLog.write(
+                type: "capture.failed",
+                fields: [
+                    "error": error.localizedDescription,
+                    "phase": failurePhase,
+                ]
+            )
+            markExperimentCaptureFailed(error, phase: failurePhase)
             try? fileManager.removeItem(at: outputDirectory.appendingPathComponent("session.lock"))
             throw CaptureErrors.enrich(error)
         }
@@ -8689,18 +8816,47 @@ extension SessionRecorder {
         guard let filter = screenCaptureFilter, let config = screenCaptureConfiguration else {
             throw CLIError("ScreenCaptureKit stream is not configured")
         }
-        let stream = SCStream(filter: filter, configuration: config, delegate: self)
-        if remoteBackend == .screenCaptureKit {
-            try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: queue)
+        for attempt in 0 ... 1 {
+            let candidate = SCStream(filter: filter, configuration: config, delegate: self)
+            if remoteBackend == .screenCaptureKit {
+                try candidate.addStreamOutput(self, type: .audio, sampleHandlerQueue: queue)
+            }
+            if microphoneBackend == .screenCaptureKit {
+                try candidate.addStreamOutput(self, type: .microphone, sampleHandlerQueue: queue)
+            }
+            stream = candidate
+            do {
+                try await ScreenCaptureStreamLifecycle.start(candidate)
+                stateQueue.sync {
+                    lastSampleDate = Date()
+                }
+                return
+            } catch let timeout as ScreenCaptureOperationTimeout where attempt == 0 {
+                appendWarning(timeout.localizedDescription)
+                try? events?.write(
+                    type: "capture.start_retry",
+                    fields: [
+                        "attempt": attempt + 1,
+                        "error": timeout.localizedDescription,
+                    ]
+                )
+                do {
+                    try await ScreenCaptureStreamLifecycle.stop(candidate)
+                } catch {
+                    stream = nil
+                    throw CLIError(
+                        "\(timeout.localizedDescription); cleanup also failed: \(error.localizedDescription)"
+                    )
+                }
+                stream = nil
+                screenCaptureStartupRetryCount += 1
+                try await Task.sleep(nanoseconds: 500_000_000)
+            } catch {
+                stream = nil
+                throw error
+            }
         }
-        if microphoneBackend == .screenCaptureKit {
-            try stream.addStreamOutput(self, type: .microphone, sampleHandlerQueue: queue)
-        }
-        self.stream = stream
-        try await stream.startCapture()
-        stateQueue.sync {
-            lastSampleDate = Date()
-        }
+        throw CLIError("ScreenCaptureKit startCapture failed after retry")
     }
 
     private func consumeUnexpectedStreamStop() -> Bool {
@@ -8731,9 +8887,12 @@ extension SessionRecorder {
             }
         }
 
-        let oldStream = stream
+        var oldStream = stream
         stream = nil
-        _ = try? await oldStream?.stopCapture()
+        if let oldStream {
+            _ = try? await ScreenCaptureStreamLifecycle.stop(oldStream)
+        }
+        oldStream = nil
         do {
             try await Task.sleep(nanoseconds: 500_000_000)
             try await startScreenCaptureStream()
@@ -8758,14 +8917,44 @@ extension SessionRecorder {
     }
 
     private func stopScreenCaptureStream() async {
-        guard let stream else { return }
+        guard let activeStream = stream else {
+            screenCaptureFilter = nil
+            screenCaptureConfiguration = nil
+            return
+        }
+        stream = nil
         stateQueue.sync {
             stoppingRequested = true
         }
         do {
-            try await stream.stopCapture()
+            try await ScreenCaptureStreamLifecycle.stop(activeStream)
         } catch {
             appendWarning("stopCapture failed during finalization: \(error.localizedDescription)")
+        }
+        screenCaptureFilter = nil
+        screenCaptureConfiguration = nil
+    }
+
+    private func markExperimentCaptureFailed(_ error: Error, phase: String) {
+        guard let experimentID else { return }
+        let reason = phase == "startup" ? "capture_start_failed" : "capture_failed"
+        let updatedAt = DateStrings.iso8601(Date())
+        let paths = [
+            "derived/experiments/\(experimentID)/state.json",
+            "derived/experiments/\(experimentID)/report.json",
+            "derived/live/live_pipeline_state.json",
+            "derived/live/live_pipeline_report.json",
+        ]
+        for path in paths {
+            let url = outputDirectory.appendingPathComponent(path)
+            guard var payload = try? JSONObject.readDictionary(from: url) else { continue }
+            payload["status"] = "failed"
+            payload["reason"] = reason
+            payload["failure_phase"] = phase
+            payload["error"] = error.localizedDescription
+            payload["batch_authoritative"] = true
+            payload["updated_at"] = updatedAt
+            try? JSONObject.write(payload, to: url)
         }
     }
 
@@ -9178,8 +9367,9 @@ final class RecordingProcessLock {
             close(fileDescriptor)
             var message = """
             another MurmurMark recording is already active in \(root.path)
-            Run only one `murmurmark record` process at a time. Use the live pilot runner to collect
-            live evidence and batch output from the same raw recording.
+            Run only one active capture at a time. Wait until that recording stops; an older
+            session may continue post-processing while a new capture runs. For Live Shadow, add
+            `--experiment live-shadow-v1` to the same `murmurmark meeting` command.
             """
             if let existing {
                 message += "\ncurrent lock: \(existing)"
@@ -16277,12 +16467,18 @@ final class ChildProcessSignalForwarder: @unchecked Sendable {
 
         signal(SIGINT, SIG_IGN)
         signal(SIGTERM, SIG_IGN)
+        signal(SIGHUP, SIG_IGN)
         addSource(signal: SIGINT) { [process] in
             if process.isRunning {
                 process.interrupt()
             }
         }
         addSource(signal: SIGTERM) { [process] in
+            if process.isRunning {
+                process.terminate()
+            }
+        }
+        addSource(signal: SIGHUP) { [process] in
             if process.isRunning {
                 process.terminate()
             }
@@ -16314,6 +16510,7 @@ final class ChildProcessSignalForwarder: @unchecked Sendable {
         }
         signal(SIGINT, SIG_DFL)
         signal(SIGTERM, SIG_DFL)
+        signal(SIGHUP, SIG_DFL)
     }
 }
 

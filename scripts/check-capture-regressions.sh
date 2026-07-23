@@ -132,6 +132,34 @@ assert_static_capture_contract() {
   grep -q 'capture produced no ScreenCaptureKit audio samples for' "$source_file" \
     || fail "ScreenCaptureKit no-sample capture must be detected"
 
+  grep -q 'stream.startCapture(completionHandler: completion)' "$source_file" \
+    || fail "ScreenCaptureKit startup must use the callback API behind a bounded continuation"
+
+  grep -q 'stream.stopCapture(completionHandler: completion)' "$source_file" \
+    || fail "ScreenCaptureKit shutdown must use the callback API behind a bounded continuation"
+
+  if grep -Eq 'try[[:space:]]+await[[:space:]]+stream\.(startCapture|stopCapture)\(' "$source_file"; then
+    fail "unbounded ScreenCaptureKit async start/stop calls are forbidden"
+  fi
+
+  grep -q 'MURMURMARK_SCREEN_CAPTURE_START_TIMEOUT_SEC' "$source_file" \
+    || fail "ScreenCaptureKit startup must expose a bounded timeout for regression tests"
+
+  grep -q 'type: "capture.starting"' "$source_file" \
+    || fail "capture startup must be distinguished from confirmed capture.started"
+
+  grep -q 'screen_capture_startup_retry_count' "$source_file" \
+    || fail "confirmed capture startup must report retry provenance"
+
+  grep -q 'meeting-capture-child' "$source_file" \
+    || fail "meeting capture must run in a short-lived child process"
+
+  grep -Fq '["record"] + captureArguments' "$source_file" \
+    || fail "meeting must isolate ScreenCaptureKit capture from post-processing"
+
+  grep -q 'screenCaptureFilter = nil' "$source_file" \
+    || fail "finalized capture must release its ScreenCaptureKit filter before post-processing"
+
   grep -q 'beginActivity' "$source_file" \
     || fail "recording must hold a ProcessInfo activity while ScreenCaptureKit is active"
 
@@ -639,7 +667,7 @@ run_duration_interrupt_probe() {
     fail "bounded recording did not reach the active capture state"
   }
 
-  # capture.started is durable before the async stop task installs its signal bridge.
+  # capture.started is durable only after SCStream confirms startup and before the stop bridge is installed.
   sleep 1
   kill -INT "$pid"
   local status=0
@@ -662,6 +690,75 @@ run_duration_interrupt_probe() {
   }
 }
 
+run_capture_startup_timeout_probe() {
+  require_tool jq
+
+  local bin="${MURMURMARK_BIN:-$repo_root/.build/debug/murmurmark}"
+  if [[ ! -x "$bin" ]]; then
+    swift build >/dev/null
+  fi
+
+  local workdir
+  workdir="$(mktemp -d "${TMPDIR:-/tmp}/murmurmark-capture-startup-timeout.XXXXXX")"
+  trap 'rm -rf "$workdir"' RETURN
+
+  for attempt in first second; do
+    local session="$workdir/$attempt"
+    local record_log="$workdir/$attempt.log"
+    local status=0
+    local command="record"
+    if [[ "$attempt" == "first" ]]; then
+      command="meeting"
+    fi
+    MURMURMARK_TEST_SCREEN_CAPTURE_START_HANG=1 \
+      MURMURMARK_SCREEN_CAPTURE_START_TIMEOUT_SEC=0.2 \
+      MURMURMARK_SCREEN_CAPTURE_STOP_TIMEOUT_SEC=0.2 \
+      "$bin" "$command" \
+        --target-bundle system \
+        --duration 1 \
+        --experiment live-shadow-v1 \
+        --live-no-worker \
+        --out "$session" >"$record_log" 2>&1 || status=$?
+
+    [[ "$status" -ne 0 ]] || {
+      cat "$record_log" >&2
+      fail "simulated ScreenCaptureKit startup hang unexpectedly succeeded"
+    }
+    grep -q 'ScreenCaptureKit startCapture timed out' "$record_log" || {
+      cat "$record_log" >&2
+      fail "simulated ScreenCaptureKit startup hang did not fail with a bounded timeout"
+    }
+    ! grep -q 'another MurmurMark recording is already active' "$record_log" || {
+      cat "$record_log" >&2
+      fail "failed ScreenCaptureKit startup left the global recording lock held"
+    }
+    if [[ "$attempt" == "first" ]]; then
+      grep -q 'post-processing was not started' "$record_log" || {
+        cat "$record_log" >&2
+        fail "meeting startup failure did not stop before post-processing"
+      }
+    fi
+    [[ ! -e "$session/session.lock" ]] \
+      || fail "failed ScreenCaptureKit startup left session.lock behind"
+    grep -q '"type":"capture.starting"' "$session/events.jsonl" \
+      || fail "failed ScreenCaptureKit startup did not record capture.starting"
+    ! grep -q '"type":"capture.started"' "$session/events.jsonl" \
+      || fail "failed ScreenCaptureKit startup incorrectly recorded capture.started"
+    jq -e '
+      .status == "failed"
+      and .reason == "capture_start_failed"
+      and .failure_phase == "startup"
+    ' "$session/derived/experiments/live-shadow-v1/state.json" >/dev/null \
+      || fail "failed ScreenCaptureKit startup left a stale experiment state"
+    jq -e '
+      .status == "failed"
+      and .reason == "capture_start_failed"
+      and .failure_phase == "startup"
+    ' "$session/derived/experiments/live-shadow-v1/report.json" >/dev/null \
+      || fail "failed ScreenCaptureKit startup left a stale experiment report"
+  done
+}
+
 require_tool jq
 
 assert_static_capture_contract
@@ -674,6 +771,11 @@ assert_live_pipeline_guard
 record_check "live_pipeline_guard" "passed" "static" "live pipeline remains disabled unless explicitly enabled for lab diagnostics"
 
 if [[ "${MURMURMARK_RUN_LIVE_CAPTURE_TEST:-0}" == "1" ]]; then
+  run_live_probe_step \
+    "capture_startup_timeout_probe" \
+    "live_probe" \
+    "stuck ScreenCaptureKit startup timed out and released the recording lock" \
+    run_capture_startup_timeout_probe
   run_live_probe_step \
     "duration_interrupt_probe" \
     "live_probe" \
@@ -692,6 +794,7 @@ if [[ "${MURMURMARK_RUN_LIVE_CAPTURE_TEST:-0}" == "1" ]]; then
   write_report "static_system_audio_live_fail_open" "passed"
   echo "capture regression check ok (static + system-audio probe + live fail-open probe)"
 else
+  record_check "capture_startup_timeout_probe" "skipped" "live_probe" "set MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 to test bounded ScreenCaptureKit startup"
   record_check "duration_interrupt_probe" "skipped" "live_probe" "set MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 to test early SIGINT with --duration"
   record_check "system_audio_capture_probe" "skipped" "live_probe" "set MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 to run the local system-audio probe"
   record_check "live_segment_fail_open_probe" "skipped" "live_probe" "set MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 to run the overloaded live segment fail-open probe"
