@@ -522,6 +522,52 @@ sessions/_reports/neural-residual-echo-v1/
 
 There is deliberately no apply command or production selector for this profile.
 
+## Speaker-Preserving Adaptation Corpus
+
+Speaker-Preserving Echo Adaptation Corpus v1 tested the prerequisite for model adaptation rather
+than training another candidate. The tracked policy freezes:
+
+- source corpus/report hashes and the existing production fallback;
+- both failed neural sessions as immutable hard-test;
+- `0.85` minimum speaker-state confidence;
+- session-disjoint train/dev/hard-test assignment;
+- measured double-talk as evaluation-only without an independent clean target;
+- no normalization, cloud access or publication of audio/work text.
+
+The builder reads the signed 16 kHz `echo-promotion-v1/canonical` mic and aligned remote, but first
+verifies that its timeline contract points to the same frozen mic, remote, speaker-state and
+`local_fir` inputs. State intervals require matching high-confidence transcript role evidence.
+Text is retained only as normalized SHA-256 and token count.
+
+```text
+frozen raw and derived SHA
+  -> strict interval inventory
+  -> session-disjoint split
+  -> measured local/remote sources
+  -> synthetic pairs only when both sources are independently accepted
+  -> privacy + oracle gates
+  -> READY_FOR_ADAPTATION | DO_NOT_TRAIN
+```
+
+The frozen v1 result is `DO_NOT_TRAIN`. Local-only targets passed (`192s` train, `96s` dev), but
+all nominal remote-only rows remained below the frozen confidence gate. Therefore measured echo
+coverage and synthetic paired coverage are both zero. Hard-test has four protected-local and four
+chronology items, but only `6s` measured double-talk and no independently confirmed opening item.
+
+This result blocks Speaker-Preserving Neural Echo v2 for the current evidence scope. It does not
+change production and does not claim neural suppression is impossible. Reopening the branch
+requires materially new supervision, preferably controlled captures with known clean near-end,
+far-end and echo components.
+
+Private corpus artifacts live under:
+
+```text
+sessions/_reports/speaker-preserving-echo-adaptation-corpus-v1/
+```
+
+The policy and implementation are source-controlled; generated audio, interval metadata and work
+text remain ignored local artifacts.
+
 ## Other Conservative Cleanup Engines
 
 Cleanup is for ASR quality, not for rewriting history.

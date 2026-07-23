@@ -665,6 +665,55 @@ The stop rule deliberately avoids full shadow ASR and the remaining expensive co
 after either mandatory counterexample loses `Me`. All skipped sessions retain explicit reasons and
 exact baseline fingerprints. There is no production apply command for this experiment.
 
+## Speaker-Preserving Echo Adaptation Corpus v1
+
+The completed corpus prerequisite uses no network and trains no model:
+
+```bash
+.venv/bin/python scripts/build-speaker-preserving-echo-adaptation-corpus-v1.py build
+.venv/bin/python scripts/build-speaker-preserving-echo-adaptation-corpus-v1.py replay
+.venv/bin/python scripts/build-speaker-preserving-echo-adaptation-corpus-v1.py inspect
+```
+
+The policy is tracked at:
+
+```text
+policies/speaker-preserving-echo-adaptation-corpus-v1.json
+```
+
+Do not edit its thresholds after inspecting a corpus result. A materially different policy is a new
+version and requires a new frozen decision.
+
+Expected frozen result:
+
+```text
+decision: DO_NOT_TRAIN
+decision_fingerprint:
+  32a07efc3614bbcc68aeab3b0b77610b000981d989a7a2df096429a959899507
+replay: 414 files, no changed/missing/unexpected files
+```
+
+Inspect the short report:
+
+```bash
+less sessions/_reports/speaker-preserving-echo-adaptation-corpus-v1/corpus_decision.md
+
+jq '{
+  decision,
+  decision_fingerprint,
+  coverage: .coverage.observed,
+  reasons
+}' \
+  sessions/_reports/speaker-preserving-echo-adaptation-corpus-v1/corpus_decision.json
+```
+
+The decisive limit is zero accepted remote-only seconds after the frozen `0.85` state-confidence
+gate. Do not lower that threshold to manufacture training truth. Current state rows at `0.8` remain
+candidate evidence, not independently verified echo supervision.
+
+All generated audio and work-derived manifests stay under ignored `sessions/_reports/`. Only the
+implementation, non-content policy and aggregate research result belong in source control.
+
 ## Stop Rules
 
 Stop the current audio candidate and keep the production baseline when:

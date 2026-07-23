@@ -7616,6 +7616,95 @@ The frozen v1 decision is `DO_NOT_PROMOTE`, fingerprint
 `eff4119d7e19b90dc2b7e6f03caf1b762d29f6c46c97b3141764db76764200f3`.
 It leaves all authoritative transcript, synthesis, export and retention artifacts unchanged.
 
+## Speaker-Preserving Echo Adaptation Corpus
+
+The corpus laboratory has no production apply path and performs no training. Its schemas are:
+
+```text
+murmurmark.speaker_preserving_echo_adaptation_corpus_policy/v1
+murmurmark.echo_adaptation_interval/v1
+murmurmark.echo_adaptation_split_manifest/v1
+murmurmark.echo_adaptation_immutable_hard_test/v1
+murmurmark.echo_adaptation_supervision/v1
+murmurmark.echo_adaptation_privacy_licensing/v1
+murmurmark.echo_adaptation_corpus_manifest/v1
+murmurmark.echo_adaptation_oracle/v1
+murmurmark.echo_adaptation_corpus_decision/v1
+murmurmark.echo_adaptation_corpus_replay/v1
+```
+
+The tracked policy is
+`policies/speaker-preserving-echo-adaptation-corpus-v1.json`. Thresholds and source hashes are
+part of the decision input and must not be changed after observing a result. The policy contains
+an explicit immutable split seed and expected SHA-256 for every hard-test ASR probe. Adding
+unrelated policy metadata cannot reshuffle train/dev, and a replaced hard-test probe fails before
+materialization.
+
+Every interval row contains:
+
+```json
+{
+  "schema": "murmurmark.echo_adaptation_interval/v1",
+  "id": "int_<stable-id>",
+  "session": "<session-id>",
+  "split": "train | dev | hard_test",
+  "category": "local_only | remote_only | double_talk | opening_ack | chronology_boundary | protected_local",
+  "source_kind": "measured_speaker_state | neural_hard_probe",
+  "start": 0.0,
+  "end": 2.0,
+  "status": "included | excluded",
+  "usage": "supervision_source | measured_evaluation_only | hard_evaluation",
+  "reasons": [],
+  "evidence": {},
+  "audio": {},
+  "audio_sources": {}
+}
+```
+
+Work text must not appear in this row. Transcript evidence is represented by utterance ID,
+role confidence, token count and normalized-text SHA-256.
+
+Supervision rows distinguish:
+
+```text
+measured_local_reference
+measured_remote_echo
+measured_double_talk_evaluation
+measured_opening_evaluation
+measured_chronology_evaluation
+measured_protected_local_evaluation
+synthetic_pair
+```
+
+Only `synthetic_pair` has a known paired target and mixture. It may be constructed from accepted
+local-only and remote-only sources in the same split. Measured double-talk is never a training
+target without an independent clean near-end recording. A pair that would clip is excluded; the
+builder cannot normalize or attenuate the target to make it pass.
+
+Generated private artifacts are:
+
+```text
+sessions/_reports/speaker-preserving-echo-adaptation-corpus-v1/
+  corpus_policy.json
+  corpus_manifest.json
+  interval_inventory.jsonl
+  split_manifest.json
+  immutable_hard_test.json
+  supervision_manifest.jsonl
+  oracle_report.json
+  privacy_licensing_manifest.json
+  corpus_decision.json
+  corpus_decision.md
+  replay_report.json
+  examples/
+```
+
+`READY_FOR_ADAPTATION` requires all frozen coverage, split, integrity, privacy and oracle gates.
+Any failure yields `DO_NOT_TRAIN`; it cannot lower a threshold or modify production. The frozen v1
+decision is `DO_NOT_TRAIN`, fingerprint
+`32a07efc3614bbcc68aeab3b0b77610b000981d989a7a2df096429a959899507`.
+Replay compared `414` files without any difference.
+
 ## Authoritative Handoff
 
 The normal post-stop command publishes:

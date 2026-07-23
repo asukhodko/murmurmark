@@ -53,16 +53,21 @@ Current operating point, 2026-07-23:
 - Neural Residual Echo Suppression v1 completed with reproducible `DO_NOT_PROMOTE`: pinned
   Microsoft DEC removed all bounded remote-risk in the hard sessions, but protected-local recall
   fell to `45.45%`, chronology and double-talk recall to `0%`, and runtime exceeded the gate;
-- the current goal is Speaker-Preserving Echo Adaptation Corpus v1: prove that local sessions can
-  form privacy-safe, session-disjoint remote-only/local-only/double-talk supervision, then publish
-  `READY_FOR_ADAPTATION` or exact `DO_NOT_TRAIN` before any training;
+- Speaker-Preserving Echo Adaptation Corpus v1 completed with reproducible `DO_NOT_TRAIN`: privacy,
+  session-disjoint splits and `192s` train / `96s` dev local-only coverage passed, but no
+  remote-only interval passed the frozen confidence gate, synthetic pairing remained forbidden,
+  hard-test double-talk stopped at `6s`, and no opening acknowledgement was independently confirmed;
+- the current goal is Evidence Notes And Export v2: make one deterministic handoff bundle the
+  source of truth for the selected transcript, evidence-backed claims, unresolved review burden,
+  quality verdict and guarded local export;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 
-Dependent work is: Evidence Notes And Export v2 and release-quality CLI. Remote diarization,
-speaker mapping and `transcript.rich.json` form a parallel future branch after base quality closure.
-Heavy validators, LLM synthesis, reviewed external integrations and UI remain research or optional
-work outside the critical path.
+Dependent work is release-quality CLI. Speaker-Preserving Neural Echo v2 is blocked until materially
+new leakage-free measured supervision exists. Remote diarization, speaker mapping and
+`transcript.rich.json` form a parallel future branch after base quality closure. Heavy validators,
+LLM synthesis, reviewed external integrations and UI remain research or optional work outside the
+critical path.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.
 

@@ -41,16 +41,17 @@ Read in this order:
 37. [Complete echo removal research](research/2026-06-30-complete-echo-removal.md)
 38. [Echo Suppression Promotion v1 result](research/2026-07-23-echo-suppression-promotion-v1.md)
 39. [Neural Residual Echo Suppression v1 result](research/2026-07-23-neural-residual-echo-v1.md)
-40. [Planning and development history](history/README.md)
+40. [Speaker-Preserving Echo Adaptation Corpus v1 result](research/2026-07-23-speaker-preserving-echo-adaptation-corpus-v1.md)
+41. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
-Planning snapshot: 2026-07-23. Neural Residual Echo Suppression v1 completed with reproducible
-`DO_NOT_PROMOTE`. Pinned Microsoft DEC removed all `3.49s` of bounded ASR-visible remote-risk in the
-two hard sessions, but protected-local recall fell to `45.45%`, chronology and double-talk recall
-to `0%`, and runtime exceeded the gate. `local_fir` remains production. Speaker-Preserving Echo
-Adaptation Corpus v1 is now the current executable quality goal: prove `READY_FOR_ADAPTATION` or
-exact `DO_NOT_TRAIN` before any training.
+Planning snapshot: 2026-07-23. Speaker-Preserving Echo Adaptation Corpus v1 completed with
+reproducible `DO_NOT_TRAIN`: privacy and session-disjoint splits passed, but no remote-only interval
+passed the frozen confidence gate, so no valid echo supervision or synthetic pair exists. Replay
+matched `414/414` files, no training ran and `local_fir` remains production. Evidence Notes And
+Export v2 is now the current executable product goal: produce one deterministic, evidence-backed
+handoff bundle with explicit review and export readiness.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

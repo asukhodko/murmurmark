@@ -48,10 +48,10 @@ advisory; its promotion remains blocked by quality and runtime evidence.
 
 ## Current Goal
 
-**Speaker-Preserving Echo Adaptation Corpus v1** is the current goal. It does not train or apply a
-model. It must first prove that local MurmurMark sessions contain enough privacy-safe,
-session-disjoint supervision for remote-only, local-only and double-talk. The result is
-`READY_FOR_ADAPTATION` or an exact `DO_NOT_TRAIN`.
+**Evidence Notes And Export v2** is the current goal. It turns the selected transcript, structured
+quality verdict and unresolved review evidence into one deterministic handoff bundle. The bundle
+must either be ready for local Markdown/Obsidian export or remain explicitly blocked with exact
+evidence IDs and the next command. It does not require an LLM or write to external systems.
 
 Two suppression families established the same safety ceiling. Classical state-level suppression
 removed `68.2845%` of bounded remote-risk, but lost protected `Me` in two speaker sessions. The
@@ -59,6 +59,15 @@ pinned Microsoft DEC model removed all `3.49s` of bounded remote-risk in those h
 protected-local recall fell to `45.45%`, chronology and double-talk recall to `0%`, and incremental
 runtime reached `52.85%` of `local_fir`. AECMOS still rated the audio well, so it remains a secondary
 metric rather than a word-preservation gate. `local_fir_role_masked` remains production.
+
+Speaker-Preserving Echo Adaptation Corpus v1 then completed with reproducible `DO_NOT_TRAIN`.
+Privacy checks and session-disjoint splits passed; local-only target coverage reached `192s` train
+and `96s` dev. However, no remote-only interval passed the frozen confidence gate, so the corpus
+contains neither measured echo supervision nor valid synthetic pairs. Hard-test retained four
+protected-local and four chronology examples, but only `6s` double-talk and no independently
+confirmed opening acknowledgement. Replay matched `414/414` files. Training on this evidence would
+manufacture ground truth, so Speaker-Preserving Neural Echo v2 is blocked until materially new
+leakage-free measured supervision exists.
 
 **One-Command Meeting Lifecycle v1** is complete. `murmurmark meeting` owns durable capture,
 authoritative processing, evidence enrichment, conservative review and guarded export. It uses
@@ -104,8 +113,8 @@ flowchart LR
     A["Done<br/>Mixed-Utterance Separation"]
     B["Done<br/>Echo Suppression Promotion v1"]
     N["Done<br/>Neural Residual Echo v1"]
-    S["Current<br/>Speaker-Preserving<br/>Adaptation Corpus v1"]
-    C["Evidence Notes And Export v2"]
+    S["Done: DO_NOT_TRAIN<br/>Speaker-Preserving<br/>Adaptation Corpus v1"]
+    C["Current<br/>Evidence Notes And Export v2"]
     D["Release-quality CLI"]
 
     P --> L --> A --> B --> N --> S --> C --> D
@@ -147,16 +156,17 @@ Production output was never changed.
 
 ### 5. Speaker-Preserving Echo Adaptation Corpus v1
 
-Current. Freeze provenance-rich remote-only, local-only and double-talk examples; create
-session-disjoint train/dev/hard-test splits; reserve both known counterexamples for immutable test;
-and run duration, leakage, protected-word, privacy and licensing oracle checks. Publish
-`READY_FOR_ADAPTATION` only when the data can support a meaningful experiment. Otherwise publish
-`DO_NOT_TRAIN` and move on without spending compute on training.
+Completed with reproducible `DO_NOT_TRAIN`. Provenance, session-disjoint train/dev/hard-test splits,
+immutable counterexamples, privacy checks and byte-stable replay are available. The frozen corpus
+has enough local-only targets, but no remote-only examples pass the independent confidence gate;
+synthetic pairing is therefore forbidden. No training was run and production remained unchanged.
 
 ### 6. Evidence Notes And Export v2
 
-Improve the already working notes/export handoff over the selected transcript. Generated or
-extractive claims remain traceable to evidence IDs.
+Current. Define one versioned, byte-stable handoff contract over the selected transcript profile,
+quality verdict, evidence notes, unresolved review burden and export readiness. Every visible claim
+must cite valid evidence IDs; stale or blocked input must fail closed. Markdown and Obsidian exports
+consume this bundle instead of independently reconstructing profile state.
 
 ### 7. Release-quality CLI
 
@@ -180,8 +190,9 @@ flowchart LR
     Q -.-> V
 ```
 
-Speaker-Preserving Neural Echo v2 is conditional on `READY_FOR_ADAPTATION`. A `DO_NOT_TRAIN`
-decision skips that branch and continues the product path.
+Speaker-Preserving Neural Echo v2 is blocked by `DO_NOT_TRAIN`. It may reopen only after materially
+new leakage-free measured supervision appears, such as controlled clean targets for remote-only and
+double-talk. Lowering the frozen confidence gate does not count as new evidence.
 
 Remote diarization works on authoritative `remote` and does not require complete Echo suppression.
 It starts after base quality closure, first produces anonymous stable speaker IDs, then an

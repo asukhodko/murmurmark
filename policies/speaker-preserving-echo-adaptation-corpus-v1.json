@@ -1,0 +1,139 @@
+{
+  "schema": "murmurmark.speaker_preserving_echo_adaptation_corpus_policy/v1",
+  "profile": "speaker_preserving_echo_adaptation_corpus_v1",
+  "decision_values": [
+    "READY_FOR_ADAPTATION",
+    "DO_NOT_TRAIN"
+  ],
+  "source": {
+    "frozen_corpus": "sessions/_reports/neural-residual-echo-v1/frozen_corpus.json",
+    "frozen_corpus_sha256": "4325bd6bd9df1eff7a575a761c4c95323703b73254d5acc6e9f2e60ca67e0719",
+    "neural_decision_report": "sessions/_reports/neural-residual-echo-v1/neural_residual_echo_corpus_report.json",
+    "neural_decision_report_sha256": "560940dbae2cb967ed13bf1eea97da97f3a526794d995c7d55b70c5e7dfb32aa",
+    "neural_decision_fingerprint": "eff4119d7e19b90dc2b7e6f03caf1b762d29f6c46c97b3141764db76764200f3",
+    "production_policy": "policies/echo-suppression-production-v1.json",
+    "production_policy_sha256": "4dd21f8bd8ca129d6cebd5966bbc4bb897b4312f6755203710bf55546a613ea2",
+    "production_fallback": "local_fir_role_masked"
+  },
+  "hard_test": {
+    "sessions": [
+      "2026-07-20_15-15-26-live",
+      "2026-07-20_16-30-42-live"
+    ],
+    "evidence": {
+      "2026-07-20_15-15-26-live": {
+        "path": "derived/preprocess/neural-residual-echo-v1/asr_probe_report.json",
+        "sha256": "767fdddd7d055732a9d9b189abbb30b5709a1ebd1d6f37dbc71f2ea88903b9dc"
+      },
+      "2026-07-20_16-30-42-live": {
+        "path": "derived/preprocess/neural-residual-echo-v1/asr_probe_report.json",
+        "sha256": "45d20e671b5ef5edfb5098a357b6607cdeeb3e7b6c9457cef5044638604e6251"
+      }
+    },
+    "training_forbidden": true,
+    "required_categories": [
+      "protected_local",
+      "chronology_boundary",
+      "double_talk",
+      "opening_ack"
+    ]
+  },
+  "intervals": {
+    "sample_rate": 16000,
+    "clip_duration_sec": 2.0,
+    "minimum_state_confidence": 0.85,
+    "minimum_role_confidence": 0.9,
+    "minimum_utterance_coverage_ratio": 0.8,
+    "maximum_opposite_role_coverage_ratio": 0.05,
+    "local_only": {
+      "accepted_states": [
+        "local_only"
+      ],
+      "maximum_remote_db": -50.0,
+      "minimum_mic_db": -50.0,
+      "maximum_abs_remote_correlation": 0.12,
+      "require_confirmed_me_text": true
+    },
+    "remote_only": {
+      "accepted_states": [
+        "remote_only"
+      ],
+      "minimum_remote_db": -45.0,
+      "minimum_mic_db": -58.0,
+      "minimum_abs_remote_correlation": 0.08,
+      "require_authoritative_remote_text": true
+    },
+    "double_talk": {
+      "accepted_states": [
+        "double_talk"
+      ],
+      "minimum_remote_db": -45.0,
+      "minimum_mic_db": -50.0,
+      "require_confirmed_me_and_remote_text": true,
+      "supervision_use": "hard_evaluation_only_without_independent_clean_target"
+    },
+    "exclusion": {
+      "maximum_abs_peak": 0.995,
+      "maximum_clipped_sample_ratio": 0.0001,
+      "reject_non_finite": true,
+      "reject_uncertain_acoustic_mode": true,
+      "reject_stale_or_unhashed_evidence": true
+    }
+  },
+  "split": {
+    "strategy": "session_stratified_sha256_v1",
+    "assignment_seed": "9932bef9d3f9bb0c19f26c43b559dcb40b0b292e7dc668c0293947ee216fa772",
+    "hard_test_sessions_fixed": true,
+    "minimum_train_sessions": 4,
+    "minimum_dev_sessions": 2,
+    "minimum_hard_test_sessions": 2,
+    "minimum_train_speaker_playback_sessions": 2,
+    "minimum_dev_speaker_playback_sessions": 1
+  },
+  "materialization": {
+    "maximum_intervals_per_category_per_session": 24,
+    "maximum_synthetic_pairs_per_session": 16,
+    "pair_within_split_only": true,
+    "pair_within_session_when_possible": true,
+    "synthetic_echo_gain_db": -3.0,
+    "prevent_output_clipping": true,
+    "normalization_forbidden": true,
+    "measured_double_talk_as_target_forbidden": true
+  },
+  "coverage_gates": {
+    "minimum_train_local_only_seconds": 120.0,
+    "minimum_train_remote_only_seconds": 120.0,
+    "minimum_train_synthetic_pair_seconds": 60.0,
+    "minimum_dev_local_only_seconds": 30.0,
+    "minimum_dev_remote_only_seconds": 30.0,
+    "minimum_dev_synthetic_pair_seconds": 16.0,
+    "minimum_hard_test_measured_double_talk_seconds": 8.0,
+    "minimum_hard_test_protected_local_items": 4,
+    "minimum_hard_test_chronology_items": 4,
+    "minimum_hard_test_opening_items": 2
+  },
+  "oracle_gates": {
+    "exact_duration": true,
+    "finite_audio": true,
+    "no_clipping": true,
+    "session_disjoint": true,
+    "hard_test_isolated": true,
+    "synthetic_and_measured_distinct": true,
+    "synthetic_reconstruction_max_abs_error": 1e-06,
+    "target_remote_correlation_max": 0.12,
+    "mixture_contains_target_min_correlation": 0.7,
+    "raw_and_production_inputs_unchanged": true,
+    "privacy_allows_local_training_only": true
+  },
+  "privacy": {
+    "processing": "local_only",
+    "network_allowed": false,
+    "raw_audio_redistribution": "forbidden",
+    "derived_audio_redistribution": "forbidden",
+    "work_text_redistribution": "forbidden",
+    "source_control_audio": "forbidden",
+    "source_control_work_text": "forbidden",
+    "public_metadata": "aggregate_non_content_only",
+    "training_scope": "private_local_experiment_only"
+  }
+}

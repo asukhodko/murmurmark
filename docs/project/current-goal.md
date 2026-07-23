@@ -11,84 +11,85 @@ Roadmap status and dependency truth live in
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`. This file expands the one executable goal in human
 terms. `scripts/check-planning-consistency.py` keeps the representations aligned.
 
-## Speaker-Preserving Echo Adaptation Corpus v1
+## Evidence Notes And Export v2
 
-OpsKarta nearest goal: Speaker-Preserving Echo Adaptation Corpus v1: доказать, что из локальных
-MurmurMark-сессий можно воспроизводимо собрать privacy-safe и session-disjoint supervision для
-remote-only, local-only и double-talk, а затем выпустить READY_FOR_ADAPTATION либо точный
-DO_NOT_TRAIN без обучения и изменения production.
+OpsKarta nearest goal: Evidence Notes And Export v2: превратить выбранный transcript profile,
+structured quality verdict и unresolved review evidence в один deterministic handoff bundle,
+который либо готов к локальному Markdown/Obsidian export, либо явно заблокирован с точными evidence
+IDs, без LLM и внешних записей.
 
-Two increasingly capable suppression attempts now have the same safety ceiling:
-
-- classical state-level suppression removed remote-risk but deleted quiet or short `Me` inside
-  remote-active intervals;
-- pretrained Microsoft DEC removed all bounded remote-risk in the hard counterexamples, but
-  protected-local recall fell to `45.45%`, chronology recall to `0%`, and incremental runtime
-  reached `52.85%` of `local_fir`.
-
-The second result rules out a simple engine swap. The next shortest reliable step is to prove
-whether MurmurMark has enough local, legally usable and correctly separated supervision to adapt a
-model around its real acoustic domain. Training before that proof would be expensive guesswork.
+The CLI already creates extractive notes, quality verdicts and guarded exports. The remaining
+product gap is coherence: users should not have to infer which profile, review queue, notes file or
+export command is authoritative. A single handoff contract must carry the selected transcript,
+claim-level evidence, unresolved risks and export readiness together.
 
 ## Completed Immediate Predecessor
 
-[Neural Residual Echo Suppression v1](../research/2026-07-23-neural-residual-echo-v1.md) established:
+[Speaker-Preserving Echo Adaptation Corpus v1](../research/2026-07-23-speaker-preserving-echo-adaptation-corpus-v1.md)
+completed with reproducible `DO_NOT_TRAIN`:
 
-- a pinned, offline Microsoft DEC ONNX adapter and secondary AECMOS metric;
-- exact 16 kHz duration, no hidden normalization and fail-open baseline selection;
-- two modes: post-`local_fir` primary and raw-mic domain-shift control;
-- deterministic candidate audio and corpus decision;
-- `3.49s -> 0s` bounded ASR-visible remote-risk;
-- mandatory failure on protected local speech, chronology, double-talk and runtime;
-- no full shadow run and no production apply path;
-- final `DO_NOT_PROMOTE` fingerprint
-  `eff4119d7e19b90dc2b7e6f03caf1b762d29f6c46c97b3141764db76764200f3`.
+- nine frozen sessions were split into five train, two dev and two immutable hard-test sessions;
+- all raw, production-derived, transcript and evidence SHA-256 values remained unchanged;
+- local-only target coverage passed with `192s` train and `96s` dev;
+- no remote-only interval passed the frozen confidence gate;
+- synthetic paired supervision therefore remained empty;
+- hard-test retained four protected-local and four chronology items, but only `6s` double-talk and
+  no independently confirmed opening acknowledgement;
+- privacy checks passed and no training was performed;
+- replay matched `414/414` files;
+- decision fingerprint:
+  `32a07efc3614bbcc68aeab3b0b77610b000981d989a7a2df096429a959899507`.
 
+Speaker-Preserving Neural Echo v2 is blocked for this evidence scope.
 `local_fir_role_masked` remains production.
 
 ## Execution Scope
 
-1. Freeze eligible local-only, remote-only, double-talk, opening and chronology intervals with raw,
-   aligned-remote, speaker-state, transcript and evidence hashes.
-2. Define inclusion and exclusion rules. Ambiguous speaker identity, clipped audio, uncertain
-   alignment, stale evidence or missing local references stay out of training supervision.
-3. Build session-disjoint train, development and immutable hard-test splits. No interval from one
-   session may cross split boundaries.
-4. Materialize paired examples locally:
-   clean/protected near-end target, aligned remote reference, measured or replayed echo mixture,
-   speaker state and word-level protected content.
-5. Cover both measured speaker playback and controlled synthetic augmentation. Preserve a separate
-   real hard-test split so synthetic success cannot hide domain failure.
-6. Define pre-training oracle checks: reconstruction, exact duration, no target leakage,
-   remote-removal headroom, protected-word coverage and licensing/privacy manifest.
-7. Publish `READY_FOR_ADAPTATION` only if the corpus supports a meaningful, leakage-free training
-   experiment; otherwise publish exact `DO_NOT_TRAIN`.
+1. Define one versioned handoff schema over the selected transcript profile, quality verdict,
+   evidence notes, review progress and export blockers.
+2. Make claim IDs stable. Every outline, decision, action, risk and open question shown to the user
+   must cite existing utterance/evidence IDs.
+3. Separate confirmed, candidate and unresolved claims. Extractive heuristics may propose content,
+   but may not silently upgrade review-required evidence.
+4. Produce one deterministic local bundle containing:
+   - readable notes;
+   - machine-readable evidence notes;
+   - quality verdict;
+   - selected transcript reference and fingerprint;
+   - unresolved review items;
+   - export readiness and exact next command.
+5. Make Markdown and Obsidian exports consume that bundle instead of independently rediscovering
+   profile state.
+6. Preserve guarded behavior:
+   - ready sessions may export;
+   - ready-with-review sessions remain explicit;
+   - blocked/failed sessions cannot appear complete.
+7. Add corpus checks for stale profile selection, missing evidence IDs, unsupported claims,
+   orphaned review items and nondeterministic output.
+8. Keep the normal meeting path local, resumable and bounded. No cloud or external writes.
 
 ## Safety Contract
 
-- raw CAF and current derived inputs are read-only;
-- corpus artifacts are local and excluded from public source control;
-- no speech or text is uploaded;
-- split assignment is by session, never by random clip;
-- protected `Me` words and chronology intervals remain immutable acceptance examples;
-- a synthetic target may not be treated as real evidence;
-- AECMOS and signal similarity remain secondary; word-level local preservation owns the gate;
-- this goal does not train, promote or apply a model;
-- absent consent, uncertain provenance or inadequate supervision yields `DO_NOT_TRAIN`.
+- raw CAF, Echo Guard, ASR and transcript profiles are read-only;
+- notes cannot invent facts outside cited transcript/evidence rows;
+- unresolved evidence remains visible in the bundle and readable notes;
+- export cannot bypass quality/readiness blockers;
+- stale transcript or evidence fingerprints fail closed;
+- Obsidian output is a local file proposal, not an automatic vault mutation;
+- source control receives schemas, fixtures and aggregate tests, never private meeting content;
+- no LLM is required in this goal.
 
 ## Definition Of Done
 
-- every candidate interval has provenance, inclusion reason and SHA-256 inputs;
-- train/dev/hard-test splits are deterministic and session-disjoint;
-- local-only, remote-only and double-talk coverage is measured by seconds and sessions;
-- both known hard counterexamples are immutable test items, never training items;
-- paired audio has exact duration/timeline and passes finite, clipping and leakage checks;
-- a privacy/licensing manifest states what may remain local, be redistributed or never leave the
-  machine;
-- an oracle report quantifies whether the target is learnable and useful for MurmurMark;
-- repeated runs produce identical manifests and split fingerprints;
-- missing or ambiguous evidence fails closed for corpus inclusion and leaves production untouched;
-- the final report says `READY_FOR_ADAPTATION` or exact `DO_NOT_TRAIN`;
+- one versioned handoff bundle is the source of truth for notes and export;
+- every user-visible claim has valid evidence IDs;
+- selected transcript/profile and fingerprints agree with readiness;
+- unresolved review burden is present in JSON and Markdown;
+- guarded export consumes the handoff and rejects stale or blocked input;
+- repeated runs are byte-stable;
+- fixture and real-session corpus checks cover ready, review-required, blocked and no-speech paths;
+- existing v1 notes/export behavior remains available through compatible aliases where needed;
+- capture, audio preprocessing, ASR and transcript outputs are unchanged;
 - README, architecture, contracts, runbook, roadmap and OpsKarta are synchronized;
 - tests pass, changes are committed and pushed, and the tree is clean.
 
@@ -96,24 +97,21 @@ model around its real acoustic domain. Training before that proof would be expen
 
 ```mermaid
 flowchart LR
-    A["Speaker-Preserving Echo<br/>Adaptation Corpus v1"]
-    B{"Corpus decision"}
-    C["Neural Echo Adaptation v2"]
-    D["Evidence Notes<br/>And Export v2"]
-    E["Release-quality CLI"]
+    A["Evidence Notes<br/>And Export v2"]
+    B["Release-quality CLI"]
+    C["Optional remote diarization<br/>and rich transcript"]
+    D["Optional evidence-guarded<br/>LLM synthesis"]
 
     A --> B
-    B -->|"READY_FOR_ADAPTATION"| C
-    B -->|"DO_NOT_TRAIN"| D
-    C --> D --> E
+    B -.-> C
+    C -.-> D
 ```
 
 ## Out Of Scope
 
-- neural training or fine-tuning;
-- production Echo Guard changes;
-- capture, raw CAF, whisper.cpp or Live Shadow changes;
-- cloud models or cloud audio;
-- target-speaker extraction;
+- capture, Echo Guard or ASR changes;
+- neural echo training;
 - individual remote-speaker diarization;
+- generated LLM summaries;
+- automatic writes to external systems;
 - UI.

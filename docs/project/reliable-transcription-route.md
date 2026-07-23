@@ -161,12 +161,17 @@ hard sessions, but protected-local recall fell to `45.45%`, chronology and doubl
 `0%`, and incremental runtime reached `52.85%`. The reproducible `DO_NOT_PROMOTE` rules out a
 simple pretrained-engine swap.
 
-The recommended bounded step is now Speaker-Preserving Echo Adaptation Corpus v1. It first proves
-whether local sessions can provide privacy-safe, session-disjoint remote-only, local-only and
-double-talk supervision. It ends in `READY_FOR_ADAPTATION` or exact `DO_NOT_TRAIN`, without
-training or changing capture, production Echo Guard, primary ASR, live promotion or raw audio.
-The failed live-recovery profile remains diagnostic evidence rather than another user-facing
-branch.
+Speaker-Preserving Echo Adaptation Corpus v1 completed with reproducible `DO_NOT_TRAIN`.
+Session-disjoint splits, privacy checks and local-only target coverage passed, but no remote-only
+interval passed the frozen confidence gate. Synthetic pairing therefore remained forbidden;
+hard-test coverage also stopped at `6s` double-talk and no independently confirmed opening
+acknowledgement. Replay matched `414/414` files, no training ran and production stayed on
+`local_fir`.
+
+The recommended bounded step is now Evidence Notes And Export v2. It consolidates the selected
+transcript, evidence-backed notes, quality verdict, unresolved review burden and guarded export
+readiness into one deterministic handoff contract. The failed live-recovery profile remains
+diagnostic evidence rather than another user-facing branch.
 
 ## Route To Reliability
 
@@ -407,12 +412,11 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Speaker-Preserving Echo Adaptation Corpus v1: заморозить provenance-rich remote-only, local-only и
-double-talk интервалы; исключить uncertain identity, stale alignment и clipped inputs; создать
-детерминированные session-disjoint train/dev/hard-test splits; оставить оба известных
-protected-local контрпримера только в immutable hard-test; проверить duration, target leakage,
-protected words, privacy и licensing. Выпустить READY_FOR_ADAPTATION только при достаточном
-supervision, иначе точный DO_NOT_TRAIN. Не обучать модель и не менять production.
+Evidence Notes And Export v2: превратить выбранный transcript profile, structured quality verdict
+и unresolved review evidence в один deterministic handoff bundle. Каждая пользовательская заметка
+должна ссылаться на существующие utterance/evidence IDs. Bundle либо готов к локальному
+Markdown/Obsidian export, либо явно заблокирован с точной причиной и next command. Не использовать
+LLM, не писать во внешние системы и не менять capture, Echo Guard, ASR или transcript profiles.
 ```
 
 ## Consultation Prompt

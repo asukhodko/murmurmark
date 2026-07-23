@@ -247,20 +247,22 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-neural-residual-echo-v1, corpus-regression]
-    status: current
+    status: done
     effort: 9
     notes: |
-      Доказать, что локальные сессии дают privacy-safe, session-disjoint supervision для
-      remote-only, local-only и double-talk. Заморозить provenance, train/dev/hard-test splits,
-      protected words и oracle checks. Завершить READY_FOR_ADAPTATION либо точным DO_NOT_TRAIN;
-      не обучать модель и не менять production.
+      Завершено с воспроизводимым DO_NOT_TRAIN. Privacy и session-disjoint splits прошли,
+      local-only target coverage составил 192s train и 96s dev. Ни один remote-only интервал
+      не прошёл frozen confidence gate, поэтому measured echo supervision и synthetic pairs
+      отсутствуют. Hard-test сохранил protected-local и chronology evidence, но дал лишь 6s
+      double-talk и не подтвердил opening acknowledgements. Replay совпал для 414/414 файлов;
+      production не менялся.
 
   product-evidence-export-v2:
     title: "Evidence Notes And Export v2"
     kind: task
     parent: murmurmark-cli
     deps: [quality-speaker-preserving-echo-adaptation-corpus-v1]
-    status: later
+    status: current
     effort: 7
     notes: |
       Улучшить review-aware notes и пользовательский handoff поверх выбранного transcript profile.
@@ -328,11 +330,12 @@ nodes:
     kind: task
     parent: parallel-research
     deps: [quality-speaker-preserving-echo-adaptation-corpus-v1]
-    status: idea
+    status: blocked
     effort: 6
     notes: |
-      Условная ветка только после READY_FOR_ADAPTATION: обучить или адаптировать локальный
-      remote-conditioned suppressor на session-disjoint corpus и повторить immutable hard gates.
+      Заблокировано решением DO_NOT_TRAIN. Возвращаться можно только с принципиально новым
+      leakage-free measured supervision: надёжными remote-only clean targets, независимым
+      double-talk target или контролируемой локальной записью, проходящей immutable hard gates.
 
   research-evidence-guarded-llm:
     title: "Evidence-guarded LLM synthesis"
@@ -397,11 +400,11 @@ views:
         nodes: [working-capabilities, corpus-regression]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-speaker-preserving-echo-adaptation-corpus-v1]
+        nodes: [product-evidence-export-v2]
       dependent:
         title: "Следующие зависимые этапы"
         nodes:
-          - product-evidence-export-v2
+          - product-release-quality-cli
 
   critical-path:
     title: "Критический CLI-путь"
@@ -474,8 +477,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Speaker-Preserving Echo Adaptation Corpus v1: доказать, что из локальных MurmurMark-сессий можно воспроизводимо собрать privacy-safe и session-disjoint supervision для remote-only, local-only и double-talk, а затем выпустить READY_FOR_ADAPTATION либо точный DO_NOT_TRAIN без обучения и изменения production."
-      success_by_next_sync: "Frozen corpus manifest, session-disjoint splits и oracle report воспроизводимо доказывают READY_FOR_ADAPTATION либо точный предел доступного supervision."
+      nearest_goal: "Evidence Notes And Export v2: превратить выбранный transcript profile, structured quality verdict и unresolved review evidence в один deterministic handoff bundle, который либо готов к локальному Markdown/Obsidian export, либо явно заблокирован с точными evidence IDs, без LLM и внешних записей."
+      success_by_next_sync: "Один byte-stable handoff bundle согласует выбранный transcript, evidence-backed claims, unresolved review burden, quality verdict и guarded local export."
     defaults:
       status_progress:
         done: 1.0
@@ -497,12 +500,12 @@ x:
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
         title: "Текущая цель"
-        scope_nodes: [quality-speaker-preserving-echo-adaptation-corpus-v1]
+        scope_nodes: [product-evidence-export-v2]
         kind: main
         mgmt:
-          health: yellow
-          sync_note: "Classical и pretrained neural candidates удаляют remote-risk ценой protected Me; простой engine swap исчерпан."
-          next_sync_goal: "Доказать наличие leakage-free session-disjoint supervision до любого обучения."
+          health: green
+          sync_note: "Корпус адаптации закрыт DO_NOT_TRAIN; продуктовый путь продолжает уже работающие evidence notes и guarded export."
+          next_sync_goal: "Свести transcript, verdict, review evidence и export readiness в один deterministic handoff contract."
       dependent-path:
         title: "Зависимый путь"
         scope_nodes:
@@ -517,8 +520,8 @@ x:
         kind: main
         mgmt:
           health: neutral
-          sync_note: "Neural residual v1 закрыт DO_NOT_PROMOTE; corpus decision определит, оправдана ли адаптация, но не блокирует честный переход к notes/export при DO_NOT_TRAIN."
-          next_sync_goal: "Не начинать зависимый этап до завершения текущего gate."
+          sync_note: "Echo adaptation закрыта DO_NOT_TRAIN; после handoff v2 остаётся release-quality CLI."
+          next_sync_goal: "Не начинать release closure до завершения handoff contract и corpus gates."
       research:
         title: "Параллельные исследования"
         scope_nodes: [parallel-research]
