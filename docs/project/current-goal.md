@@ -2,116 +2,153 @@
 
 Status: current
 
-Updated: 2026-07-23
+Updated: 2026-07-24
 
-The stable product path is `murmurmark meeting -> first Ctrl-C -> final result`. Batch output remains
+The stable product path remains `murmurmark meeting -> first Ctrl-C -> final result`. Batch output is
 authoritative. Live output is advisory and shadow-only.
 
 Roadmap status and dependency truth live in
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`. This file expands the one executable goal in human
 terms. `scripts/check-planning-consistency.py` keeps the representations aligned.
 
-## Evidence Notes And Export v2
+## Controlled Echo Supervision Lab v1
 
-OpsKarta nearest goal: Evidence Notes And Export v2: превратить выбранный transcript profile,
-structured quality verdict и unresolved review evidence в один deterministic handoff bundle,
-который либо готов к локальному Markdown/Obsidian export, либо явно заблокирован с точными evidence
-IDs, без LLM и внешних записей.
+OpsKarta nearest goal: Controlled Echo Supervision Lab v1: построить локальный управляемый
+speaker-mode протокол с известными remote-only echo, local-only target и synthetic double-talk,
+собрать session-disjoint train/dev/hard-test corpus и выпустить READY_FOR_ADAPTATION либо точный
+DO_NOT_TRAIN без обучения и изменения production.
 
-The CLI already creates extractive notes, quality verdicts and guarded exports. The remaining
-product gap is coherence: users should not have to infer which profile, review queue, notes file or
-export command is authoritative. A single handoff contract must carry the selected transcript,
-claim-level evidence, unresolved risks and export readiness together.
+The previous passive corpus could confirm clean local speech, but could not obtain trustworthy
+remote-only echo supervision from ordinary meetings. This goal creates that missing evidence under
+a controlled protocol instead of weakening inclusion thresholds.
 
-## Completed Immediate Predecessor
+The laboratory models the normal speaker-mode path:
 
-[Speaker-Preserving Echo Adaptation Corpus v1](../research/2026-07-23-speaker-preserving-echo-adaptation-corpus-v1.md)
-completed with reproducible `DO_NOT_TRAIN`:
+```text
+x = digital remote played through the built-in speakers
+d = measured acoustic echo of x while the user is silent
+s = measured local Me speech while remote is silent
+y = s + gain * d
 
-- nine frozen sessions were split into five train, two dev and two immutable hard-test sessions;
-- all raw, production-derived, transcript and evidence SHA-256 values remained unchanged;
-- local-only target coverage passed with `192s` train and `96s` dev;
-- no remote-only interval passed the frozen confidence gate;
-- synthetic paired supervision therefore remained empty;
-- hard-test retained four protected-local and four chronology items, but only `6s` double-talk and
-  no independently confirmed opening acknowledgement;
-- privacy checks passed and no training was performed;
-- replay matched `414/414` files;
-- decision fingerprint:
-  `32a07efc3614bbcc68aeab3b0b77610b000981d989a7a2df096429a959899507`.
+training input  = y + aligned x
+training target = s
+```
 
-Speaker-Preserving Neural Echo v2 is blocked for this evidence scope.
-`local_fir_role_masked` remains production.
+No model is trained in this goal. `local_fir_role_masked` remains production.
+
+## Frozen Contract
+
+`policies/controlled-echo-supervision-v1.json` freezes before the first evaluation:
+
+- the phase schedule and required scenarios;
+- inclusion and exclusion thresholds;
+- whole-session train/dev/hard-test assignment;
+- minimum coverage and oracle gates;
+- privacy, redistribution and local-only processing policy;
+- synthetic mixture gains and reconstruction tolerance.
+
+The policy may be changed only to repair a demonstrated contract or implementation defect. It may
+not be tuned after observing capture outcomes merely to pass a gate.
 
 ## Execution Scope
 
-1. Define one versioned handoff schema over the selected transcript profile, quality verdict,
-   evidence notes, review progress and export blockers.
-2. Make claim IDs stable. Every outline, decision, action, risk and open question shown to the user
-   must cite existing utterance/evidence IDs.
-3. Separate confirmed, candidate and unresolved claims. Extractive heuristics may propose content,
-   but may not silently upgrade review-required evidence.
-4. Produce one deterministic local bundle containing:
-   - readable notes;
-   - machine-readable evidence notes;
-   - quality verdict;
-   - selected transcript reference and fingerprint;
-   - unresolved review items;
-   - export readiness and exact next command.
-5. Make Markdown and Obsidian exports consume that bundle instead of independently rediscovering
-   profile state.
-6. Preserve guarded behavior:
-   - ready sessions may export;
-   - ready-with-review sessions remain explicit;
-   - blocked/failed sessions cannot appear complete.
-7. Add corpus checks for stale profile selection, missing evidence IDs, unsupported claims,
-   orphaned review items and nondeterministic output.
-8. Keep the normal meeting path local, resumable and bounded. No cloud or external writes.
+1. Provide the user-facing commands:
+   - `murmurmark echo-lab prepare`;
+   - `murmurmark echo-lab capture --out SESSION --scenario SCENARIO`;
+   - `murmurmark echo-lab inspect SESSION`;
+   - `murmurmark corpus echo-supervision build|replay|status`.
+   The exact user procedure lives in
+   `docs/runbooks/controlled-echo-supervision-lab.md`.
+2. Generate generic Russian remote TTS locally and fingerprint every stimulus.
+3. Run each capture through the normal durable raw writer, without Live Shadow or a second capture
+   process.
+4. Schedule silence, remote-only, local-only, keyboard/noise, controlled double-talk and protected
+   opening/backchannel phases.
+5. Record planned and actual monotonic timestamps, audio-device metadata, output volume, source WAV
+   hashes, raw hashes and derived hashes.
+6. Treat the schedule as the source of expected state. Signal metrics, local faster-whisper,
+   Target-Me and speaker state may validate or exclude an interval, never invent its ground truth.
+7. Fail closed when local speech contaminates remote-only, remote contaminates local-only, timing is
+   stale, audio clips, a validator is missing or an artifact hash changes.
+8. Materialize measured local targets, measured remote echo, aligned remote references, synthetic
+   double-talk, measured double-talk hard-test and silence/noise controls.
+9. Pair target and measured echo only inside one split. Never normalize. Exclude non-finite,
+   clipped, misaligned or incorrectly reconstructed pairs.
+10. Freeze at least four train, one dev and one controlled hard-test capture. Existing real
+    neural-AEC counterexamples remain immutable hard-test only.
+11. Produce deterministic private corpus artifacts under
+    `sessions/_reports/controlled-echo-supervision-v1/`.
+12. End with exactly one reproducible decision: `READY_FOR_ADAPTATION` or `DO_NOT_TRAIN`.
 
 ## Safety Contract
 
-- raw CAF, Echo Guard, ASR and transcript profiles are read-only;
-- notes cannot invent facts outside cited transcript/evidence rows;
-- unresolved evidence remains visible in the bundle and readable notes;
-- export cannot bypass quality/readiness blockers;
-- stale transcript or evidence fingerprints fail closed;
-- Obsidian output is a local file proposal, not an automatic vault mutation;
-- source control receives schemas, fixtures and aggregate tests, never private meeting content;
-- no LLM is required in this goal.
+- raw mic/remote CAF and production-derived artifacts are read-only after recording;
+- the laboratory never starts Live Shadow, a second recorder, cloud processing or training;
+- `speaker_state` is corroborating evidence, not truth;
+- missing faster-whisper, Target-Me, source audio or provenance excludes affected intervals;
+- user voice, prompts, WAV files and work content stay ignored and local;
+- tracked files may contain schemas, generic policy, synthetic fixtures and aggregate metrics only;
+- synthetic and measured double-talk remain explicitly distinguishable;
+- hard-test sessions and existing real counterexamples never enter train or dev;
+- production Echo Guard and ASR remain unchanged.
 
 ## Definition Of Done
 
-- one versioned handoff bundle is the source of truth for notes and export;
-- every user-visible claim has valid evidence IDs;
-- selected transcript/profile and fingerprints agree with readiness;
-- unresolved review burden is present in JSON and Markdown;
-- guarded export consumes the handoff and rejects stale or blocked input;
-- repeated runs are byte-stable;
-- fixture and real-session corpus checks cover ready, review-required, blocked and no-speech paths;
-- existing v1 notes/export behavior remains available through compatible aliases where needed;
-- capture, audio preprocessing, ASR and transcript outputs are unchanged;
-- README, architecture, contracts, runbook, roadmap and OpsKarta are synchronized;
-- tests pass, changes are committed and pushed, and the tree is clean.
+- the complete CLI command surface works and has one accurate capture runbook;
+- at least six accepted speaker-mode sessions exist: four train, one dev and one hard-test;
+- every phase has provenance, an outcome and explicit inclusion or exclusion reasons;
+- train contains at least `480s` local-only, `480s` remote-only and `1800s` synthetic mixtures;
+- dev contains at least `120s` local-only, `120s` remote-only and `300s` synthetic mixtures;
+- controlled hard-test contains at least `60s` measured double-talk;
+- at least 30 protected local items and 10 opening/backchannel items are retained;
+- session leakage is zero and existing real counterexamples remain hard-test only;
+- reconstruction, clipping, finite-audio, contamination, privacy and immutability gates pass;
+- replay is byte-stable and SHA tampering fails closed;
+- the final decision is `READY_FOR_ADAPTATION` or a precise `DO_NOT_TRAIN`;
+- no training or production promotion has run;
+- README, architecture, contracts, runbook, roadmap and OpsKarta agree;
+- all checks pass, changes are committed and pushed, and the tree is clean.
+
+## Required Private Outputs
+
+```text
+sessions/_reports/controlled-echo-supervision-v1/
+  frozen_corpus.json
+  phase_inventory.jsonl
+  exclusion_report.json
+  split_manifest.json
+  supervision_manifest.jsonl
+  oracle_report.json
+  privacy_licensing_manifest.json
+  corpus_decision.json
+  corpus_decision.md
+  replay_report.json
+  examples/
+```
 
 ## Route After This Goal
 
 ```mermaid
 flowchart LR
-    A["Evidence Notes<br/>And Export v2"]
-    B["Release-quality CLI"]
-    C["Optional remote diarization<br/>and rich transcript"]
-    D["Optional evidence-guarded<br/>LLM synthesis"]
+    A["Controlled Echo<br/>Supervision Lab v1"]
+    B{"Corpus decision"}
+    C["Speaker-Preserving<br/>Neural Echo v2"]
+    D["Evidence Notes<br/>And Export v2"]
+    E["Release-quality CLI"]
 
     A --> B
-    B -.-> C
-    C -.-> D
+    B -->|"READY_FOR_ADAPTATION"| C
+    B -->|"DO_NOT_TRAIN"| D
+    C --> D
+    D --> E
 ```
 
 ## Out Of Scope
 
-- capture, Echo Guard or ASR changes;
-- neural echo training;
+- model training or fine-tuning;
+- capture, main ASR or production Echo Guard changes;
+- cloud services;
+- publication of the private corpus or weights;
+- mandatory external microphones;
 - individual remote-speaker diarization;
-- generated LLM summaries;
-- automatic writes to external systems;
 - UI.

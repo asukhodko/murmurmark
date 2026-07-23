@@ -730,3 +730,9 @@ failure, move to a materially different bounded hypothesis rather than loosening
 
 The product goal is not studio-quality microphone audio. The product goal is to avoid treating
 leaked remote speech as the user's speech without deleting the user's real words.
+
+## Controlled Echo Supervision Lab v1
+
+Use the standalone
+[Controlled Echo Supervision Lab v1 runbook](controlled-echo-supervision-lab.md). It contains the
+complete preflight, acoustic rules, six frozen scenarios, inspection commands and recovery path.

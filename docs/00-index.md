@@ -27,31 +27,31 @@ Read in this order:
 23. [First recording runbook](runbooks/first-recording.md)
 24. [Meeting cheat sheet](runbooks/meeting-cheatsheet.md)
 25. [Echo Guard delay lab](runbooks/echo-guard-lab.md)
-26. [Simple whisper.cpp transcription](runbooks/transcribe-simple-whispercpp.md)
-27. [Causal recovery generalization runbook](runbooks/causal-recovery-generalization.md)
-28. [Tradeoffs](decisions/tradeoffs.md)
-29. [RFC-0001](rfc/0001-v1-scope.md)
-30. [ADR directory](adr/)
-31. [ADR-0008](adr/0008-use-screencapturekit-for-first-cli-smoke.md)
-32. [ADR-0009](adr/0009-derived-echo-suppression-only.md)
-33. [ADR-0010](adr/0010-use-preserve-local-fir-for-current-echo-guard.md)
-34. [Talk validation log](testing/2026-06-22-talk-validation.md)
-35. [Echo Guard Local FIR validation log](testing/2026-06-23-echo-guard-local-fir.md)
-36. [Mic remote bleed reduction](backlog/mic-remote-bleed-reduction.md)
-37. [Complete echo removal research](research/2026-06-30-complete-echo-removal.md)
-38. [Echo Suppression Promotion v1 result](research/2026-07-23-echo-suppression-promotion-v1.md)
-39. [Neural Residual Echo Suppression v1 result](research/2026-07-23-neural-residual-echo-v1.md)
-40. [Speaker-Preserving Echo Adaptation Corpus v1 result](research/2026-07-23-speaker-preserving-echo-adaptation-corpus-v1.md)
-41. [Planning and development history](history/README.md)
+26. [Controlled Echo Supervision Lab](runbooks/controlled-echo-supervision-lab.md)
+27. [Simple whisper.cpp transcription](runbooks/transcribe-simple-whispercpp.md)
+28. [Causal recovery generalization runbook](runbooks/causal-recovery-generalization.md)
+29. [Tradeoffs](decisions/tradeoffs.md)
+30. [RFC-0001](rfc/0001-v1-scope.md)
+31. [ADR directory](adr/)
+32. [ADR-0008](adr/0008-use-screencapturekit-for-first-cli-smoke.md)
+33. [ADR-0009](adr/0009-derived-echo-suppression-only.md)
+34. [ADR-0010](adr/0010-use-preserve-local-fir-for-current-echo-guard.md)
+35. [Talk validation log](testing/2026-06-22-talk-validation.md)
+36. [Echo Guard Local FIR validation log](testing/2026-06-23-echo-guard-local-fir.md)
+37. [Mic remote bleed reduction](backlog/mic-remote-bleed-reduction.md)
+38. [Complete echo removal research](research/2026-06-30-complete-echo-removal.md)
+39. [Echo Suppression Promotion v1 result](research/2026-07-23-echo-suppression-promotion-v1.md)
+40. [Neural Residual Echo Suppression v1 result](research/2026-07-23-neural-residual-echo-v1.md)
+41. [Speaker-Preserving Echo Adaptation Corpus v1 result](research/2026-07-23-speaker-preserving-echo-adaptation-corpus-v1.md)
+42. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
 Planning snapshot: 2026-07-23. Speaker-Preserving Echo Adaptation Corpus v1 completed with
-reproducible `DO_NOT_TRAIN`: privacy and session-disjoint splits passed, but no remote-only interval
-passed the frozen confidence gate, so no valid echo supervision or synthetic pair exists. Replay
-matched `414/414` files, no training ran and `local_fir` remains production. Evidence Notes And
-Export v2 is now the current executable product goal: produce one deterministic, evidence-backed
-handoff bundle with explicit review and export readiness.
+reproducible `DO_NOT_TRAIN`: no ordinary-meeting remote-only interval passed the frozen confidence
+gate. Controlled Echo Supervision Lab v1 is now the executable goal. It creates measured
+speaker-mode echo and local targets under a frozen protocol, then issues `READY_FOR_ADAPTATION` or a
+precise `DO_NOT_TRAIN`. No training runs and `local_fir_role_masked` remains production.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

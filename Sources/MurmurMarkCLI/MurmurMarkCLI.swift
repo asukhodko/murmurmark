@@ -205,6 +205,8 @@ struct MurmurMark {
                 try NotesCommands.notes(args)
             case "transcript":
                 try TranscriptCommands.transcript(args)
+            case "echo-lab":
+                try EchoLabCommands.echoLab(args)
             case "corpus":
                 try CorpusCommands.corpus(args)
             case "live":
@@ -296,6 +298,9 @@ struct MurmurMark {
           murmurmark synthesize ./session|latest [--transcript-profile auto] [--sessions-root ./sessions]
           murmurmark notes ./session|latest [--kind notes|verdict|review-items|evidence] [--profile auto|current|NAME] [--path-only|--cat]
           murmurmark transcript ./session|latest [--profile auto] [--path-only|--cat] [--sessions-root ./sessions]
+          murmurmark echo-lab prepare [--sessions-root ./sessions]
+          murmurmark echo-lab capture --out ./session --scenario SCENARIO [--sessions-root ./sessions]
+          murmurmark echo-lab inspect ./session [--sessions-root ./sessions]
           murmurmark finish [./session|latest] [--format markdown|obsidian] [--profile auto] [--out-dir exports/private]
                              [--force-export] [--skip-retention] [--sessions-root ./sessions]
           murmurmark export ./session|latest [--format markdown|obsidian] [--profile auto] [--out-dir exports/private]
@@ -335,6 +340,7 @@ struct MurmurMark {
           murmurmark corpus local-recall [all|latest|./session...] [--audit] [--sessions-root ./sessions]
           murmurmark corpus local-recall-repair [all|latest|./session...] [--repair] [--sessions-root ./sessions]
           murmurmark corpus remote-leak [all|latest|./session...] [--plan] [--sessions-root ./sessions]
+          murmurmark corpus echo-supervision build|replay|status [--sessions-root ./sessions]
           murmurmark corpus live [all|latest|./session...] [--refresh] [--target-live-sessions 3] [--sessions-root ./sessions]
           murmurmark live status [all|latest|./session...] [--refresh] [--sessions-root ./sessions]
           murmurmark live watch SESSION|latest [--poll-sec SEC] [--diagnostic-draft] [--sessions-root ./sessions]
@@ -1025,6 +1031,10 @@ enum DoctorChecks {
             "scripts/run-asr-positive-echo-candidate.py",
             "scripts/report-asr-positive-echo-candidate-corpus.py",
             "scripts/echo-suppression-promotion-v1.py",
+            "scripts/controlled-echo-supervision-lab.py",
+            "scripts/build-controlled-echo-supervision-v1.py",
+            "scripts/controlled_echo_supervision.py",
+            "scripts/controlled_echo_supervision_corpus.py",
             "scripts/probe-review-lane-pack-audio.py",
             "scripts/report-session-quality.py",
             "scripts/apply-retention-policy.py",
@@ -6024,6 +6034,70 @@ enum ExperimentCommands {
     }
 }
 
+enum EchoLabCommands {
+    static func echoLab(_ args: [String]) throws {
+        if args.isEmpty || ArgumentEditing.hasHelpFlag(args) {
+            printHelp()
+            return
+        }
+        var forwarded = args
+        let subcommand = forwarded.removeFirst()
+        guard ["prepare", "capture", "inspect"].contains(subcommand) else {
+            throw CLIError("unknown echo-lab command: \(subcommand)")
+        }
+        if subcommand == "capture" {
+            let argument = CommandLine.arguments[0]
+            let localCandidate = URL(fileURLWithPath: argument).standardizedFileURL
+            let executable: URL
+            if FileManager.default.isExecutableFile(atPath: localCandidate.path) {
+                executable = localCandidate
+            } else if let resolved = Tooling.which(argument) {
+                executable = URL(fileURLWithPath: resolved)
+            } else {
+                throw CLIError("cannot resolve the current murmurmark executable: \(argument)")
+            }
+            forwarded += ["--murmurmark-executable", executable.path]
+        }
+        let status = try Tooling.runPathAllowingExitCodes(
+            try PythonRuntime.resolve(),
+            [try script().path, subcommand] + forwarded,
+            allowedExitCodes: [0, 2]
+        )
+        if status != 0 {
+            throw CLIError(
+                "echo-lab \(subcommand) did not pass its frozen gates; inspect the reported local artifacts"
+            )
+        }
+    }
+
+    private static func script() throws -> URL {
+        let url = PathURLs.fileURL("scripts/controlled-echo-supervision-lab.py")
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("echo-lab script not found: \(url.path)")
+        }
+        return url
+    }
+
+    private static func printHelp() {
+        print("""
+        usage:
+          murmurmark echo-lab prepare [--policy policies/controlled-echo-supervision-v1.json]
+                                      [--sessions-root ./sessions]
+          murmurmark echo-lab capture --out ./session --scenario SCENARIO
+                                      [--policy policies/controlled-echo-supervision-v1.json]
+                                      [--sessions-root ./sessions]
+          murmurmark echo-lab inspect ./session
+                                      [--policy policies/controlled-echo-supervision-v1.json]
+                                      [--model ~/.local/share/murmurmark/models/faster-whisper/large-v3]
+                                      [--sessions-root ./sessions]
+
+        capture uses the normal durable raw writer. It never enables Live Shadow or a second
+        recorder. inspect fails closed when timing, signal, local ASR or Target-Me evidence is
+        incomplete.
+        """)
+    }
+}
+
 enum CorpusCommands {
     static func corpus(_ args: [String]) throws {
         if args.isEmpty || ArgumentEditing.hasHelpFlag([args.first ?? ""]) {
@@ -6033,7 +6107,8 @@ enum CorpusCommands {
         guard let subcommand = args.first else {
             throw CLIError(
                 "corpus requires process, build, evaluate, train-audio-judge, taxonomy, gate, order, " +
-                    "local-recall, local-recall-repair, boundary, remote-leak, echo-candidate, or report"
+                "local-recall, local-recall-repair, boundary, remote-leak, echo-candidate, " +
+                    "echo-supervision, or report"
             )
         }
         var forwarded = Array(args.dropFirst())
@@ -6197,6 +6272,36 @@ enum CorpusCommands {
                     "corpus",
                 ] + sessions.map(\.path) + forwarded
             )
+        case "echo-supervision", "echo_supervision":
+            if forwarded.isEmpty || ArgumentEditing.hasHelpFlag(forwarded) {
+                Swift.print(
+                    "usage: murmurmark corpus echo-supervision build|replay|status " +
+                        "[--policy policies/controlled-echo-supervision-v1.json] " +
+                        "[--out-dir sessions/_reports/controlled-echo-supervision-v1] " +
+                        "[--sessions-root ./sessions]"
+                )
+                return
+            }
+            guard let action = forwarded.first, ["build", "replay", "status"].contains(action) else {
+                throw CLIError("corpus echo-supervision requires build, replay, or status")
+            }
+            forwarded.removeFirst()
+            let status = try Tooling.runPathAllowingExitCodes(
+                try PythonRuntime.resolve(),
+                [
+                    try script("build-controlled-echo-supervision-v1.py").path,
+                    action,
+                    "--sessions-root",
+                    sessionsRoot.path,
+                ] + forwarded,
+                allowedExitCodes: [0, 2]
+            )
+            if status != 0 {
+                throw CLIError(
+                    "controlled echo supervision replay failed; inspect " +
+                        "sessions/_reports/controlled-echo-supervision-v1/replay_report.json"
+                )
+            }
         case "live":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 try Tooling.runPath(try PythonRuntime.resolve(), [try script("report-live-corpus-gates.py").path] + forwarded)
@@ -6357,6 +6462,7 @@ enum CorpusHelp {
           murmurmark corpus echo-suppression-promotion [all|latest|./session...]
                                              [--run] [--asr-probes] [--full-shadow]
                                              [--sessions-root ./sessions]
+          murmurmark corpus echo-supervision build|replay|status [--sessions-root ./sessions]
           murmurmark corpus live [all|latest|./session...] [--refresh] [--target-live-sessions 3] [--sessions-root ./sessions]
           murmurmark corpus report
 

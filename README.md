@@ -233,9 +233,11 @@ measured echo supervision or synthetic pair could be built. Hard-test coverage a
 `6s` double-talk and zero independently confirmed opening acknowledgements. Training on this
 evidence would manufacture ground truth.
 
-The current product goal is **Evidence Notes And Export v2**: turn the selected transcript,
-structured verdict and unresolved review evidence into one deterministic handoff bundle. Every
-claim must cite evidence IDs, and blocked or review-required sessions must remain explicit.
+The current goal is **Controlled Echo Supervision Lab v1**. It replaces unreliable supervision
+mined from ordinary meetings with a controlled speaker-mode protocol: measured remote-only echo,
+measured local-only `Me`, synthetic double-talk and an isolated measured hard test. The result is
+either `READY_FOR_ADAPTATION` or a precise, reproducible `DO_NOT_TRAIN`; this step does not train a
+model or change production.
 
 The stable batch CLI already supports durable capture, resumable processing, evidence-backed review,
 guarded export and retention planning. `local_speech_completion_v2` is promoted for its frozen
@@ -267,7 +269,8 @@ Mixed-Utterance Remote Span Separation (done, DO_NOT_PROMOTE)
 -> Echo Suppression Promotion v1 (done, DO_NOT_PROMOTE)
 -> Neural Residual Echo Suppression v1 (done, DO_NOT_PROMOTE)
 -> Speaker-Preserving Echo Adaptation Corpus v1 (done, DO_NOT_TRAIN)
--> Evidence Notes and Export v2 (current)
+-> Controlled Echo Supervision Lab v1 (current)
+-> Evidence Notes and Export v2
 -> Release-quality CLI
 ```
 
@@ -276,6 +279,44 @@ promotion remains blocked; Live Shadow is maintained as advisory evidence only.
 
 See the [current goal](docs/project/current-goal.md), [readable roadmap](docs/roadmap/murmurmark-cli-roadmap.md)
 and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
+
+## Controlled Echo Supervision Lab
+
+This private local lab is the current bounded path toward speaker-preserving neural Echo
+suppression. It does not train a model or change production.
+
+Prepare generic Russian TTS once:
+
+```bash
+murmurmark echo-lab prepare
+```
+
+Each capture uses the ordinary durable raw writer, built-in speakers and no Live Shadow:
+
+```bash
+SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)-echo-train-quiet"
+echo "SESSION=\"$SESSION\""
+
+murmurmark echo-lab capture \
+  --out "$SESSION" \
+  --scenario speaker_train_quiet
+
+murmurmark echo-lab inspect "$SESSION"
+```
+
+Repeat with the six frozen scenarios shown in the
+[Controlled Echo Supervision Lab runbook](docs/runbooks/controlled-echo-supervision-lab.md).
+Then build and replay the private corpus:
+
+```bash
+murmurmark corpus echo-supervision build
+murmurmark corpus echo-supervision replay
+murmurmark corpus echo-supervision status
+```
+
+The only valid decisions are `READY_FOR_ADAPTATION` and `DO_NOT_TRAIN`. Missing local models,
+contaminated phases, changed hashes or insufficient coverage fail closed. Raw CAF, generated WAV,
+spoken prompt evidence and corpus examples stay under ignored `sessions/`.
 
 ## Scope And Limitations
 

@@ -168,10 +168,11 @@ hard-test coverage also stopped at `6s` double-talk and no independently confirm
 acknowledgement. Replay matched `414/414` files, no training ran and production stayed on
 `local_fir`.
 
-The recommended bounded step is now Evidence Notes And Export v2. It consolidates the selected
-transcript, evidence-backed notes, quality verdict, unresolved review burden and guarded export
-readiness into one deterministic handoff contract. The failed live-recovery profile remains
-diagnostic evidence rather than another user-facing branch.
+The recommended bounded step is now Controlled Echo Supervision Lab v1. It obtains the missing
+remote-only echo and local-only target under a frozen speaker-mode schedule, keeps train/dev/hard
+sessions disjoint and ends in `READY_FOR_ADAPTATION` or `DO_NOT_TRAIN`. It does not train or change
+production. Evidence Notes And Export v2 follows this bounded decision. The failed live-recovery
+profile remains diagnostic evidence rather than another user-facing branch.
 
 ## Route To Reliability
 

@@ -7807,3 +7807,76 @@ outputs:
   require_human_review_before_docs_update: true
   reject_uncited_facts: true
 ```
+
+## Controlled Echo Supervision Lab
+
+The tracked contract is `policies/controlled-echo-supervision-v1.json`. All content-bearing outputs
+below are private session artifacts and must remain under ignored `sessions/`.
+
+### `murmurmark.controlled_echo_schedule/v1`
+
+Per capture:
+
+```text
+derived/echo-lab/echo_lab_schedule.json
+```
+
+Required fields include `policy_sha256`, `scenario`, `split`, `total_duration_sec`, ordered
+`phases[]` with planned boundaries, and `prompts[]` with stable IDs and text hashes.
+
+### `murmurmark.controlled_echo_capture/v1`
+
+```text
+derived/echo-lab/capture_manifest.json
+```
+
+It records session/scenario/split, frozen policy hash, stimulus manifest fingerprint, raw and
+session-file fingerprints, device metadata, output volume before/after, and:
+
+```json
+{
+  "capture_mode": {
+    "durable_raw_writer": true,
+    "live_shadow": false,
+    "second_capture": false,
+    "target_bundle": "system"
+  }
+}
+```
+
+### `murmurmark.controlled_echo_inspection/v1`
+
+```text
+derived/echo-lab/inspection.json
+derived/echo-lab/phase_inventory.jsonl
+```
+
+Each phase has `accepted`, `outcome`, explicit `reasons`, signal metrics, hashed ASR/Target-Me
+evidence and artifact fingerprints. Required validators missing or disagreeing with the schedule
+must exclude the interval.
+
+### Corpus Outputs
+
+`sessions/_reports/controlled-echo-supervision-v1/` contains:
+
+- `murmurmark.controlled_echo_frozen_corpus/v1`;
+- phase and exclusion inventories;
+- whole-session split manifest;
+- `murmurmark.controlled_echo_supervision_item/v1` rows;
+- oracle and privacy/licensing reports;
+- `murmurmark.controlled_echo_corpus_decision/v1`;
+- deterministic replay report and private WAV examples.
+
+A synthetic item must name its target, measured echo, aligned remote reference, gain,
+reconstruction error and split. `measured` and `synthetic` are mutually explicit. Hard-test items
+must never have `training_eligible: true`.
+
+The decision enum is closed:
+
+```text
+READY_FOR_ADAPTATION
+DO_NOT_TRAIN
+```
+
+Neither value changes production. Missing inputs, stale SHA-256 values or a failed replay resolve to
+`DO_NOT_TRAIN`.

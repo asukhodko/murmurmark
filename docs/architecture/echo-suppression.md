@@ -925,6 +925,59 @@ Acceptance:
 - `quality_report.json` records Echo Guard transcript exclusions;
 - `echo_reconciliation_report.json` records the matching evidence.
 
+## Controlled Echo Supervision Lab v1
+
+The passive adaptation corpus ended in `DO_NOT_TRAIN` because ordinary meetings did not contain
+independently proven remote-only intervals. The controlled lab creates the missing supervision
+without weakening that gate.
+
+### Truth Hierarchy
+
+```mermaid
+flowchart LR
+    P["Frozen phase schedule"]
+    R["Durable raw mic/remote CAF"]
+    V["Signal, local ASR and Target-Me validators"]
+    I["Included or excluded phase"]
+    C["Session-disjoint corpus oracle"]
+    D{"READY_FOR_ADAPTATION<br/>or DO_NOT_TRAIN"}
+
+    P --> R --> V --> I --> C --> D
+```
+
+The schedule is the source of expected state. Validators may confirm it or exclude a contaminated
+interval. They cannot relabel an ordinary interval as clean supervision. `speaker_state` is
+corroborating evidence only.
+
+### Signal Model
+
+```text
+x = digital remote played through the normal speakers
+d = measured acoustic echo in mic while the user is silent
+s = measured local Me while remote is silent
+y = s + gain * d
+
+input  = y + aligned x
+target = s
+```
+
+The lab records silence/background, remote-only, local-only, keyboard/noise, measured double-talk
+and opening/backchannel phases. Synthetic pairs are formed only inside one split, without
+normalization. Non-finite, clipped, misaligned, contaminated or incorrectly reconstructed items are
+excluded.
+
+### Safety Boundary
+
+- capture calls the normal durable raw writer and never enables Live Shadow;
+- no second recorder, cloud service, training or production promotion is started;
+- raw and production fingerprints are frozen and verified during build and replay;
+- whole sessions own train, dev or hard-test roles;
+- existing real neural-AEC counterexamples stay immutable hard-test only;
+- missing faster-whisper or Target-Me fails closed;
+- private voice, prompt evidence and audio remain ignored under `sessions/`.
+
+The current production profile remains `local_fir_role_masked` regardless of the lab result.
+
 ## References
 
 - [WebRTC Audio Processing API](https://webrtc.googlesource.com/src/+/refs/heads/main/api/audio/audio_processing.h)

@@ -257,12 +257,26 @@ nodes:
       double-talk и не подтвердил opening acknowledgements. Replay совпал для 414/414 файлов;
       production не менялся.
 
+  quality-controlled-echo-supervision-lab-v1:
+    title: "Controlled Echo Supervision Lab v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-speaker-preserving-echo-adaptation-corpus-v1, corpus-regression]
+    status: current
+    effort: 12
+    notes: |
+      Создать управляемый speaker-mode протокол, где remote-only echo, local-only target и
+      synthetic double-talk имеют известное происхождение. Собрать минимум 4 train, 1 dev и
+      1 controlled hard-test captures, проверить privacy, contamination, split isolation и
+      oracle gates. Завершить READY_FOR_ADAPTATION либо точным DO_NOT_TRAIN; не обучать модель
+      и не менять production.
+
   product-evidence-export-v2:
     title: "Evidence Notes And Export v2"
     kind: task
     parent: murmurmark-cli
-    deps: [quality-speaker-preserving-echo-adaptation-corpus-v1]
-    status: current
+    deps: [quality-controlled-echo-supervision-lab-v1]
+    status: next
     effort: 7
     notes: |
       Улучшить review-aware notes и пользовательский handoff поверх выбранного transcript profile.
@@ -329,7 +343,7 @@ nodes:
     title: "Speaker-Preserving Neural Echo v2"
     kind: task
     parent: parallel-research
-    deps: [quality-speaker-preserving-echo-adaptation-corpus-v1]
+    deps: [quality-controlled-echo-supervision-lab-v1]
     status: blocked
     effort: 6
     notes: |
@@ -400,11 +414,11 @@ views:
         nodes: [working-capabilities, corpus-regression]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [product-evidence-export-v2]
+        nodes: [quality-controlled-echo-supervision-lab-v1]
       dependent:
         title: "Следующие зависимые этапы"
         nodes:
-          - product-release-quality-cli
+          - product-evidence-export-v2
 
   critical-path:
     title: "Критический CLI-путь"
@@ -422,6 +436,7 @@ views:
           - quality-echo-suppression-promotion
           - quality-neural-residual-echo-v1
           - quality-speaker-preserving-echo-adaptation-corpus-v1
+          - quality-controlled-echo-supervision-lab-v1
           - product-evidence-export-v2
           - product-release-quality-cli
 
@@ -469,6 +484,7 @@ views:
           - quality-echo-suppression-promotion
           - quality-neural-residual-echo-v1
           - quality-speaker-preserving-echo-adaptation-corpus-v1
+          - quality-controlled-echo-supervision-lab-v1
           - product-evidence-export-v2
           - product-release-quality-cli
           - parallel-research
@@ -477,8 +493,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Evidence Notes And Export v2: превратить выбранный transcript profile, structured quality verdict и unresolved review evidence в один deterministic handoff bundle, который либо готов к локальному Markdown/Obsidian export, либо явно заблокирован с точными evidence IDs, без LLM и внешних записей."
-      success_by_next_sync: "Один byte-stable handoff bundle согласует выбранный transcript, evidence-backed claims, unresolved review burden, quality verdict и guarded local export."
+      nearest_goal: "Controlled Echo Supervision Lab v1: построить локальный управляемый speaker-mode протокол с известными remote-only echo, local-only target и synthetic double-talk, собрать session-disjoint train/dev/hard-test corpus и выпустить READY_FOR_ADAPTATION либо точный DO_NOT_TRAIN без обучения и изменения production."
+      success_by_next_sync: "Tracked policy, working echo-lab CLI, six accepted captures, byte-stable corpus replay и oracle report дают воспроизводимое READY_FOR_ADAPTATION либо точный предел данных."
     defaults:
       status_progress:
         done: 1.0
@@ -500,12 +516,12 @@ x:
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
         title: "Текущая цель"
-        scope_nodes: [product-evidence-export-v2]
+        scope_nodes: [quality-controlled-echo-supervision-lab-v1]
         kind: main
         mgmt:
-          health: green
-          sync_note: "Корпус адаптации закрыт DO_NOT_TRAIN; продуктовый путь продолжает уже работающие evidence notes и guarded export."
-          next_sync_goal: "Свести transcript, verdict, review evidence и export readiness в один deterministic handoff contract."
+          health: yellow
+          sync_note: "Пассивный корпус закрыт DO_NOT_TRAIN из-за отсутствия подтверждённого remote-only supervision; управляемый capture должен создать его без подмены ground truth."
+          next_sync_goal: "Реализовать протокол, собрать шесть accepted captures и пройти contamination/privacy/oracle gates."
       dependent-path:
         title: "Зависимый путь"
         scope_nodes:
@@ -515,13 +531,14 @@ x:
           - quality-echo-suppression-promotion
           - quality-neural-residual-echo-v1
           - quality-speaker-preserving-echo-adaptation-corpus-v1
+          - quality-controlled-echo-supervision-lab-v1
           - product-evidence-export-v2
           - product-release-quality-cli
         kind: main
         mgmt:
           health: neutral
-          sync_note: "Echo adaptation закрыта DO_NOT_TRAIN; после handoff v2 остаётся release-quality CLI."
-          next_sync_goal: "Не начинать release closure до завершения handoff contract и corpus gates."
+          sync_note: "После controlled corpus decision продуктовый путь возвращается к handoff v2 и release-quality CLI."
+          next_sync_goal: "Не начинать neural training или handoff v2 до завершения текущего corpus gate."
       research:
         title: "Параллельные исследования"
         scope_nodes: [parallel-research]

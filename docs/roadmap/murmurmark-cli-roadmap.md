@@ -48,10 +48,12 @@ advisory; its promotion remains blocked by quality and runtime evidence.
 
 ## Current Goal
 
-**Evidence Notes And Export v2** is the current goal. It turns the selected transcript, structured
-quality verdict and unresolved review evidence into one deterministic handoff bundle. The bundle
-must either be ready for local Markdown/Obsidian export or remain explicitly blocked with exact
-evidence IDs and the next command. It does not require an LLM or write to external systems.
+**Controlled Echo Supervision Lab v1** is the current goal. It replaces weak labels inferred from
+ordinary meetings with a controlled speaker-mode protocol. Each capture measures remote-only echo
+through the normal speakers, local-only `Me`, keyboard/background controls, real double-talk and
+protected opening phrases. Session-disjoint train/dev/hard-test materialization must end in
+`READY_FOR_ADAPTATION` or a precise `DO_NOT_TRAIN`. No model training or production change belongs
+to this step.
 
 Two suppression families established the same safety ceiling. Classical state-level suppression
 removed `68.2845%` of bounded remote-risk, but lost protected `Me` in two speaker sessions. The
@@ -114,10 +116,11 @@ flowchart LR
     B["Done<br/>Echo Suppression Promotion v1"]
     N["Done<br/>Neural Residual Echo v1"]
     S["Done: DO_NOT_TRAIN<br/>Speaker-Preserving<br/>Adaptation Corpus v1"]
-    C["Current<br/>Evidence Notes And Export v2"]
+    C["Current<br/>Controlled Echo<br/>Supervision Lab v1"]
+    H["Next<br/>Evidence Notes And Export v2"]
     D["Release-quality CLI"]
 
-    P --> L --> A --> B --> N --> S --> C --> D
+    P --> L --> A --> B --> N --> S --> C --> H --> D
 ```
 
 ### 0. Evidence-Backed Me Completion v2
@@ -161,14 +164,21 @@ immutable counterexamples, privacy checks and byte-stable replay are available. 
 has enough local-only targets, but no remote-only examples pass the independent confidence gate;
 synthetic pairing is therefore forbidden. No training was run and production remained unchanged.
 
-### 6. Evidence Notes And Export v2
+### 6. Controlled Echo Supervision Lab v1
 
-Current. Define one versioned, byte-stable handoff contract over the selected transcript profile,
+Current. Run the normal durable recorder through a frozen phase schedule and collect at least four
+train, one dev and one controlled hard-test speaker-mode session. Accept measured echo and local
+targets only when schedule, signal, local ASR and Target-Me evidence agree. Build synthetic mixtures
+inside a split, preserve existing real counterexamples as hard-test only, and issue a deterministic
+adaptation decision. Production stays on `local_fir_role_masked`.
+
+### 7. Evidence Notes And Export v2
+
+Next. Define one versioned, byte-stable handoff contract over the selected transcript profile,
 quality verdict, evidence notes, unresolved review burden and export readiness. Every visible claim
-must cite valid evidence IDs; stale or blocked input must fail closed. Markdown and Obsidian exports
-consume this bundle instead of independently reconstructing profile state.
+must cite valid evidence IDs; stale or blocked input must fail closed.
 
-### 7. Release-quality CLI
+### 8. Release-quality CLI
 
 Finalize the supported environment, installation, model/config handling, acceptance, release notes
 and public operational contract. UI is not required.
@@ -177,7 +187,7 @@ and public operational contract. UI is not required.
 
 ```mermaid
 flowchart LR
-    Q["Adaptation corpus decision"]
+    Q["Controlled supervision decision"]
     E["Speaker-Preserving Neural Echo v2"]
     D["Remote diarization"]
     S["Speaker map"]
@@ -190,9 +200,8 @@ flowchart LR
     Q -.-> V
 ```
 
-Speaker-Preserving Neural Echo v2 is blocked by `DO_NOT_TRAIN`. It may reopen only after materially
-new leakage-free measured supervision appears, such as controlled clean targets for remote-only and
-double-talk. Lowering the frozen confidence gate does not count as new evidence.
+Speaker-Preserving Neural Echo v2 remains blocked until Controlled Echo Supervision Lab v1 produces
+`READY_FOR_ADAPTATION`. Lowering a frozen confidence gate does not count as new evidence.
 
 Remote diarization works on authoritative `remote` and does not require complete Echo suppression.
 It starts after base quality closure, first produces anonymous stable speaker IDs, then an
