@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.2"
+SCRIPT_VERSION = "0.3.3"
 INPUT_PROFILE_DEFAULT = "shadow_v2"
 OUTPUT_PROFILE_DEFAULT = "audit_cleanup_v1"
 TOKEN_RE = re.compile(r"[0-9A-Za-zА-Яа-яЁё_./+-]+")
@@ -497,7 +497,47 @@ def audio_review_summary_to_utterance(row: dict[str, Any], fallback_start: float
     }
 
 
-def normalize_audio_review_record(row: dict[str, Any], me_row: dict[str, Any], remote_row: dict[str, Any] | None) -> dict[str, Any]:
+def audio_review_identity(
+    row: dict[str, Any],
+    snapshot: dict[str, Any],
+    current: dict[str, Any],
+) -> dict[str, Any]:
+    interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+    evidence_start = float(interval.get("start", snapshot.get("start", 0.0)) or 0.0)
+    evidence_end = float(interval.get("end", snapshot.get("end", evidence_start)) or evidence_start)
+    current_start = float(current.get("start", 0.0) or 0.0)
+    current_end = float(current.get("end", current_start) or current_start)
+    overlap_sec = max(0.0, min(evidence_end, current_end) - max(evidence_start, current_start))
+    current_duration = max(0.001, current_end - current_start)
+    evidence_duration = max(0.001, evidence_end - evidence_start)
+    snapshot_text = normalize_text(snapshot.get("text"))
+    current_text = normalize_text(current.get("text"))
+    text_similarity = SequenceMatcher(None, snapshot_text, current_text).ratio() if snapshot_text and current_text else 0.0
+    reasons: list[str] = []
+    if overlap_sec < 0.05:
+        reasons.append("audio_review_interval_does_not_overlap_current_utterance")
+    if text_similarity < 0.75:
+        reasons.append("audio_review_text_does_not_match_current_utterance")
+    return {
+        "valid": not reasons,
+        "reason": "matched_current_utterance" if not reasons else ",".join(reasons),
+        "evidence_start": round(evidence_start, 3),
+        "evidence_end": round(evidence_end, 3),
+        "current_start": round(current_start, 3),
+        "current_end": round(current_end, 3),
+        "overlap_sec": round(overlap_sec, 3),
+        "current_coverage": round(min(1.0, overlap_sec / current_duration), 6),
+        "evidence_coverage": round(min(1.0, overlap_sec / evidence_duration), 6),
+        "text_similarity": round(text_similarity, 6),
+    }
+
+
+def normalize_audio_review_record(
+    row: dict[str, Any],
+    me_row: dict[str, Any],
+    remote_row: dict[str, Any] | None,
+    identity: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
     start = float(interval.get("start", me_row.get("start", 0.0)) or 0.0)
     end = float(interval.get("end", me_row.get("end", start)) or start)
@@ -507,7 +547,14 @@ def normalize_audio_review_record(row: dict[str, Any], me_row: dict[str, Any], r
     scores = row.get("scores") if isinstance(row.get("scores"), dict) else {}
     classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
     me_duration = max(0.001, float(me_row.get("end", end) or end) - float(me_row.get("start", start) or start))
-    coverage = min(1.0, duration_sec / me_duration)
+    if identity:
+        coverage = float(identity.get("current_coverage", 0.0) or 0.0)
+    else:
+        overlap_sec = max(
+            0.0,
+            min(end, float(me_row.get("end", end) or end)) - max(start, float(me_row.get("start", start) or start)),
+        )
+        coverage = min(1.0, overlap_sec / me_duration)
     remote = remote_row or {"id": "", "start": start, "end": end, "text": "", "quality": {}}
     label = str(classification.get("label") or "")
     top_score = scores.get(label, classification.get("top_score", 0))
@@ -546,6 +593,7 @@ def normalize_audio_review_record(row: dict[str, Any], me_row: dict[str, Any], r
                 "me_coverage": round(coverage, 6),
                 "time_overlap_ratio": round(coverage, 6),
                 "near_boundary": True,
+                "utterance_identity": identity or {},
             },
             "audio_review": features,
         },
@@ -553,8 +601,12 @@ def normalize_audio_review_record(row: dict[str, Any], me_row: dict[str, Any], r
     }
 
 
-def audio_review_by_me(records: list[dict[str, Any]], existing_ids: set[str]) -> dict[str, list[dict[str, Any]]]:
+def audio_review_by_me(
+    records: list[dict[str, Any]],
+    current_by_id: dict[str, dict[str, Any]],
+) -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any]]]:
     grouped: dict[str, list[dict[str, Any]]] = {}
+    stale: list[dict[str, Any]] = []
     for row in records:
         classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
         label = str(classification.get("label") or "")
@@ -569,10 +621,17 @@ def audio_review_by_me(records: list[dict[str, Any]], existing_ids: set[str]) ->
         remote = remote_rows[0] if remote_rows else None
         for me in me_rows:
             utterance_id = str(me.get("id") or "")
-            if not utterance_id or utterance_id not in existing_ids:
+            current = current_by_id.get(utterance_id)
+            if not utterance_id or current is None:
                 continue
-            grouped.setdefault(utterance_id, []).append(normalize_audio_review_record(row, me, remote))
-    return grouped
+            identity = audio_review_identity(row, me, current)
+            normalized = normalize_audio_review_record(row, current, remote, identity)
+            if not identity["valid"]:
+                normalized["source"] = "stale_audio_review"
+                stale.append(normalized)
+                continue
+            grouped.setdefault(utterance_id, []).append(normalized)
+    return grouped, stale
 
 
 def audio_review_record_me_ids(row: dict[str, Any]) -> set[str]:
@@ -587,7 +646,8 @@ def audio_review_record_me_ids(row: dict[str, Any]) -> set[str]:
 
 
 def active_audio_review_seconds(records: list[dict[str, Any]], utterances: list[dict[str, Any]]) -> float:
-    selected_me_ids = {str(row.get("id")) for row in utterances if role_name(row) == "Me"}
+    selected_me = {str(row.get("id")): row for row in utterances if role_name(row) == "Me"}
+    selected_me_ids = set(selected_me)
     intervals: list[tuple[float, float]] = []
     for row in records:
         classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
@@ -598,6 +658,17 @@ def active_audio_review_seconds(records: list[dict[str, Any]], utterances: list[
         me_ids = audio_review_record_me_ids(row)
         if label != "lost_me" and me_ids and not (me_ids & selected_me_ids):
             continue
+        if label != "lost_me" and me_ids:
+            summaries = row.get("utterances") if isinstance(row.get("utterances"), list) else []
+            identity_valid = any(
+                audio_review_identity(row, item, selected_me[str(item.get("id"))])["valid"]
+                for item in summaries
+                if isinstance(item, dict)
+                and audio_review_role(item) == "me"
+                and str(item.get("id") or "") in selected_me
+            )
+            if not identity_valid:
+                continue
         interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
         start = float(interval.get("start", 0.0) or 0.0)
         end = float(interval.get("end", start) or start)
@@ -625,7 +696,7 @@ def audio_judge_predictions_by_audit_id(predictions: list[dict[str, Any]], sessi
 def audio_judge_by_me(
     audio_review_records: list[dict[str, Any]],
     predictions: list[dict[str, Any]],
-    existing_ids: set[str],
+    current_by_id: dict[str, dict[str, Any]],
     session_name: str,
 ) -> dict[str, list[dict[str, Any]]]:
     predictions_by_audit = audio_judge_predictions_by_audit_id(predictions, session_name)
@@ -647,9 +718,13 @@ def audio_judge_by_me(
         remote = remote_rows[0] if remote_rows else None
         for me in me_rows:
             utterance_id = str(me.get("id") or "")
-            if not utterance_id or utterance_id not in existing_ids:
+            current = current_by_id.get(utterance_id)
+            if not utterance_id or current is None:
                 continue
-            normalized = normalize_audio_review_record(row, me, remote)
+            identity = audio_review_identity(row, me, current)
+            if not identity["valid"]:
+                continue
+            normalized = normalize_audio_review_record(row, current, remote, identity)
             normalized["source"] = "audio_judge"
             normalized["audio_judge_prediction"] = prediction
             normalized.setdefault("classification", {})["top_score"] = round(float(prediction.get("judge_confidence", 0.0) or 0.0) * 100.0, 3)
@@ -1574,16 +1649,36 @@ def main() -> int:
     by_id = {str(row.get("id")): row for row in utterances}
     notes_ids = selected_note_ids(session)
     grouped = audit_by_me(audit_records, set(by_id))
+    stale_audio_review_records: list[dict[str, Any]] = []
     if use_audio_review:
-        for utterance_id, records in audio_review_by_me(audio_review_records, set(by_id)).items():
+        audio_review_grouped, stale_audio_review_records = audio_review_by_me(audio_review_records, by_id)
+        for utterance_id, records in audio_review_grouped.items():
             grouped.setdefault(utterance_id, []).extend(records)
     if use_audio_judge:
-        for utterance_id, records in audio_judge_by_me(audio_review_records, audio_judge_predictions, set(by_id), session.name).items():
+        for utterance_id, records in audio_judge_by_me(audio_review_records, audio_judge_predictions, by_id, session.name).items():
             grouped.setdefault(utterance_id, []).extend(records)
 
     applied: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
     patch_index = 1
+    for record in stale_audio_review_records:
+        identity = (((record.get("features") or {}).get("interval") or {}).get("utterance_identity") or {})
+        rejected.append(
+            patch_payload(
+                patch_index,
+                "rejected",
+                "ignore_stale_audio_review",
+                record,
+                {
+                    "source": "stale_audio_review",
+                    "utterance_identity_valid": False,
+                    "utterance_identity": identity,
+                    "safe_to_drop_entire_utterance": False,
+                },
+                reason="stale_audio_review_utterance_identity",
+            )
+        )
+        patch_index += 1
     dropped_ids: set[str] = set()
     replacements: dict[str, list[dict[str, Any]]] = {}
 
@@ -1797,6 +1892,7 @@ def main() -> int:
             "applied_patches": len(applied),
             "rejected_patches": len(rejected),
             "audio_review_records": len(audio_review_records),
+            "stale_audio_review_records": len(stale_audio_review_records),
             "audio_judge_predictions": len(audio_judge_predictions),
             "audio_review_applied_patches": sum(1 for patch in applied if patch.get("evidence", {}).get("source") == "audio_review"),
             "audio_review_rejected_patches": sum(1 for patch in rejected if patch.get("evidence", {}).get("source") == "audio_review"),

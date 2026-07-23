@@ -100,6 +100,16 @@ def main() -> int:
     )
     assert double_talk["label"] in {"confirm_me", "confirm_timing_or_doubletalk"}, double_talk
     assert double_talk["suggested_decision"] == "keep_me", double_talk
+
+    remote_contained_me = classify(
+        module,
+        "вот они прям понимают если колонка красная горит",
+        "как с этим работать то есть они прям понимали если колонка красная горит прикол",
+        "то есть вот они прям понимали если колонка красная",
+        local=70,
+    )
+    assert remote_contained_me["label"] == "uncertain", remote_contained_me
+    assert remote_contained_me["suggested_decision"] == "needs_review", remote_contained_me
     print("stronger audio judge checks passed")
     return 0
 

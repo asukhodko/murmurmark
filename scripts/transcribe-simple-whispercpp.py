@@ -3534,8 +3534,6 @@ def trim_trailing_duplicate_prefix(row: dict[str, Any], next_row: dict[str, Any]
         return None, None
     row_tokens = display_token_spans(text)
     next_tokens = display_token_spans(next_text)
-    if len(row_tokens) < 3 or len(next_tokens) < 3:
-        return None, None
 
     row_start = float(row.get("start", 0.0))
     row_end = float(row.get("end", row_start))
@@ -3545,6 +3543,48 @@ def trim_trailing_duplicate_prefix(row: dict[str, Any], next_row: dict[str, Any]
 
     row_norm = [token for token, _, _ in row_tokens]
     next_norm = [token for token, _, _ in next_tokens]
+    row_quality = row.get("quality") if isinstance(row.get("quality"), dict) else {}
+    next_quality = next_row.get("quality") if isinstance(next_row.get("quality"), dict) else {}
+    row_repair = row_quality.get("repair") if isinstance(row_quality.get("repair"), dict) else {}
+    next_repair = next_quality.get("repair") if isinstance(next_quality.get("repair"), dict) else {}
+    row_micro = row_repair.get("micro_reasr") if isinstance(row_repair.get("micro_reasr"), dict) else {}
+    next_micro = next_repair.get("micro_reasr") if isinstance(next_repair.get("micro_reasr"), dict) else {}
+    row_attempts = row_micro.get("attempts") if isinstance(row_micro.get("attempts"), list) else []
+    empty_attempt_sources = {
+        str(attempt.get("source_label") or "")
+        for attempt in row_attempts
+        if isinstance(attempt, dict)
+        and attempt.get("status") == "failed"
+        and attempt.get("reason") == "empty_micro_text"
+    }
+    strict_two_token_prefix_fragment = (
+        len(row_norm) == 2
+        and len(next_norm) >= 3
+        and next_norm[:2] == row_norm
+        and row.get("source_track") == "mic"
+        and next_row.get("source_track") == "mic"
+        and bool(row_quality.get("needs_review"))
+        and not bool(next_quality.get("needs_review"))
+        and float(row_quality.get("role_confidence", 0.0) or 0.0) <= 0.60
+        and float(next_quality.get("role_confidence", 0.0) or 0.0) >= 0.75
+        and row_end - row_start <= 4.5
+        and row_micro.get("status") == "failed"
+        and row_micro.get("reason") == "empty_micro_text"
+        and len(empty_attempt_sources) >= 3
+        and next_micro.get("status") == "ok"
+    )
+    if strict_two_token_prefix_fragment:
+        return "", {
+            "reason": "adjacent_low_confidence_empty_micro_prefix_drop",
+            "source_text": text,
+            "next_text": next_text,
+            "overlap_tokens": row_norm,
+            "empty_micro_source_count": len(empty_attempt_sources),
+        }
+
+    if len(row_tokens) < 3 or len(next_tokens) < 3:
+        return None, None
+
     if (
         len(next_norm) >= len(row_norm) + 3
         and next_norm[: len(row_norm)] == row_norm

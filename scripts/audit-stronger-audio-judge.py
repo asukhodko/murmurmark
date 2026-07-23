@@ -1001,6 +1001,14 @@ def classify_item(
         default=0.0,
     )
     decoded_remote_to_me = text_similarity(str(transcripts.get("remote", {}).get("text") or ""), me_text)
+    remote_contains_me_veto = (
+        audit_verdict != "probable_transcript_error"
+        and len(me_tokens) >= 3
+        and remote_source_tokens >= len(me_tokens)
+        and remote_source_to_me >= 0.90
+        and remote_source_to_me_containment >= 0.90
+        and best_decoded_remote_in_mic >= 0.75
+    )
     direct_decoded_remote_duplicate = (
         audit_verdict == "probable_transcript_error"
         and audit_label in {"remote_duplicate", "remote_leak"}
@@ -1100,6 +1108,14 @@ def classify_item(
         reasons.append("group-overlap confirms local-only timing overlap")
         if best_me_any_source:
             reasons.append(f"mic evidence comes from {best_me_any_source}")
+    elif remote_contains_me_veto:
+        label = "uncertain"
+        suggested = "needs_review"
+        confidence = 0.88
+        reasons.append(
+            "remote track fully contains the proposed Me phrase and the mic decode also follows remote; "
+            "local speech is not independently confirmed"
+        )
     elif me_confirmed and remote_confirmed and best_remote_in_mic < 0.68:
         label = "confirm_timing_or_doubletalk" if remote_text else "confirm_me"
         suggested = "keep_me"

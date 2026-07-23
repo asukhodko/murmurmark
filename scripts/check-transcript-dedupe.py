@@ -34,6 +34,7 @@ def row(identifier: str, text: str, start: float, end: float, confidence: float 
     return {
         "id": identifier,
         "speaker_label": "Me",
+        "source_track": "mic",
         "corrected_text": text,
         "start": start,
         "end": end,
@@ -70,6 +71,66 @@ def main() -> int:
         [row("first", "Да", 10.0, 10.8), row("second", "Да", 10.1, 10.9)]
     )
     assert len(output) == 2
+
+    empty_attempts = [
+        {
+            "status": "failed",
+            "reason": "empty_micro_text",
+            "source_label": source,
+        }
+        for source in ("clean_local_fir", "raw_for_asr", "role_masked_for_asr")
+    ]
+    low_confidence_fragment = row("fragment", "отправил в", 210.0, 214.0, 0.55)
+    low_confidence_fragment["quality"].update(
+        {
+            "needs_review": True,
+            "repair": {
+                "micro_reasr": {
+                    "status": "failed",
+                    "reason": "empty_micro_text",
+                    "attempts": empty_attempts,
+                }
+            },
+        }
+    )
+    confirmed_continuation = row("continuation", "Отправил в тред.", 216.0, 220.0, 0.78)
+    confirmed_continuation["quality"].update(
+        {
+            "needs_review": False,
+            "repair": {"micro_reasr": {"status": "ok"}},
+        }
+    )
+    output, corrections = module.suppress_adjacent_same_speaker_duplicates(
+        [low_confidence_fragment, confirmed_continuation]
+    )
+    assert len(output) == 1, output
+    assert output[0]["corrected_text"] == "Отправил в тред.", output
+    assert corrections[0]["reason"] == "adjacent_low_confidence_empty_micro_prefix_drop", corrections
+
+    unverified_fragment = row("fragment", "отправил в", 210.0, 214.0, 0.55)
+    unverified_fragment["quality"].update({"needs_review": True})
+    output, corrections = module.suppress_adjacent_same_speaker_duplicates(
+        [unverified_fragment, confirmed_continuation]
+    )
+    assert len(output) == 2 and not corrections, (output, corrections)
+
+    weakly_tested_fragment = row("fragment", "отправил в", 210.0, 214.0, 0.55)
+    weakly_tested_fragment["quality"].update(
+        {
+            "needs_review": True,
+            "repair": {
+                "micro_reasr": {
+                    "status": "failed",
+                    "reason": "empty_micro_text",
+                    "attempts": empty_attempts[:2],
+                }
+            },
+        }
+    )
+    output, corrections = module.suppress_adjacent_same_speaker_duplicates(
+        [weakly_tested_fragment, confirmed_continuation]
+    )
+    assert len(output) == 2 and not corrections, (output, corrections)
 
     output, corrections = module.suppress_adjacent_same_speaker_duplicates(
         [

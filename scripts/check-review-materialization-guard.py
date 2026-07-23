@@ -8,6 +8,7 @@ import json
 import sys
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 
 def load_module(filename: str, name: str):
@@ -124,6 +125,24 @@ def main() -> int:
         preserved = merge_module.merge_existing([fresh_template], [reviewed])
         assert preserved[0]["decision"] == "keep_me", (merge_module.__name__, preserved)
         assert preserved[0]["reviewer"] == "test", (merge_module.__name__, preserved)
+
+    with tempfile.TemporaryDirectory(prefix="murmurmark-empty-review-scope-") as temp_dir:
+        empty_template = Path(temp_dir) / "review_decisions.template.jsonl"
+        empty_template.write_text("", encoding="utf-8")
+        template_rows, template_path = apply.template_for_session(
+            SimpleNamespace(review_template=empty_template, decisions=Path(temp_dir) / "review_decisions.jsonl"),
+            Path(temp_dir) / "session",
+        )
+        assert template_rows == [], template_rows
+        assert template_path == empty_template, template_path
+        coverage = apply.review_coverage([stale_todo], [], empty_template, False)
+        assert coverage["status"] == "complete_empty_scope", coverage
+        assert coverage["complete"] is True, coverage
+        assert coverage["allowed"] is True, coverage
+        missing_template = Path(temp_dir) / "missing.template.jsonl"
+        missing_coverage = apply.review_coverage([stale_todo], [], missing_template, False)
+        assert missing_coverage["status"] == "missing_template_scope", missing_coverage
+        assert missing_coverage["allowed"] is False, missing_coverage
 
     quality = load_module("report-session-quality.py", "murmurmark_report_materialization")
     with tempfile.TemporaryDirectory(prefix="murmurmark-review-materialization-") as temp_dir:

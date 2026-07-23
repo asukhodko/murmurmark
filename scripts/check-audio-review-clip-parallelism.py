@@ -60,6 +60,81 @@ def digest_tree(path: Path) -> dict[str, str]:
 
 
 def main() -> int:
+    items: dict[tuple[Any, ...], dict[str, Any]] = {}
+    utterance = {
+        "id": "utt_reused",
+        "role": "Me",
+        "source_track": "mic",
+        "start": 10.0,
+        "end": 12.0,
+        "text": "Отправил в чат.",
+        "quality": {"needs_review": True},
+    }
+    MODULE.add_item(
+        items,
+        start=10.0,
+        end=12.0,
+        reasons=["current"],
+        utterances=[utterance],
+        priority=10,
+        source_context={"type": "current"},
+    )
+    MODULE.add_item(
+        items,
+        start=10.5,
+        end=11.5,
+        reasons=["overlapping"],
+        utterances=[utterance],
+        priority=20,
+        source_context={"type": "overlapping"},
+    )
+    assert len(items) == 1
+    MODULE.add_item(
+        items,
+        start=20.0,
+        end=22.0,
+        reasons=["stale_reused_id"],
+        utterances=[utterance],
+        priority=30,
+        source_context={"type": "stale"},
+    )
+    assert len(items) == 2
+
+    review_items: dict[tuple[Any, ...], dict[str, Any]] = {}
+    by_id = {"utt_reused": utterance}
+    MODULE.add_review_plan_items(
+        review_items,
+        [
+            {
+                "status": "todo",
+                "decision": "todo",
+                "source": "audio_review",
+                "source_audit_id": "arp_stale",
+                "review_lane": "classify_audio",
+                "interval": {"start": 20.0, "end": 22.0},
+                "utterance_ids": ["utt_reused"],
+            }
+        ],
+        by_id,
+    )
+    assert review_items == {}
+    MODULE.add_review_plan_items(
+        review_items,
+        [
+            {
+                "status": "todo",
+                "decision": "todo",
+                "source": "transcript_order",
+                "source_audit_id": "order_current",
+                "review_lane": "check_transcript_order",
+                "interval": {"start": 10.0, "end": 12.0},
+                "utterance_ids": ["utt_reused"],
+            }
+        ],
+        by_id,
+    )
+    assert len(review_items) == 1
+
     with tempfile.TemporaryDirectory(prefix="murmurmark-review-clips-") as raw_root:
         root = Path(raw_root)
         sources = {

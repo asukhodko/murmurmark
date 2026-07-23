@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.2"
+SCRIPT_VERSION = "0.3.3"
 OUTPUT_PROFILE_DEFAULT = "reviewed_v1"
 VALID_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip", "todo", ""}
 OPEN_DECISIONS = {"", "todo"}
@@ -286,13 +286,16 @@ def candidate_template_paths(args: argparse.Namespace) -> list[Path]:
 
 
 def template_for_session(args: argparse.Namespace, session: Path) -> tuple[list[dict[str, Any]], Path | None]:
+    existing_path: Path | None = None
     for path in candidate_template_paths(args):
         if not path.exists():
             continue
+        if existing_path is None:
+            existing_path = path
         rows = [normalize_decision(row) for row in read_jsonl(path) if str(row.get("session_id") or "") == session.name]
         if rows:
             return rows, path
-    return [], None
+    return [], existing_path
 
 
 def review_row_key(row: dict[str, Any]) -> str:
@@ -353,6 +356,12 @@ def review_coverage(
         full_scope_complete = len(missing) == 0 and len(pending) == 0
         partial_allowed = allow_partial_review and not full_scope_complete and closed_rows > 0
         status = "complete" if full_scope_complete else ("partial_allowed" if partial_allowed else "incomplete")
+    elif template_path is not None and template_path.exists():
+        required_rows = 0
+        closed_rows = 0
+        full_scope_complete = True
+        partial_allowed = False
+        status = "complete_empty_scope"
     elif all_decisions and all(str(row.get("decision") or "") not in OPEN_DECISIONS for row in all_decisions):
         required_rows = len(all_decisions)
         closed_rows = required_rows
@@ -526,7 +535,15 @@ def main() -> int:
     template_rows, template_path = template_for_session(args, session)
     coverage = review_coverage(decisions, template_rows, template_path, args.allow_partial_review)
     invalid_decisions = [row for row in decisions if row.get("_invalid")]
-    profile_decisions = [row for row in decisions if not row.get("_invalid") and row.get("decision") not in OPEN_DECISIONS]
+    template_keys = {review_row_key(row) for row in template_rows}
+    if template_path is not None:
+        in_scope_decisions = [row for row in decisions if review_row_key(row) in template_keys]
+    else:
+        in_scope_decisions = decisions
+    out_of_scope_decisions = [row for row in decisions if row not in in_scope_decisions]
+    profile_decisions = [
+        row for row in in_scope_decisions if not row.get("_invalid") and row.get("decision") not in OPEN_DECISIONS
+    ]
     valid_decisions = [
         row
         for row in profile_decisions
@@ -675,6 +692,8 @@ def main() -> int:
         "closed_decision_rows": sum(1 for row in decisions if str(row.get("decision") or "") not in OPEN_DECISIONS),
         "skipped_decision_rows": sum(1 for row in decisions if row.get("decision") == "skip"),
         "pending_decision_rows": sum(1 for row in decisions if str(row.get("decision") or "") in OPEN_DECISIONS),
+        "in_scope_decision_rows": len(in_scope_decisions),
+        "ignored_out_of_scope_decision_rows": len(out_of_scope_decisions),
         "applied_decision_rows": len(applied_all),
         "transcript_applied_decision_rows": len(applied),
         "audit_only_applied_decision_rows": len(audit_only_applied),
@@ -767,6 +786,8 @@ def main() -> int:
         gates["warnings"].append("partial_review_scope_allowed")
     if obsolete_decisions:
         gates["warnings"].append("obsolete_audit_only_local_recall_keep_ignored")
+    if out_of_scope_decisions:
+        gates["warnings"].append("out_of_scope_review_decisions_ignored")
     if coverage["duplicate_decision_keys"]:
         gates["warnings"].append("duplicate_decision_keys")
 

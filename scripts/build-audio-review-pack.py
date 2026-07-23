@@ -14,7 +14,7 @@ from typing import Any
 SCHEMA_MANIFEST = "murmurmark.audio_review_pack/v1"
 SCHEMA_ITEM = "murmurmark.audio_review_pack_item/v1"
 SCHEMA_SUMMARY = "murmurmark.audio_review_pack_summary/v1"
-SCRIPT_VERSION = "0.1.2"
+SCRIPT_VERSION = "0.1.3"
 SAMPLE_RATE = 16000
 PROFILE_CHOICES = [
     "auto",
@@ -255,8 +255,29 @@ def find_utterances_for_interval(by_id: dict[str, dict[str, Any]], start: float,
 def item_key(start: float, end: float, utterances: list[dict[str, Any]]) -> tuple[Any, ...]:
     ids = tuple(sorted(str(row.get("id") or "") for row in utterances if row.get("id")))
     if ids:
-        return ("ids", ids)
+        return ("ids", ids, round(start, 1), round(end, 1))
     return ("time", round(start, 1), round(end, 1))
+
+
+def mergeable_item_key(
+    items: dict[tuple[Any, ...], dict[str, Any]],
+    start: float,
+    end: float,
+    utterances: list[dict[str, Any]],
+) -> tuple[Any, ...]:
+    ids = tuple(sorted(str(row.get("id") or "") for row in utterances if row.get("id")))
+    if not ids:
+        return item_key(start, end, utterances)
+    for key, item in items.items():
+        existing_ids = tuple(sorted(str(value) for value in item.get("utterance_ids", []) if value))
+        if existing_ids != ids:
+            continue
+        interval = item.get("interval") if isinstance(item.get("interval"), dict) else {}
+        existing_start = float(interval.get("start", 0.0) or 0.0)
+        existing_end = float(interval.get("end", existing_start) or existing_start)
+        if min(end, existing_end) - max(start, existing_start) >= 0.05:
+            return key
+    return item_key(start, end, utterances)
 
 
 def add_item(
@@ -272,7 +293,7 @@ def add_item(
     start = max(0.0, float(start))
     end = max(start + 0.05, float(end))
     summaries = [utterance_summary(row) for row in utterances]
-    key = item_key(start, end, summaries)
+    key = mergeable_item_key(items, start, end, summaries)
     existing = items.get(key)
     if existing:
         existing["source_reasons"] = sorted(set(existing["source_reasons"]) | set(reasons))
@@ -475,6 +496,10 @@ def add_review_plan_items(
             continue
         lane = str(row.get("review_lane") or "")
         if lane not in lane_priority:
+            continue
+        if lane == "classify_audio" and str(row.get("source") or "") == "audio_review":
+            # The audio-review pack is the source of this lane. Feeding its open
+            # decisions back into the next pack makes stale rows self-sustaining.
             continue
         interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
         start = float(interval.get("start", 0.0) or 0.0)
