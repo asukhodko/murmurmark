@@ -9,7 +9,7 @@ Each capture uses the ordinary durable raw writer and stops automatically after 
 ## One-Time Preparation
 
 ```bash
-cd ~/dalamar81/murmurmark
+cd murmurmark
 source .venv/bin/activate
 export PATH="$HOME/.local/bin:$PATH"
 
@@ -48,7 +48,7 @@ Run one scenario at a time. Start with `speaker_train_quiet`; inspect it before 
 other five.
 
 ```bash
-cd ~/dalamar81/murmurmark
+cd murmurmark
 source .venv/bin/activate
 export PATH="$HOME/.local/bin:$PATH"
 

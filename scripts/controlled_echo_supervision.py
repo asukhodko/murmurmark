@@ -364,6 +364,49 @@ def write_audio(path: Path, audio: np.ndarray, sample_rate: int = ANALYSIS_SAMPL
     wavfile.write(path, sample_rate, np.asarray(audio, dtype=np.float32))
 
 
+def materialize_looped_stimulus(
+    source: Path,
+    destination: Path,
+    *,
+    duration_sec: float,
+    sample_rate: int = 48_000,
+) -> None:
+    audio, source_rate = sf.read(source, dtype="float32", always_2d=True)
+    mono = np.mean(np.asarray(audio, dtype=np.float32), axis=1)
+    if not mono.size:
+        raise RuntimeError(f"empty stimulus source: {source}")
+    if not np.all(np.isfinite(mono)):
+        raise RuntimeError(f"non-finite stimulus source: {source}")
+    if int(source_rate) != sample_rate:
+        divisor = math.gcd(int(source_rate), sample_rate)
+        mono = np.asarray(
+            signal.resample_poly(
+                mono,
+                sample_rate // divisor,
+                int(source_rate) // divisor,
+            ),
+            dtype=np.float32,
+        )
+    expected_frames = int(round(duration_sec * sample_rate))
+    if expected_frames <= 0:
+        raise RuntimeError(f"invalid stimulus duration: {duration_sec}")
+    repeats = (expected_frames + mono.size - 1) // mono.size
+    looped = np.tile(mono, repeats)[:expected_frames]
+    peak = float(np.max(np.abs(looped)))
+    if peak > 1.0:
+        raise RuntimeError(f"stimulus source clips after resampling: peak={peak:.6f}")
+    pcm = np.rint(looped.astype(np.float64) * 32_767.0).astype(np.int16)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_name(
+        f".{destination.stem}.{os.getpid()}.partial{destination.suffix}"
+    )
+    try:
+        wavfile.write(temporary, sample_rate, pcm)
+        os.replace(temporary, destination)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def validate_stimulus_audio(
     path: Path,
     *,

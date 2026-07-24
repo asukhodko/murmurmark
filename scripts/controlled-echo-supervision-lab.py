@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import fcntl
 import json
 import os
 import signal
@@ -36,6 +37,7 @@ from controlled_echo_supervision import (
     expected_prompt_text,
     fingerprint,
     load_policy,
+    materialize_looped_stimulus,
     normalize_text,
     phase_bounds,
     policy_sha,
@@ -141,33 +143,39 @@ def generate_stimulus(
     duration_sec: float,
     source_aiff: Path,
 ) -> None:
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
-        [
-            command_path("ffmpeg"),
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-y",
-            "-stream_loop",
-            "-1",
-            "-i",
-            str(source_aiff),
-            "-t",
-            f"{duration_sec:.6f}",
-            "-ac",
-            "1",
-            "-ar",
-            "48000",
-            "-c:a",
-            "pcm_s16le",
-            str(destination),
-        ],
-        check=True,
+    materialize_looped_stimulus(
+        source_aiff,
+        destination,
+        duration_sec=duration_sec,
+        sample_rate=48_000,
     )
 
 
 def prepare(args: argparse.Namespace) -> int:
+    lab_root = default_lab_root(args.sessions_root.resolve())
+    lab_root.mkdir(parents=True, exist_ok=True)
+    lock_path = lab_root / "prepare.lock"
+    lock = lock_path.open("a+", encoding="utf-8")
+    try:
+        try:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise RuntimeError(
+                "another `murmurmark echo-lab prepare` is already active"
+            ) from error
+        lock.seek(0)
+        lock.truncate()
+        lock.write(f"pid={os.getpid()} started_at={utc_now()}\n")
+        lock.flush()
+        return prepare_locked(args)
+    finally:
+        try:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+        finally:
+            lock.close()
+
+
+def prepare_locked(args: argparse.Namespace) -> int:
     policy_path = args.policy.resolve()
     policy = load_policy(policy_path)
     sessions_root = args.sessions_root.resolve()
@@ -241,6 +249,7 @@ def prepare(args: argparse.Namespace) -> int:
             text,
         ],
         check=True,
+        timeout=120,
     )
     for name, duration_sec in sorted(requirements.items()):
         print(f"materializing {name} ({duration_sec:.0f}s)...", flush=True)

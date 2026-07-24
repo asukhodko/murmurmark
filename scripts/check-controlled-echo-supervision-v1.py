@@ -20,6 +20,7 @@ from controlled_echo_supervision import (
     fingerprint,
     load_policy,
     local_only_gate_reasons,
+    materialize_looped_stimulus,
     policy_sha,
     prompts_for_phase,
     read_jsonl,
@@ -375,6 +376,28 @@ def main() -> int:
             require("stimulus_duration" in str(error), "wrong stimulus failure reason")
         else:
             raise AssertionError("wrong stimulus duration was accepted")
+        source_aiff = repo / "source.aiff"
+        source = np.asarray(
+            0.4 * np.sin(2.0 * np.pi * 220.0 * np.arange(24_000) / 24_000),
+            dtype=np.float32,
+        )
+        import soundfile as sf
+
+        sf.write(source_aiff, source, 24_000, format="AIFF", subtype="PCM_16")
+        looped_stimulus = repo / "looped.wav"
+        materialize_looped_stimulus(
+            source_aiff,
+            looped_stimulus,
+            duration_sec=2.5,
+            sample_rate=48_000,
+        )
+        looped_validation = validate_stimulus_audio(
+            looped_stimulus,
+            duration_sec=2.5,
+            sample_rate=48_000,
+            maximum_peak=0.995,
+        )
+        require(looped_validation["frames"] == 120_000, "looped stimulus duration drifted")
         sessions_root = repo / "sessions"
         sessions_root.mkdir(parents=True)
         policy_path = fixture_policy(repo)
