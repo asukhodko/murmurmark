@@ -1,6 +1,6 @@
 # MurmurMark CLI Roadmap
 
-Updated: 2026-07-23
+Updated: 2026-07-28
 
 This is the readable view of the active OpsKarta v3 plan:
 
@@ -45,6 +45,11 @@ murmurmark meeting -> first Ctrl-C -> bounded authoritative lifecycle -> honest 
 
 Raw CAF files and batch output are authoritative. Committed-PCM Live Shadow is capture-safe and
 advisory; its promotion remains blocked by quality and runtime evidence.
+
+Successful guarded export now has a thin-session retention path: raw CAF and structured evidence
+remain, while rebuildable media below `derived/` can be removed through
+`retention compact plan|apply|verify`. Ordinary `meeting`/`finish` runs compact automatically;
+`--keep-debug-artifacts` preserves the full diagnostic workspace.
 
 ## Current Goal
 

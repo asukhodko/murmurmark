@@ -250,12 +250,51 @@ def check_generated_corpus(module, root: Path) -> None:
         session_id = session_report["session_id"]
         session = sessions_root / session_id
         baseline_row = baseline_by_session[session_id]
-        assert (
-            module.fingerprint(
-                module.frozen_artifacts(session, baseline_row["input_profile"])
+        current_artifacts = module.frozen_artifacts(
+            session,
+            baseline_row["input_profile"],
+        )
+        expected_artifacts = baseline_row["artifacts"]
+        artifacts_match = (
+            module.fingerprint(current_artifacts)
+            == module.fingerprint(expected_artifacts)
+        )
+        if not artifacts_match:
+            compaction = module.read_json(
+                session / "derived/retention/derived_compaction.json"
             )
-            == module.fingerprint(baseline_row["artifacts"])
-        ), session_id
+            verification = (
+                compaction.get("verification")
+                if isinstance(compaction, dict)
+                and isinstance(compaction.get("verification"), dict)
+                else {}
+            )
+            current_working = current_artifacts.get("working_audio") or {}
+            expected_working = expected_artifacts.get("working_audio") or {}
+            archived_working_audio = bool(
+                compaction
+                and compaction.get("schema") == "murmurmark.derived_compaction/v1"
+                and compaction.get("status") in {"applied", "verified"}
+                and verification.get("passed") is True
+                and verification.get("raw_preserved") is True
+                and verification.get("remaining_media_files") == 0
+                and current_working
+                and current_working.keys() == expected_working.keys()
+                and all(
+                    isinstance(item, dict)
+                    and item.get("exists") is False
+                    and str((expected_working.get(key) or {}).get("path") or "").endswith(".wav")
+                    for key, item in current_working.items()
+                )
+            )
+            if archived_working_audio:
+                normalized = dict(current_artifacts)
+                normalized["working_audio"] = expected_working
+                artifacts_match = (
+                    module.fingerprint(normalized)
+                    == module.fingerprint(expected_artifacts)
+                )
+        assert artifacts_match, session_id
         input_dialogue = module.read_json(
             module.profile_paths(session, baseline_row["input_profile"])["dialogue"]
         )

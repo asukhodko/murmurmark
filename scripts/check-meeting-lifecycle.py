@@ -383,6 +383,7 @@ def main() -> None:
         assert ready_report["elapsed_sec"]["total_after_stop"] >= 0
         assert ready_report["actions"]["review_suggested_apply"]["status"] == "passed"
         assert ready_report["actions"]["finish"]["status"] == "passed"
+        assert ready_report["derived_compaction"]["status"] == "not_attempted"
         assert not (root / "SHOULD_NOT_RUN").exists()
         ready_state = json.loads(
             (ready_session / "derived/meeting-lifecycle/state.json").read_text(encoding="utf-8")
@@ -435,6 +436,24 @@ def main() -> None:
         assert timing_report["elapsed_sec"]["capture"] == 2.0
         assert timing_report["elapsed_sec"]["capture_finalize"] == 0.75
         assert timing_report["elapsed_sec"]["total_after_stop"] >= 0.75
+
+        debug_session = write_session(root, "keep-debug")
+        debug_run = run_supervisor(
+            root,
+            debug_session,
+            fake,
+            "ready",
+            "--keep-debug-artifacts",
+        )
+        assert debug_run.returncode == 0, (debug_run.stdout, debug_run.stderr)
+        debug_state = json.loads(
+            (debug_session / "derived/meeting-lifecycle/state.json").read_text(encoding="utf-8")
+        )
+        assert debug_state["keep_debug_artifacts"] is True
+        assert debug_state["resume_command"].endswith(" --keep-debug-artifacts")
+        assert report(debug_session)["derived_compaction"]["status"] == "skipped_debug"
+        debug_log = (debug_session / "fake-cli.log").read_text(encoding="utf-8")
+        assert f"finish {debug_session.resolve()} --keep-debug-artifacts" in debug_log
 
         cli_value = os.environ.get("MURMURMARK_BIN")
         if cli_value:

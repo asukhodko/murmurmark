@@ -622,6 +622,18 @@ murmurmark finish "$SESSION"
 
 `--mic-backend voice-processing` and `--remote-backend audio-input` are experimental comparison modes. They are not the main product path and should not be used to judge the algorithmic subtraction problem unless the test explicitly says so.
 
+After a successful guarded export, `meeting`/`finish` keep raw CAF and compact rebuildable audio
+under `derived/`. Add `--keep-debug-artifacts` to the original `meeting` command when the full
+preprocessing, audit, Live Shadow or candidate audio must remain available for investigation.
+
+Older completed sessions can be compacted manually:
+
+```bash
+murmurmark retention compact plan "$SESSION"
+murmurmark retention compact apply "$SESSION" --confirm-delete-derived-media
+murmurmark retention compact verify "$SESSION"
+```
+
 For the normal path, expected `session.json` values are:
 
 ```json

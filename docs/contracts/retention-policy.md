@@ -8,7 +8,8 @@ The default posture is conservative:
 - raw audio stays local;
 - raw audio is never copied into export bundles;
 - external providers are disabled;
-- deletion is never implicit.
+- raw deletion is never implicit;
+- rebuildable derived media may be compacted after a successful guarded export.
 
 ## Policy File
 
@@ -203,6 +204,72 @@ murmurmark retention apply SESSION --policy ./policy.json --confirm-delete-raw
 Apply mode may delete raw CAF files only when the plan says `can_apply: true`.
 It never deletes derived transcript, notes, review or export files in v1.
 
+## Derived Media Compaction
+
+Derived-media compaction is independent from raw-audio deletion:
+
+```bash
+murmurmark retention compact plan SESSION
+murmurmark retention compact apply SESSION --confirm-delete-derived-media
+murmurmark retention compact verify SESSION
+```
+
+Output:
+
+```text
+SESSION/derived/retention/derived_compaction.json
+SESSION/derived/retention/derived_compaction.md
+```
+
+Schema: `murmurmark.derived_compaction/v1`.
+
+Mode `keep_raw` removes regular media files with an allowlisted audio suffix below
+`SESSION/derived/`. It preserves:
+
+- all files below `SESSION/audio/`;
+- `session.json`, `events.jsonl` and pipeline metadata;
+- selected transcript, notes and quality verdict;
+- review decisions, readiness, outcome and retention artifacts;
+- every JSON, JSONL and Markdown provenance artifact.
+
+Compaction is allowed only when capture is finalized, no recording or lifecycle lock is active,
+pipeline state is not `running`, raw files declared by `session.json` still exist with their
+expected sizes, and a selected transcript exists. The implementation does not follow symlinks and
+rejects any candidate whose resolved path leaves `SESSION/derived/`.
+
+The manifest records candidate count and bytes, summaries by subtree and extension, raw and selected
+output identities, inventory fingerprint, blockers, warnings, applied totals and verification
+result. It does not hash every rebuildable audio copy because that would reread hundreds of
+gigabytes before deleting data already reproducible from raw.
+
+Bulk mode accepts `all`, `--older-than 7d` and `--exclude-pinned`. Frozen corpus manifests under
+`sessions/_reports/` and explicit pin files provide the pinned session set. Pinned sessions require
+`--include-pinned` before manual compaction.
+
+After successful guarded export, `murmurmark finish` applies `keep_raw` compaction automatically.
+`murmurmark meeting` inherits that behavior because it calls `finish` only when structured quality
+gates permit export. Both commands accept:
+
+```bash
+--keep-debug-artifacts
+```
+
+This flag skips automatic compaction for sessions retained for audio or pipeline investigation.
+Blocked export, review-first and failed sessions remain unmodified. Compaction failure is fail-open:
+the final export remains valid and existing files are kept or reported as a partial cleanup.
+
+Re-running `murmurmark process SESSION` may recreate derived media. A later compaction plan scans the
+current filesystem and can return the session to thin storage.
+
+Bulk summary output:
+
+```text
+sessions/_reports/retention-compaction/derived_compaction_report.json
+sessions/_reports/retention-compaction/derived_compaction_report.md
+```
+
+Schema: `murmurmark.derived_compaction_report/v1`.
+
 ## Audit Events
 
 Destructive actions append content-free events to:
@@ -231,3 +298,7 @@ Example:
 
 Audit events must not contain transcript text, notes, speaker names or audio
 content.
+
+Derived compaction writes one content-free summary event per apply/verify operation with schema
+`murmurmark.derived_compaction_audit_event/v1`. It contains counts, byte totals, inventory
+fingerprints and failure reasons, not one row per deleted audio file.

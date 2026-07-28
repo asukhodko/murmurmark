@@ -41,8 +41,9 @@ meeting.
   and `--allow-partial` are never added automatically.
 - Suggested review may apply only decisions already accepted by the existing conservative review
   gates. Unknown and conflicting rows remain open.
-- Export runs only when `outcome.json.summary.can_export` is true. Retention is planned but raw
-  deletion is never applied.
+- Export runs only when `outcome.json.summary.can_export` is true. Raw deletion is never applied.
+  A successful guarded export compacts rebuildable media under `derived/` unless the lifecycle was
+  started with `--keep-debug-artifacts`.
 - Live Shadow is optional and advisory. It cannot replace the batch transcript or alter this gate.
 
 ## Commands
@@ -52,6 +53,7 @@ Start a new lifecycle:
 ```bash
 murmurmark meeting --target-bundle system
 murmurmark meeting --target-bundle system --experiment live-shadow-v1
+murmurmark meeting --target-bundle system --keep-debug-artifacts
 ```
 
 An omitted `--out` creates a unique directory and prints:
@@ -106,6 +108,8 @@ Conditional actions are chosen from structured JSON:
 - suggested preview is used only for a review gate;
 - suggested apply is used only when `suggested_closure_auto_rows > 0`;
 - `finish` is used only when the outcome explicitly allows export.
+- `finish` applies derived-media compaction only after that guarded export succeeds. Compaction is
+  fail-open and cannot change raw CAF or the exported bundle.
 
 The supervisor snapshots machine-readable artifacts before `process` and both outcome refreshes.
 `process` must either update its report or append explicit `checkpoint_reuse` provenance; a stale
@@ -177,6 +181,7 @@ The final report contains:
 - selected transcript, notes and verdict paths;
 - unresolved review count, seconds and structured blockers;
 - export status, blockers and manifest path;
+- derived compaction status, removed byte count and debug-artifact preservation mode;
 - raw preservation result;
 - capture, capture-finalization, authoritative process, enrichment, total-after-stop and per-action
   elapsed time; `capture` is the recorded duration from `session.json`, while `total-after-stop`

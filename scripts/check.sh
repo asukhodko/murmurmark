@@ -56,6 +56,8 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-experiment-compare-timeout.py
 "$python_bin" scripts/check-planning-consistency.py
 MURMURMARK_BIN="$repo_root/.build/debug/murmurmark" \
+  "$python_bin" scripts/check-derived-compaction.py
+MURMURMARK_BIN="$repo_root/.build/debug/murmurmark" \
   "$python_bin" scripts/check-meeting-lifecycle.py
 scripts/check-open-source-readiness.sh
 scripts/check-capture-regressions.sh

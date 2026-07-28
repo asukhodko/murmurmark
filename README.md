@@ -168,15 +168,35 @@ murmurmark finish "$SESSION"
 
 Suggested review closes only rows supported by current local evidence. Unresolved rows remain
 explicit. `finish` attempts guarded local export and writes retention recommendations; it never
-deletes raw audio.
+deletes raw audio. After a successful guarded export, `finish` removes rebuildable audio copies
+under `SESSION/derived/` by default. Raw CAF, selected transcript, notes, verdict, review decisions
+and JSON/Markdown provenance remain available. Use `--keep-debug-artifacts` when the session is
+needed for pipeline or audio-algorithm debugging.
 
 ```bash
 murmurmark finish "$SESSION" --format markdown
 murmurmark finish "$SESSION" --format obsidian
+murmurmark finish "$SESSION" --keep-debug-artifacts
 murmurmark retention plan "$SESSION"
 ```
 
 Raw deletion requires a compatible policy, successful export and an explicit confirmation command.
+
+### Compact Old Sessions
+
+Remove rebuildable media while keeping raw CAF, final text and structured evidence:
+
+```bash
+murmurmark retention compact plan "$SESSION"
+murmurmark retention compact apply "$SESSION" --confirm-delete-derived-media
+murmurmark retention compact verify "$SESSION"
+murmurmark retention compact plan all --older-than 7d --exclude-pinned
+murmurmark retention compact apply all --older-than 7d --exclude-pinned \
+  --confirm-delete-derived-media
+```
+
+Frozen corpus sessions are skipped unless `--include-pinned` is explicit. Reprocessing may recreate
+derived media; see [Retention Policy](docs/contracts/retention-policy.md) for the full contract.
 
 ## Important Artifacts
 

@@ -279,11 +279,19 @@ murmurmark finish "$SESSION"
 ```
 
 It refreshes readiness, attempts the guarded export with JSON evidence, writes retention plan and
-provider payload manifest after a successful export, and ends with a read-only `less ...` command for
-the bundle. Open `index.md` first. It is the user-facing start page: verdict, selected profile,
-review burden, links to notes/transcript/evidence, retention/privacy summary and the next command.
+provider payload manifest after a successful export, compacts rebuildable derived audio, and ends
+with a read-only `less ...` command for the bundle. Open `index.md` first. It is the user-facing
+start page: verdict, selected profile, review burden, links to notes/transcript/evidence,
+retention/privacy summary and the next command.
 `quality_verdict.md` explains trust, `notes.md` contains evidence-backed extractive notes, and
 `transcript.md` keeps the full selected transcript with utterance IDs and review flags.
+
+Keep full audio diagnostics when a session is intended for algorithm work:
+
+```bash
+murmurmark meeting --target-bundle system --keep-debug-artifacts
+murmurmark finish "$SESSION" --keep-debug-artifacts
+```
 
 If export is still blocked, `finish` writes the blocked export report and points back to the next
 review or processing command. A blocked session should not be treated as a successful final handoff.
@@ -294,8 +302,12 @@ For low-level inspection, the individual commands remain available:
 murmurmark export "$SESSION" --format markdown --include-json
 murmurmark retention plan "$SESSION"
 murmurmark retention payload "$SESSION"
+murmurmark retention compact plan "$SESSION"
+murmurmark retention compact apply "$SESSION" --confirm-delete-derived-media
+murmurmark retention compact verify "$SESSION"
 less "$SESSION/derived/retention/retention_plan.json"
 less "$SESSION/derived/retention/provider_payload_manifest.json"
+less "$SESSION/derived/retention/derived_compaction.md"
 ```
 
 The CLI prints a compact summary after each retention command, including action counts,
@@ -309,6 +321,9 @@ The JSON files remain the source of truth.
 The default policy keeps raw audio and records that raw audio is not copied into export bundles.
 Destructive raw deletion requires an explicit policy, `retention apply`, a successful export manifest,
 and `--confirm-delete-raw`.
+Derived compaction is a separate operation. It removes only allowlisted media below `derived/`,
+keeps raw CAF and structured evidence, skips frozen corpus sessions in bulk mode, and requires
+`--confirm-delete-derived-media` for manual apply.
 The default provider payload manifest is blocked because external providers are disabled by the
 local-first policy. This is expected.
 

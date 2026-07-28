@@ -3745,9 +3745,16 @@ EOF
   echo "$export_help" | grep -q 'usage: murmurmark export'
   export_flag_help="$("$bin" export --help)"
   echo "$export_flag_help" | grep -q 'usage: murmurmark export'
+  meeting_help="$("$bin" meeting --help)"
+  echo "$meeting_help" | grep -q 'usage: murmurmark meeting'
+  echo "$meeting_help" | grep -q -- '--keep-debug-artifacts'
   finish_help="$("$bin" finish --help)"
   echo "$finish_help" | grep -q 'usage: murmurmark finish'
   echo "$finish_help" | grep -q 'retention plan and provider payload manifest'
+  echo "$finish_help" | grep -q -- '--keep-debug-artifacts'
+  retention_help="$("$bin" retention --help)"
+  echo "$retention_help" | grep -q 'murmurmark retention compact plan'
+  echo "$retention_help" | grep -q -- '--confirm-delete-derived-media'
   release_help="$("$repo_root/scripts/build-release-bundle.sh" --help)"
   echo "$release_help" | grep -q 'usage: scripts/build-release-bundle.sh'
   echo "$release_help" | grep -q -- '--verify'

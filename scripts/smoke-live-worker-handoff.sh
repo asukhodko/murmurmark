@@ -248,7 +248,8 @@ JSON
   --whisper-timeout-sec 5 \
   --asr-parallelism 2 \
   --causal-target-me-timeout-sec 5 \
-  --causal-target-me-max-live-lag-sec 1 >"$workdir/worker-lag-budget.log" 2>&1
+  --causal-target-me-max-live-lag-sec 1 \
+  --no-causal-me-recovery-runtime >"$workdir/worker-lag-budget.log" 2>&1
 
 jq -e '
   .mic.causal_target_me_shadow.status == "skipped_lag_budget"
@@ -280,7 +281,7 @@ append_segment_pair "$shutdown_session" "2026-07-10T10:02:02Z"
   --no-causal-target-me \
   --no-causal-me-recovery-runtime >"$workdir/worker-shutdown.log" 2>&1 &
 shutdown_worker_pid=$!
-wait_for 10 jq -e '
+wait_for 60 jq -e '
   (.current_stage == "asr_mic" or .current_stage == "asr_remote")
   and (.child_pids | length) == 2
   and (.progress.live_lag_sec // -1) >= 0

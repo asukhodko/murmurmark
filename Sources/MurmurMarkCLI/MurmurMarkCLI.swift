@@ -736,27 +736,35 @@ enum MeetingCommands {
         }
 
         var remaining = args
+        let keepDebugArtifacts = ArgumentEditing.takeFlag("keep-debug-artifacts", from: &remaining)
         if let resumeTarget = ArgumentEditing.takeOption("resume", from: &remaining) {
             let sessionsRoot = PathURLs.fileURL(
                 ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions"
             )
             guard remaining.isEmpty else {
-                throw CLIError("meeting --resume accepts only SESSION and --sessions-root")
+                throw CLIError(
+                    "meeting --resume accepts only SESSION, --sessions-root and --keep-debug-artifacts"
+                )
             }
             let session = try SessionResolver.resolve(resumeTarget, sessionsRoot: sessionsRoot)
-            try runSupervisor(session: session, captureElapsed: nil, resume: true)
+            try runSupervisor(
+                session: session,
+                captureElapsed: nil,
+                resume: true,
+                keepDebugArtifacts: keepDebugArtifacts
+            )
             return
         }
 
-        try validateRecordingArguments(args)
+        try validateRecordingArguments(remaining)
         let outputDirectory: URL = try {
-            let invocation = try Commands.prepareRecording(args, handoffEnabled: false)
+            let invocation = try Commands.prepareRecording(remaining, handoffEnabled: false)
             return invocation.outputDirectory
         }()
         print("SESSION=\"\(PathDisplay.display(outputDirectory))\"")
         fflush(stdout)
 
-        var captureArguments = args
+        var captureArguments = remaining
         _ = ArgumentEditing.takeOption("out", from: &captureArguments)
         captureArguments += [
             "--out", outputDirectory.path,
@@ -784,11 +792,17 @@ enum MeetingCommands {
         try runSupervisor(
             session: outputDirectory,
             captureElapsed: captureElapsed,
-            resume: false
+            resume: false,
+            keepDebugArtifacts: keepDebugArtifacts
         )
     }
 
-    private static func runSupervisor(session: URL, captureElapsed: TimeInterval?, resume: Bool) throws {
+    private static func runSupervisor(
+        session: URL,
+        captureElapsed: TimeInterval?,
+        resume: Bool,
+        keepDebugArtifacts: Bool
+    ) throws {
         let script = PathURLs.fileURL("scripts/run-meeting-lifecycle.py")
         guard FileManager.default.fileExists(atPath: script.path) else {
             throw CLIError("meeting lifecycle supervisor not found: \(script.path)")
@@ -803,6 +817,9 @@ enum MeetingCommands {
         }
         if resume {
             command.append("--resume")
+        }
+        if keepDebugArtifacts {
+            command.append("--keep-debug-artifacts")
         }
         fflush(stdout)
         let status = try Tooling.runPathForwardingInterruptsAllowingExitCodes(
@@ -858,8 +875,9 @@ enum MeetingCommands {
         usage: murmurmark meeting [--out ./session] [--duration 60] [--target-bundle system|com.example.App]
                                   [--mic default] [--mic-backend screencapturekit|voice-processing]
                                   [--remote-backend screencapturekit|audio-input] [--remote-device Device_UID]
-                                  [--experiment live-shadow-v1]
+                                  [--experiment live-shadow-v1] [--keep-debug-artifacts]
                murmurmark meeting --resume ./session [--sessions-root ./sessions]
+                                  [--keep-debug-artifacts]
 
         Records a durable two-track session and, after the first Ctrl-C, runs the bounded
         authoritative lifecycle through transcript, notes, verdict, safe suggested review and
@@ -868,10 +886,12 @@ enum MeetingCommands {
         Common:
           murmurmark meeting --target-bundle system
           murmurmark meeting --target-bundle system --experiment live-shadow-v1
+          murmurmark meeting --target-bundle system --keep-debug-artifacts
           murmurmark meeting --resume sessions/<id>
 
         The high-level command never adds --full, --force-asr or --allow-partial. Use record and
-        process directly for low-level diagnostics.
+        process directly for low-level diagnostics. After a successful guarded export it compacts
+        rebuildable media under derived/ unless --keep-debug-artifacts is set. Raw audio is kept.
         """)
     }
 }
@@ -1039,6 +1059,7 @@ enum DoctorChecks {
             "scripts/report-session-quality.py",
             "scripts/apply-retention-policy.py",
             "scripts/build-provider-payload-manifest.py",
+            "scripts/compact-derived-artifacts.py",
             "scripts/smoke-cli-handoff.sh",
             "scripts/smoke-experimental-sidecar-contract.sh",
             "scripts/smoke-committed-pcm-sidecar.sh",
@@ -7035,6 +7056,7 @@ enum FinishCommands {
         let forceExport = ArgumentEditing.takeFlag("force-export", from: &remaining)
         let noJSON = ArgumentEditing.takeFlag("no-json", from: &remaining)
         let skipRetention = ArgumentEditing.takeFlag("skip-retention", from: &remaining)
+        let keepDebugArtifacts = ArgumentEditing.takeFlag("keep-debug-artifacts", from: &remaining)
         let policy = ArgumentEditing.takeOption("policy", from: &remaining)
         let provider = ArgumentEditing.takeOption("provider", from: &remaining)
         let target = remaining.isEmpty ? "latest" : remaining.removeFirst()
@@ -7078,6 +7100,17 @@ enum FinishCommands {
                 print("  reason: --skip-retention")
             } else {
                 try runRetention(session: session, manifestURL: exportRun.manifestURL, policy: policy, provider: provider)
+                if keepDebugArtifacts {
+                    print("")
+                    print("derived_compaction:")
+                    print("  status: skipped")
+                    print("  reason: --keep-debug-artifacts")
+                } else {
+                    DerivedCompactionCommands.applyAfterSuccessfulExport(
+                        session: session,
+                        manifestURL: exportRun.manifestURL
+                    )
+                }
             }
             printFinishReady(session: session, exportRun: exportRun)
         } else {
@@ -7319,12 +7352,14 @@ enum FinishCommands {
         print("""
         usage: murmurmark finish [./session|latest] [--format markdown|obsidian] [--profile auto]
                                 [--out-dir exports/private] [--force-export] [--no-json]
-                                [--skip-retention] [--policy ./policy.json] [--provider name]
+                                [--skip-retention] [--keep-debug-artifacts]
+                                [--policy ./policy.json] [--provider name]
                                 [--sessions-root ./sessions]
 
         Refreshes readiness, attempts a normal guarded export with JSON evidence included by default,
-        then writes retention plan and provider payload manifest when the export succeeds. It never
-        deletes raw audio; use `murmurmark retention apply` explicitly for that.
+        then writes a retention plan and provider payload manifest. When the export succeeds it also
+        removes rebuildable media under derived/. Raw audio is never deleted by compaction. Use
+        --keep-debug-artifacts to preserve the complete diagnostic workspace.
         """)
     }
 }
@@ -7338,8 +7373,12 @@ enum RetentionCommands {
 
         var remaining = args
         let mode = remaining.removeFirst()
+        if mode == "compact" {
+            try DerivedCompactionCommands.run(remaining)
+            return
+        }
         guard ["plan", "apply", "payload"].contains(mode) else {
-            throw CLIError("retention requires plan, apply, or payload")
+            throw CLIError("retention requires plan, apply, payload, or compact")
         }
         guard let target = remaining.first else {
             throw CLIError("retention \(mode) requires a session path or latest")
@@ -7375,11 +7414,139 @@ enum RetentionCommands {
           murmurmark retention plan ./session|latest [--policy ./policy.json] [--export-manifest ./export_manifest.json]
           murmurmark retention apply ./session|latest --confirm-delete-raw [--policy ./policy.json] [--export-manifest ./export_manifest.json]
           murmurmark retention payload ./session|latest [--policy ./policy.json] [--export-manifest ./export_manifest.json] [--provider name]
+          murmurmark retention compact plan ./session|latest|all [--older-than 7d] [--exclude-pinned]
+          murmurmark retention compact apply ./session|latest|all --confirm-delete-derived-media [--older-than 7d] [--exclude-pinned]
+          murmurmark retention compact verify ./session|latest|all [--older-than 7d] [--exclude-pinned]
 
         Plan mode writes SESSION/derived/retention/retention_plan.json and does not delete files.
         Apply mode can delete raw CAF only when the policy requests it, export manifest is successful,
         and --confirm-delete-raw is present.
         Payload mode writes SESSION/derived/retention/provider_payload_manifest.json and sends nothing.
+        Compact mode removes only rebuildable media below SESSION/derived and preserves raw audio,
+        selected transcript/notes/verdict, JSON provenance and frozen corpus sessions by default.
+        """)
+    }
+}
+
+enum DerivedCompactionCommands {
+    static func run(_ args: [String]) throws {
+        if args.isEmpty || ArgumentEditing.hasHelpFlag(args) {
+            printHelp()
+            return
+        }
+
+        var remaining = args
+        let action = remaining.removeFirst()
+        guard ["plan", "apply", "verify"].contains(action) else {
+            throw CLIError("retention compact requires plan, apply, or verify")
+        }
+        guard let target = remaining.first else {
+            throw CLIError("retention compact \(action) requires SESSION, latest, or all")
+        }
+        remaining.removeFirst()
+
+        var command = [
+            try script().path,
+            action,
+            target,
+        ]
+        command += remaining
+        try Tooling.runPathQuiet(try PythonRuntime.resolve(), command)
+        printSummary(target: target, action: action, args: remaining)
+    }
+
+    static func applyAfterSuccessfulExport(session: URL, manifestURL: URL) {
+        let command = [
+            "apply",
+            session.path,
+            "--confirm-delete-derived-media",
+            "--require-successful-export",
+            "--export-manifest", manifestURL.path,
+            "--allow-active-lifecycle",
+        ]
+        do {
+            let status = try Tooling.runPathQuietAllowingExitCodes(
+                try PythonRuntime.resolve(),
+                [try script().path] + command,
+                allowedExitCodes: [0, 2]
+            )
+            print("")
+            print("derived_compaction:")
+            let manifestURL = session.appendingPathComponent(
+                "derived/retention/derived_compaction.json"
+            )
+            let manifest = try? JSONFiles.object(manifestURL)
+            let manifestStatus = manifest?["status"] as? String
+            print("  status: \(manifestStatus ?? (status == 0 ? "applied" : "skipped"))")
+            print("  manifest: \(PathDisplay.display(manifestURL))")
+            if status != 0 {
+                print("  reason: safety gates did not pass; export remains valid")
+            }
+        } catch {
+            print("")
+            print("derived_compaction:")
+            print("  status: skipped")
+            print("  reason: \(error.localizedDescription)")
+            print("  export_preserved: true")
+        }
+    }
+
+    private static func printSummary(target: String, action: String, args: [String]) {
+        if target == "all" {
+            var mutableArgs = args
+            let sessionsRoot = PathURLs.fileURL(
+                ArgumentEditing.takeOption("sessions-root", from: &mutableArgs) ?? "sessions"
+            )
+            let report = option("report-out", in: args)
+                .map(PathURLs.fileURL)
+                ?? sessionsRoot.appendingPathComponent(
+                    "_reports/retention-compaction/derived_compaction_report.json"
+                )
+            print("")
+            print("derived_compaction:")
+            print("  action: \(action)")
+            print("  report: \(PathDisplay.display(report))")
+            return
+        }
+
+        var mutableArgs = args
+        let sessionsRoot = PathURLs.fileURL(
+            ArgumentEditing.takeOption("sessions-root", from: &mutableArgs) ?? "sessions"
+        )
+        guard let session = try? SessionResolver.resolve(target, sessionsRoot: sessionsRoot) else {
+            return
+        }
+        let manifest = option("out", in: args)
+            .map(PathURLs.fileURL)
+            ?? session.appendingPathComponent("derived/retention/derived_compaction.json")
+        print("")
+        print("derived_compaction:")
+        print("  action: \(action)")
+        print("  manifest: \(PathDisplay.display(manifest))")
+    }
+
+    private static func option(_ key: String, in args: [String]) -> String? {
+        ArgumentEditing.peekOption(key, in: args)
+    }
+
+    private static func script() throws -> URL {
+        let url = PathURLs.fileURL("scripts/compact-derived-artifacts.py")
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("derived compaction script not found: \(url.path)")
+        }
+        return url
+    }
+
+    private static func printHelp() {
+        print("""
+        usage:
+          murmurmark retention compact plan SESSION|latest|all [--older-than 7d] [--exclude-pinned]
+          murmurmark retention compact apply SESSION|latest|all --confirm-delete-derived-media [--older-than 7d] [--exclude-pinned]
+          murmurmark retention compact verify SESSION|latest|all [--older-than 7d] [--exclude-pinned]
+
+        Removes only rebuildable media below SESSION/derived. Raw capture and selected text/JSON
+        outputs are preserved and verified. Frozen corpus sessions are excluded unless
+        --include-pinned is provided.
         """)
     }
 }

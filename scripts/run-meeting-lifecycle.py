@@ -148,7 +148,11 @@ def default_action_state() -> dict[str, Any]:
     return {"status": "pending", "attempts": 0, "duration_sec": 0.0}
 
 
-def new_state(session: Path, record_elapsed_sec: float | None) -> dict[str, Any]:
+def new_state(
+    session: Path,
+    record_elapsed_sec: float | None,
+    keep_debug_artifacts: bool,
+) -> dict[str, Any]:
     return {
         "schema": STATE_SCHEMA,
         "generator": GENERATOR,
@@ -159,18 +163,20 @@ def new_state(session: Path, record_elapsed_sec: float | None) -> dict[str, Any]
         "record_command_elapsed_sec": rounded(record_elapsed_sec or 0.0),
         "capture_elapsed_sec": 0.0,
         "capture_finalize_elapsed_sec": 0.0,
+        "keep_debug_artifacts": keep_debug_artifacts,
         "current_action": None,
         "next_action": "capture_validate",
         "transition_count": 0,
         "actions": {action: default_action_state() for action in ACTION_ORDER},
         "raw_inputs": [],
         "warnings": [],
-        "resume_command": resume_command(session),
+        "resume_command": resume_command(session, keep_debug_artifacts),
     }
 
 
-def resume_command(session: Path) -> str:
-    return f"murmurmark meeting --resume {shlex.quote(display_path(session))}"
+def resume_command(session: Path, keep_debug_artifacts: bool = False) -> str:
+    command = f"murmurmark meeting --resume {shlex.quote(display_path(session))}"
+    return f"{command} --keep-debug-artifacts" if keep_debug_artifacts else command
 
 
 def ensure_state_shape(state: dict[str, Any], session: Path) -> dict[str, Any]:
@@ -184,7 +190,8 @@ def ensure_state_shape(state: dict[str, Any], session: Path) -> dict[str, Any]:
         if not isinstance(current, dict):
             actions[action] = default_action_state()
     state["session"] = display_path(session)
-    state["resume_command"] = resume_command(session)
+    state.setdefault("keep_debug_artifacts", False)
+    state["resume_command"] = resume_command(session, bool(state["keep_debug_artifacts"]))
     state.setdefault("warnings", [])
     state.setdefault("transition_count", 0)
     state.setdefault("record_command_elapsed_sec", state.get("capture_elapsed_sec", 0.0))
@@ -263,12 +270,14 @@ class MeetingLifecycle:
         max_transitions: int,
         record_elapsed_sec: float | None,
         resume: bool,
+        keep_debug_artifacts: bool,
     ) -> None:
         self.session = session.resolve()
         self.murmurmark_bin = murmurmark_bin.resolve()
         self.max_transitions = max_transitions
         self.record_elapsed_sec = record_elapsed_sec
         self.resume = resume
+        self.keep_debug_artifacts = keep_debug_artifacts
         self.root = self.session / "derived" / "meeting-lifecycle"
         self.state_path = self.root / "state.json"
         self.next_path = self.root / "next_action.json"
@@ -289,10 +298,17 @@ class MeetingLifecycle:
             self.interrupts.install()
             existing = read_json(self.state_path)
             if existing is None:
-                self.state = new_state(self.session, self.record_elapsed_sec)
+                self.state = new_state(
+                    self.session,
+                    self.record_elapsed_sec,
+                    self.keep_debug_artifacts,
+                )
                 self.event("lifecycle_started", resume=False)
             else:
                 self.state = ensure_state_shape(existing, self.session)
+                if self.keep_debug_artifacts:
+                    self.state["keep_debug_artifacts"] = True
+                    self.state["resume_command"] = resume_command(self.session, True)
                 if self.state.get("status") in {"ready", "ready_with_review"}:
                     report = read_json(self.report_path)
                     if report:
@@ -307,7 +323,7 @@ class MeetingLifecycle:
                 else:
                     raise LifecycleError(
                         f"meeting lifecycle is {self.state.get('status')!r}; "
-                        f"resume explicitly with `{resume_command(self.session)}`"
+                        f"resume explicitly with `{self.state['resume_command']}`"
                     )
             self.save_state()
 
@@ -390,7 +406,8 @@ class MeetingLifecycle:
             "review_suggested_preview": [base, "review", "suggested", "preview", session],
             "review_suggested_apply": [base, "review", "suggested", "apply", session],
             "refresh_after_review": [base, "outcome", session, "--refresh"],
-            "finish": [base, "finish", session],
+            "finish": [base, "finish", session]
+            + (["--keep-debug-artifacts"] if self.state.get("keep_debug_artifacts") else []),
         }
         return commands.get(action)
 
@@ -798,6 +815,18 @@ class MeetingLifecycle:
         verdict_path = self.output_path(outcome, "quality_verdict")
         raw_preserved, raw_after = self.verify_raw_preserved()
         export_manifest = read_json(self.export_manifest_path())
+        compaction_path = self.session / "derived/retention/derived_compaction.json"
+        compaction_manifest = read_json(compaction_path) or {}
+        compaction_application = (
+            compaction_manifest.get("application")
+            if isinstance(compaction_manifest.get("application"), dict)
+            else {}
+        )
+        compaction_verification = (
+            compaction_manifest.get("verification")
+            if isinstance(compaction_manifest.get("verification"), dict)
+            else {}
+        )
         actions = self.state.get("actions") if isinstance(self.state.get("actions"), dict) else {}
         finish_state = actions.get("finish") if isinstance(actions.get("finish"), dict) else {}
         export_succeeded = bool(
@@ -877,6 +906,7 @@ class MeetingLifecycle:
             "verdict": outcome.get("verdict") or readiness.get("verdict"),
             "verdict_path": display_path(verdict_path) if verdict_path and verdict_path.is_file() else None,
             "selected_profile": outcome.get("selected_profile") or readiness.get("selected_profile"),
+            "keep_debug_artifacts": bool(self.state.get("keep_debug_artifacts")),
             "unresolved_review": {
                 "count": int(unresolved_count or 0),
                 "seconds": rounded(float(unresolved_seconds or 0.0)),
@@ -894,6 +924,26 @@ class MeetingLifecycle:
                 ),
                 "manifest": display_path(self.export_manifest_path()) if export_succeeded else None,
                 "blockers": export_blockers,
+            },
+            "derived_compaction": {
+                "status": (
+                    compaction_manifest.get("status")
+                    if compaction_manifest
+                    else (
+                        "skipped_debug"
+                        if self.state.get("keep_debug_artifacts")
+                        else "not_attempted"
+                    )
+                ),
+                "manifest": display_path(compaction_path) if compaction_manifest else None,
+                "deleted_files": int(compaction_application.get("deleted_files") or 0),
+                "deleted_bytes": int(compaction_application.get("deleted_bytes") or 0),
+                "verification_passed": (
+                    compaction_verification.get("passed")
+                    if compaction_verification
+                    else None
+                ),
+                "keep_debug_artifacts": bool(self.state.get("keep_debug_artifacts")),
             },
             "raw": {
                 "preserved": raw_preserved,
@@ -915,7 +965,10 @@ class MeetingLifecycle:
             "warnings": warnings,
             "journal": display_path(self.events_path),
             "state": display_path(self.state_path),
-            "resume_command": resume_command(self.session),
+            "resume_command": resume_command(
+                self.session,
+                bool(self.state.get("keep_debug_artifacts")),
+            ),
             "resume_available": resumable,
         }
 
@@ -937,6 +990,7 @@ class MeetingLifecycle:
         write_json(self.report_path, report)
         unresolved = report["unresolved_review"]
         elapsed = report["elapsed_sec"]
+        compaction = report["derived_compaction"]
         lines = [
             "# Meeting Lifecycle",
             "",
@@ -947,6 +1001,7 @@ class MeetingLifecycle:
             f"- Verdict: `{report.get('verdict') or 'unknown'}`",
             f"- Unresolved review: `{unresolved['count']}` items / `{unresolved['seconds']:.3f}s`",
             f"- Export: `{report['export']['status']}`",
+            f"- Derived compaction: `{compaction['status']}` / `{compaction['deleted_bytes']}` bytes",
             f"- Raw preserved: `{str(report['raw']['preserved']).lower()}`",
             f"- Capture: `{elapsed['capture']:.3f}s`",
             f"- Capture finalization: `{elapsed['capture_finalize']:.3f}s`",
@@ -984,6 +1039,11 @@ def print_summary(report: dict[str, Any]) -> None:
     export = report.get("export") if isinstance(report.get("export"), dict) else {}
     raw = report.get("raw") if isinstance(report.get("raw"), dict) else {}
     elapsed = report.get("elapsed_sec") if isinstance(report.get("elapsed_sec"), dict) else {}
+    compaction = (
+        report.get("derived_compaction")
+        if isinstance(report.get("derived_compaction"), dict)
+        else {}
+    )
     print("")
     print(f"SESSION=\"{report.get('session')}\"")
     print("meeting:")
@@ -993,6 +1053,11 @@ def print_summary(report: dict[str, Any]) -> None:
     print(f"  verdict: {report.get('verdict') or 'unknown'}")
     print(f"  unresolved: {int(unresolved.get('count') or 0)} items / {float(unresolved.get('seconds') or 0.0):.3f}s")
     print(f"  export: {export.get('status') or 'not_attempted'}")
+    print(
+        "  derived_compaction: "
+        f"{compaction.get('status') or 'not_attempted'} "
+        f"({int(compaction.get('deleted_bytes') or 0)} bytes)"
+    )
     print(f"  raw_capture: {'preserved' if raw.get('preserved') is True else 'changed'}")
     print(
         "  elapsed: "
@@ -1021,6 +1086,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--record-elapsed-sec", "--capture-elapsed-sec", dest="record_elapsed_sec", type=float)
     parser.add_argument("--max-transitions", type=int, default=16)
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--keep-debug-artifacts", action="store_true")
     return parser.parse_args()
 
 
@@ -1035,11 +1101,15 @@ def main() -> int:
             max_transitions=args.max_transitions,
             record_elapsed_sec=args.record_elapsed_sec,
             resume=args.resume,
+            keep_debug_artifacts=args.keep_debug_artifacts,
         )
         return lifecycle.run()
     except LockBusyError as error:
         print(f"error: {error}", file=sys.stderr)
-        print(f"resume: {resume_command(args.session.resolve())}", file=sys.stderr)
+        print(
+            f"resume: {resume_command(args.session.resolve(), args.keep_debug_artifacts)}",
+            file=sys.stderr,
+        )
         return 3
     except LifecycleError as error:
         print(f"error: {error}", file=sys.stderr)

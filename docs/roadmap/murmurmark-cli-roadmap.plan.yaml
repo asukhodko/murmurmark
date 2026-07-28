@@ -91,7 +91,20 @@ nodes:
     parent: working-capabilities
     status: done
     effort: 6
-    notes: "Deterministic notes, quality verdict, guarded Markdown/Obsidian export и retention plan."
+    notes: |
+      Deterministic notes, quality verdict, guarded Markdown/Obsidian export, raw retention plan и
+      безопасная compaction пересоздаваемого derived audio с opt-out для debug-сессий.
+
+  capability-derived-compaction:
+    title: "Thin-session derived compaction"
+    kind: task
+    parent: working-capabilities
+    status: done
+    effort: 3
+    notes: |
+      `retention compact plan|apply|verify` сохраняет raw CAF и structured evidence, удаляет только
+      allowlisted media внутри derived, пропускает pinned corpus sessions и автоматически
+      применяется после успешного guarded export без `--keep-debug-artifacts`.
 
   capability-live-shadow:
     title: "Capture-safe Live Shadow"
