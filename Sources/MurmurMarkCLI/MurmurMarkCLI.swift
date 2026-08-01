@@ -300,6 +300,7 @@ struct MurmurMark {
           murmurmark transcript ./session|latest [--profile auto] [--path-only|--cat] [--sessions-root ./sessions]
           murmurmark echo-lab prepare [--sessions-root ./sessions]
           murmurmark echo-lab capture --out ./session --scenario SCENARIO [--sessions-root ./sessions]
+                                      [--confirm-operator-instructions]
           murmurmark echo-lab inspect ./session [--sessions-root ./sessions]
           murmurmark finish [./session|latest] [--format markdown|obsidian] [--profile auto] [--out-dir exports/private]
                              [--force-export] [--skip-retention] [--sessions-root ./sessions]
@@ -6082,7 +6083,8 @@ enum EchoLabCommands {
         let status = try Tooling.runPathAllowingExitCodes(
             try PythonRuntime.resolve(),
             [try script().path, subcommand] + forwarded,
-            allowedExitCodes: [0, 2]
+            allowedExitCodes: [0, 2],
+            inheritStandardInput: subcommand == "capture"
         )
         if status != 0 {
             throw CLIError(
@@ -6107,14 +6109,15 @@ enum EchoLabCommands {
           murmurmark echo-lab capture --out ./session --scenario SCENARIO
                                       [--policy policies/controlled-echo-supervision-v1.json]
                                       [--sessions-root ./sessions]
+                                      [--confirm-operator-instructions]
           murmurmark echo-lab inspect ./session
                                       [--policy policies/controlled-echo-supervision-v1.json]
                                       [--model ~/.local/share/murmurmark/models/faster-whisper/large-v3]
                                       [--sessions-root ./sessions]
 
-        capture uses the normal durable raw writer. It never enables Live Shadow or a second
-        recorder. inspect fails closed when timing, signal, local ASR or Target-Me evidence is
-        incomplete.
+        capture uses the normal durable raw writer and requires explicit operator confirmation.
+        It never enables Live Shadow or a second recorder. inspect fails closed when timing,
+        signal, local ASR or Target-Me evidence is incomplete.
         """)
     }
 }
@@ -13694,6 +13697,7 @@ enum ReadinessPrinter {
             print("\(label): missing")
             let sessionPath = PathDisplay.display(session)
             print("  session: \(sessionPath)")
+            print("  status: missing_readiness")
             print("  expected: \(PathDisplay.display(url))")
             printCaptureSummary(session)
             printLivePipelineSummary(session)
@@ -16894,14 +16898,21 @@ enum Tooling {
         return process.terminationStatus
     }
 
-    static func runPathAllowingExitCodes(_ executable: URL, _ arguments: [String], allowedExitCodes: Set<Int32>) throws -> Int32 {
+    static func runPathAllowingExitCodes(
+        _ executable: URL,
+        _ arguments: [String],
+        allowedExitCodes: Set<Int32>,
+        inheritStandardInput: Bool = false
+    ) throws -> Int32 {
         guard FileManager.default.isExecutableFile(atPath: executable.path) else {
             throw CLIError("executable not found: \(executable.path)")
         }
         let process = Process()
         process.executableURL = executable
         process.arguments = arguments
-        process.standardInput = FileHandle.nullDevice
+        if !inheritStandardInput {
+            process.standardInput = FileHandle.nullDevice
+        }
         try process.run()
         process.waitUntilExit()
         guard allowedExitCodes.contains(process.terminationStatus) else {

@@ -322,8 +322,9 @@ The default policy keeps raw audio and records that raw audio is not copied into
 Destructive raw deletion requires an explicit policy, `retention apply`, a successful export manifest,
 and `--confirm-delete-raw`.
 Derived compaction is a separate operation. It removes only allowlisted media below `derived/`,
-keeps raw CAF and structured evidence, skips frozen corpus sessions in bulk mode, and requires
-`--confirm-delete-derived-media` for manual apply.
+keeps raw CAF and structured evidence, skips sessions referenced by frozen-corpus, split, baseline
+or immutable hard-test manifests in bulk mode, and requires `--confirm-delete-derived-media` for
+manual apply.
 The default provider payload manifest is blocked because external providers are disabled by the
 local-first policy. This is expected.
 

@@ -81,6 +81,30 @@ PROMPT_SETS = {
     "opening_backchannel": OPENING_PROMPTS,
 }
 
+PHASE_OPERATOR_INSTRUCTIONS = {
+    "guard": "СОХРАНЯЙ ТИШИНУ; дождись следующей команды.",
+    "silence_background": "СОХРАНЯЙ ТИШИНУ; не печатай и не говори.",
+    "remote_only": "МОЛЧИ; сейчас говорит только цифровой диктор.",
+    "local_only": "ЧИТАЙ ВСЛУХ каждую следующую фразу сразу после команды.",
+    "keyboard_noise": "ПЕЧАТАЙ НА КЛАВИАТУРЕ; не говори.",
+    "controlled_double_talk": "ЧИТАЙ ВСЛУХ поверх цифрового диктора.",
+    "opening_backchannel": "ЧИТАЙ ВСЛУХ каждую короткую реплику сразу после команды.",
+}
+
+
+def phase_operator_instruction(kind: str) -> str:
+    return PHASE_OPERATOR_INSTRUCTIONS.get(kind, "Следуй следующей команде лаборатории.")
+
+
+def prompt_operator_message(kind: str, text: str) -> str:
+    if kind == "keyboard_noise":
+        return ">>> ПЕЧАТАЙ НА КЛАВИАТУРЕ СЕЙЧАС; НЕ ГОВОРИ."
+    return f">>> ПРОИЗНЕСИ ВСЛУХ СЕЙЧАС: «{text}»"
+
+
+def prompt_operator_action(kind: str) -> str:
+    return "type" if kind == "keyboard_noise" else "speak"
+
 
 @dataclass(frozen=True)
 class AudioData:

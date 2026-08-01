@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.1.1"
 MANIFEST_SCHEMA = "murmurmark.derived_compaction/v1"
 REPORT_SCHEMA = "murmurmark.derived_compaction_report/v1"
 AUDIT_SCHEMA = "murmurmark.derived_compaction_audit_event/v1"
@@ -202,6 +202,8 @@ def discover_pins(sessions_root: Path, explicit_files: list[Path]) -> tuple[set[
     if reports.is_dir():
         sources.extend(sorted(reports.glob("**/frozen_corpus.json")))
         sources.extend(sorted(reports.glob("**/split_manifest.json")))
+        sources.extend(sorted(reports.glob("**/*baseline*.json")))
+        sources.extend(sorted(reports.glob("**/*hard_test*.json")))
     policies = Path.cwd() / "policies"
     if policies.is_dir():
         sources.extend(sorted(policies.glob("*.json")))

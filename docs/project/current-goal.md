@@ -64,6 +64,8 @@ not be tuned after observing capture outcomes merely to pass a gate.
    process.
 4. Schedule silence, remote-only, local-only, keyboard/noise, controlled double-talk and protected
    opening/backchannel phases.
+   Require an explicit operator acknowledgement before capture, label every spoken prompt as a
+   user action, and abort early if output volume changes beyond the frozen tolerance.
 5. Record planned and actual monotonic timestamps, audio-device metadata, output volume, source WAV
    hashes, raw hashes and derived hashes.
 6. Treat the schedule as the source of expected state. Signal metrics, local faster-whisper,

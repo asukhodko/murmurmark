@@ -7831,7 +7831,8 @@ derived/echo-lab/capture_manifest.json
 ```
 
 It records session/scenario/split, frozen policy hash, stimulus manifest fingerprint, raw and
-session-file fingerprints, device metadata, output volume before/after, and:
+session-file fingerprints, device metadata, output volume before/after,
+`operator_instructions_confirmed`, `operator_confirmation_mode`, and:
 
 ```json
 {
@@ -7843,6 +7844,21 @@ session-file fingerprints, device metadata, output volume before/after, and:
   }
 }
 ```
+
+The operator confirmation is required before the raw recorder starts. Prompt events carry an
+explicit `operator_action: speak|type`; phase events carry the complete operator instruction.
+Synthetic playback represents remote only and must never substitute the real local speaker.
+
+### `murmurmark.controlled_echo_capture_abort/v1`
+
+```text
+derived/echo-lab/capture_abort.json
+```
+
+When capture is stopped by a lab invariant such as output-volume drift, this marker records the
+scenario, active phase, explicit reason, confirmation mode and observed volume. It marks a partial
+session as excluded and lets `echo-lab inspect` return an actionable retry command. It is not an
+accepted capture manifest.
 
 ### `murmurmark.controlled_echo_inspection/v1`
 

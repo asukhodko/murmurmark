@@ -189,6 +189,18 @@ def main() -> int:
         assert "capture_session_lock_present" in manifest(active)["eligibility"]["blockers"]
 
         pinned = write_session(root, "2026-01-03_10-00-00")
+        baseline_manifest = (
+            root / "sessions/_reports/frozen-fixture/baseline_manifest.json"
+        )
+        write_json(
+            baseline_manifest,
+            {"sessions": [{"session_id": pinned.name}]},
+        )
+        auto_pinned_plan = run(root, "plan", str(pinned))
+        assert auto_pinned_plan.returncode == 2
+        auto_pinned_manifest = manifest(pinned)
+        assert "pinned_corpus_session" in auto_pinned_manifest["eligibility"]["blockers"]
+        assert str(baseline_manifest.resolve()) in auto_pinned_manifest["pin_sources"]
         pin_file = root / "pins.json"
         write_json(pin_file, {"sessions": [pinned.name]})
         pinned_plan = run(root, "plan", str(pinned), "--pin-file", str(pin_file))

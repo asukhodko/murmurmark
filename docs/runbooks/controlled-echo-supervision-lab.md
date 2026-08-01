@@ -34,13 +34,28 @@ The exact display count may differ, but it must be greater than zero.
 - Use the same microphone and placement as in ordinary meetings without headphones.
 - Close or mute every application that may play audio.
 - Set the requested macOS output volume before each capture and do not change it during capture.
+  The capture now checks it throughout the run and aborts as soon as drift exceeds the frozen limit.
 - Stay silent during `silence`, `remote_only` and guard phases.
-- Speak each phrase printed after `SAY:` once, naturally and without rushing.
+- Speak each phrase printed after `>>> ПРОИЗНЕСИ ВСЛУХ СЕЙЧАС:` once, naturally and without
+  rushing. These phrases are instructions for you, not text that macOS will play.
 - Type normally, but do not speak, during `keyboard_noise`.
 - Do not start Live Shadow, a meeting pipeline or a second recorder.
 
+The synthetic voice is deliberately used only for the remote participant. Local prompts must be
+spoken in your real voice because they measure Target-Me preservation. Before raw capture starts,
+the command prints this distinction and requires the exact confirmation `ГОТОВ`. It then prints a
+large Russian instruction at every phase boundary.
+
+For deliberate non-interactive automation, read the same instructions first and pass
+`--confirm-operator-instructions`. The flag acknowledges the instructions; it does not synthesize
+the local phrases.
+
 An excluded capture remains useful diagnostic evidence, but it does not satisfy corpus coverage.
 Never edit its raw CAF or weaken a frozen threshold to make it pass.
+
+If capture aborts, `derived/echo-lab/capture_abort.json` records the phase and reason. Run
+`murmurmark echo-lab inspect "$SESSION"` to see the same actionable failure, then use a fresh
+`SESSION` for the retry.
 
 ## Capture Scenarios
 

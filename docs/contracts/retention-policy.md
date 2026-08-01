@@ -242,8 +242,10 @@ output identities, inventory fingerprint, blockers, warnings, applied totals and
 result. It does not hash every rebuildable audio copy because that would reread hundreds of
 gigabytes before deleting data already reproducible from raw.
 
-Bulk mode accepts `all`, `--older-than 7d` and `--exclude-pinned`. Frozen corpus manifests under
-`sessions/_reports/` and explicit pin files provide the pinned session set. Pinned sessions require
+Bulk mode accepts `all`, `--older-than 7d` and `--exclude-pinned`. Frozen-corpus, split, baseline and
+immutable hard-test manifests under `sessions/_reports/`, plus explicit pin files, provide the
+pinned session set. This protects experiments that freeze exact derived-audio hashes through a
+baseline manifest even when they do not write `frozen_corpus.json`. Pinned sessions require
 `--include-pinned` before manual compaction.
 
 After successful guarded export, `murmurmark finish` applies `keep_raw` compaction automatically.

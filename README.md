@@ -2,9 +2,8 @@
 
 Local-first meeting transcription for sensitive work.
 
-MurmurMark records separate local microphone and remote system-audio tracks, processes them locally
-and produces a transcript, quality verdict, evidence-backed notes, review plan, export bundle and
-retention plan.
+MurmurMark records separate microphone and remote tracks, then locally produces a transcript,
+quality verdict, evidence-backed notes, review plan, export bundle and retention plan.
 
 The product is CLI-first. Batch processing is authoritative. Live preview is an optional shadow
 that cannot replace or weaken the durable recording.
@@ -41,10 +40,8 @@ Prerequisites:
 ```bash
 cd murmurmark
 source .venv/bin/activate
-
 scripts/install-local.sh
 export PATH="$HOME/.local/bin:$PATH"
-
 murmurmark config init
 murmurmark doctor --strict
 murmurmark self-test
@@ -195,8 +192,8 @@ murmurmark retention compact apply all --older-than 7d --exclude-pinned \
   --confirm-delete-derived-media
 ```
 
-Frozen corpus sessions are skipped unless `--include-pinned` is explicit. Reprocessing may recreate
-derived media; see [Retention Policy](docs/contracts/retention-policy.md) for the full contract.
+Frozen corpus sessions are skipped unless `--include-pinned` is explicit. Pin discovery includes frozen-corpus,
+split, baseline and immutable hard-test manifests. See [Retention Policy](docs/contracts/retention-policy.md).
 
 ## Important Artifacts
 
@@ -323,6 +320,9 @@ murmurmark echo-lab capture \
 
 murmurmark echo-lab inspect "$SESSION"
 ```
+
+Before recording, enter `ГОТОВ`; `>>> ПРОИЗНЕСИ ВСЛУХ СЕЙЧАС:` means speaking in your own voice.
+Generated voice is remote only. The lab monitors output volume and aborts invalid drift early.
 
 Repeat with the six frozen scenarios shown in the
 [Controlled Echo Supervision Lab runbook](docs/runbooks/controlled-echo-supervision-lab.md).

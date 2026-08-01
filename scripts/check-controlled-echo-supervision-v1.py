@@ -22,7 +22,10 @@ from controlled_echo_supervision import (
     load_policy,
     local_only_gate_reasons,
     materialize_looped_stimulus,
+    phase_operator_instruction,
     policy_sha,
+    prompt_operator_action,
+    prompt_operator_message,
     prompts_for_phase,
     read_jsonl,
     remote_only_gate_reasons,
@@ -331,6 +334,39 @@ def main() -> int:
     schedule = build_schedule(base_policy)
     validate_schedule(schedule, total_duration(base_policy))
     require(schedule == build_schedule(base_policy), "phase schedule is not deterministic")
+    require(
+        "ПРОИЗНЕСИ ВСЛУХ" in prompt_operator_message("local_only", "Проверка"),
+        "spoken prompt is not explicit",
+    )
+    require(
+        "МОЛЧИ" in phase_operator_instruction("remote_only"),
+        "remote-only instruction does not require silence",
+    )
+    require(
+        prompt_operator_action("controlled_double_talk") == "speak",
+        "double-talk prompt lost the operator action",
+    )
+    require(
+        prompt_operator_action("keyboard_noise") == "type",
+        "keyboard prompt lost the operator action",
+    )
+    capture_help = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts/controlled-echo-supervision-lab.py"),
+            "capture",
+            "--help",
+        ],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    require(capture_help.returncode == 0, "capture help failed")
+    require(
+        "--confirm-operator-instructions" in capture_help.stdout,
+        "non-interactive operator confirmation flag is undocumented",
+    )
     for phase in schedule:
         for prompt in prompts_for_phase(phase):
             require(
@@ -403,6 +439,38 @@ def main() -> int:
         sessions_root.mkdir(parents=True)
         policy_path = fixture_policy(repo)
         policy = load_policy(policy_path)
+        aborted_session = sessions_root / "aborted-capture"
+        write_json(
+            aborted_session / "derived/echo-lab/capture_abort.json",
+            {
+                "schema": "murmurmark.controlled_echo_capture_abort/v1",
+                "phase_id": "local_only",
+                "reason": "fixture volume drift",
+            },
+        )
+        aborted_inspect = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts/controlled-echo-supervision-lab.py"),
+                "--repo-root",
+                str(repo),
+                "inspect",
+                str(aborted_session),
+                "--policy",
+                str(policy_path),
+                "--sessions-root",
+                str(sessions_root),
+            ],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        require(aborted_inspect.returncode == 1, "aborted capture was accepted")
+        require(
+            "capture was aborted during local_only" in aborted_inspect.stderr,
+            "aborted capture inspection is not actionable",
+        )
         stale_stimuli = sessions_root / "_echo_lab/controlled-echo-supervision-v1/stimuli"
         stale_stimuli.mkdir(parents=True)
         stale_stimulus = stale_stimuli / "double_talk.wav"

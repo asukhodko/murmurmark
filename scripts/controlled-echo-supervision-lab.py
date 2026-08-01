@@ -13,7 +13,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 import numpy as np
 
@@ -40,7 +40,10 @@ from controlled_echo_supervision import (
     materialize_looped_stimulus,
     normalize_text,
     phase_bounds,
+    phase_operator_instruction,
     policy_sha,
+    prompt_operator_action,
+    prompt_operator_message,
     prompts_for_phase,
     read_audio,
     read_audio_slice,
@@ -84,6 +87,28 @@ def output_volume() -> int | None:
         return int(result.stdout.strip())
     except (OSError, ValueError, subprocess.SubprocessError):
         return None
+
+
+def confirm_operator_instructions(*, confirmed_by_flag: bool) -> str:
+    print("\n=== ВАЖНО: ТВОИ ДЕЙСТВИЯ ВО ВРЕМЯ ЗАПИСИ ===")
+    print("- >>> ПРОИЗНЕСИ ВСЛУХ СЕЙЧАС: произнеси показанную фразу своим голосом.")
+    print("- МОЛЧИ / СОХРАНЯЙ ТИШИНУ: не говори и не печатай.")
+    print("- ПЕЧАТАЙ НА КЛАВИАТУРЕ: печатай, но не говори.")
+    print("- Во время double-talk говори поверх цифрового диктора.")
+    print("- Не меняй громкость macOS до полного завершения записи.")
+    if confirmed_by_flag:
+        print("Инструкции подтверждены флагом --confirm-operator-instructions.\n")
+        return "flag"
+    if not sys.stdin.isatty():
+        raise RuntimeError(
+            "echo-lab capture requires operator confirmation in an interactive terminal; "
+            "read the instructions and rerun with `--confirm-operator-instructions` only when ready"
+        )
+    answer = input("Введи ГОТОВ, если будешь читать фразы вслух и не менять громкость: ")
+    if answer.strip().upper() != "ГОТОВ":
+        raise RuntimeError("operator instructions were not confirmed; capture was not started")
+    print("Инструкции подтверждены. Запись начинается.\n")
+    return "interactive"
 
 
 def device_metadata() -> dict[str, Any]:
@@ -308,11 +333,25 @@ def sha256_text(text: str) -> str:
     return hashlib.sha256(normalize_text(text).encode("utf-8")).hexdigest()
 
 
-def wait_until(deadline: float, child: subprocess.Popen[Any]) -> None:
+def wait_until(
+    deadline: float,
+    child: subprocess.Popen[Any],
+    *,
+    monitor: Callable[[], None] | None = None,
+    monitor_interval_sec: float = 5.0,
+) -> None:
+    next_monitor_at = time.monotonic()
     while True:
         if child.poll() is not None:
             raise RuntimeError(f"recording stopped early with status {child.returncode}")
-        remaining = deadline - time.monotonic()
+        now = time.monotonic()
+        remaining = deadline - now
+        if remaining <= 0:
+            return
+        if monitor is not None and now >= next_monitor_at:
+            monitor()
+            next_monitor_at = now + monitor_interval_sec
+            remaining = deadline - time.monotonic()
         if remaining <= 0:
             return
         time.sleep(min(0.05, remaining))
@@ -406,6 +445,13 @@ def capture(args: argparse.Namespace) -> int:
     schedule = build_schedule(policy)
     validate_schedule(schedule, total_duration(policy))
     prompts = [prompt for phase in schedule for prompt in prompts_for_phase(phase)]
+    print(f"scenario: {args.scenario}")
+    print(f"placement: {scenario['placement']}")
+    print(f"output volume: {volume_before}%")
+    print(f"duration: {total_duration(policy):.0f}s")
+    confirmation_mode = confirm_operator_instructions(
+        confirmed_by_flag=bool(args.confirm_operator_instructions)
+    )
     run_id = stable_id(session.name, policy_sha(policy_path), utc_now())
     run_dir = default_lab_root(sessions_root) / "runs" / run_id
     run_events = run_dir / "echo_lab_events.jsonl"
@@ -419,6 +465,8 @@ def capture(args: argparse.Namespace) -> int:
             "total_duration_sec": total_duration(policy),
             "phases": schedule,
             "prompts": prompts,
+            "operator_instructions_confirmed": True,
+            "operator_confirmation_mode": confirmation_mode,
         },
     )
 
@@ -432,24 +480,51 @@ def capture(args: argparse.Namespace) -> int:
         "--target-bundle",
         "system",
     ]
-    print(f"scenario: {args.scenario}")
-    print(f"placement: {scenario['placement']}")
-    print(f"output volume: {volume_before}%")
-    print(f"duration: {total_duration(policy):.0f}s")
-    print("Do not play other system audio. Follow the visual prompts exactly.")
+    append_event(
+        run_events,
+        {
+            "schema": "murmurmark.controlled_echo_event/v1",
+            "type": "operator_instructions_confirmed",
+            "confirmation_mode": confirmation_mode,
+            "wall_time": utc_now(),
+        },
+    )
     print(f"+ {' '.join(record_command)}", flush=True)
     child = subprocess.Popen(record_command)
     active_player: subprocess.Popen[Any] | None = None
     phase_events: list[dict[str, Any]] = []
     capture_started_wall: dt.datetime | None = None
     capture_started_mono: float | None = None
+    active_phase_id = "capture_start"
+    maximum_volume_drift = int(policy["validation"]["maximum_output_volume_drift_percent"])
+
+    def monitor_output_volume() -> None:
+        current_volume = output_volume()
+        if current_volume is None:
+            raise RuntimeError(
+                "output volume became unavailable during capture; partial session is excluded"
+            )
+        if abs(current_volume - volume_before) > maximum_volume_drift:
+            raise RuntimeError(
+                "output volume changed during "
+                f"{active_phase_id}: {volume_before}% -> {current_volume}% "
+                f"(allowed drift: {maximum_volume_drift}%); partial session is excluded; "
+                "rerun with a fresh SESSION and keep volume fixed"
+            )
+
     try:
         capture_started_wall, capture_started_mono = wait_for_capture_start(session / "events.jsonl", child)
         for phase in schedule:
+            active_phase_id = str(phase["id"])
             planned_start = float(phase["planned_start_sec"])
             planned_end = float(phase["planned_end_sec"])
-            wait_until(capture_started_mono + planned_start, child)
+            wait_until(
+                capture_started_mono + planned_start,
+                child,
+                monitor=monitor_output_volume,
+            )
             actual_start = time.monotonic() - capture_started_mono
+            operator_instruction = phase_operator_instruction(str(phase["kind"]))
             row = {
                 "schema": "murmurmark.controlled_echo_event/v1",
                 "type": "phase_started",
@@ -458,11 +533,13 @@ def capture(args: argparse.Namespace) -> int:
                 "planned_at_sec": planned_start,
                 "actual_at_sec": round(actual_start, 6),
                 "error_sec": round(actual_start - planned_start, 6),
+                "operator_instruction": operator_instruction,
                 "wall_time": utc_now(),
             }
             phase_events.append(row)
             append_event(run_events, row)
-            print(f"\n[{actual_start:07.2f}s] {phase['id']}", flush=True)
+            print(f"\n[{actual_start:07.2f}s] {phase['id']}")
+            print(f">>> {operator_instruction}", flush=True)
 
             stimulus_name = phase.get("stimulus")
             if stimulus_name:
@@ -481,11 +558,12 @@ def capture(args: argparse.Namespace) -> int:
 
             phase_prompts = prompts_for_phase(phase)
             for prompt in phase_prompts:
-                wait_until(capture_started_mono + float(prompt["planned_at_sec"]), child)
-                if phase["kind"] == "keyboard_noise":
-                    message = "Type naturally now; do not speak."
-                else:
-                    message = f"SAY: {prompt['text']}"
+                wait_until(
+                    capture_started_mono + float(prompt["planned_at_sec"]),
+                    child,
+                    monitor=monitor_output_volume,
+                )
+                message = prompt_operator_message(str(phase["kind"]), str(prompt["text"]))
                 actual_prompt = time.monotonic() - capture_started_mono
                 print(f"[{actual_prompt:07.2f}s] {message}", flush=True)
                 prompt_row = {
@@ -498,14 +576,19 @@ def capture(args: argparse.Namespace) -> int:
                     "error_sec": round(actual_prompt - float(prompt["planned_at_sec"]), 6),
                     "text": prompt["text"],
                     "text_sha256": prompt["text_sha256"],
+                    "operator_action": prompt_operator_action(str(phase["kind"])),
                     "wall_time": utc_now(),
                 }
                 phase_events.append(prompt_row)
                 append_event(run_events, prompt_row)
 
             if phase["kind"] == "keyboard_noise" and not phase_prompts:
-                print("Type naturally during this phase; do not speak.", flush=True)
-            wait_until(capture_started_mono + planned_end, child)
+                print(">>> ПЕЧАТАЙ НА КЛАВИАТУРЕ СЕЙЧАС; НЕ ГОВОРИ.", flush=True)
+            wait_until(
+                capture_started_mono + planned_end,
+                child,
+                monitor=monitor_output_volume,
+            )
             actual_phase_boundary = time.monotonic() - capture_started_mono
             if active_player is not None:
                 if active_player.poll() is None:
@@ -537,7 +620,7 @@ def capture(args: argparse.Namespace) -> int:
         status = child.wait(timeout=45)
         if status != 0:
             raise RuntimeError(f"recording failed with status {status}")
-    except BaseException:
+    except BaseException as error:
         if active_player is not None and active_player.poll() is None:
             active_player.terminate()
         if child.poll() is None:
@@ -546,6 +629,36 @@ def capture(args: argparse.Namespace) -> int:
                 child.wait(timeout=30)
             except subprocess.TimeoutExpired:
                 child.terminate()
+        abort_reason = str(error) or type(error).__name__
+        abort_payload = {
+            "schema": "murmurmark.controlled_echo_capture_abort/v1",
+            "profile": policy["profile"],
+            "session_id": session.name,
+            "scenario": args.scenario,
+            "phase_id": active_phase_id,
+            "reason": abort_reason,
+            "operator_instructions_confirmed": True,
+            "operator_confirmation_mode": confirmation_mode,
+            "output_volume_before_percent": volume_before,
+            "output_volume_at_abort_percent": output_volume(),
+            "aborted_at": utc_now(),
+        }
+        abort_path = session / "derived" / "echo-lab" / "capture_abort.json"
+        try:
+            write_json(abort_path, abort_payload)
+            append_event(
+                run_events,
+                {
+                    "schema": "murmurmark.controlled_echo_event/v1",
+                    "type": "capture_aborted",
+                    "phase_id": active_phase_id,
+                    "reason": abort_reason,
+                    "wall_time": abort_payload["aborted_at"],
+                },
+            )
+            print(f"echo-lab abort report: {abort_path}", file=sys.stderr)
+        except OSError:
+            pass
         raise
 
     metadata_after = device_metadata()
@@ -571,6 +684,8 @@ def capture(args: argparse.Namespace) -> int:
             else None,
             "phases": schedule,
             "prompts": prompts,
+            "operator_instructions_confirmed": True,
+            "operator_confirmation_mode": confirmation_mode,
         },
     )
     raw_paths = [session / "audio" / role / "000001.caf" for role in ("mic", "remote")]
@@ -597,6 +712,8 @@ def capture(args: argparse.Namespace) -> int:
         "device_after": metadata_after,
         "output_volume_before_percent": volume_before,
         "output_volume_after_percent": volume_after,
+        "operator_instructions_confirmed": True,
+        "operator_confirmation_mode": confirmation_mode,
         "phase_duration_sec": total_duration(policy),
         "post_roll_sec": float(policy["capture"]["post_roll_sec"]),
         "record_duration_sec": total_duration(policy)
@@ -830,6 +947,13 @@ def inspect(args: argparse.Namespace) -> int:
     capture_manifest_path = derived / "capture_manifest.json"
     schedule_path = derived / "echo_lab_schedule.json"
     if not capture_manifest_path.is_file() or not schedule_path.is_file():
+        abort_path = derived / "capture_abort.json"
+        if abort_path.is_file():
+            abort = read_json(abort_path)
+            raise RuntimeError(
+                f"echo-lab capture was aborted during {abort.get('phase_id', 'unknown')}: "
+                f"{abort.get('reason', 'unknown reason')}; rerun with a fresh SESSION"
+            )
         raise RuntimeError(f"not an echo-lab capture: {session}")
     capture_manifest = read_json(capture_manifest_path)
     schedule_payload = read_json(schedule_path)
@@ -1168,6 +1292,14 @@ def build_parser() -> argparse.ArgumentParser:
     capture_parser.add_argument("--scenario", required=True)
     capture_parser.add_argument("--policy", type=Path, default=default_policy_path())
     capture_parser.add_argument("--sessions-root", type=Path, default=default_sessions_root())
+    capture_parser.add_argument(
+        "--confirm-operator-instructions",
+        action="store_true",
+        help=(
+            "Confirm that the operator has read the prompts and will speak aloud when instructed; "
+            "intended for deliberate non-interactive runs."
+        ),
+    )
     capture_parser.add_argument(
         "--murmurmark-executable",
         type=Path,
