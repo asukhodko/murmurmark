@@ -841,6 +841,22 @@ def interval_text(asr: dict[str, Any], start: float, end: float) -> str:
     )
 
 
+def interval_word_spans(asr: dict[str, Any], start: float, end: float) -> list[dict[str, float]]:
+    spans: list[dict[str, float]] = []
+    for row in asr.get("words", []):
+        word_start = float(row.get("start") or 0.0)
+        word_end = float(row.get("end") or 0.0)
+        if word_end <= start or word_start >= end:
+            continue
+        spans.append(
+            {
+                "start_sec": round(max(start, word_start) - start, 6),
+                "end_sec": round(min(end, word_end) - start, 6),
+            }
+        )
+    return spans
+
+
 def cosine(left: np.ndarray, right: np.ndarray) -> float:
     denominator = float(np.linalg.norm(left) * np.linalg.norm(right))
     if denominator <= 1.0e-12:
@@ -1154,6 +1170,7 @@ def inspect(args: argparse.Namespace) -> int:
                     "prompt_token_recall": round(token_recall(expected, mic_text), 6),
                     "target_me_local_similarity": speaker.get("local_similarity_median"),
                     "target_me_validation_chunks": speaker.get("local_validation_chunks"),
+                    "mic_word_intervals": interval_word_spans(mic_asr, start, end) if mic_asr else [],
                 }
             )
             reasons.extend(local_only_gate_reasons(metrics, evidence, validation))
@@ -1170,6 +1187,7 @@ def inspect(args: argparse.Namespace) -> int:
                     "prompt_token_recall": round(token_recall(expected, mic_text), 6),
                     "target_me_maximum_similarity": score.get("maximum_similarity"),
                     "target_me_chunk_count": score.get("chunk_count"),
+                    "mic_word_intervals": interval_word_spans(mic_asr, start, end) if mic_asr else [],
                 }
             )
             if metrics["remote_rms_db"] < float(validation["remote_active_min_rms_db"]) and kind == "controlled_double_talk":

@@ -261,6 +261,20 @@ def phase_clip_specs(
     return rows
 
 
+def local_clip_has_asr_support(phase: dict[str, Any], spec: dict[str, Any]) -> bool:
+    clip_start = float(spec["start_sec"])
+    clip_end = float(spec["end_sec"])
+    intervals = phase.get("evidence", {}).get("mic_word_intervals")
+    if not isinstance(intervals, list):
+        return False
+    return any(
+        float(row.get("end_sec") or 0.0) > clip_start
+        and float(row.get("start_sec") or 0.0) < clip_end
+        for row in intervals
+        if isinstance(row, dict)
+    )
+
+
 def finite_and_unclipped(audio: np.ndarray, maximum_peak: float) -> tuple[bool, list[str]]:
     reasons: list[str] = []
     if not np.all(np.isfinite(audio)):
@@ -345,6 +359,13 @@ def materialize_measured(
                 start_sample = int(round(float(spec["start_sec"]) * ANALYSIS_SAMPLE_RATE))
                 audio = np.asarray(source_audio[start_sample : start_sample + sample_count], dtype=np.float32)
                 valid, reasons = finite_and_unclipped(audio, maximum_peak)
+                if item_kind in {
+                    "measured_local_target",
+                    "measured_double_talk",
+                    "opening_backchannel",
+                } and not local_clip_has_asr_support(phase, spec):
+                    reasons.append("local_asr_speech_missing")
+                    valid = False
                 if audio.size != sample_count:
                     reasons.append("duration_mismatch")
                     valid = False
@@ -504,25 +525,14 @@ def synthetic_pairs(
     return rows, exclusions
 
 
-def prompt_item_counts(
-    resolved: Sequence[tuple[Path, dict[str, Any], dict[str, Any]]],
-) -> dict[str, int]:
-    protected = 0
-    opening = 0
-    for session, _, inspection in resolved:
-        schedule_path = session / "derived" / "echo-lab" / "echo_lab_schedule.json"
-        schedule = read_json(schedule_path)
-        accepted_phase_ids = {
-            str(row["phase_id"])
-            for row in inspection.get("phases", [])
-            if row.get("accepted")
-        }
-        for prompt in schedule.get("prompts", []):
-            if str(prompt.get("phase_id")) not in accepted_phase_ids:
-                continue
-            protected += 1
-            if prompt.get("phase_id") == "opening_backchannel":
-                opening += 1
+def prompt_item_counts(measured: Sequence[dict[str, Any]]) -> dict[str, int]:
+    protected_kinds = {
+        "measured_local_target",
+        "measured_double_talk",
+        "opening_backchannel",
+    }
+    protected = sum(1 for row in measured if row.get("kind") in protected_kinds)
+    opening = sum(1 for row in measured if row.get("kind") == "opening_backchannel")
     return {"protected_local_items": protected, "opening_backchannel_items": opening}
 
 
@@ -765,7 +775,7 @@ def write_corpus(
         ),
     )
     captures = frozen.get("captures", [])
-    prompt_counts = prompt_item_counts(resolved)
+    prompt_counts = prompt_item_counts(measured)
     coverage_values = coverage(
         captures=captures,
         manifest=manifest,

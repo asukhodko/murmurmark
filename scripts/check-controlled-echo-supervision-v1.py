@@ -45,6 +45,7 @@ from controlled_echo_supervision_corpus import (
     EXACT_OUTPUTS,
     build,
     finite_and_unclipped,
+    local_clip_has_asr_support,
     replay,
     status,
 )
@@ -243,7 +244,15 @@ def make_session(
                     "lag_ms": 10.0 if phase["kind"] == "remote_only" else 0.0,
                     "lagged_correlation": 0.9 if phase["kind"] == "remote_only" else 0.0,
                 },
-                "evidence": {},
+                "evidence": {
+                    "mic_word_intervals": [
+                        {"start_sec": cursor + 0.5, "end_sec": cursor + 1.0}
+                        for cursor in range(0, int(phase["duration_sec"]), 4)
+                    ]
+                    if phase["kind"]
+                    in {"local_only", "controlled_double_talk", "opening_backchannel"}
+                    else []
+                },
                 "artifacts": artifacts,
             }
         )
@@ -392,6 +401,21 @@ def main() -> int:
                 "prompt lies outside its phase",
             )
     check_gate_helpers(base_policy)
+    opening_phase = {
+        "evidence": {"mic_word_intervals": [{"start_sec": 4.5, "end_sec": 5.0}]}
+    }
+    require(
+        not local_clip_has_asr_support(
+            opening_phase, {"start_sec": 0.0, "end_sec": 4.0}
+        ),
+        "silent opening clip received prompt credit",
+    )
+    require(
+        local_clip_has_asr_support(
+            opening_phase, {"start_sec": 4.0, "end_sec": 8.0}
+        ),
+        "ASR-supported opening clip was excluded",
+    )
     valid, reasons = finite_and_unclipped(
         np.asarray([0.0, np.nan], dtype=np.float32),
         float(base_policy["validation"]["maximum_abs_peak"]),
@@ -697,6 +721,21 @@ def main() -> int:
             "excluded capture provenance was lost",
         )
         supervision = read_jsonl(output_dir / "supervision_manifest.jsonl")
+        materialized_opening = [row for row in supervision if row["kind"] == "opening_backchannel"]
+        require(
+            decision["coverage"]["opening_backchannel_items"] == len(materialized_opening),
+            "opening coverage counts scheduled prompts instead of supported items",
+        )
+        materialized_protected = [
+            row
+            for row in supervision
+            if row["kind"]
+            in {"measured_local_target", "measured_double_talk", "opening_backchannel"}
+        ]
+        require(
+            decision["coverage"]["protected_local_items"] == len(materialized_protected),
+            "protected-local coverage counts unsupported prompts",
+        )
         hard_training = [
             row for row in supervision if row["split"] == "hard_test" and row["training_eligible"]
         ]

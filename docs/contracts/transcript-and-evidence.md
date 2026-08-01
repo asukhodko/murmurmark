@@ -7877,6 +7877,11 @@ speaker-validation windows. Lab system audio is a duplicated stereo signal, so
 downmix that would add about 3 dB. Opening/backchannel phrases may use a wider aggregate voice
 window than double-talk; the frozen Target-Me acceptance threshold remains unchanged.
 
+Local-speech phases also store text-free, phase-relative `mic_word_intervals`. Corpus materialization
+keeps a four-second local target, double-talk or opening item only when one of those intervals
+overlaps it. Displayed prompts without observed speech remain explicit `local_asr_speech_missing`
+exclusions and do not increase protected-local or opening coverage.
+
 ### Corpus Outputs
 
 `sessions/_reports/controlled-echo-supervision-v1/` contains:

@@ -282,9 +282,11 @@ nodes:
       synthetic double-talk имеют известное происхождение. Собрать минимум 4 train, 1 dev и
       1 controlled hard-test captures, проверить privacy, contamination, split isolation и
       oracle gates. Завершить READY_FOR_ADAPTATION либо точным DO_NOT_TRAIN; не обучать модель
-      и не менять production. Первый quiet train capture принят: 6/6 содержательных фаз,
-      128s local-only, 128s remote-only, 612s synthetic mixtures, replay 296/296. Осталось пять
-      сценариев; текущее решение закономерно DO_NOT_TRAIN.
+      и не менять production. Quiet и normal-A train captures приняты: в каждом 6/6
+      содержательных фаз; суммарно 248s ASR-supported local-only, 256s remote-only, 912s synthetic
+      mixtures, 109 protected-local items, 13 opening items и replay 496/496. Осталось четыре
+      сценария; текущее решение
+      закономерно DO_NOT_TRAIN.
 
   product-evidence-export-v2:
     title: "Evidence Notes And Export v2"

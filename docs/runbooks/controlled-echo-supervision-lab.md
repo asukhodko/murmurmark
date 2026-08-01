@@ -172,6 +172,9 @@ Inspection selects the first input channel when creating its mono analysis track
 lab stimulus is duplicated across the system-capture stereo channels; an ordinary normalized
 stereo downmix would add about 3 dB and falsely report clipping. Short opening phrases use a wider
 speaker-validation window than double-talk, while keeping the same frozen Target-Me threshold.
+If you react late but still speak inside the requested phase, the capture may remain valid; empty
+four-second local, double-talk and opening windows are excluded from corpus coverage instead of
+being mislabeled as spoken items.
 
 ```bash
 jq '{
