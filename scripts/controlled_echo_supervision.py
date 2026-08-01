@@ -86,9 +86,16 @@ PHASE_OPERATOR_INSTRUCTIONS = {
     "silence_background": "СОХРАНЯЙ ТИШИНУ; не печатай и не говори.",
     "remote_only": "МОЛЧИ; сейчас говорит только цифровой диктор.",
     "local_only": "ЧИТАЙ ВСЛУХ каждую следующую фразу сразу после команды.",
-    "keyboard_noise": "ПЕЧАТАЙ НА КЛАВИАТУРЕ; не говори.",
+    "keyboard_noise": "ПЕЧАТАЙ В ДРУГОМ ОКНЕ (например, в заметках); не говори.",
     "controlled_double_talk": "ЧИТАЙ ВСЛУХ поверх цифрового диктора.",
     "opening_backchannel": "ЧИТАЙ ВСЛУХ каждую короткую реплику сразу после команды.",
+}
+
+SPEAKER_VALIDATION_CHUNK_SEC = {
+    "controlled_double_talk": 4.0,
+    # Short opening/backchannel phrases do not carry enough speaker evidence
+    # individually. Resemblyzer's VAD keeps the speech inside this wider window.
+    "opening_backchannel": 8.0,
 }
 
 
@@ -98,12 +105,16 @@ def phase_operator_instruction(kind: str) -> str:
 
 def prompt_operator_message(kind: str, text: str) -> str:
     if kind == "keyboard_noise":
-        return ">>> ПЕЧАТАЙ НА КЛАВИАТУРЕ СЕЙЧАС; НЕ ГОВОРИ."
+        return ">>> ПЕЧАТАЙ В ДРУГОМ ОКНЕ СЕЙЧАС; НЕ В ЭТОМ ТЕРМИНАЛЕ; НЕ ГОВОРИ."
     return f">>> ПРОИЗНЕСИ ВСЛУХ СЕЙЧАС: «{text}»"
 
 
 def prompt_operator_action(kind: str) -> str:
     return "type" if kind == "keyboard_noise" else "speak"
+
+
+def speaker_validation_chunk_sec(phase_id: str) -> float:
+    return SPEAKER_VALIDATION_CHUNK_SEC.get(phase_id, 4.0)
 
 
 @dataclass(frozen=True)
@@ -344,8 +355,8 @@ def convert_audio(source: Path, destination: Path, sample_rate: int = ANALYSIS_S
             "-y",
             "-i",
             str(source),
-            "-ac",
-            "1",
+            "-af",
+            "pan=mono|c0=c0",
             "-ar",
             str(sample_rate),
             "-c:a",

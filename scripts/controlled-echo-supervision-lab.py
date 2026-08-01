@@ -52,6 +52,7 @@ from controlled_echo_supervision import (
     relative,
     sha256,
     shift_remote_for_mic,
+    speaker_validation_chunk_sec,
     stable_id,
     local_only_gate_reasons,
     remote_only_gate_reasons,
@@ -93,7 +94,7 @@ def print_operator_instructions() -> None:
     print("\n=== ВАЖНО: ТВОИ ДЕЙСТВИЯ ВО ВРЕМЯ ЗАПИСИ ===")
     print("- >>> ПРОИЗНЕСИ ВСЛУХ СЕЙЧАС: произнеси показанную фразу своим голосом.")
     print("- МОЛЧИ / СОХРАНЯЙ ТИШИНУ: не говори и не печатай.")
-    print("- ПЕЧАТАЙ НА КЛАВИАТУРЕ: печатай, но не говори.")
+    print("- ПЕЧАТАЙ НА КЛАВИАТУРЕ: открой другое окно, например заметки; не говори.")
     print("- Во время double-talk говори поверх цифрового диктора.")
     print("- Не меняй громкость macOS до полного завершения записи.")
 
@@ -928,13 +929,16 @@ def speaker_validation(
     phase_scores: dict[str, Any] = {}
     for phase_id in ("controlled_double_talk", "opening_backchannel"):
         start, end = phase_bounds(by_id[phase_id], trim_sec)
+        chunk_sec = speaker_validation_chunk_sec(phase_id)
         embeddings = chunk_embeddings(
             read_audio_slice(mic_path, start, end),
             encoder,
             preprocess_wav,
+            chunk_sec=chunk_sec,
         )
         scores = [cosine(enrollment, row) for row in embeddings]
         phase_scores[phase_id] = {
+            "chunk_duration_sec": chunk_sec,
             "chunk_count": len(scores),
             "maximum_similarity": round(max(scores), 6) if scores else 0.0,
             "median_similarity": round(float(np.median(scores)), 6) if scores else 0.0,
@@ -1261,6 +1265,14 @@ def inspect(args: argparse.Namespace) -> int:
             "faster_whisper": bool(mic_asr and remote_asr),
             "target_me": bool(speaker),
             "error": validators_error,
+        },
+        "analysis_profile": {
+            "sample_rate": ANALYSIS_SAMPLE_RATE,
+            "mono_channel_policy": "first_input_channel_no_gain_v1",
+            "speaker_validation_chunk_sec": {
+                phase_id: speaker_validation_chunk_sec(phase_id)
+                for phase_id in ("controlled_double_talk", "opening_backchannel")
+            },
         },
         "speaker_validation": speaker,
         "raw_fingerprint_errors": raw_errors,

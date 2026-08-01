@@ -321,8 +321,8 @@ murmurmark echo-lab capture \
 murmurmark echo-lab inspect "$SESSION"
 ```
 
-Before recording, enter `ГОТОВ`; `>>> ПРОИЗНЕСИ ВСЛУХ СЕЙЧАС:` means speaking in your own voice.
-Generated voice is remote only. The lab monitors output volume and aborts invalid drift early.
+Before recording, enter `ГОТОВ`; spoken prompts use your voice and generated voice is remote only.
+During the keyboard phase, type outside the capture terminal. Volume drift aborts capture early.
 
 Repeat with the six frozen scenarios shown in the
 [Controlled Echo Supervision Lab runbook](docs/runbooks/controlled-echo-supervision-lab.md).

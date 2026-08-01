@@ -7871,6 +7871,12 @@ Each phase has `accepted`, `outcome`, explicit `reasons`, signal metrics, hashed
 evidence and artifact fingerprints. Required validators missing or disagreeing with the schedule
 must exclude the interval.
 
+`analysis_profile` records the analysis sample rate, `mono_channel_policy` and per-phase
+speaker-validation windows. Lab system audio is a duplicated stereo signal, so
+`first_input_channel_no_gain_v1` selects one channel instead of applying a normalized stereo
+downmix that would add about 3 dB. Opening/backchannel phrases may use a wider aggregate voice
+window than double-talk; the frozen Target-Me acceptance threshold remains unchanged.
+
 ### Corpus Outputs
 
 `sessions/_reports/controlled-echo-supervision-v1/` contains:

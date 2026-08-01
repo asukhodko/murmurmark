@@ -38,7 +38,9 @@ The exact display count may differ, but it must be greater than zero.
 - Stay silent during `silence`, `remote_only` and guard phases.
 - Speak each phrase printed after `>>> ПРОИЗНЕСИ ВСЛУХ СЕЙЧАС:` once, naturally and without
   rushing. These phrases are instructions for you, not text that macOS will play.
-- Type normally, but do not speak, during `keyboard_noise`.
+- Type normally, but do not speak, during `keyboard_noise`. Type in another application such as
+  Notes, not in the terminal running MurmurMark: terminal input would remain buffered and could be
+  executed by the shell after capture exits.
 - Do not start Live Shadow, a meeting pipeline or a second recorder.
 
 The synthetic voice is deliberately used only for the remote participant. Local prompts must be
@@ -165,6 +167,11 @@ murmurmark echo-lab inspect "$SESSION"
 
 `inspect` is safe to repeat. It runs local faster-whisper and Target-Me checks, so it may take
 several minutes.
+
+Inspection selects the first input channel when creating its mono analysis track. The generated
+lab stimulus is duplicated across the system-capture stereo channels; an ordinary normalized
+stereo downmix would add about 3 dB and falsely report clipping. Short opening phrases use a wider
+speaker-validation window than double-talk, while keeping the same frozen Target-Me threshold.
 
 ```bash
 jq '{

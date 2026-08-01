@@ -18,6 +18,7 @@ from controlled_echo_supervision import (
     SCHEMA_CAPTURE,
     SCHEMA_INSPECTION,
     build_schedule,
+    convert_audio,
     default_policy_path,
     fingerprint,
     load_policy,
@@ -29,8 +30,10 @@ from controlled_echo_supervision import (
     prompt_operator_message,
     prompts_for_phase,
     read_jsonl,
+    read_audio,
     remote_only_gate_reasons,
     sha256,
+    speaker_validation_chunk_sec,
     total_duration,
     validate_stimulus_audio,
     validate_schedule,
@@ -351,6 +354,18 @@ def main() -> int:
         prompt_operator_action("keyboard_noise") == "type",
         "keyboard prompt lost the operator action",
     )
+    require(
+        "НЕ В ЭТОМ ТЕРМИНАЛЕ" in prompt_operator_message("keyboard_noise", ""),
+        "keyboard prompt may leave buffered shell input behind",
+    )
+    require(
+        speaker_validation_chunk_sec("opening_backchannel") == 8.0,
+        "short opening phrases lost their wider speaker-validation window",
+    )
+    require(
+        speaker_validation_chunk_sec("controlled_double_talk") == 4.0,
+        "double-talk speaker-validation window changed unexpectedly",
+    )
     capture_help = subprocess.run(
         [
             sys.executable,
@@ -503,6 +518,21 @@ def main() -> int:
             maximum_peak=0.995,
         )
         require(looped_validation["frames"] == 120_000, "looped stimulus duration drifted")
+        stereo_source = repo / "stereo-source.wav"
+        stereo_samples = np.column_stack(
+            (
+                np.full(48_000, 0.5, dtype=np.float32),
+                np.full(48_000, 0.5, dtype=np.float32),
+            )
+        )
+        sf.write(stereo_source, stereo_samples, 48_000, subtype="FLOAT")
+        mono_analysis = repo / "mono-analysis.wav"
+        convert_audio(stereo_source, mono_analysis)
+        mono_peak = float(np.max(np.abs(read_audio(mono_analysis).samples)))
+        require(
+            abs(mono_peak - 0.5) < 1.0e-4,
+            f"stereo analysis downmix changed the signal level: {mono_peak}",
+        )
         sessions_root = repo / "sessions"
         sessions_root.mkdir(parents=True)
         policy_path = fixture_policy(repo)
