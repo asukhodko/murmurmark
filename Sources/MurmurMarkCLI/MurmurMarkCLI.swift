@@ -6067,6 +6067,7 @@ enum EchoLabCommands {
         guard ["prepare", "capture", "inspect"].contains(subcommand) else {
             throw CLIError("unknown echo-lab command: \(subcommand)")
         }
+        let python = try PythonRuntime.resolve()
         if subcommand == "capture" {
             let argument = CommandLine.arguments[0]
             let localCandidate = URL(fileURLWithPath: argument).standardizedFileURL
@@ -6079,12 +6080,24 @@ enum EchoLabCommands {
                 throw CLIError("cannot resolve the current murmurmark executable: \(argument)")
             }
             forwarded += ["--murmurmark-executable", executable.path]
+            if !ArgumentEditing.hasOption("confirm-operator-instructions", in: forwarded) {
+                _ = try Tooling.runPathAllowingExitCodes(
+                    python,
+                    [try script().path, subcommand] + forwarded + ["--preflight-only"],
+                    allowedExitCodes: [0]
+                )
+                try confirmCaptureOperatorInstructions()
+                forwarded += [
+                    "--confirm-operator-instructions",
+                    "--operator-confirmation-mode",
+                    "interactive_cli",
+                ]
+            }
         }
         let status = try Tooling.runPathAllowingExitCodes(
-            try PythonRuntime.resolve(),
+            python,
             [try script().path, subcommand] + forwarded,
-            allowedExitCodes: [0, 2],
-            inheritStandardInput: subcommand == "capture"
+            allowedExitCodes: [0, 2]
         )
         if status != 0 {
             throw CLIError(
@@ -6099,6 +6112,19 @@ enum EchoLabCommands {
             throw CLIError("echo-lab script not found: \(url.path)")
         }
         return url
+    }
+
+    private static func confirmCaptureOperatorInstructions() throws {
+        print("\n=== ПОДТВЕРЖДЕНИЕ ОПЕРАТОРА ===")
+        print("Фразы после `ПРОИЗНЕСИ ВСЛУХ` нужно говорить своим голосом.")
+        print("Во время `МОЛЧИ` нужно сохранять тишину; громкость менять нельзя.")
+        print("Введи ГОТОВ для запуска raw capture: ", terminator: "")
+        fflush(stdout)
+        guard let answer = readLine(),
+              answer.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() == "ГОТОВ"
+        else {
+            throw CLIError("operator instructions were not confirmed; raw capture was not started")
+        }
     }
 
     private static func printHelp() {
@@ -16898,21 +16924,14 @@ enum Tooling {
         return process.terminationStatus
     }
 
-    static func runPathAllowingExitCodes(
-        _ executable: URL,
-        _ arguments: [String],
-        allowedExitCodes: Set<Int32>,
-        inheritStandardInput: Bool = false
-    ) throws -> Int32 {
+    static func runPathAllowingExitCodes(_ executable: URL, _ arguments: [String], allowedExitCodes: Set<Int32>) throws -> Int32 {
         guard FileManager.default.isExecutableFile(atPath: executable.path) else {
             throw CLIError("executable not found: \(executable.path)")
         }
         let process = Process()
         process.executableURL = executable
         process.arguments = arguments
-        if !inheritStandardInput {
-            process.standardInput = FileHandle.nullDevice
-        }
+        process.standardInput = FileHandle.nullDevice
         try process.run()
         process.waitUntilExit()
         guard allowedExitCodes.contains(process.terminationStatus) else {

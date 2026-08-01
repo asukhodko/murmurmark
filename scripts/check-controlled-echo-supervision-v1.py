@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -389,6 +390,73 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="murmurmark-controlled-echo-check-") as temporary:
         repo = Path(temporary) / "repo"
+        debug_cli = ROOT / ".build/debug/murmurmark"
+        if debug_cli.is_file():
+            fake_python = repo / "fake-python"
+            invocation_log = repo / "echo-confirmation-invocations.txt"
+            fake_python.parent.mkdir(parents=True, exist_ok=True)
+            fake_python.write_text(
+                "#!/bin/sh\n"
+                "printf '%s\\n' \"$*\" >> \"$MURMURMARK_ECHO_CONFIRM_LOG\"\n"
+                "exit 0\n",
+                encoding="utf-8",
+            )
+            fake_python.chmod(0o755)
+            confirmation_env = os.environ.copy()
+            confirmation_env["MURMURMARK_PYTHON"] = str(fake_python)
+            confirmation_env["MURMURMARK_ECHO_CONFIRM_LOG"] = str(invocation_log)
+            confirmed = subprocess.run(
+                [
+                    str(debug_cli),
+                    "echo-lab",
+                    "capture",
+                    "--out",
+                    str(repo / "confirmed-session"),
+                    "--scenario",
+                    "speaker_train_quiet",
+                ],
+                cwd=ROOT,
+                env=confirmation_env,
+                input="ГОТОВ\n",
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+            require(confirmed.returncode == 0, f"foreground confirmation failed: {confirmed.stdout}")
+            invocations = invocation_log.read_text(encoding="utf-8").splitlines()
+            require(len(invocations) == 2, f"unexpected confirmation process count: {invocations}")
+            require("--preflight-only" in invocations[0], "CLI skipped echo-lab preflight")
+            require(
+                "--confirm-operator-instructions" in invocations[1]
+                and "--operator-confirmation-mode interactive_cli" in invocations[1],
+                "confirmed capture did not receive foreground CLI provenance",
+            )
+            invocation_log.unlink()
+            rejected = subprocess.run(
+                [
+                    str(debug_cli),
+                    "echo-lab",
+                    "capture",
+                    "--out",
+                    str(repo / "rejected-session"),
+                    "--scenario",
+                    "speaker_train_quiet",
+                ],
+                cwd=ROOT,
+                env=confirmation_env,
+                input="НЕТ\n",
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+            require(rejected.returncode != 0, "unconfirmed echo-lab capture was accepted")
+            rejected_invocations = invocation_log.read_text(encoding="utf-8").splitlines()
+            require(
+                len(rejected_invocations) == 1 and "--preflight-only" in rejected_invocations[0],
+                "unconfirmed capture advanced beyond preflight",
+            )
         valid_stimulus = repo / "valid-stimulus.wav"
         write_audio(
             valid_stimulus,

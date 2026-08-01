@@ -89,16 +89,24 @@ def output_volume() -> int | None:
         return None
 
 
-def confirm_operator_instructions(*, confirmed_by_flag: bool) -> str:
+def print_operator_instructions() -> None:
     print("\n=== ВАЖНО: ТВОИ ДЕЙСТВИЯ ВО ВРЕМЯ ЗАПИСИ ===")
     print("- >>> ПРОИЗНЕСИ ВСЛУХ СЕЙЧАС: произнеси показанную фразу своим голосом.")
     print("- МОЛЧИ / СОХРАНЯЙ ТИШИНУ: не говори и не печатай.")
     print("- ПЕЧАТАЙ НА КЛАВИАТУРЕ: печатай, но не говори.")
     print("- Во время double-talk говори поверх цифрового диктора.")
     print("- Не меняй громкость macOS до полного завершения записи.")
+
+
+def confirm_operator_instructions(
+    *,
+    confirmed_by_flag: bool,
+    confirmation_mode: str,
+) -> str:
     if confirmed_by_flag:
-        print("Инструкции подтверждены флагом --confirm-operator-instructions.\n")
-        return "flag"
+        print(f"Инструкции подтверждены: {confirmation_mode}.\n")
+        return confirmation_mode
+    print_operator_instructions()
     if not sys.stdin.isatty():
         raise RuntimeError(
             "echo-lab capture requires operator confirmation in an interactive terminal; "
@@ -449,8 +457,13 @@ def capture(args: argparse.Namespace) -> int:
     print(f"placement: {scenario['placement']}")
     print(f"output volume: {volume_before}%")
     print(f"duration: {total_duration(policy):.0f}s")
+    if args.preflight_only:
+        print_operator_instructions()
+        print("\necho-lab preflight: passed; raw capture has not started.")
+        return 0
     confirmation_mode = confirm_operator_instructions(
-        confirmed_by_flag=bool(args.confirm_operator_instructions)
+        confirmed_by_flag=bool(args.confirm_operator_instructions),
+        confirmation_mode=str(args.operator_confirmation_mode),
     )
     run_id = stable_id(session.name, policy_sha(policy_path), utc_now())
     run_dir = default_lab_root(sessions_root) / "runs" / run_id
@@ -1299,6 +1312,13 @@ def build_parser() -> argparse.ArgumentParser:
             "Confirm that the operator has read the prompts and will speak aloud when instructed; "
             "intended for deliberate non-interactive runs."
         ),
+    )
+    capture_parser.add_argument("--preflight-only", action="store_true", help=argparse.SUPPRESS)
+    capture_parser.add_argument(
+        "--operator-confirmation-mode",
+        choices=("flag", "interactive_cli"),
+        default="flag",
+        help=argparse.SUPPRESS,
     )
     capture_parser.add_argument(
         "--murmurmark-executable",
