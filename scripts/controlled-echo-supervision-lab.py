@@ -352,8 +352,15 @@ def stimulus_map(
     result: dict[str, Path] = {}
     for row in manifest.get("stimuli", []):
         path = sessions_root / str(row["path"])
-        if not path.is_file() or sha256(path) != row.get("sha256"):
-            raise RuntimeError(f"stimulus missing or changed: {path}")
+        expected_sha256 = str(row.get("sha256") or "")
+        actual_sha256 = sha256(path) if path.is_file() else "missing"
+        if actual_sha256 != expected_sha256:
+            raise RuntimeError(
+                f"stimulus missing or changed: {path}; "
+                f"expected_sha256={expected_sha256 or 'missing'}; "
+                f"actual_sha256={actual_sha256}; "
+                "run `murmurmark echo-lab prepare`, then rerun capture with a fresh SESSION"
+            )
         validate_stimulus_audio(
             path,
             duration_sec=float(row["duration_sec"]),

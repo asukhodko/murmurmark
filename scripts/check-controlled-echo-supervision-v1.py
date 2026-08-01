@@ -6,6 +6,7 @@ from __future__ import annotations
 import copy
 import json
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -402,6 +403,62 @@ def main() -> int:
         sessions_root.mkdir(parents=True)
         policy_path = fixture_policy(repo)
         policy = load_policy(policy_path)
+        stale_stimuli = sessions_root / "_echo_lab/controlled-echo-supervision-v1/stimuli"
+        stale_stimuli.mkdir(parents=True)
+        stale_stimulus = stale_stimuli / "double_talk.wav"
+        stale_stimulus.write_bytes(b"changed-stimulus\n")
+        write_json(
+            stale_stimuli / "stimuli_manifest.json",
+            {
+                "schema": "murmurmark.controlled_echo_stimuli/v1",
+                "policy_sha256": policy_sha(policy_path),
+                "stimuli": [
+                    {
+                        "id": "double_talk",
+                        "path": str(stale_stimulus.relative_to(sessions_root)),
+                        "duration_sec": 8,
+                        "sample_rate": 48_000,
+                        "sha256": "0" * 64,
+                    }
+                ],
+            },
+        )
+        stale_capture = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts/controlled-echo-supervision-lab.py"),
+                "--repo-root",
+                str(repo),
+                "capture",
+                "--out",
+                str(sessions_root / "stale-stimulus-capture"),
+                "--scenario",
+                "speaker_train_quiet",
+                "--policy",
+                str(policy_path),
+                "--sessions-root",
+                str(sessions_root),
+                "--murmurmark-executable",
+                "/usr/bin/true",
+            ],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        require(stale_capture.returncode == 1, "changed stimulus was accepted")
+        require(
+            "run `murmurmark echo-lab prepare`" in stale_capture.stderr,
+            "changed stimulus error omitted the recovery command",
+        )
+        require(
+            "actual_sha256=" in stale_capture.stderr,
+            "changed stimulus error omitted the observed identity",
+        )
+        require(
+            not (sessions_root / "stale-stimulus-capture").exists(),
+            "failed stimulus preflight created a capture session",
+        )
         scenarios = (
             "speaker_train_quiet",
             "speaker_train_normal_a",
