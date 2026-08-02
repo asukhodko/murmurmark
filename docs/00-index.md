@@ -47,11 +47,11 @@ Read in this order:
 
 ## Current Planning Entry Points
 
-Planning snapshot: 2026-07-23. Speaker-Preserving Echo Adaptation Corpus v1 completed with
-reproducible `DO_NOT_TRAIN`: no ordinary-meeting remote-only interval passed the frozen confidence
-gate. Controlled Echo Supervision Lab v1 is now the executable goal. It creates measured
-speaker-mode echo and local targets under a frozen protocol, then issues `READY_FOR_ADAPTATION` or a
-precise `DO_NOT_TRAIN`. No training runs and `local_fir_role_masked` remains production.
+Planning snapshot: 2026-08-02. Controlled Echo Supervision Lab v1 completed with
+`READY_FOR_ADAPTATION`: five train, one dev and one hard-test capture passed, all corpus gates are
+green and replay matches `1465/1465` files. Speaker-Preserving Neural Echo v2 is now the executable
+goal. It trains only on the frozen train split, selects on dev and evaluates one locked candidate on
+hard-test. `local_fir_role_masked` remains production until a separate guarded promotion passes.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

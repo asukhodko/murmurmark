@@ -5,171 +5,141 @@ Status: current
 Updated: 2026-08-02
 
 The stable product path remains `murmurmark meeting -> first Ctrl-C -> final result`. Batch output is
-authoritative. Live output is advisory and shadow-only.
+authoritative. Live output is advisory. Production Echo suppression remains `local_fir_role_masked`
+until a fingerprinted candidate passes every gate below.
 
 Roadmap status and dependency truth live in
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`. This file expands the one executable goal in human
 terms. `scripts/check-planning-consistency.py` keeps the representations aligned.
 
-## Controlled Echo Supervision Lab v1
+## Speaker-Preserving Neural Echo v2
 
-OpsKarta nearest goal: Controlled Echo Supervision Lab v1: построить локальный управляемый
-speaker-mode протокол с известными remote-only echo, local-only target и synthetic double-talk,
-собрать session-disjoint train/dev/hard-test corpus и выпустить READY_FOR_ADAPTATION либо точный
-DO_NOT_TRAIN без обучения и изменения production.
+OpsKarta nearest goal: Speaker-Preserving Neural Echo v2: обучить локальный causal residual-echo
+candidate на frozen controlled corpus, доказать на session-disjoint dev/hard сохранность Me и
+выигрыш по echo, затем завершить guarded PROMOTE либо точным DO_NOT_PROMOTE с неизменным fail-open
+fallback.
 
-The previous passive corpus could confirm clean local speech, but could not obtain trustworthy
-remote-only echo supervision from ordinary meetings. This goal creates that missing evidence under
-a controlled protocol instead of weakening inclusion thresholds.
+## Starting Evidence
 
-The laboratory models the normal speaker-mode path:
+Controlled Echo Supervision Lab v1 completed with `READY_FOR_ADAPTATION`:
+
+- corpus fingerprint: `be7b68f3267a20bfbd2fcf186587107e4201517e4edb3abbda3287857b008ffd`;
+- deterministic replay: `1465/1465`;
+- train: five captures, `620s` local-only, `640s` remote-only, `1804s` synthetic mixtures;
+- dev: one capture, `124s` local-only, `128s` remote-only, `352s` synthetic mixtures;
+- hard test: one capture and `68s` measured double-talk;
+- protected evidence: 392 local/opening items across the accepted corpus;
+- failed corpus gates: none.
+
+The private archive pins all eight controlled recordings, including the excluded negative attempt,
+through `sessions/_reports/private-pins/controlled-echo-supervision-v1/pinned_sessions.json`. Raw
+CAF, inspection inputs, split ownership and corpus artifacts are immutable evaluation evidence.
+
+## Objective
+
+Build a local causal residual-echo model that removes materially more remote leakage than
+`local_fir_role_masked` while preserving genuine `Me`, especially short openings and double-talk.
+Training success is not assumed. The goal ends with one reproducible corpus decision:
 
 ```text
-x = digital remote played through the built-in speakers
-d = measured acoustic echo of x while the user is silent
-s = measured local Me speech while remote is silent
-y = s + gain * d
-
-training input  = y + aligned x
-training target = s
+PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2
+DO_NOT_PROMOTE
 ```
 
-No model is trained in this goal. `local_fir_role_masked` remains production.
+A promotion is guarded by exact model, policy and corpus fingerprints and retains `local_fir` as
+fail-open fallback. A failed experiment must still leave a reusable training/evaluation laboratory
+and a precise account of the limiting evidence.
 
-## Current Evidence
+## Frozen Boundary
 
-Quiet, normal-A, offset normal-B, loud and an additional quiet train capture pass all six content
-phases. Replay is `1113/1113`; coverage is `620s` local, `640s` remote, `1804s` synthetic, 278
-protected-local and 40 opening items. Every train gate now passes. `DO_NOT_TRAIN` remains correct
-only because the isolated dev and hard-test captures are still missing.
-
-Four inspector defects were repaired without changing frozen policy: duplicated stereo is reduced
-to one channel without gain; opening Target-Me uses eight-second evidence; loud double-talk no
-longer depends on remote-dominated raw ASR; and sparse opening level is measured only over
-ASR-confirmed speech instead of scheduled pauses. The latter keeps the same `-50dB` threshold and
-still fails closed when no speech interval exists. All five accepted sessions retain their outcome;
-the empty negative capture remains excluded. Raw capture is unchanged.
-
-The opening, protected-local and every train coverage gate pass. No more train capture is required.
-Dev-normal and hard-doubletalk must remain separate held-out sessions; their evidence now decides
-between `READY_FOR_ADAPTATION` and a precise `DO_NOT_TRAIN`. Frozen thresholds, split ownership and
-oracle rules must not be changed to manufacture a pass.
-
-## Frozen Contract
-
-`policies/controlled-echo-supervision-v1.json` freezes before the first evaluation:
-
-- the phase schedule and required scenarios;
-- inclusion and exclusion thresholds;
-- whole-session train/dev/hard-test assignment;
-- minimum coverage and oracle gates;
-- privacy, redistribution and local-only processing policy;
-- synthetic mixture gains and reconstruction tolerance.
-
-The policy may be changed only to repair a demonstrated contract or implementation defect. It may
-not be tuned after observing capture outcomes merely to pass a gate.
+- Train data may optimize weights and preprocessing parameters.
+- Dev may select checkpoints and bounded hyperparameters.
+- Hard-test audio is evaluated once after the candidate and thresholds are locked.
+- No dev/hard target may enter training, augmentation, normalization fitting or threshold tuning.
+- Raw CAF and accepted corpus materialization are read-only.
+- Baselines are the current production `local_fir_role_masked` and pinned Microsoft DEC model.
+- AECMOS remains secondary; word and speaker preservation gates are authoritative.
+- Missing models, changed hashes, non-finite audio or incomplete provenance fail open to `local_fir`.
 
 ## Execution Scope
 
-1. Provide the user-facing commands:
-   - `murmurmark echo-lab prepare`;
-   - `murmurmark echo-lab capture --out SESSION --scenario SCENARIO`;
-   - `murmurmark echo-lab inspect SESSION`;
-   - `murmurmark corpus echo-supervision build|replay|status`.
-   The exact user procedure lives in
-   `docs/runbooks/controlled-echo-supervision-lab.md`.
-2. Generate generic Russian remote TTS locally and fingerprint every stimulus.
-3. Run each capture through the normal durable raw writer, without Live Shadow or a second capture
-   process.
-4. Schedule silence, remote-only, local-only, keyboard/noise, controlled double-talk and protected
-   opening/backchannel phases.
-   Require an explicit operator acknowledgement before capture, label every spoken prompt as a
-   user action, and abort early if output volume changes beyond the frozen tolerance.
-5. Record planned and actual monotonic timestamps, audio-device metadata, output volume, source WAV
-   hashes, raw hashes and derived hashes.
-6. Treat the schedule as the source of expected state. Signal metrics, local faster-whisper,
-   Target-Me and speaker state may validate or exclude an interval, never invent its ground truth.
-7. Fail closed when local speech contaminates remote-only, remote contaminates local-only, timing is
-   stale, audio clips, a validator is missing or an artifact hash changes.
-8. Materialize measured local targets, measured remote echo, aligned remote references, synthetic
-   double-talk, measured double-talk hard-test and silence/noise controls.
-9. Pair target and measured echo only inside one split. Never normalize. Exclude non-finite,
-   clipped, misaligned or incorrectly reconstructed pairs.
-10. Freeze at least four train, one dev and one controlled hard-test capture. Existing real
-    neural-AEC counterexamples remain immutable hard-test only.
-11. Produce deterministic private corpus artifacts under
-    `sessions/_reports/controlled-echo-supervision-v1/`.
-12. End with exactly one reproducible decision: `READY_FOR_ADAPTATION` or `DO_NOT_TRAIN`.
+1. Freeze a v2 training policy before the first hard-test result: architecture family, causal
+   context, features, augmentation bounds, seeds, checkpoint selection and acceptance gates.
+2. Reproduce `local_fir` and DEC baselines on exact train/dev/hard manifests and store byte-stable
+   reports.
+3. Implement a deterministic local training harness. Prefer the smallest causal residual-mask or
+   waveform model that can export to ONNX/Core ML and run without cloud services.
+4. Train only on the train split. Preserve measured local targets, measured echo paths and explicit
+   mixture gains in every batch provenance row.
+5. Select one checkpoint using dev only, freeze its SHA-256, then run the immutable hard test once.
+6. Measure echo reduction, local speech distortion, Target-Me retention, opening/double-talk recall,
+   ASR text preservation, chronology, clipping, silence behavior and runtime.
+7. Materialize an isolated `speaker_preserving_neural_echo_v2` candidate. Do not overwrite current
+   preprocessing or transcript artifacts during evaluation.
+8. Add guarded selection with exact corpus/model/policy compatibility and automatic `local_fir`
+   fallback for every failure mode.
+9. Run corpus replay and ordinary meeting regressions, then issue PROMOTE or DO_NOT_PROMOTE.
+10. Update README, architecture, contracts, runbook, current goal, roadmap and OpsKarta; commit and
+    push the finished decision.
 
-## Safety Contract
+## Acceptance Gates
 
-- raw mic/remote CAF and production-derived artifacts are read-only after recording;
-- the laboratory never starts Live Shadow, a second recorder, cloud processing or training;
-- `speaker_state` is corroborating evidence, not truth;
-- missing faster-whisper, Target-Me, source audio or provenance excludes affected intervals;
-- user voice, prompts, WAV files and work content stay ignored and local;
-- tracked files may contain schemas, generic policy, synthetic fixtures and aggregate metrics only;
-- synthetic and measured double-talk remain explicitly distinguishable;
-- hard-test sessions and existing real counterexamples never enter train or dev;
-- production Echo Guard and ASR remain unchanged.
+- corpus membership, split isolation and every source SHA match the frozen manifests;
+- training and inference are deterministic within the documented tolerance;
+- remote-only echo improves materially over `local_fir`, not merely over raw mic;
+- local-only reconstruction and ASR do not regress beyond predeclared bounds;
+- protected opening and hard double-talk items retain their expected local speech;
+- no remote text is manufactured as `Me`, and no genuine `Me` is removed to improve an audio score;
+- chronology, clipping, finite-value and no-speech controls pass;
+- runtime and memory fit the supported local machine or the candidate remains shadow-only;
+- ordinary meeting corpus verdict, notes evidence and guarded export do not regress;
+- unsupported environment, stale model or any gate failure selects `local_fir_role_masked`.
+
+Exact numeric thresholds belong in the tracked v2 policy and must be frozen before the hard-test
+run. They may not be lowered after observing the result.
 
 ## Definition Of Done
 
-- the complete CLI command surface works and has one accurate capture runbook;
-- at least six accepted speaker-mode sessions exist: four train, one dev and one hard-test;
-- every phase has provenance, an outcome and explicit inclusion or exclusion reasons;
-- train contains at least `480s` local-only, `480s` remote-only and `1800s` synthetic mixtures;
-- dev contains at least `120s` local-only, `120s` remote-only and `300s` synthetic mixtures;
-- controlled hard-test contains at least `60s` measured double-talk;
-- at least 30 protected local items and 10 opening/backchannel items are retained;
-- session leakage is zero and existing real counterexamples remain hard-test only;
-- reconstruction, clipping, finite-audio, contamination, privacy and immutability gates pass;
-- replay is byte-stable and SHA tampering fails closed;
-- the final decision is `READY_FOR_ADAPTATION` or a precise `DO_NOT_TRAIN`;
-- no training or production promotion has run;
-- README, architecture, contracts, runbook, roadmap and OpsKarta agree;
-- all checks pass, changes are committed and pushed, and the tree is clean.
+- one model/training contract and one immutable evaluation manifest exist;
+- baselines and the selected candidate have reproducible reports;
+- train/dev/hard leakage checks pass;
+- the hard test has exactly one recorded evaluation for the frozen candidate;
+- every accepted or rejected candidate has full provenance;
+- production changes only under a passing guarded promotion policy;
+- failure paths demonstrably return to `local_fir` without breaking transcription;
+- automated unit, integration, corpus replay and runtime tests pass;
+- the final decision and its evidence are documented, committed and pushed.
 
-## Required Private Outputs
+## Outside This Goal
+
+- cloud training or inference;
+- changing capture, durable raw writing or the main whisper.cpp ASR;
+- diarization of individual `Colleagues`;
+- Live Shadow promotion;
+- LLM synthesis, external issue creation and UI work.
+
+## Main Artifacts
 
 ```text
-sessions/_reports/controlled-echo-supervision-v1/
-  frozen_corpus.json
-  phase_inventory.jsonl
-  exclusion_report.json
-  split_manifest.json
-  supervision_manifest.jsonl
-  oracle_report.json
-  privacy_licensing_manifest.json
+policies/speaker-preserving-neural-echo-v2.json
+sessions/_reports/speaker-preserving-neural-echo-v2/
+  frozen_training_manifest.json
+  baseline_report.json
+  training_manifest.json
+  checkpoint_manifest.json
+  evaluation_report.json
   corpus_decision.json
   corpus_decision.md
   replay_report.json
-  examples/
 ```
-
-## Route After This Goal
 
 ```mermaid
 flowchart LR
-    A["Controlled Echo<br/>Supervision Lab v1"]
-    B{"Corpus decision"}
-    C["Speaker-Preserving<br/>Neural Echo v2"]
-    D["Evidence Notes<br/>And Export v2"]
-    E["Release-quality CLI"]
-
-    A --> B
-    B -->|"READY_FOR_ADAPTATION"| C
-    B -->|"DO_NOT_TRAIN"| D
-    C --> D
-    D --> E
+    A["Frozen controlled corpus"] --> B["Train split only"]
+    B --> C["Dev checkpoint selection"]
+    C --> D["Lock candidate and gates"]
+    D --> E["One immutable hard test"]
+    E --> F{"All preservation, echo and runtime gates pass?"}
+    F -->|"yes"| G["Guarded PROMOTE with local_fir fallback"]
+    F -->|"no"| H["DO_NOT_PROMOTE with exact evidence"]
 ```
-
-## Out Of Scope
-
-- model training or fine-tuning;
-- capture, main ASR or production Echo Guard changes;
-- cloud services;
-- publication of the private corpus or weights;
-- mandatory external microphones;
-- individual remote-speaker diarization;
-- UI.

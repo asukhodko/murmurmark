@@ -179,15 +179,16 @@ If you react late but still speak inside the requested phase, the capture may re
 four-second local, double-talk and opening windows are excluded from corpus coverage instead of
 being mislabeled as spoken items.
 
-Raw mixed ASR is not a sufficient prompt oracle at high speaker volume: it can hear only the
-digital remote even when Target-Me confirms local speech. `inspect` therefore creates a temporary
-`local_fir` clean candidate from the same immutable analysis inputs and transcribes only the
-double-talk phase. It records raw and cleaned prompt recall separately, selects the stronger source
-under the unchanged frozen recall threshold, and persists the bounded clean clip plus provenance
-under `derived/echo-lab/analysis/`. Corpus support is narrower still: only discriminative words
-from an expected local prompt, absent from the remote stimulus vocabulary, may support a
-four-second double-talk item. A failed clean validator falls back to the raw evidence and remains
-fail-closed.
+Raw echo is not a valid Target-Me oracle by itself: room and speaker coloration can make a remote
+voice embedding resemble the enrolled local speaker. `inspect` therefore creates a temporary
+`local_fir` clean candidate from the same immutable analysis inputs. Remote-only contamination is
+decided from the clean residual paired with the exact source chunk; raw scores remain in the report
+for diagnosis. Missing clean evidence fails closed.
+
+The same clean path transcribes bounded double-talk. Inspection records raw and cleaned prompt
+recall separately and selects the stronger source under the unchanged frozen recall threshold.
+Corpus support is narrower still: only discriminative words from an expected local prompt, absent
+from the remote stimulus vocabulary, may support a four-second double-talk item.
 
 ```bash
 jq '{
@@ -223,10 +224,11 @@ sessions/_reports/controlled-echo-supervision-v1/
 when coverage, contamination, privacy, split isolation, reconstruction, immutability or replay
 gates do not pass. `status` also lists the missing scenarios and prints the next capture command.
 
-Current measured state after five accepted train captures is `620s` local-only, `640s` remote-only
-and `1804/1800s` valid train synthetic mixtures, with replay `1113/1113`. All train gates pass. Do
-not collect more train data for v1. Dev-normal and hard-doubletalk are the only remaining captures;
-keep both held out and let their frozen gates decide `READY_FOR_ADAPTATION` or `DO_NOT_TRAIN`.
+The frozen v1 result is `READY_FOR_ADAPTATION`. Five train, one dev and one hard-test capture passed
+all gates. Train contains `620s` local-only, `640s` remote-only and `1804s` synthetic mixtures; dev
+contains `124s`, `128s` and `352s`; hard-test contains `68s` measured double-talk. Replay matches
+`1465/1465`. Do not collect more v1 captures. Continue with the separate Speaker-Preserving Neural
+Echo v2 goal; this lab result still does not change production.
 
 ## Recovery
 

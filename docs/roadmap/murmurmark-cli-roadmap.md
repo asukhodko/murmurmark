@@ -53,12 +53,11 @@ remain, while rebuildable media below `derived/` can be removed through
 
 ## Current Goal
 
-**Controlled Echo Supervision Lab v1** is the current goal. It replaces weak labels inferred from
-ordinary meetings with a controlled speaker-mode protocol. Each capture measures remote-only echo
-through the normal speakers, local-only `Me`, keyboard/background controls, real double-talk and
-protected opening phrases. Session-disjoint train/dev/hard-test materialization must end in
-`READY_FOR_ADAPTATION` or a precise `DO_NOT_TRAIN`. No model training or production change belongs
-to this step.
+**Speaker-Preserving Neural Echo v2** is the current goal. Controlled Echo Supervision Lab v1 has
+produced `READY_FOR_ADAPTATION` with session-disjoint train/dev/hard evidence and replay `1465/1465`.
+The next bounded step trains only on train, selects on dev and evaluates one locked candidate on the
+immutable hard test. It ends in guarded promotion or exact `DO_NOT_PROMOTE`; `local_fir` remains the
+fallback for every incompatibility or regression.
 
 Two suppression families established the same safety ceiling. Classical state-level suppression
 removed `68.2845%` of bounded remote-risk, but lost protected `Me` in two speaker sessions. The
@@ -72,9 +71,9 @@ Privacy checks and session-disjoint splits passed; local-only target coverage re
 and `96s` dev. However, no remote-only interval passed the frozen confidence gate, so the corpus
 contains neither measured echo supervision nor valid synthetic pairs. Hard-test retained four
 protected-local and four chronology examples, but only `6s` double-talk and no independently
-confirmed opening acknowledgement. Replay matched `414/414` files. Training on this evidence would
-manufacture ground truth, so Speaker-Preserving Neural Echo v2 is blocked until materially new
-leakage-free measured supervision exists.
+confirmed opening acknowledgement. Replay matched `414/414` files. Training on that passive corpus
+would manufacture ground truth, so it could not unblock Speaker-Preserving Neural Echo v2. The
+controlled lab below later supplied the required measured supervision.
 
 **One-Command Meeting Lifecycle v1** is complete. `murmurmark meeting` owns durable capture,
 authoritative processing, evidence enrichment, conservative review and guarded export. It uses
@@ -121,11 +120,12 @@ flowchart LR
     B["Done<br/>Echo Suppression Promotion v1"]
     N["Done<br/>Neural Residual Echo v1"]
     S["Done: DO_NOT_TRAIN<br/>Speaker-Preserving<br/>Adaptation Corpus v1"]
-    C["Current<br/>Controlled Echo<br/>Supervision Lab v1"]
+    C["Done: READY<br/>Controlled Echo<br/>Supervision Lab v1"]
+    E["Current<br/>Speaker-Preserving<br/>Neural Echo v2"]
     H["Next<br/>Evidence Notes And Export v2"]
     D["Release-quality CLI"]
 
-    P --> L --> A --> B --> N --> S --> C --> H --> D
+    P --> L --> A --> B --> N --> S --> C --> E --> H --> D
 ```
 
 ### 0. Evidence-Backed Me Completion v2
@@ -171,29 +171,34 @@ synthetic pairing is therefore forbidden. No training was run and production rem
 
 ### 6. Controlled Echo Supervision Lab v1
 
-Current. Run the normal durable recorder through a frozen phase schedule and collect at least four
-train, one dev and one controlled hard-test speaker-mode session. Accept measured echo and local
+Done with `READY_FOR_ADAPTATION`. The durable recorder ran a frozen phase schedule across five
+train, one dev and one controlled hard-test speaker-mode sessions. Accept measured echo and local
 targets only when schedule, signal, local ASR and Target-Me evidence agree. Build synthetic mixtures
 inside a split, preserve existing real counterexamples as hard-test only, and issue a deterministic
-adaptation decision. Five train captures now pass all six content phases; replay is `1113/1113`,
-with `620s` ASR-supported local-only, `640s` remote-only and `1804/1800s` synthetic mixtures. The
-loud case uses bounded FIR-clean ASR plus prompt-discriminative support; sparse opening level uses
-only ASR-confirmed speech while preserving the frozen threshold. All train gates pass. Only the
-held-out dev-normal and hard-doubletalk captures remain before `READY_FOR_ADAPTATION` or an exact
-`DO_NOT_TRAIN`. Production stays on `local_fir_role_masked`.
+adaptation decision. Final replay is `1465/1465`: train has `620s` local, `640s` remote and `1804s`
+synthetic; dev has `124s` local, `128s` remote and `352s` synthetic; hard-test has `68s` measured
+double-talk. Local-FIR residual Target-Me removes raw echo false positives while retaining their
+diagnostic evidence. No gate failed. Production remains `local_fir_role_masked`.
 
-### 7. Evidence Notes And Export v2
+### 7. Speaker-Preserving Neural Echo v2
+
+Current. Freeze the training/evaluation contract, reproduce `local_fir` and DEC baselines, train a
+small causal residual candidate on train only, select on dev and run one immutable hard test after
+locking weights and gates. Promotion requires better echo suppression plus preserved `Me`, opening,
+double-talk, ASR chronology and acceptable runtime. Any failure keeps `local_fir` as default.
+
+### 8. Evidence Notes And Export v2
 
 Next. Define one versioned, byte-stable handoff contract over the selected transcript profile,
 quality verdict, evidence notes, unresolved review burden and export readiness. Every visible claim
 must cite valid evidence IDs; stale or blocked input must fail closed.
 
-### 8. Release-quality CLI
+### 9. Release-quality CLI
 
 Finalize the supported environment, installation, model/config handling, acceptance, release notes
 and public operational contract. UI is not required.
 
-## Parallel Research
+## Dependent And Parallel Research
 
 ```mermaid
 flowchart LR
@@ -205,13 +210,13 @@ flowchart LR
     V["Heavy local validators"]
     L["Evidence-guarded LLM"]
 
-    Q -.-> E
+    Q --> E
     Q -.-> D --> S --> T --> L
     Q -.-> V
 ```
 
-Speaker-Preserving Neural Echo v2 remains blocked until Controlled Echo Supervision Lab v1 produces
-`READY_FOR_ADAPTATION`. Lowering a frozen confidence gate does not count as new evidence.
+Speaker-Preserving Neural Echo v2 is unblocked by the controlled `READY_FOR_ADAPTATION` decision and
+is now the executable goal. Train/dev/hard ownership and thresholds remain immutable.
 
 Remote diarization works on authoritative `remote` and does not require complete Echo suppression.
 It starts after base quality closure, first produces anonymous stable speaker IDs, then an

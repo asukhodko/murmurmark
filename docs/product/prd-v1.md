@@ -57,15 +57,18 @@ Current operating point, 2026-07-23:
   session-disjoint splits and `192s` train / `96s` dev local-only coverage passed, but no
   remote-only interval passed the frozen confidence gate, synthetic pairing remained forbidden,
   hard-test double-talk stopped at `6s`, and no opening acknowledgement was independently confirmed;
-- the current goal is Controlled Echo Supervision Lab v1: replace missing ordinary-meeting
-  remote-only labels with measured speaker-mode echo, clean local targets and session-disjoint
-  synthetic supervision, then issue `READY_FOR_ADAPTATION` or `DO_NOT_TRAIN` without training;
+- Controlled Echo Supervision Lab v1 completed with `READY_FOR_ADAPTATION`: five train, one dev and
+  one hard-test capture passed, replay matches `1465/1465`, and the frozen corpus contains `1804s`
+  train plus `352s` dev synthetic mixtures and `68s` hard-test double-talk;
+- the current goal is Speaker-Preserving Neural Echo v2: train locally on the frozen train split,
+  select one checkpoint on dev and evaluate that locked candidate once on hard-test;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 
 Dependent product work is Evidence Notes And Export v2 and then release-quality CLI.
-Speaker-Preserving Neural Echo v2 is blocked until the controlled lab produces materially new
-leakage-free supervision. Remote diarization, speaker mapping and
+Speaker-Preserving Neural Echo v2 is unblocked by the controlled corpus, but production remains on
+`local_fir_role_masked` unless every preservation, echo, chronology and runtime gate passes. Remote
+diarization, speaker mapping and
 `transcript.rich.json` form a parallel future branch after base quality closure. Heavy validators,
 LLM synthesis, reviewed external integrations and UI remain research or optional work outside the
 critical path.

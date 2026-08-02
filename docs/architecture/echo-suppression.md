@@ -554,10 +554,9 @@ all nominal remote-only rows remained below the frozen confidence gate. Therefor
 coverage and synthetic paired coverage are both zero. Hard-test has four protected-local and four
 chronology items, but only `6s` measured double-talk and no independently confirmed opening item.
 
-This result blocks Speaker-Preserving Neural Echo v2 for the current evidence scope. It does not
-change production and does not claim neural suppression is impossible. Reopening the branch
-requires materially new supervision, preferably controlled captures with known clean near-end,
-far-end and echo components.
+This passive result did not permit Speaker-Preserving Neural Echo v2 on its own. It did not change
+production and did not claim neural suppression was impossible. The controlled lab described below
+later supplied materially new captures with known clean near-end, far-end and echo components.
 
 Private corpus artifacts live under:
 
@@ -949,13 +948,15 @@ The schedule is the source of expected state. Validators may confirm it or exclu
 interval. They cannot relabel an ordinary interval as clean supervision. `speaker_state` is
 corroborating evidence only.
 
-High-volume double-talk has a separate bounded evidence path. The inspector keeps raw mixed-ASR
-recall, derives a temporary `local_fir` clean candidate from the same immutable mic/remote inputs,
-and transcribes only the scheduled double-talk phase. The unchanged recall gate uses the stronger
-of raw and clean evidence, while Target-Me remains independently required. Materialization accepts
-only timing-bounded words discriminative for the local prompt and absent from the known remote
-stimulus; continuous remote speech cannot masquerade as local support. Failure of the clean path
-falls back to raw evidence and fails closed when that evidence is insufficient.
+The inspector derives bounded `local_fir` clean candidates from the same immutable mic/remote
+inputs. During remote-only phases, Target-Me contamination is decided from this clean residual and
+paired with the exact remote source chunk; raw-echo scores remain audit evidence only. This avoids
+mistaking room-coloured echo for the enrolled local speaker. Missing clean evidence fails closed.
+
+High-volume double-talk uses the same clean materialization path. The unchanged prompt-recall gate
+uses the stronger of raw and clean ASR evidence, while Target-Me remains independently required.
+Materialization accepts only timing-bounded words discriminative for the local prompt and absent
+from the known remote stimulus; continuous remote speech cannot masquerade as local support.
 
 ### Signal Model
 
@@ -985,6 +986,12 @@ excluded.
 - private voice, prompt evidence and audio remain ignored under `sessions/`.
 
 The current production profile remains `local_fir_role_masked` regardless of the lab result.
+
+The frozen result is `READY_FOR_ADAPTATION`. Five train, one dev and one controlled hard-test
+speaker-mode capture passed all corpus gates. Replay matches `1465/1465`; train contains `620s`
+local-only, `640s` remote-only and `1804s` synthetic mixtures, dev contains `124s`, `128s` and
+`352s`, and hard-test contains `68s` measured double-talk. This decision unblocks
+Speaker-Preserving Neural Echo v2 but does not promote an audio profile by itself.
 
 ## References
 

@@ -7882,12 +7882,18 @@ window than double-talk; the frozen Target-Me acceptance threshold remains uncha
 `mic_speech_rms_db`. No intervals produce `-240dB` and fail closed; scheduled pauses are never
 counted as evidence against a short confirmed backchannel.
 
-For `controlled_double_talk`, `analysis_profile.double_talk_prompt_validation` is
-`best_of_raw_and_local_fir_clean_v1`. Inspection derives a bounded clean phase with the existing
-conservative `local_fir` engine, records its source/helper fingerprints and quality-gate decision in
-`murmurmark.controlled_echo_double_talk_validation/v1`, and stores raw and clean prompt recall
-separately. The accepted prompt recall still uses the frozen policy threshold. Missing or rejected
-clean evidence cannot override a failing raw score.
+`analysis_profile.remote_only_target_me_validation` is
+`local_fir_clean_residual_paired_chunk_v1`. Inspection derives bounded clean phases with the
+existing conservative `local_fir` engine and records source/helper fingerprints, quality gates and
+phase artifacts in `murmurmark.controlled_echo_local_fir_validation/v1`. Target-Me contamination in
+remote-only phases is evaluated on clean residual chunks paired with the exact source chunk. Raw
+echo scores are retained as `remote_raw_rows` for diagnosis and never act as the contamination
+oracle. Missing or rejected clean evidence fails closed.
+
+For `controlled_double_talk`, `analysis_profile.double_talk_prompt_validation` remains
+`best_of_raw_and_local_fir_clean_v1`. Raw and clean prompt recall are stored separately; the accepted
+prompt recall still uses the frozen policy threshold. Missing clean evidence cannot override a
+failing raw score.
 
 Local-speech phases also store text-free, phase-relative `mic_word_intervals`. Corpus materialization
 keeps a four-second local target, double-talk or opening item only when one of those intervals
@@ -7924,3 +7930,9 @@ DO_NOT_TRAIN
 
 Neither value changes production. Missing inputs, stale SHA-256 values or a failed replay resolve to
 `DO_NOT_TRAIN`.
+
+The frozen v1 decision is `READY_FOR_ADAPTATION`, fingerprint
+`be7b68f3267a20bfbd2fcf186587107e4201517e4edb3abbda3287857b008ffd`. Replay compared `1465`
+files without a difference. Coverage is five train captures (`620s` local-only, `640s` remote-only,
+`1804s` synthetic), one dev capture (`124s`, `128s`, `352s`) and one hard-test capture (`68s`
+double-talk). This decision permits a separate training goal; it does not select production audio.

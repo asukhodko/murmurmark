@@ -168,10 +168,13 @@ hard-test coverage also stopped at `6s` double-talk and no independently confirm
 acknowledgement. Replay matched `414/414` files, no training ran and production stayed on
 `local_fir`.
 
-The recommended bounded step is now Controlled Echo Supervision Lab v1. It obtains the missing
-remote-only echo and local-only target under a frozen speaker-mode schedule, keeps train/dev/hard
-sessions disjoint and ends in `READY_FOR_ADAPTATION` or `DO_NOT_TRAIN`. It does not train or change
-production. Evidence Notes And Export v2 follows this bounded decision. The failed live-recovery
+Controlled Echo Supervision Lab v1 has now supplied the missing evidence and completed with
+`READY_FOR_ADAPTATION`. Five train, one dev and one hard-test capture passed; replay matches
+`1465/1465`, with `1804s` train and `352s` dev synthetic mixtures plus `68s` measured hard-test
+double-talk. The recommended bounded step is Speaker-Preserving Neural Echo v2: train only on the
+frozen train split, select on dev, then evaluate one locked candidate once on immutable hard-test.
+Any failed preservation, echo, chronology or runtime gate keeps `local_fir_role_masked` in
+production. Evidence Notes And Export v2 follows that bounded decision. The failed live-recovery
 profile remains diagnostic evidence rather than another user-facing branch.
 
 ## Route To Reliability

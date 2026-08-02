@@ -192,8 +192,9 @@ murmurmark retention compact apply all --older-than 7d --exclude-pinned \
   --confirm-delete-derived-media
 ```
 
-Frozen corpus sessions are skipped unless `--include-pinned` is explicit. Pin discovery includes frozen-corpus,
-split, baseline and immutable hard-test manifests. See [Retention Policy](docs/contracts/retention-policy.md).
+Frozen corpus sessions are skipped unless `--include-pinned` is explicit. Pin discovery includes
+frozen-corpus, split, baseline, hard-test and private `pinned_sessions.json` manifests. See
+[Retention Policy](docs/contracts/retention-policy.md).
 
 ## Important Artifacts
 
@@ -250,14 +251,14 @@ measured echo supervision or synthetic pair could be built. Hard-test coverage a
 `6s` double-talk and zero independently confirmed opening acknowledgements. Training on this
 evidence would manufacture ground truth.
 
-The current goal is **Controlled Echo Supervision Lab v1**. It replaces unreliable supervision
-mined from ordinary meetings with a controlled speaker-mode protocol: measured remote-only echo,
-measured local-only `Me`, synthetic double-talk and an isolated measured hard test. The result is
-either `READY_FOR_ADAPTATION` or a precise, reproducible `DO_NOT_TRAIN`; this step does not train a
-model or change production.
+**Controlled Echo Supervision Lab v1** completed with `READY_FOR_ADAPTATION`: five train, one dev
+and one hard-test capture pass, replay is `1465/1465`, and no corpus gate failed. The corpus provides
+`1804s` train plus `352s` dev synthetic mixtures and `68s` measured hard double-talk.
 
-Five train captures pass: `620s` local, `640s` remote, `1804/1800s` synthetic and replay
-`1113/1113`; all train gates are closed. Only isolated dev and hard-test captures remain.
+The current goal is **Speaker-Preserving Neural Echo v2**: train locally on the frozen train split,
+select one checkpoint on dev, evaluate the locked candidate once on hard-test, and finish with a
+guarded promotion or exact `DO_NOT_PROMOTE`. Production remains `local_fir_role_masked` on any
+missing artifact, incompatible fingerprint or quality/runtime regression.
 
 The stable batch CLI already supports durable capture, resumable processing, evidence-backed review,
 guarded export and retention planning. `local_speech_completion_v2` is promoted for its frozen
@@ -284,8 +285,8 @@ The dependent critical path is:
 
 ```text
 Meeting Lifecycle -> Mixed-Utterance Separation -> Echo Suppression Promotion
--> Neural Residual Echo -> Adaptation Corpus -> Controlled Echo Lab (current)
--> Evidence Notes and Export v2 -> Release-quality CLI
+-> Neural Residual Echo -> Adaptation Corpus -> Controlled Echo Lab
+-> Speaker-Preserving Neural Echo v2 (current) -> Evidence Notes and Export v2 -> Release-quality CLI
 ```
 
 Remote diarization, heavy local validators, LLM synthesis and UI are parallel or parked work. Live
@@ -296,8 +297,8 @@ and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 
 ## Controlled Echo Supervision Lab
 
-This private local lab is the current bounded path toward speaker-preserving neural Echo
-suppression. It does not train a model or change production.
+This completed private lab is the frozen input to speaker-preserving neural Echo suppression. It
+does not itself train a model or change production.
 
 Prepare generic Russian TTS once:
 

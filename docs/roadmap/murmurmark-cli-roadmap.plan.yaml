@@ -275,26 +275,24 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-speaker-preserving-echo-adaptation-corpus-v1, corpus-regression]
-    status: current
+    status: done
     effort: 12
     notes: |
       Создать управляемый speaker-mode протокол, где remote-only echo, local-only target и
       synthetic double-talk имеют известное происхождение. Собрать минимум 4 train, 1 dev и
       1 controlled hard-test captures, проверить privacy, contamination, split isolation и
       oracle gates. Завершить READY_FOR_ADAPTATION либо точным DO_NOT_TRAIN; не обучать модель
-      и не менять production. Пять train captures приняты: в каждом 6/6 содержательных фаз;
-      суммарно 620s ASR-supported local-only, 640s remote-only, 1804/1800s synthetic mixtures,
-      278 protected-local items, 40 opening items и replay 1113/1113. Loud double-talk проверяется
-      bounded local-FIR clean ASR вместе с Target-Me, а sparse opening level — только на
-      ASR-confirmed speech при неизменном frozen threshold. Все train gates закрыты. Остались
-      только независимые dev-normal и hard-doubletalk для финального READY_FOR_ADAPTATION либо
-      точного DO_NOT_TRAIN.
+      и не менять production. Завершено READY_FOR_ADAPTATION: 5 train, 1 dev и 1 hard-test capture,
+      620s train local, 640s train remote, 1804s train synthetic, 124s dev local, 128s dev remote,
+      352s dev synthetic и 68s hard double-talk. Replay 1465/1465, failed gates отсутствуют,
+      fingerprint be7b68f3267a20bfbd2fcf186587107e4201517e4edb3abbda3287857b008ffd.
+      Local-FIR residual устраняет raw Target-Me false positives без изменения frozen thresholds.
 
   product-evidence-export-v2:
     title: "Evidence Notes And Export v2"
     kind: task
     parent: murmurmark-cli
-    deps: [quality-controlled-echo-supervision-lab-v1]
+    deps: [research-speaker-preserving-neural-echo-v2]
     status: next
     effort: 7
     notes: |
@@ -361,14 +359,16 @@ nodes:
   research-speaker-preserving-neural-echo-v2:
     title: "Speaker-Preserving Neural Echo v2"
     kind: task
-    parent: parallel-research
+    parent: murmurmark-cli
     deps: [quality-controlled-echo-supervision-lab-v1]
-    status: blocked
-    effort: 6
+    status: current
+    effort: 14
     notes: |
-      Заблокировано решением DO_NOT_TRAIN. Возвращаться можно только с принципиально новым
-      leakage-free measured supervision: надёжными remote-only clean targets, независимым
-      double-talk target или контролируемой локальной записью, проходящей immutable hard gates.
+      Controlled corpus завершён READY_FOR_ADAPTATION. Обучить causal residual-echo candidate только
+      на train split, выбрать его по dev и один раз проверить на immutable hard-test. Сравнить с
+      local_fir и pinned DEC по echo reduction, сохранности Me, ASR/chronology и runtime. Любой
+      missing artifact, leakage или regression оставляет production на local_fir. Завершить
+      guarded PROMOTE либо воспроизводимым DO_NOT_PROMOTE.
 
   research-evidence-guarded-llm:
     title: "Evidence-guarded LLM synthesis"
@@ -433,7 +433,7 @@ views:
         nodes: [working-capabilities, corpus-regression]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-controlled-echo-supervision-lab-v1]
+        nodes: [research-speaker-preserving-neural-echo-v2]
       dependent:
         title: "Следующие зависимые этапы"
         nodes:
@@ -456,6 +456,7 @@ views:
           - quality-neural-residual-echo-v1
           - quality-speaker-preserving-echo-adaptation-corpus-v1
           - quality-controlled-echo-supervision-lab-v1
+          - research-speaker-preserving-neural-echo-v2
           - product-evidence-export-v2
           - product-release-quality-cli
 
@@ -472,7 +473,6 @@ views:
         title: "Validators and synthesis"
         nodes:
           - research-heavy-local-validators
-          - research-speaker-preserving-neural-echo-v2
           - research-evidence-guarded-llm
 
   parking-lot-view:
@@ -504,6 +504,7 @@ views:
           - quality-neural-residual-echo-v1
           - quality-speaker-preserving-echo-adaptation-corpus-v1
           - quality-controlled-echo-supervision-lab-v1
+          - research-speaker-preserving-neural-echo-v2
           - product-evidence-export-v2
           - product-release-quality-cli
           - parallel-research
@@ -512,8 +513,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Controlled Echo Supervision Lab v1: построить локальный управляемый speaker-mode протокол с известными remote-only echo, local-only target и synthetic double-talk, собрать session-disjoint train/dev/hard-test corpus и выпустить READY_FOR_ADAPTATION либо точный DO_NOT_TRAIN без обучения и изменения production."
-      success_by_next_sync: "Tracked policy, working echo-lab CLI, six accepted captures, byte-stable corpus replay и oracle report дают воспроизводимое READY_FOR_ADAPTATION либо точный предел данных."
+      nearest_goal: "Speaker-Preserving Neural Echo v2: обучить локальный causal residual-echo candidate на frozen controlled corpus, доказать на session-disjoint dev/hard сохранность Me и выигрыш по echo, затем завершить guarded PROMOTE либо точным DO_NOT_PROMOTE с неизменным fail-open fallback."
+      success_by_next_sync: "Train/dev/hard остаются изолированными, training/evaluation воспроизводимы, candidate сравнен с local_fir и DEC, а corpus gates дают guarded PROMOTE либо точный DO_NOT_PROMOTE."
     defaults:
       status_progress:
         done: 1.0
@@ -535,12 +536,12 @@ x:
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
         title: "Текущая цель"
-        scope_nodes: [quality-controlled-echo-supervision-lab-v1]
+        scope_nodes: [research-speaker-preserving-neural-echo-v2]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Пассивный корпус закрыт DO_NOT_TRAIN из-за отсутствия подтверждённого remote-only supervision; управляемый capture должен создать его без подмены ground truth."
-          next_sync_goal: "Реализовать протокол, собрать шесть accepted captures и пройти contamination/privacy/oracle gates."
+          sync_note: "Controlled corpus прошёл READY_FOR_ADAPTATION; теперь модель обязана убрать echo, не уничтожая Me на независимых dev/hard данных."
+          next_sync_goal: "Заморозить training contract, воспроизвести baseline и получить первый leakage-free candidate decision."
       dependent-path:
         title: "Зависимый путь"
         scope_nodes:
@@ -551,13 +552,14 @@ x:
           - quality-neural-residual-echo-v1
           - quality-speaker-preserving-echo-adaptation-corpus-v1
           - quality-controlled-echo-supervision-lab-v1
+          - research-speaker-preserving-neural-echo-v2
           - product-evidence-export-v2
           - product-release-quality-cli
         kind: main
         mgmt:
           health: neutral
-          sync_note: "После controlled corpus decision продуктовый путь возвращается к handoff v2 и release-quality CLI."
-          next_sync_goal: "Не начинать neural training или handoff v2 до завершения текущего corpus gate."
+          sync_note: "После neural echo decision продуктовый путь возвращается к handoff v2 и release-quality CLI."
+          next_sync_goal: "Не менять production default до прохождения neural corpus и runtime gates."
       research:
         title: "Параллельные исследования"
         scope_nodes: [parallel-research]

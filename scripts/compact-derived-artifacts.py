@@ -201,6 +201,7 @@ def discover_pins(sessions_root: Path, explicit_files: list[Path]) -> tuple[set[
     reports = root / "_reports"
     if reports.is_dir():
         sources.extend(sorted(reports.glob("**/frozen_corpus.json")))
+        sources.extend(sorted(reports.glob("**/pinned_sessions.json")))
         sources.extend(sorted(reports.glob("**/split_manifest.json")))
         sources.extend(sorted(reports.glob("**/*baseline*.json")))
         sources.extend(sorted(reports.glob("**/*hard_test*.json")))

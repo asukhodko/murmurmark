@@ -220,6 +220,18 @@ def main() -> int:
         )
         assert included.returncode == 0
 
+        archive_pinned = write_session(root, "2026-01-03_11-00-00")
+        archive_pin_file = root / "sessions/_reports/private-archive/pinned_sessions.json"
+        write_json(
+            archive_pin_file,
+            {"schema": "murmurmark.pinned_sessions/v1", "sessions": [archive_pinned.name]},
+        )
+        archive_pinned_plan = run(root, "plan", str(archive_pinned))
+        assert archive_pinned_plan.returncode == 2
+        archive_manifest = manifest(archive_pinned)
+        assert "pinned_corpus_session" in archive_manifest["eligibility"]["blockers"]
+        assert str(archive_pin_file.resolve()) in archive_manifest["pin_sources"]
+
         gated = write_session(root, "2026-01-04_10-00-00")
         missing_export = run(root, "plan", str(gated), "--require-successful-export")
         assert missing_export.returncode == 2
@@ -260,7 +272,7 @@ def main() -> int:
             ).read_text(encoding="utf-8")
         )
         assert report["schema"] == "murmurmark.derived_compaction_report/v1"
-        assert report["summary"]["sessions_considered"] == 4
+        assert report["summary"]["sessions_considered"] == 5
         assert report["summary"]["eligible_candidate_bytes"] < report["summary"]["candidate_bytes"]
         assert any(
             row["session_id"] == pinned.name and row["status"] == "blocked"

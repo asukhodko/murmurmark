@@ -27,6 +27,7 @@ from controlled_echo_supervision import (
     load_policy,
     local_only_gate_reasons,
     materialize_looped_stimulus,
+    paired_remote_speaker_scores,
     phase_operator_instruction,
     policy_sha,
     prompt_supported_word_spans,
@@ -436,6 +437,32 @@ def main() -> int:
         },
         "opening without observed speech must fail closed",
     )
+    enrollment = np.asarray([1.0, 0.0], dtype=np.float32)
+    echoed_voice = np.asarray([0.8, 0.6], dtype=np.float32)
+    paired_scores = paired_remote_speaker_scores(
+        enrollment,
+        [(0, echoed_voice)],
+        [(0, echoed_voice)],
+    )
+    require(
+        paired_scores[0]["remote_similarity"] > paired_scores[0]["local_similarity"],
+        "exact remote source was replaced by an aggregate speaker reference",
+    )
+    genuine_local_scores = paired_remote_speaker_scores(
+        enrollment,
+        [(0, enrollment)],
+        [(0, np.asarray([0.0, 1.0], dtype=np.float32))],
+    )
+    require(
+        genuine_local_scores[0]["local_margin"] > 0.9,
+        "paired remote reference hid genuine local contamination",
+    )
+    try:
+        paired_remote_speaker_scores(enrollment, [(0, enrollment)], [])
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("missing paired remote reference did not fail closed")
     opening_phase = {
         "evidence": {"mic_word_intervals": [{"start_sec": 4.5, "end_sec": 5.0}]}
     }

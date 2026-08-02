@@ -618,6 +618,38 @@ def normalized_correlation(left: np.ndarray, right: np.ndarray) -> float:
     return float(np.dot(a, b) / denominator)
 
 
+def cosine_similarity(left: np.ndarray, right: np.ndarray) -> float:
+    denominator = float(np.linalg.norm(left) * np.linalg.norm(right))
+    if denominator <= 1.0e-12:
+        return 0.0
+    return float(np.dot(left, right) / denominator)
+
+
+def paired_remote_speaker_scores(
+    enrollment: np.ndarray,
+    remote_mic_chunks: Sequence[tuple[int, np.ndarray]],
+    remote_ref_chunks: Sequence[tuple[int, np.ndarray]],
+) -> list[dict[str, Any]]:
+    """Compare each remote-mic voice embedding with its exact source chunk."""
+    reference_by_start = {start: embedding for start, embedding in remote_ref_chunks}
+    missing = [start for start, _ in remote_mic_chunks if start not in reference_by_start]
+    if missing:
+        raise ValueError(f"missing paired remote speaker chunks: {missing}")
+    rows: list[dict[str, Any]] = []
+    for start, embedding in remote_mic_chunks:
+        local_similarity = cosine_similarity(enrollment, embedding)
+        remote_similarity = cosine_similarity(reference_by_start[start], embedding)
+        rows.append(
+            {
+                "chunk_start_sample": start,
+                "local_similarity": round(local_similarity, 6),
+                "remote_similarity": round(remote_similarity, 6),
+                "local_margin": round(local_similarity - remote_similarity, 6),
+            }
+        )
+    return rows
+
+
 def _rms_envelope(audio: np.ndarray, sample_rate: int, frame_ms: int = 10) -> np.ndarray:
     frame = max(1, int(round(sample_rate * frame_ms / 1000.0)))
     count = audio.size // frame

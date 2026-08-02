@@ -30,6 +30,7 @@ from controlled_echo_supervision import (
     audio_metrics,
     build_schedule,
     command_path,
+    cosine_similarity,
     convert_audio,
     default_lab_root,
     default_model_path,
@@ -41,6 +42,7 @@ from controlled_echo_supervision import (
     load_policy,
     materialize_looped_stimulus,
     normalize_text,
+    paired_remote_speaker_scores,
     phase_bounds,
     phase_operator_instruction,
     policy_sha,
@@ -804,34 +806,45 @@ def transcribe_words(
     return payload
 
 
-def materialize_double_talk_validation_audio(
+def materialize_local_fir_validation_audio(
     *,
     session: Path,
     mic_path: Path,
     remote_path: Path,
-    phase: dict[str, Any],
+    phases: Sequence[dict[str, Any]],
     trim_sec: float,
     analysis_dir: Path,
-) -> tuple[Path, dict[str, Any]]:
+) -> tuple[dict[str, Path], dict[str, Any]]:
     helper_path = Path(__file__).resolve().parent / "echo-guard-session-local-fir.py"
-    clean_phase_path = analysis_dir / "controlled_double_talk.mic_clean_local_fir.wav"
-    report_path = analysis_dir / "controlled_double_talk.echo_clean_validation.json"
+    phase_by_kind = {str(row["kind"]): row for row in phases}
+    required_kinds = ("remote_only", "controlled_double_talk")
+    missing_kinds = [kind for kind in required_kinds if kind not in phase_by_kind]
+    if missing_kinds:
+        raise RuntimeError(f"local-FIR validation phases missing: {missing_kinds}")
+    clean_paths = {
+        kind: analysis_dir / f"{kind}.mic_clean_local_fir.wav"
+        for kind in required_kinds
+    }
+    report_path = analysis_dir / "local_fir.echo_clean_validation.json"
     source_identity = {
         "mic_sha256": sha256(mic_path),
         "remote_sha256": sha256(remote_path),
         "helper_sha256": sha256(helper_path),
     }
-    if report_path.is_file() and clean_phase_path.is_file():
+    if report_path.is_file() and all(path.is_file() for path in clean_paths.values()):
         cached = read_json(report_path)
-        clean_artifact = cached.get("clean_phase") or {}
+        clean_artifacts = cached.get("clean_phases") or {}
         if (
             cached.get("source_identity") == source_identity
-            and clean_artifact.get("sha256") == sha256(clean_phase_path)
+            and all(
+                (clean_artifacts.get(kind) or {}).get("sha256") == sha256(path)
+                for kind, path in clean_paths.items()
+            )
         ):
-            return clean_phase_path, cached
+            return clean_paths, cached
 
     analysis_dir.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="double-talk-fir-", dir=analysis_dir) as temporary:
+    with tempfile.TemporaryDirectory(prefix="local-fir-validation-", dir=analysis_dir) as temporary:
         work = Path(temporary)
         helper_report_path = work / "local_fir_report.json"
         result = subprocess.run(
@@ -871,31 +884,36 @@ def materialize_double_talk_validation_audio(
         )
         if result.returncode != 0 or not helper_report_path.is_file():
             detail = result.stdout.strip().splitlines()[-1] if result.stdout.strip() else "no report"
-            raise RuntimeError(f"double-talk echo-clean validator failed: {detail}")
+            raise RuntimeError(f"local-FIR echo-clean validator failed: {detail}")
         helper_report = read_json(helper_report_path)
         decision = helper_report.get("decision") or {}
         if not decision.get("accepted_for_asr"):
             failures = decision.get("quality_gate_failures") or [decision.get("reason") or "rejected"]
             raise RuntimeError(
-                "double-talk echo-clean validator rejected the candidate: "
+                "local-FIR echo-clean validator rejected the candidate: "
                 + ",".join(str(value) for value in failures)
             )
-        start, end = phase_bounds(phase, trim_sec)
-        clean_phase = read_audio_slice(work / "mic_clean.wav", start, end)
-        write_audio(clean_phase_path, clean_phase)
+        clean_phase_rows: dict[str, Any] = {}
+        for kind, clean_path in clean_paths.items():
+            start, end = phase_bounds(phase_by_kind[kind], trim_sec)
+            clean_phase = read_audio_slice(work / "mic_clean.wav", start, end)
+            write_audio(clean_path, clean_phase)
+            clean_phase_rows[kind] = {
+                "analysis_start_sec": round(start, 6),
+                "analysis_end_sec": round(end, 6),
+                **fingerprint(clean_path, session),
+            }
         payload = {
-            "schema": "murmurmark.controlled_echo_double_talk_validation/v1",
+            "schema": "murmurmark.controlled_echo_local_fir_validation/v1",
             "engine": "local_fir_preserve_local",
             "source_identity": source_identity,
-            "analysis_start_sec": round(start, 6),
-            "analysis_end_sec": round(end, 6),
             "helper_decision": decision,
             "helper_metrics": helper_report.get("metrics") or {},
             "helper_parameters": helper_report.get("parameters") or {},
-            "clean_phase": fingerprint(clean_phase_path, session),
+            "clean_phases": clean_phase_rows,
         }
         write_json(report_path, payload)
-    return clean_phase_path, payload
+    return clean_paths, payload
 
 
 def asr_cache_matches(cache_path: Path, source_sha256: str, model_path: Path) -> bool:
@@ -954,22 +972,15 @@ def interval_word_spans(asr: dict[str, Any], start: float, end: float) -> list[d
     return spans
 
 
-def cosine(left: np.ndarray, right: np.ndarray) -> float:
-    denominator = float(np.linalg.norm(left) * np.linalg.norm(right))
-    if denominator <= 1.0e-12:
-        return 0.0
-    return float(np.dot(left, right) / denominator)
-
-
-def chunk_embeddings(
+def indexed_chunk_embeddings(
     audio: np.ndarray,
     encoder: Any,
     preprocess_wav: Any,
     *,
     chunk_sec: float = 4.0,
-) -> list[np.ndarray]:
+) -> list[tuple[int, np.ndarray]]:
     chunk = int(round(chunk_sec * ANALYSIS_SAMPLE_RATE))
-    result: list[np.ndarray] = []
+    result: list[tuple[int, np.ndarray]] = []
     for start in range(0, max(0, audio.size - chunk + 1), chunk):
         piece = np.asarray(audio[start : start + chunk], dtype=np.float32)
         if audio_rms_db(piece) < -50.0:
@@ -982,8 +993,26 @@ def chunk_embeddings(
         except (ValueError, RuntimeError):
             continue
         if np.all(np.isfinite(embedding)):
-            result.append(np.asarray(embedding, dtype=np.float32))
+            result.append((start, np.asarray(embedding, dtype=np.float32)))
     return result
+
+
+def chunk_embeddings(
+    audio: np.ndarray,
+    encoder: Any,
+    preprocess_wav: Any,
+    *,
+    chunk_sec: float = 4.0,
+) -> list[np.ndarray]:
+    return [
+        embedding
+        for _, embedding in indexed_chunk_embeddings(
+            audio,
+            encoder,
+            preprocess_wav,
+            chunk_sec=chunk_sec,
+        )
+    ]
 
 
 def audio_rms_db(audio: np.ndarray) -> float:
@@ -997,6 +1026,7 @@ def speaker_validation(
     *,
     mic_path: Path,
     remote_path: Path,
+    remote_clean_path: Path,
     phases: Sequence[dict[str, Any]],
     trim_sec: float,
     policy: dict[str, Any],
@@ -1011,28 +1041,29 @@ def speaker_validation(
     remote_start, remote_end = phase_bounds(by_id["remote_only"], trim_sec)
     local_audio = read_audio_slice(mic_path, local_start, local_end)
     remote_mic_audio = read_audio_slice(mic_path, remote_start, remote_end)
+    remote_clean_audio = read_audio(remote_clean_path).samples
     remote_ref_audio = read_audio_slice(remote_path, remote_start, remote_end)
     local_embeddings = chunk_embeddings(local_audio, encoder, preprocess_wav)
-    remote_mic_embeddings = chunk_embeddings(remote_mic_audio, encoder, preprocess_wav)
-    remote_ref_embeddings = chunk_embeddings(remote_ref_audio, encoder, preprocess_wav)
+    remote_mic_raw_chunks = indexed_chunk_embeddings(remote_mic_audio, encoder, preprocess_wav)
+    remote_mic_clean_chunks = indexed_chunk_embeddings(remote_clean_audio, encoder, preprocess_wav)
+    remote_ref_chunks = indexed_chunk_embeddings(remote_ref_audio, encoder, preprocess_wav)
     if len(local_embeddings) < 8:
         raise RuntimeError(f"insufficient local speaker chunks: {len(local_embeddings)}")
     enrollment = np.mean(np.stack(local_embeddings[:3]), axis=0)
-    local_scores = [cosine(enrollment, row) for row in local_embeddings[3:]]
-    remote_ref_centroid = (
-        np.mean(np.stack(remote_ref_embeddings), axis=0) if remote_ref_embeddings else None
-    )
-    remote_rows: list[dict[str, Any]] = []
-    for embedding in remote_mic_embeddings:
-        local_similarity = cosine(enrollment, embedding)
-        remote_similarity = cosine(remote_ref_centroid, embedding) if remote_ref_centroid is not None else 0.0
-        remote_rows.append(
-            {
-                "local_similarity": round(local_similarity, 6),
-                "remote_similarity": round(remote_similarity, 6),
-                "local_margin": round(local_similarity - remote_similarity, 6),
-            }
+    local_scores = [cosine_similarity(enrollment, row) for row in local_embeddings[3:]]
+    try:
+        remote_raw_rows = paired_remote_speaker_scores(
+            enrollment,
+            remote_mic_raw_chunks,
+            remote_ref_chunks,
         )
+        remote_rows = paired_remote_speaker_scores(
+            enrollment,
+            remote_mic_clean_chunks,
+            remote_ref_chunks,
+        )
+    except ValueError as error:
+        raise RuntimeError(str(error)) from error
     target_policy = policy["validation"]["target_me"]
     contamination = any(
         row["local_similarity"] >= float(target_policy["remote_contamination_local_similarity"])
@@ -1049,7 +1080,7 @@ def speaker_validation(
             preprocess_wav,
             chunk_sec=chunk_sec,
         )
-        scores = [cosine(enrollment, row) for row in embeddings]
+        scores = [cosine_similarity(enrollment, row) for row in embeddings]
         phase_scores[phase_id] = {
             "chunk_duration_sec": chunk_sec,
             "chunk_count": len(scores),
@@ -1058,13 +1089,17 @@ def speaker_validation(
         }
     return {
         "backend": "resemblyzer_dvector_v0",
+        "remote_reference_mode": "local_fir_clean_residual_paired_chunk_v1",
         "enrollment_chunks": 3,
         "local_validation_chunks": len(local_scores),
         "local_similarity_median": round(float(np.median(local_scores)), 6) if local_scores else 0.0,
         "local_similarity_minimum": round(min(local_scores), 6) if local_scores else 0.0,
         "remote_mic_chunks": len(remote_rows),
+        "remote_mic_raw_chunks": len(remote_raw_rows),
+        "remote_ref_chunks": len(remote_ref_chunks),
         "remote_contamination": contamination,
         "remote_rows": remote_rows,
+        "remote_raw_rows": remote_raw_rows,
         "phase_scores": phase_scores,
     }
 
@@ -1148,29 +1183,28 @@ def inspect(args: argparse.Namespace) -> int:
         global_reasons.append("output_volume_changed")
 
     validators_error: str | None = None
-    double_talk_clean_error: str | None = None
+    local_fir_clean_error: str | None = None
     mic_asr: dict[str, Any] = {}
     remote_asr: dict[str, Any] = {}
     double_talk_clean_asr: dict[str, Any] = {}
     double_talk_clean_path: Path | None = None
-    double_talk_clean_report: dict[str, Any] = {}
+    remote_only_clean_path: Path | None = None
+    local_fir_clean_report: dict[str, Any] = {}
     speaker: dict[str, Any] = {}
-    double_talk_phase = next(
-        (row for row in schedule if row.get("kind") == "controlled_double_talk"),
-        None,
-    )
-    if double_talk_phase is not None and not raw_errors:
+    if not raw_errors:
         try:
-            double_talk_clean_path, double_talk_clean_report = materialize_double_talk_validation_audio(
+            clean_paths, local_fir_clean_report = materialize_local_fir_validation_audio(
                 session=session,
                 mic_path=mic_wav,
                 remote_path=remote_wav,
-                phase=double_talk_phase,
+                phases=schedule,
                 trim_sec=float(policy["capture"]["phase_trim_sec"]),
                 analysis_dir=analysis_dir,
             )
+            double_talk_clean_path = clean_paths["controlled_double_talk"]
+            remote_only_clean_path = clean_paths["remote_only"]
         except RuntimeError as error:
-            double_talk_clean_error = str(error)
+            local_fir_clean_error = str(error)
     try:
         model_path = args.model.resolve()
         mic_source_sha = sha256(mic_wav)
@@ -1214,9 +1248,15 @@ def inspect(args: argparse.Namespace) -> int:
                 source_sha256=double_talk_clean_sha,
                 model_instance=shared_model,
             )
+        if remote_only_clean_path is None:
+            raise RuntimeError(
+                "remote-only local-FIR residual unavailable: "
+                + (local_fir_clean_error or "unknown error")
+            )
         speaker = speaker_validation(
             mic_path=mic_wav,
             remote_path=remote_wav,
+            remote_clean_path=remote_only_clean_path,
             phases=schedule,
             trim_sec=float(policy["capture"]["phase_trim_sec"]),
             policy=policy,
@@ -1393,7 +1433,7 @@ def inspect(args: argparse.Namespace) -> int:
                 reasons.append("local_speech_too_quiet")
             if evidence["prompt_token_recall"] < float(validation[threshold_name]):
                 reasons.append("prompt_recall")
-                if kind == "controlled_double_talk" and double_talk_clean_error:
+                if kind == "controlled_double_talk" and local_fir_clean_error:
                     reasons.append("double_talk_echo_clean_validator_unavailable")
             if (evidence["target_me_maximum_similarity"] or 0.0) < float(
                 validation["target_me"]["minimum_local_similarity"]
@@ -1483,7 +1523,8 @@ def inspect(args: argparse.Namespace) -> int:
             "faster_whisper": bool(mic_asr and remote_asr),
             "target_me": bool(speaker),
             "double_talk_echo_clean": bool(double_talk_clean_asr),
-            "double_talk_echo_clean_error": double_talk_clean_error,
+            "remote_only_echo_clean": bool(remote_only_clean_path),
+            "local_fir_echo_clean_error": local_fir_clean_error,
             "error": validators_error,
         },
         "analysis_profile": {
@@ -1492,6 +1533,7 @@ def inspect(args: argparse.Namespace) -> int:
             "double_talk_prompt_validation": "best_of_raw_and_local_fir_clean_v1",
             "double_talk_local_support": "prompt_discriminative_words_v1",
             "opening_local_level_validation": "asr_word_interval_rms_v1",
+            "remote_only_target_me_validation": "local_fir_clean_residual_paired_chunk_v1",
             "speaker_validation_chunk_sec": {
                 phase_id: speaker_validation_chunk_sec(phase_id)
                 for phase_id in ("controlled_double_talk", "opening_backchannel")
@@ -1507,12 +1549,12 @@ def inspect(args: argparse.Namespace) -> int:
             "remote_analysis": fingerprint(remote_wav, session),
             **(
                 {
-                    "double_talk_echo_clean_report": fingerprint(
-                        analysis_dir / "controlled_double_talk.echo_clean_validation.json",
+                    "local_fir_echo_clean_report": fingerprint(
+                        analysis_dir / "local_fir.echo_clean_validation.json",
                         session,
                     )
                 }
-                if double_talk_clean_report
+                if local_fir_clean_report
                 else {}
             ),
         },

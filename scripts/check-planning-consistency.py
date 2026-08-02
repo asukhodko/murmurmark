@@ -46,6 +46,7 @@ CRITICAL_PATH = (
     "quality-neural-residual-echo-v1",
     "quality-speaker-preserving-echo-adaptation-corpus-v1",
     "quality-controlled-echo-supervision-lab-v1",
+    "research-speaker-preserving-neural-echo-v2",
     "product-evidence-export-v2",
     "product-release-quality-cli",
 )
