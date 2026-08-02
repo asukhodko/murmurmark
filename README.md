@@ -256,6 +256,9 @@ measured local-only `Me`, synthetic double-talk and an isolated measured hard te
 either `READY_FOR_ADAPTATION` or a precise, reproducible `DO_NOT_TRAIN`; this step does not train a
 model or change production.
 
+All four train captures pass: `496s` local, `512s` remote, `1264/1800s` synthetic; replay is `846/846`.
+Dev/hard remain; without extra train coverage they will close the goal with precise `DO_NOT_TRAIN`.
+
 The stable batch CLI already supports durable capture, resumable processing, evidence-backed review,
 guarded export and retention planning. `local_speech_completion_v2` is promoted for its frozen
 two-session scope. It classified six remaining local-recall rows / `35.85s`, safely closed three
@@ -280,15 +283,9 @@ recall, chronology, notes or verdict, and remains ineligible for automatic selec
 The dependent critical path is:
 
 ```text
-One-Command Meeting Lifecycle (done)
-->
-Mixed-Utterance Remote Span Separation (done, DO_NOT_PROMOTE)
--> Echo Suppression Promotion v1 (done, DO_NOT_PROMOTE)
--> Neural Residual Echo Suppression v1 (done, DO_NOT_PROMOTE)
--> Speaker-Preserving Echo Adaptation Corpus v1 (done, DO_NOT_TRAIN)
--> Controlled Echo Supervision Lab v1 (current)
--> Evidence Notes and Export v2
--> Release-quality CLI
+Meeting Lifecycle -> Mixed-Utterance Separation -> Echo Suppression Promotion
+-> Neural Residual Echo -> Adaptation Corpus -> Controlled Echo Lab (current)
+-> Evidence Notes and Export v2 -> Release-quality CLI
 ```
 
 Remote diarization, heavy local validators, LLM synthesis and UI are parallel or parked work. Live
@@ -323,6 +320,8 @@ murmurmark echo-lab inspect "$SESSION"
 
 Before recording, enter `ГОТОВ`; spoken prompts use your voice and generated voice is remote only.
 During the keyboard phase, type outside the capture terminal. Volume drift aborts capture early.
+Double-talk inspection compares raw ASR with a temporary local-FIR clean under the same threshold;
+only prompt-specific words absent from remote earn support. Raw and production remain unchanged.
 
 Repeat with the six frozen scenarios shown in the
 [Controlled Echo Supervision Lab runbook](docs/runbooks/controlled-echo-supervision-lab.md).

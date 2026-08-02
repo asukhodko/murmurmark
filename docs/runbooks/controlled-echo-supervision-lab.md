@@ -176,6 +176,16 @@ If you react late but still speak inside the requested phase, the capture may re
 four-second local, double-talk and opening windows are excluded from corpus coverage instead of
 being mislabeled as spoken items.
 
+Raw mixed ASR is not a sufficient prompt oracle at high speaker volume: it can hear only the
+digital remote even when Target-Me confirms local speech. `inspect` therefore creates a temporary
+`local_fir` clean candidate from the same immutable analysis inputs and transcribes only the
+double-talk phase. It records raw and cleaned prompt recall separately, selects the stronger source
+under the unchanged frozen recall threshold, and persists the bounded clean clip plus provenance
+under `derived/echo-lab/analysis/`. Corpus support is narrower still: only discriminative words
+from an expected local prompt, absent from the remote stimulus vocabulary, may support a
+four-second double-talk item. A failed clean validator falls back to the raw evidence and remains
+fail-closed.
+
 ```bash
 jq '{
   scenario,
@@ -209,6 +219,13 @@ sessions/_reports/controlled-echo-supervision-v1/
 `READY_FOR_ADAPTATION` permits a separate future training goal. `DO_NOT_TRAIN` is the correct result
 when coverage, contamination, privacy, split isolation, reconstruction, immutability or replay
 gates do not pass. `status` also lists the missing scenarios and prints the next capture command.
+
+Current measured state after the four planned train captures is `496s` local-only, `512s`
+remote-only and `1264/1800s` valid train synthetic mixtures. Dev-normal and hard-doubletalk are
+still required for a complete decision. Those two sessions can complete the goal with a precise
+`DO_NOT_TRAIN`, but they cannot increase train synthetic coverage. To retain a chance of
+`READY_FOR_ADAPTATION`, collect additional train evidence before treating dev and hard-test as
+held-out evaluation; do not weaken the frozen oracle or move held-out data into train.
 
 ## Recovery
 

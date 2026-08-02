@@ -47,6 +47,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--segments", type=Path, required=True)
     parser.add_argument("--speaker-state", type=Path, default=None)
+    parser.add_argument(
+        "--input-mic",
+        type=Path,
+        default=None,
+        help="Override the default prepared microphone input.",
+    )
+    parser.add_argument(
+        "--input-remote",
+        type=Path,
+        default=None,
+        help="Override the default prepared remote input.",
+    )
     parser.add_argument("--sample-rate", type=int, default=16_000)
     parser.add_argument("--window-sec", type=float, default=8.0)
     parser.add_argument("--hop-sec", type=float, default=2.0)
@@ -430,9 +442,14 @@ def nearest_remote_only(window: dict[str, Any], remote_only: list[dict[str, Any]
 
 def main() -> int:
     args = parse_args()
-    remote_path, mic_path = default_paths(args.session)
+    default_remote_path, default_mic_path = default_paths(args.session)
+    remote_path = args.input_remote or default_remote_path
+    mic_path = args.input_mic or default_mic_path
     if not remote_path.exists() or not mic_path.exists():
-        raise SystemExit("working audio not found; run preprocess --echo diagnostic first")
+        raise SystemExit(
+            "working audio not found; run preprocess --echo diagnostic first "
+            "or provide --input-mic and --input-remote"
+        )
 
     remote_rate, remote = read_wav_float(remote_path)
     mic_rate, mic = read_wav_float(mic_path)

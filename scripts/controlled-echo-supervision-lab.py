@@ -11,6 +11,7 @@ import os
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any, Callable, Sequence
@@ -42,6 +43,7 @@ from controlled_echo_supervision import (
     phase_bounds,
     phase_operator_instruction,
     policy_sha,
+    prompt_supported_word_spans,
     prompt_operator_action,
     prompt_operator_message,
     prompts_for_phase,
@@ -801,6 +803,100 @@ def transcribe_words(
     return payload
 
 
+def materialize_double_talk_validation_audio(
+    *,
+    session: Path,
+    mic_path: Path,
+    remote_path: Path,
+    phase: dict[str, Any],
+    trim_sec: float,
+    analysis_dir: Path,
+) -> tuple[Path, dict[str, Any]]:
+    helper_path = Path(__file__).resolve().parent / "echo-guard-session-local-fir.py"
+    clean_phase_path = analysis_dir / "controlled_double_talk.mic_clean_local_fir.wav"
+    report_path = analysis_dir / "controlled_double_talk.echo_clean_validation.json"
+    source_identity = {
+        "mic_sha256": sha256(mic_path),
+        "remote_sha256": sha256(remote_path),
+        "helper_sha256": sha256(helper_path),
+    }
+    if report_path.is_file() and clean_phase_path.is_file():
+        cached = read_json(report_path)
+        clean_artifact = cached.get("clean_phase") or {}
+        if (
+            cached.get("source_identity") == source_identity
+            and clean_artifact.get("sha256") == sha256(clean_phase_path)
+        ):
+            return clean_phase_path, cached
+
+    analysis_dir.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="double-talk-fir-", dir=analysis_dir) as temporary:
+        work = Path(temporary)
+        helper_report_path = work / "local_fir_report.json"
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(helper_path),
+                str(session),
+                "--input-mic",
+                str(mic_path),
+                "--input-remote",
+                str(remote_path),
+                "--profile",
+                "conservative",
+                "--role-policy",
+                "preserve_local",
+                "--output-clean",
+                str(work / "mic_clean.wav"),
+                "--output-echo",
+                str(work / "echo_hat.wav"),
+                "--output-role-mask",
+                str(work / "mic_role_masked.wav"),
+                "--output-role-preview",
+                str(work / "mic_role_preview.wav"),
+                "--asr-segments-dir",
+                str(work / "mic_asr_segments"),
+                "--report",
+                str(helper_report_path),
+                "--segments",
+                str(work / "segments.jsonl"),
+                "--speaker-state",
+                str(work / "speaker_state.jsonl"),
+            ],
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        if result.returncode != 0 or not helper_report_path.is_file():
+            detail = result.stdout.strip().splitlines()[-1] if result.stdout.strip() else "no report"
+            raise RuntimeError(f"double-talk echo-clean validator failed: {detail}")
+        helper_report = read_json(helper_report_path)
+        decision = helper_report.get("decision") or {}
+        if not decision.get("accepted_for_asr"):
+            failures = decision.get("quality_gate_failures") or [decision.get("reason") or "rejected"]
+            raise RuntimeError(
+                "double-talk echo-clean validator rejected the candidate: "
+                + ",".join(str(value) for value in failures)
+            )
+        start, end = phase_bounds(phase, trim_sec)
+        clean_phase = read_audio_slice(work / "mic_clean.wav", start, end)
+        write_audio(clean_phase_path, clean_phase)
+        payload = {
+            "schema": "murmurmark.controlled_echo_double_talk_validation/v1",
+            "engine": "local_fir_preserve_local",
+            "source_identity": source_identity,
+            "analysis_start_sec": round(start, 6),
+            "analysis_end_sec": round(end, 6),
+            "helper_decision": decision,
+            "helper_metrics": helper_report.get("metrics") or {},
+            "helper_parameters": helper_report.get("parameters") or {},
+            "clean_phase": fingerprint(clean_phase_path, session),
+        }
+        write_json(report_path, payload)
+    return clean_phase_path, payload
+
+
 def asr_cache_matches(cache_path: Path, source_sha256: str, model_path: Path) -> bool:
     if not cache_path.is_file():
         return False
@@ -1051,19 +1147,48 @@ def inspect(args: argparse.Namespace) -> int:
         global_reasons.append("output_volume_changed")
 
     validators_error: str | None = None
+    double_talk_clean_error: str | None = None
     mic_asr: dict[str, Any] = {}
     remote_asr: dict[str, Any] = {}
+    double_talk_clean_asr: dict[str, Any] = {}
+    double_talk_clean_path: Path | None = None
+    double_talk_clean_report: dict[str, Any] = {}
     speaker: dict[str, Any] = {}
+    double_talk_phase = next(
+        (row for row in schedule if row.get("kind") == "controlled_double_talk"),
+        None,
+    )
+    if double_talk_phase is not None and not raw_errors:
+        try:
+            double_talk_clean_path, double_talk_clean_report = materialize_double_talk_validation_audio(
+                session=session,
+                mic_path=mic_wav,
+                remote_path=remote_wav,
+                phase=double_talk_phase,
+                trim_sec=float(policy["capture"]["phase_trim_sec"]),
+                analysis_dir=analysis_dir,
+            )
+        except RuntimeError as error:
+            double_talk_clean_error = str(error)
     try:
         model_path = args.model.resolve()
         mic_source_sha = sha256(mic_wav)
         remote_source_sha = sha256(remote_wav)
         mic_cache = analysis_dir / "mic.faster_whisper.json"
         remote_cache = analysis_dir / "remote.faster_whisper.json"
+        double_talk_clean_cache = analysis_dir / "controlled_double_talk.mic_clean_local_fir.faster_whisper.json"
+        double_talk_clean_sha = sha256(double_talk_clean_path) if double_talk_clean_path else None
         shared_model = None
         if not (
             asr_cache_matches(mic_cache, mic_source_sha, model_path)
             and asr_cache_matches(remote_cache, remote_source_sha, model_path)
+            and (
+                double_talk_clean_path is None
+                or (
+                    double_talk_clean_sha is not None
+                    and asr_cache_matches(double_talk_clean_cache, double_talk_clean_sha, model_path)
+                )
+            )
         ):
             shared_model = load_faster_whisper_model(model_path)
         mic_asr = transcribe_words(
@@ -1080,6 +1205,14 @@ def inspect(args: argparse.Namespace) -> int:
             source_sha256=remote_source_sha,
             model_instance=shared_model,
         )
+        if double_talk_clean_path is not None and double_talk_clean_sha is not None:
+            double_talk_clean_asr = transcribe_words(
+                double_talk_clean_path,
+                model_path=model_path,
+                cache_path=double_talk_clean_cache,
+                source_sha256=double_talk_clean_sha,
+                model_instance=shared_model,
+            )
         speaker = speaker_validation(
             mic_path=mic_wav,
             remote_path=remote_wav,
@@ -1141,6 +1274,7 @@ def inspect(args: argparse.Namespace) -> int:
 
         mic_text = interval_text(mic_asr, start, end) if mic_asr else ""
         remote_text = interval_text(remote_asr, start, end) if remote_asr else ""
+        phase_extra_artifacts: dict[str, Any] = {}
         evidence: dict[str, Any] = {
             "mic_text_sha256": sha256_text(mic_text),
             "mic_text_token_count": len(tokens(mic_text)),
@@ -1182,20 +1316,66 @@ def inspect(args: argparse.Namespace) -> int:
                 if kind == "controlled_double_talk"
                 else "opening_prompt_min_token_recall"
             )
+            prompt_text = mic_text
+            prompt_asr = mic_asr
+            prompt_asr_origin = 0.0
+            prompt_source = "raw_mic"
+            raw_prompt_recall = token_recall(expected, mic_text)
+            echo_clean_prompt_recall: float | None = None
+            if kind == "controlled_double_talk" and double_talk_clean_asr:
+                echo_clean_text = interval_text(double_talk_clean_asr, 0.0, end - start)
+                echo_clean_prompt_recall = token_recall(expected, echo_clean_text)
+                evidence.update(
+                    {
+                        "echo_clean_text_sha256": sha256_text(echo_clean_text),
+                        "echo_clean_text_token_count": len(tokens(echo_clean_text)),
+                        "echo_clean_prompt_token_recall": round(echo_clean_prompt_recall, 6),
+                    }
+                )
+                if echo_clean_prompt_recall >= raw_prompt_recall:
+                    prompt_text = echo_clean_text
+                    prompt_asr = double_talk_clean_asr
+                    prompt_asr_origin = start
+                    prompt_source = "echo_clean_local_fir"
+                if double_talk_clean_path is not None:
+                    phase_extra_artifacts["echo_clean_validation"] = fingerprint(
+                        double_talk_clean_path,
+                        session,
+                    )
+            if kind == "controlled_double_talk":
+                forbidden = expected_stimulus.get(str(phase.get("stimulus")), "")
+                prompt_support, prompt_support_evidence = prompt_supported_word_spans(
+                    words=prompt_asr.get("words", []),
+                    phase=phase,
+                    analysis_start_sec=start,
+                    analysis_end_sec=end,
+                    asr_origin_sec=prompt_asr_origin,
+                    forbidden_text=forbidden,
+                    minimum_token_recall=float(validation[threshold_name]),
+                )
+            else:
+                prompt_support = interval_word_spans(mic_asr, start, end) if mic_asr else []
+                prompt_support_evidence = []
             evidence.update(
                 {
-                    "prompt_token_recall": round(token_recall(expected, mic_text), 6),
+                    "prompt_token_recall": round(token_recall(expected, prompt_text), 6),
+                    "raw_prompt_token_recall": round(raw_prompt_recall, 6),
+                    "prompt_validation_source": prompt_source,
                     "target_me_maximum_similarity": score.get("maximum_similarity"),
                     "target_me_chunk_count": score.get("chunk_count"),
-                    "mic_word_intervals": interval_word_spans(mic_asr, start, end) if mic_asr else [],
+                    "mic_word_intervals": prompt_support,
                 }
             )
+            if prompt_support_evidence:
+                evidence["prompt_support"] = prompt_support_evidence
             if metrics["remote_rms_db"] < float(validation["remote_active_min_rms_db"]) and kind == "controlled_double_talk":
                 reasons.append("double_talk_remote_inactive")
             if metrics["mic_rms_db"] < float(validation["local_speech_min_rms_db"]):
                 reasons.append("local_speech_too_quiet")
             if evidence["prompt_token_recall"] < float(validation[threshold_name]):
                 reasons.append("prompt_recall")
+                if kind == "controlled_double_talk" and double_talk_clean_error:
+                    reasons.append("double_talk_echo_clean_validator_unavailable")
             if (evidence["target_me_maximum_similarity"] or 0.0) < float(
                 validation["target_me"]["minimum_local_similarity"]
             ):
@@ -1239,6 +1419,7 @@ def inspect(args: argparse.Namespace) -> int:
                 "artifacts": {
                     "mic": fingerprint(mic_phase_path, session),
                     "remote": fingerprint(remote_phase_path, session),
+                    **phase_extra_artifacts,
                     **(
                         {"aligned_remote": fingerprint(aligned_path, session)}
                         if aligned_path is not None
@@ -1282,11 +1463,15 @@ def inspect(args: argparse.Namespace) -> int:
         "required_validators": {
             "faster_whisper": bool(mic_asr and remote_asr),
             "target_me": bool(speaker),
+            "double_talk_echo_clean": bool(double_talk_clean_asr),
+            "double_talk_echo_clean_error": double_talk_clean_error,
             "error": validators_error,
         },
         "analysis_profile": {
             "sample_rate": ANALYSIS_SAMPLE_RATE,
             "mono_channel_policy": "first_input_channel_no_gain_v1",
+            "double_talk_prompt_validation": "best_of_raw_and_local_fir_clean_v1",
+            "double_talk_local_support": "prompt_discriminative_words_v1",
             "speaker_validation_chunk_sec": {
                 phase_id: speaker_validation_chunk_sec(phase_id)
                 for phase_id in ("controlled_double_talk", "opening_backchannel")
@@ -1300,6 +1485,16 @@ def inspect(args: argparse.Namespace) -> int:
             "schedule": fingerprint(schedule_path, session),
             "mic_analysis": fingerprint(mic_wav, session),
             "remote_analysis": fingerprint(remote_wav, session),
+            **(
+                {
+                    "double_talk_echo_clean_report": fingerprint(
+                        analysis_dir / "controlled_double_talk.echo_clean_validation.json",
+                        session,
+                    )
+                }
+                if double_talk_clean_report
+                else {}
+            ),
         },
     }
     write_json(derived / "inspection.json", inspection)

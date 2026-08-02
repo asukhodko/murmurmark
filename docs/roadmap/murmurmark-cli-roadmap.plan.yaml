@@ -282,11 +282,13 @@ nodes:
       synthetic double-talk имеют известное происхождение. Собрать минимум 4 train, 1 dev и
       1 controlled hard-test captures, проверить privacy, contamination, split isolation и
       oracle gates. Завершить READY_FOR_ADAPTATION либо точным DO_NOT_TRAIN; не обучать модель
-      и не менять production. Quiet, normal-A и offset normal-B train captures приняты: в каждом
-      6/6 содержательных фаз; суммарно 372s ASR-supported local-only, 384s remote-only, 1160s
-      synthetic mixtures, 166 protected-local items, 22 opening items и replay 690/690. Остались
-      train-loud, dev-normal и hard-doubletalk; synthetic coverage после train-loud заранее не
-      считается пройденным. Текущее решение закономерно DO_NOT_TRAIN.
+      и не менять production. Quiet, normal-A, offset normal-B и loud train captures приняты: в
+      каждом 6/6 содержательных фаз; суммарно 496s ASR-supported local-only, 512s remote-only,
+      1264s synthetic mixtures, 221 protected-local items, 31 opening item и replay 846/846.
+      Loud double-talk проверяется bounded local-FIR clean ASR вместе с Target-Me, а local support
+      дают только prompt-discriminative слова. Остались dev-normal и hard-doubletalk. Train
+      synthetic coverage отстаёт от frozen gate на 536s: два дополнительных train captures дают
+      консервативный путь к READY, только held-out captures завершат цель точным DO_NOT_TRAIN.
 
   product-evidence-export-v2:
     title: "Evidence Notes And Export v2"

@@ -2,7 +2,7 @@
 
 Status: current
 
-Updated: 2026-08-01
+Updated: 2026-08-02
 
 The stable product path remains `murmurmark meeting -> first Ctrl-C -> final result`. Batch output is
 authoritative. Live output is advisory and shadow-only.
@@ -38,23 +38,25 @@ No model is trained in this goal. `local_fir_role_masked` remains production.
 
 ## Current Evidence
 
-The quiet, normal-A and offset normal-B train captures are accepted. All six content phases passed
-in every session, corpus replay is stable for `690/690` artifacts, and current aggregate coverage is
-`372s` ASR-supported local-only, `384s` remote-only, `1160s` synthetic mixtures, 166
-protected-local items and 22 opening/backchannel items. The decision correctly remains
-`DO_NOT_TRAIN`: train-loud, dev-normal and hard-doubletalk are still missing.
+Quiet, normal-A, offset normal-B and loud train captures pass all six content phases. Replay is
+`846/846`; coverage is `496s` local, `512s` remote, `1264s` synthetic, 221 protected-local and 31
+opening items. `DO_NOT_TRAIN` remains correct: dev/hard are missing and train synthetic is `536s`
+below its frozen `1800s` gate.
 
-That first run exposed two inspector defects without changing the frozen policy: normalized stereo
-downmix added about 3 dB to duplicated system audio, and four-second speaker windows were too short
-for opening acknowledgements. The inspector now selects one channel without gain and aggregates
-opening speaker evidence over eight seconds. Raw capture and acceptance thresholds are unchanged.
-Opening coverage is now counted from materialized four-second windows with observed ASR speech,
-not displayed prompts; delayed or missed responses remain explicit exclusions.
+Three inspector defects were repaired without changing frozen policy: duplicated stereo is reduced
+to one channel without gain; opening Target-Me uses eight-second evidence; and loud double-talk no
+longer depends on remote-dominated raw ASR. Raw recall there was `0.033`, while unchanged Target-Me
+passed and bounded local FIR recovered every expected token. Inspection records both scores under
+the same threshold and credits only prompt-discriminative word intervals. Reinspection retained all
+four sessions and removed one overcounted protected-local item. Raw capture is unchanged.
 
-The opening and protected-local gates already pass. Train-loud must still add at least `108s`
-local-only, `96s` remote-only and `640s` valid synthetic mixtures. The first two quantities are
-expected from one accepted capture; the synthetic gate is deliberately not assumed. Dev and
-hard-test remain separate sessions so adaptation cannot be approved on train evidence alone.
+The opening, protected-local, train-capture, train-local and train-remote gates pass. Dev and
+hard-test must remain separate sessions. Completing them now would close this goal with a precise
+`DO_NOT_TRAIN`, because held-out data cannot repair the train synthetic deficit. A credible attempt
+at `READY_FOR_ADAPTATION` requires additional train captures before dev/hard evaluation; based on
+the observed `272..356s` contribution per train session, two additional accepted train captures are
+the conservative estimate. Frozen thresholds, split ownership and oracle rules must not be changed
+to manufacture a pass.
 
 ## Frozen Contract
 

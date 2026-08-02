@@ -15,6 +15,8 @@ import numpy as np
 
 from controlled_echo_supervision import (
     ANALYSIS_SAMPLE_RATE,
+    DOUBLE_TALK_PROMPTS,
+    REMOTE_TTS_TEXT,
     SCHEMA_CAPTURE,
     SCHEMA_INSPECTION,
     build_schedule,
@@ -26,6 +28,7 @@ from controlled_echo_supervision import (
     materialize_looped_stimulus,
     phase_operator_instruction,
     policy_sha,
+    prompt_supported_word_spans,
     prompt_operator_action,
     prompt_operator_message,
     prompts_for_phase,
@@ -415,6 +418,50 @@ def main() -> int:
             opening_phase, {"start_sec": 4.0, "end_sec": 8.0}
         ),
         "ASR-supported opening clip was excluded",
+    )
+    double_talk_phase = next(
+        row for row in schedule if row["kind"] == "controlled_double_talk"
+    )
+    double_talk_start = float(double_talk_phase["planned_start_sec"]) + 0.75
+    first_prompt_at = float(prompts_for_phase(double_talk_phase)[0]["planned_at_sec"])
+    remote_only_words = [
+        {"start": first_prompt_at + 0.2, "end": first_prompt_at + 0.5, "text": "система"},
+        {"start": first_prompt_at + 0.5, "end": first_prompt_at + 0.8, "text": "остаточное"},
+        {"start": first_prompt_at + 0.8, "end": first_prompt_at + 1.1, "text": "эхо"},
+    ]
+    support, prompt_evidence = prompt_supported_word_spans(
+        words=remote_only_words,
+        phase=double_talk_phase,
+        analysis_start_sec=double_talk_start,
+        analysis_end_sec=float(double_talk_phase["planned_end_sec"]) - 0.75,
+        asr_origin_sec=0.0,
+        forbidden_text=REMOTE_TTS_TEXT,
+        minimum_token_recall=0.25,
+    )
+    require(not support, "remote-only ASR words received local double-talk credit")
+    require(not prompt_evidence[0]["accepted"], "remote-only prompt evidence was accepted")
+    local_words = [
+        {
+            "start": first_prompt_at + 0.4 + index * 0.35,
+            "end": first_prompt_at + 0.7 + index * 0.35,
+            "text": token,
+        }
+        for index, token in enumerate(DOUBLE_TALK_PROMPTS[0].split())
+    ]
+    support, prompt_evidence = prompt_supported_word_spans(
+        words=remote_only_words + local_words,
+        phase=double_talk_phase,
+        analysis_start_sec=double_talk_start,
+        analysis_end_sec=float(double_talk_phase["planned_end_sec"]) - 0.75,
+        asr_origin_sec=0.0,
+        forbidden_text=REMOTE_TTS_TEXT,
+        minimum_token_recall=0.25,
+    )
+    require(len(support) == 1, "one spoken double-talk prompt did not yield one support interval")
+    require(prompt_evidence[0]["accepted"], "spoken double-talk prompt was not accepted")
+    require(
+        not any(row["accepted"] for row in prompt_evidence[1:]),
+        "one spoken prompt was reused for later scheduled prompts",
     )
     valid, reasons = finite_and_unclipped(
         np.asarray([0.0, np.nan], dtype=np.float32),

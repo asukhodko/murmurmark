@@ -320,6 +320,77 @@ def token_recall(expected: Any, observed: Any) -> float:
     return sum(1 for token in expected_tokens if token in observed_tokens) / len(expected_tokens)
 
 
+def prompt_supported_word_spans(
+    *,
+    words: Sequence[dict[str, Any]],
+    phase: dict[str, Any],
+    analysis_start_sec: float,
+    analysis_end_sec: float,
+    asr_origin_sec: float,
+    forbidden_text: str,
+    minimum_token_recall: float,
+    timing_grace_sec: float = 2.0,
+) -> tuple[list[dict[str, float]], list[dict[str, Any]]]:
+    """Find scheduled local prompts in ASR without crediting remote-only words."""
+
+    prompt_rows = prompts_for_phase(phase)
+    forbidden_tokens = set(tokens(forbidden_text))
+    support: list[dict[str, float]] = []
+    evidence: list[dict[str, Any]] = []
+    consumed_until = analysis_start_sec
+
+    for index, prompt in enumerate(prompt_rows):
+        prompt_at = float(prompt["planned_at_sec"])
+        next_prompt_at = (
+            float(prompt_rows[index + 1]["planned_at_sec"])
+            if index + 1 < len(prompt_rows)
+            else float(phase["planned_end_sec"])
+        )
+        window_start = max(analysis_start_sec, prompt_at - 0.25, consumed_until - 0.1)
+        window_end = min(analysis_end_sec, next_prompt_at + timing_grace_sec)
+        expected_tokens = tokens(prompt.get("text"))
+        discriminative_tokens = [token for token in expected_tokens if token not in forbidden_tokens]
+        if not discriminative_tokens:
+            discriminative_tokens = expected_tokens
+        discriminative_set = set(discriminative_tokens)
+
+        matched: list[tuple[float, float, str]] = []
+        for row in words:
+            start = asr_origin_sec + float(row.get("start") or 0.0)
+            end = asr_origin_sec + float(row.get("end") or 0.0)
+            if end <= window_start or start >= window_end:
+                continue
+            normalized = tokens(row.get("text"))
+            if any(token in discriminative_set for token in normalized):
+                matched.append((start, end, str(row.get("text") or "")))
+
+        observed = " ".join(text for _, _, text in matched)
+        recall = token_recall(discriminative_tokens, observed)
+        accepted = bool(matched) and recall >= minimum_token_recall
+        row_evidence: dict[str, Any] = {
+            "prompt_id": prompt["prompt_id"],
+            "accepted": accepted,
+            "discriminative_token_count": len(discriminative_tokens),
+            "matched_token_recall": round(recall, 6),
+            "matched_text_sha256": hashlib.sha256(normalize_text(observed).encode("utf-8")).hexdigest(),
+            "window_start_sec": round(window_start - analysis_start_sec, 6),
+            "window_end_sec": round(window_end - analysis_start_sec, 6),
+        }
+        if accepted:
+            matched_start = max(analysis_start_sec, min(start for start, _, _ in matched))
+            matched_end = min(analysis_end_sec, max(end for _, end, _ in matched))
+            interval = {
+                "start_sec": round(matched_start - analysis_start_sec, 6),
+                "end_sec": round(matched_end - analysis_start_sec, 6),
+            }
+            support.append(interval)
+            row_evidence["support"] = interval
+            consumed_until = max(consumed_until, matched_end)
+        evidence.append(row_evidence)
+
+    return support, evidence
+
+
 def unique_token_ratio(candidate: Any, reference: Any) -> float:
     candidate_tokens = tokens(candidate)
     if not candidate_tokens:

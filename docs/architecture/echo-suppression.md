@@ -949,6 +949,14 @@ The schedule is the source of expected state. Validators may confirm it or exclu
 interval. They cannot relabel an ordinary interval as clean supervision. `speaker_state` is
 corroborating evidence only.
 
+High-volume double-talk has a separate bounded evidence path. The inspector keeps raw mixed-ASR
+recall, derives a temporary `local_fir` clean candidate from the same immutable mic/remote inputs,
+and transcribes only the scheduled double-talk phase. The unchanged recall gate uses the stronger
+of raw and clean evidence, while Target-Me remains independently required. Materialization accepts
+only timing-bounded words discriminative for the local prompt and absent from the known remote
+stimulus; continuous remote speech cannot masquerade as local support. Failure of the clean path
+falls back to raw evidence and fails closed when that evidence is insufficient.
+
 ### Signal Model
 
 ```text
