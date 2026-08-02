@@ -38,11 +38,11 @@ No model is trained in this goal. `local_fir_role_masked` remains production.
 
 ## Current Evidence
 
-The quiet and normal-A train captures are accepted. All six content phases passed in both sessions,
-corpus replay is stable for `496/496` artifacts, and current aggregate coverage is `248s`
-ASR-supported local-only, `256s` remote-only, `912s` synthetic mixtures, 109 protected-local items
-and 13 opening/backchannel items. The decision correctly remains `DO_NOT_TRAIN`: four frozen
-scenarios are still missing.
+The quiet, normal-A and offset normal-B train captures are accepted. All six content phases passed
+in every session, corpus replay is stable for `690/690` artifacts, and current aggregate coverage is
+`372s` ASR-supported local-only, `384s` remote-only, `1160s` synthetic mixtures, 166
+protected-local items and 22 opening/backchannel items. The decision correctly remains
+`DO_NOT_TRAIN`: train-loud, dev-normal and hard-doubletalk are still missing.
 
 That first run exposed two inspector defects without changing the frozen policy: normalized stereo
 downmix added about 3 dB to duplicated system audio, and four-second speaker windows were too short
@@ -50,6 +50,11 @@ for opening acknowledgements. The inspector now selects one channel without gain
 opening speaker evidence over eight seconds. Raw capture and acceptance thresholds are unchanged.
 Opening coverage is now counted from materialized four-second windows with observed ASR speech,
 not displayed prompts; delayed or missed responses remain explicit exclusions.
+
+The opening and protected-local gates already pass. Train-loud must still add at least `108s`
+local-only, `96s` remote-only and `640s` valid synthetic mixtures. The first two quantities are
+expected from one accepted capture; the synthetic gate is deliberately not assumed. Dev and
+hard-test remain separate sessions so adaptation cannot be approved on train evidence alone.
 
 ## Frozen Contract
 

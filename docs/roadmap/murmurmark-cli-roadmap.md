@@ -175,10 +175,10 @@ Current. Run the normal durable recorder through a frozen phase schedule and col
 train, one dev and one controlled hard-test speaker-mode session. Accept measured echo and local
 targets only when schedule, signal, local ASR and Target-Me evidence agree. Build synthetic mixtures
 inside a split, preserve existing real counterexamples as hard-test only, and issue a deterministic
-adaptation decision. Quiet and normal-A train captures have passed all six content phases; replay
-is `496/496`, local-only coverage counts 248 ASR-supported seconds, opening coverage counts 13
-items, and four scenarios remain. Production
-stays on `local_fir_role_masked`.
+adaptation decision. Quiet, normal-A and offset normal-B train captures have passed all six content
+phases; replay is `690/690`, with 372 ASR-supported local-only seconds and 1160 synthetic seconds.
+Train-loud, dev-normal and hard-doubletalk remain, and synthetic coverage is not presumed to pass
+before measurement. Production stays on `local_fir_role_masked`.
 
 ### 7. Evidence Notes And Export v2
 
