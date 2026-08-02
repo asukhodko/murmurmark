@@ -23,6 +23,7 @@ from controlled_echo_supervision import (
     convert_audio,
     default_policy_path,
     fingerprint,
+    interval_audio_metrics,
     load_policy,
     local_only_gate_reasons,
     materialize_looped_stimulus,
@@ -404,6 +405,37 @@ def main() -> int:
                 "prompt lies outside its phase",
             )
     check_gate_helpers(base_policy)
+    sparse_opening = np.zeros(8 * ANALYSIS_SAMPLE_RATE, dtype=np.float32)
+    timeline = np.arange(ANALYSIS_SAMPLE_RATE, dtype=np.float64) / ANALYSIS_SAMPLE_RATE
+    sparse_opening[2 * ANALYSIS_SAMPLE_RATE : 3 * ANALYSIS_SAMPLE_RATE] = np.asarray(
+        0.01 * np.sin(2 * np.pi * 310 * timeline), dtype=np.float32
+    )
+    sparse_full_rms = 20.0 * np.log10(
+        np.sqrt(float(np.mean(sparse_opening.astype(np.float64) ** 2))) + 1.0e-12
+    )
+    sparse_speech = interval_audio_metrics(
+        sparse_opening,
+        [{"start_sec": 2.0, "end_sec": 3.0}],
+        ANALYSIS_SAMPLE_RATE,
+    )
+    require(
+        sparse_full_rms < float(base_policy["validation"]["local_speech_min_rms_db"]),
+        "sparse opening fixture does not exercise phase-average dilution",
+    )
+    require(
+        sparse_speech["rms_db"] >= float(base_policy["validation"]["local_speech_min_rms_db"]),
+        "speech-active opening level was diluted by scheduled silence",
+    )
+    empty_speech = interval_audio_metrics(sparse_opening, [], ANALYSIS_SAMPLE_RATE)
+    require(
+        empty_speech == {
+            "interval_count": 0,
+            "samples": 0,
+            "duration_sec": 0.0,
+            "rms_db": -240.0,
+        },
+        "opening without observed speech must fail closed",
+    )
     opening_phase = {
         "evidence": {"mic_word_intervals": [{"start_sec": 4.5, "end_sec": 5.0}]}
     }

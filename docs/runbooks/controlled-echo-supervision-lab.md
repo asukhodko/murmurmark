@@ -172,6 +172,9 @@ Inspection selects the first input channel when creating its mono analysis track
 lab stimulus is duplicated across the system-capture stereo channels; an ordinary normalized
 stereo downmix would add about 3 dB and falsely report clipping. Short opening phrases use a wider
 speaker-validation window than double-talk, while keeping the same frozen Target-Me threshold.
+Their local-level gate also applies the unchanged `local_speech_min_rms_db` threshold to the union
+of ASR-confirmed word intervals, not to scheduled pauses across the whole phase. Missing intervals
+therefore remain `local_speech_too_quiet`; pauses cannot dilute an otherwise confirmed short phrase.
 If you react late but still speak inside the requested phase, the capture may remain valid; empty
 four-second local, double-talk and opening windows are excluded from corpus coverage instead of
 being mislabeled as spoken items.
@@ -220,12 +223,10 @@ sessions/_reports/controlled-echo-supervision-v1/
 when coverage, contamination, privacy, split isolation, reconstruction, immutability or replay
 gates do not pass. `status` also lists the missing scenarios and prints the next capture command.
 
-Current measured state after the four planned train captures is `496s` local-only, `512s`
-remote-only and `1264/1800s` valid train synthetic mixtures. Dev-normal and hard-doubletalk are
-still required for a complete decision. Those two sessions can complete the goal with a precise
-`DO_NOT_TRAIN`, but they cannot increase train synthetic coverage. To retain a chance of
-`READY_FOR_ADAPTATION`, collect additional train evidence before treating dev and hard-test as
-held-out evaluation; do not weaken the frozen oracle or move held-out data into train.
+Current measured state after five accepted train captures is `620s` local-only, `640s` remote-only
+and `1804/1800s` valid train synthetic mixtures, with replay `1113/1113`. All train gates pass. Do
+not collect more train data for v1. Dev-normal and hard-doubletalk are the only remaining captures;
+keep both held out and let their frozen gates decide `READY_FOR_ADAPTATION` or `DO_NOT_TRAIN`.
 
 ## Recovery
 

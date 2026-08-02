@@ -37,6 +37,7 @@ from controlled_echo_supervision import (
     default_sessions_root,
     expected_prompt_text,
     fingerprint,
+    interval_audio_metrics,
     load_policy,
     materialize_looped_stimulus,
     normalize_text,
@@ -1356,6 +1357,11 @@ def inspect(args: argparse.Namespace) -> int:
             else:
                 prompt_support = interval_word_spans(mic_asr, start, end) if mic_asr else []
                 prompt_support_evidence = []
+            speech_metrics = (
+                interval_audio_metrics(mic, prompt_support, ANALYSIS_SAMPLE_RATE)
+                if kind == "opening_backchannel"
+                else None
+            )
             evidence.update(
                 {
                     "prompt_token_recall": round(token_recall(expected, prompt_text), 6),
@@ -1366,11 +1372,24 @@ def inspect(args: argparse.Namespace) -> int:
                     "mic_word_intervals": prompt_support,
                 }
             )
+            if speech_metrics is not None:
+                evidence.update(
+                    {
+                        "mic_speech_interval_count": speech_metrics["interval_count"],
+                        "mic_speech_duration_sec": speech_metrics["duration_sec"],
+                        "mic_speech_rms_db": speech_metrics["rms_db"],
+                    }
+                )
             if prompt_support_evidence:
                 evidence["prompt_support"] = prompt_support_evidence
             if metrics["remote_rms_db"] < float(validation["remote_active_min_rms_db"]) and kind == "controlled_double_talk":
                 reasons.append("double_talk_remote_inactive")
-            if metrics["mic_rms_db"] < float(validation["local_speech_min_rms_db"]):
+            local_rms_db = (
+                float(evidence.get("mic_speech_rms_db", -240.0))
+                if kind == "opening_backchannel"
+                else float(metrics["mic_rms_db"])
+            )
+            if local_rms_db < float(validation["local_speech_min_rms_db"]):
                 reasons.append("local_speech_too_quiet")
             if evidence["prompt_token_recall"] < float(validation[threshold_name]):
                 reasons.append("prompt_recall")
@@ -1472,6 +1491,7 @@ def inspect(args: argparse.Namespace) -> int:
             "mono_channel_policy": "first_input_channel_no_gain_v1",
             "double_talk_prompt_validation": "best_of_raw_and_local_fir_clean_v1",
             "double_talk_local_support": "prompt_discriminative_words_v1",
+            "opening_local_level_validation": "asr_word_interval_rms_v1",
             "speaker_validation_chunk_sec": {
                 phase_id: speaker_validation_chunk_sec(phase_id)
                 for phase_id in ("controlled_double_talk", "opening_backchannel")

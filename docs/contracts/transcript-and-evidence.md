@@ -7876,6 +7876,11 @@ speaker-validation windows. Lab system audio is a duplicated stereo signal, so
 `first_input_channel_no_gain_v1` selects one channel instead of applying a normalized stereo
 downmix that would add about 3 dB. Opening/backchannel phrases may use a wider aggregate voice
 window than double-talk; the frozen Target-Me acceptance threshold remains unchanged.
+`analysis_profile.opening_local_level_validation = asr_word_interval_rms_v1` means the unchanged
+`local_speech_min_rms_db` threshold is evaluated over the union of phase-relative
+`mic_word_intervals`. The phase stores `mic_speech_interval_count`, `mic_speech_duration_sec` and
+`mic_speech_rms_db`. No intervals produce `-240dB` and fail closed; scheduled pauses are never
+counted as evidence against a short confirmed backchannel.
 
 For `controlled_double_talk`, `analysis_profile.double_talk_prompt_validation` is
 `best_of_raw_and_local_fir_clean_v1`. Inspection derives a bounded clean phase with the existing

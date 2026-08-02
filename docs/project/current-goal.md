@@ -38,25 +38,22 @@ No model is trained in this goal. `local_fir_role_masked` remains production.
 
 ## Current Evidence
 
-Quiet, normal-A, offset normal-B and loud train captures pass all six content phases. Replay is
-`846/846`; coverage is `496s` local, `512s` remote, `1264s` synthetic, 221 protected-local and 31
-opening items. `DO_NOT_TRAIN` remains correct: dev/hard are missing and train synthetic is `536s`
-below its frozen `1800s` gate.
+Quiet, normal-A, offset normal-B, loud and an additional quiet train capture pass all six content
+phases. Replay is `1113/1113`; coverage is `620s` local, `640s` remote, `1804s` synthetic, 278
+protected-local and 40 opening items. Every train gate now passes. `DO_NOT_TRAIN` remains correct
+only because the isolated dev and hard-test captures are still missing.
 
-Three inspector defects were repaired without changing frozen policy: duplicated stereo is reduced
-to one channel without gain; opening Target-Me uses eight-second evidence; and loud double-talk no
-longer depends on remote-dominated raw ASR. Raw recall there was `0.033`, while unchanged Target-Me
-passed and bounded local FIR recovered every expected token. Inspection records both scores under
-the same threshold and credits only prompt-discriminative word intervals. Reinspection retained all
-four sessions and removed one overcounted protected-local item. Raw capture is unchanged.
+Four inspector defects were repaired without changing frozen policy: duplicated stereo is reduced
+to one channel without gain; opening Target-Me uses eight-second evidence; loud double-talk no
+longer depends on remote-dominated raw ASR; and sparse opening level is measured only over
+ASR-confirmed speech instead of scheduled pauses. The latter keeps the same `-50dB` threshold and
+still fails closed when no speech interval exists. All five accepted sessions retain their outcome;
+the empty negative capture remains excluded. Raw capture is unchanged.
 
-The opening, protected-local, train-capture, train-local and train-remote gates pass. Dev and
-hard-test must remain separate sessions. Completing them now would close this goal with a precise
-`DO_NOT_TRAIN`, because held-out data cannot repair the train synthetic deficit. A credible attempt
-at `READY_FOR_ADAPTATION` requires additional train captures before dev/hard evaluation; based on
-the observed `272..356s` contribution per train session, two additional accepted train captures are
-the conservative estimate. Frozen thresholds, split ownership and oracle rules must not be changed
-to manufacture a pass.
+The opening, protected-local and every train coverage gate pass. No more train capture is required.
+Dev-normal and hard-doubletalk must remain separate held-out sessions; their evidence now decides
+between `READY_FOR_ADAPTATION` and a precise `DO_NOT_TRAIN`. Frozen thresholds, split ownership and
+oracle rules must not be changed to manufacture a pass.
 
 ## Frozen Contract
 

@@ -256,8 +256,8 @@ measured local-only `Me`, synthetic double-talk and an isolated measured hard te
 either `READY_FOR_ADAPTATION` or a precise, reproducible `DO_NOT_TRAIN`; this step does not train a
 model or change production.
 
-All four train captures pass: `496s` local, `512s` remote, `1264/1800s` synthetic; replay is `846/846`.
-Dev/hard remain; without extra train coverage they will close the goal with precise `DO_NOT_TRAIN`.
+Five train captures pass: `620s` local, `640s` remote, `1804/1800s` synthetic and replay
+`1113/1113`; all train gates are closed. Only isolated dev and hard-test captures remain.
 
 The stable batch CLI already supports durable capture, resumable processing, evidence-backed review,
 guarded export and retention planning. `local_speech_completion_v2` is promoted for its frozen
@@ -320,8 +320,8 @@ murmurmark echo-lab inspect "$SESSION"
 
 Before recording, enter `ГОТОВ`; spoken prompts use your voice and generated voice is remote only.
 During the keyboard phase, type outside the capture terminal. Volume drift aborts capture early.
-Double-talk inspection compares raw ASR with a temporary local-FIR clean under the same threshold;
-only prompt-specific words absent from remote earn support. Raw and production remain unchanged.
+Double-talk uses a temporary local-FIR clean and only prompt-specific words absent from remote.
+Sparse opening level uses ASR-confirmed speech, so pauses cannot dilute it. Raw remains unchanged.
 
 Repeat with the six frozen scenarios shown in the
 [Controlled Echo Supervision Lab runbook](docs/runbooks/controlled-echo-supervision-lab.md).

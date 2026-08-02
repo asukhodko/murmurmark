@@ -175,14 +175,12 @@ Current. Run the normal durable recorder through a frozen phase schedule and col
 train, one dev and one controlled hard-test speaker-mode session. Accept measured echo and local
 targets only when schedule, signal, local ASR and Target-Me evidence agree. Build synthetic mixtures
 inside a split, preserve existing real counterexamples as hard-test only, and issue a deterministic
-adaptation decision. Quiet, normal-A, offset normal-B and loud train captures pass all six content
-phases; replay is `846/846`, with `496s` ASR-supported local-only, `512s` remote-only and `1264s`
-synthetic mixtures. The loud case demonstrated why raw mixed ASR cannot validate local prompts by
-itself: bounded FIR-clean ASR recovered them while prompt-discriminative support prevented remote
-words from inflating coverage. Dev-normal and hard-doubletalk remain. Train synthetic coverage is
-`536s` below its frozen gate, so two additional train captures are the conservative path to retain
-a chance of `READY_FOR_ADAPTATION`; otherwise the two held-out captures close the goal with an
-honest `DO_NOT_TRAIN`. Production stays on `local_fir_role_masked`.
+adaptation decision. Five train captures now pass all six content phases; replay is `1113/1113`,
+with `620s` ASR-supported local-only, `640s` remote-only and `1804/1800s` synthetic mixtures. The
+loud case uses bounded FIR-clean ASR plus prompt-discriminative support; sparse opening level uses
+only ASR-confirmed speech while preserving the frozen threshold. All train gates pass. Only the
+held-out dev-normal and hard-doubletalk captures remain before `READY_FOR_ADAPTATION` or an exact
+`DO_NOT_TRAIN`. Production stays on `local_fir_role_masked`.
 
 ### 7. Evidence Notes And Export v2
 

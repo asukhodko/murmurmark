@@ -568,6 +568,42 @@ def rms_db(audio: np.ndarray) -> float:
     return 20.0 * math.log10(value + 1.0e-12)
 
 
+def interval_audio_metrics(
+    audio: np.ndarray,
+    intervals: Sequence[dict[str, Any]],
+    sample_rate: int,
+) -> dict[str, Any]:
+    """Measure only the union of phase-relative evidence intervals."""
+    sample_count = int(np.asarray(audio).size)
+    sample_ranges: list[tuple[int, int]] = []
+    for row in intervals:
+        start = max(
+            0,
+            min(sample_count, int(round(float(row.get("start_sec") or 0.0) * sample_rate))),
+        )
+        end = max(
+            0,
+            min(sample_count, int(round(float(row.get("end_sec") or 0.0) * sample_rate))),
+        )
+        if end > start:
+            sample_ranges.append((start, end))
+
+    merged: list[tuple[int, int]] = []
+    for start, end in sorted(sample_ranges):
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    pieces = [np.asarray(audio[start:end], dtype=np.float32) for start, end in merged]
+    active = np.concatenate(pieces) if pieces else np.zeros(0, dtype=np.float32)
+    return {
+        "interval_count": len(merged),
+        "samples": int(active.size),
+        "duration_sec": round(active.size / sample_rate, 6),
+        "rms_db": round(rms_db(active), 6),
+    }
+
+
 def normalized_correlation(left: np.ndarray, right: np.ndarray) -> float:
     count = min(left.size, right.size)
     if count < 2:
