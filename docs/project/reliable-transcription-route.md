@@ -173,9 +173,11 @@ Controlled Echo Supervision Lab v1 has now supplied the missing evidence and com
 `1465/1465`, with `1804s` train and `352s` dev synthetic mixtures plus `68s` measured hard-test
 double-talk. The recommended bounded step is Speaker-Preserving Neural Echo v2: train only on the
 frozen train split, select on dev, then evaluate one locked candidate once on immutable hard-test.
-Any failed preservation, echo, chronology or runtime gate keeps `local_fir_role_masked` in
-production. Evidence Notes And Export v2 follows that bounded decision. The failed live-recovery
-profile remains diagnostic evidence rather than another user-facing branch.
+The promoted result must become the mic audio presented to ASR; downstream deletion of remote-like
+`Me` text cannot compensate for weak suppression. Any failed preservation, echo, chronology or
+runtime gate rejects that candidate and keeps `local_fir_role_masked` in production, but does not
+complete the audio-first product goal. Evidence Notes And Export v2 follows successful promotion.
+The failed live-recovery profile remains diagnostic evidence rather than another user-facing branch.
 
 ## Route To Reliability
 

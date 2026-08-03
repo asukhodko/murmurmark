@@ -993,6 +993,14 @@ local-only, `640s` remote-only and `1804s` synthetic mixtures, dev contains `124
 `352s`, and hard-test contains `68s` measured double-talk. This decision unblocks
 Speaker-Preserving Neural Echo v2 but does not promote an audio profile by itself.
 
+### Audio-First Promotion Invariant
+
+The v2 candidate must materialize the mic audio consumed by the primary ASR. Evaluation compares
+that audio and its direct ASR output with `local_fir`; post-ASR role filtering and duplicate cleanup
+are disabled for the suppression comparison. Those later layers remain safety guards, but their
+edits cannot count as Echo reduction. A rejected candidate leaves production unchanged and feeds
+the next train/dev hypothesis; the product goal ends only after corpus-wide guarded promotion.
+
 ## References
 
 - [WebRTC Audio Processing API](https://webrtc.googlesource.com/src/+/refs/heads/main/api/audio/audio_processing.h)

@@ -55,9 +55,10 @@ remain, while rebuildable media below `derived/` can be removed through
 
 **Speaker-Preserving Neural Echo v2** is the current goal. Controlled Echo Supervision Lab v1 has
 produced `READY_FOR_ADAPTATION` with session-disjoint train/dev/hard evidence and replay `1465/1465`.
-The next bounded step trains only on train, selects on dev and evaluates one locked candidate on the
-immutable hard test. It ends in guarded promotion or exact `DO_NOT_PROMOTE`; `local_fir` remains the
-fallback for every incompatibility or regression.
+The current step trains only on train, selects on dev and evaluates one locked candidate on the
+immutable hard test. Its completion requires a guarded pre-ASR audio promotion. A rejected candidate
+is evidence for the next bounded hypothesis, not completion of the product goal; `local_fir` remains
+the fallback for every incompatibility or regression.
 
 Two suppression families established the same safety ceiling. Classical state-level suppression
 removed `68.2845%` of bounded remote-risk, but lost protected `Me` in two speaker sessions. The
@@ -185,7 +186,9 @@ diagnostic evidence. No gate failed. Production remains `local_fir_role_masked`.
 Current. Freeze the training/evaluation contract, reproduce `local_fir` and DEC baselines, train a
 small causal residual candidate on train only, select on dev and run one immutable hard test after
 locking weights and gates. Promotion requires better echo suppression plus preserved `Me`, opening,
-double-talk, ASR chronology and acceptable runtime. Any failure keeps `local_fir` as default.
+double-talk, direct pre-ASR text, chronology and acceptable runtime. Downstream transcript cleanup
+cannot contribute to the gain. Any failure rejects the candidate and keeps `local_fir` as default;
+the stage completes only after a corpus-wide guarded promotion.
 
 ### 8. Evidence Notes And Export v2
 

@@ -255,10 +255,10 @@ evidence would manufacture ground truth.
 and one hard-test capture pass, replay is `1465/1465`, and no corpus gate failed. The corpus provides
 `1804s` train plus `352s` dev synthetic mixtures and `68s` measured hard double-talk.
 
-The current goal is **Speaker-Preserving Neural Echo v2**: train locally on the frozen train split,
-select one checkpoint on dev, evaluate the locked candidate once on hard-test, and finish with a
-guarded promotion or exact `DO_NOT_PROMOTE`. Production remains `local_fir_role_masked` on any
-missing artifact, incompatible fingerprint or quality/runtime regression.
+The current goal is **Speaker-Preserving Neural Echo v2**: produce and safely promote a pre-ASR
+clean mic track that removes remote better than `local_fir` while preserving `Me`. Candidate
+rejections are intermediate evidence, not completion of the goal. Post-ASR duplicate removal cannot
+count toward promotion; every incompatibility or regression falls back to `local_fir_role_masked`.
 
 The stable batch CLI already supports durable capture, resumable processing, evidence-backed review,
 guarded export and retention planning. `local_speech_completion_v2` is promoted for its frozen

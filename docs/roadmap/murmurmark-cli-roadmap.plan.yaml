@@ -366,9 +366,10 @@ nodes:
     notes: |
       Controlled corpus завершён READY_FOR_ADAPTATION. Обучить causal residual-echo candidate только
       на train split, выбрать его по dev и один раз проверить на immutable hard-test. Сравнить с
-      local_fir и pinned DEC по echo reduction, сохранности Me, ASR/chronology и runtime. Любой
-      missing artifact, leakage или regression оставляет production на local_fir. Завершить
-      guarded PROMOTE либо воспроизводимым DO_NOT_PROMOTE.
+      local_fir и pinned DEC по echo reduction, сохранности Me, прямому pre-ASR transcript,
+      chronology и runtime. Post-ASR cleanup не засчитывается как подавление эха. Любой missing
+      artifact, leakage или regression отклоняет candidate и оставляет production на local_fir,
+      но не завершает цель. Этап завершается corpus-wide guarded PROMOTE.
 
   research-evidence-guarded-llm:
     title: "Evidence-guarded LLM synthesis"
@@ -513,8 +514,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Speaker-Preserving Neural Echo v2: обучить локальный causal residual-echo candidate на frozen controlled corpus, доказать на session-disjoint dev/hard сохранность Me и выигрыш по echo, затем завершить guarded PROMOTE либо точным DO_NOT_PROMOTE с неизменным fail-open fallback."
-      success_by_next_sync: "Train/dev/hard остаются изолированными, training/evaluation воспроизводимы, candidate сравнен с local_fir и DEC, а corpus gates дают guarded PROMOTE либо точный DO_NOT_PROMOTE."
+      nearest_goal: "Speaker-Preserving Neural Echo v2: создать и безопасно продвинуть локальный causal или hybrid pre-ASR suppressor, который на frozen train/dev/hard и real-meeting regressions удаляет remote из mic лучше local_fir без потери Me; отказ отдельного candidate не завершает цель, production меняется только после corpus-wide PROMOTE с fail-open local_fir."
+      success_by_next_sync: "Training contract и audio-first gates заморожены, baseline воспроизведён, train/dev iteration локальна и детерминирована, а лучший candidate приближается к pre-ASR promotion без помощи transcript cleanup."
     defaults:
       status_progress:
         done: 1.0
@@ -541,7 +542,7 @@ x:
         mgmt:
           health: yellow
           sync_note: "Controlled corpus прошёл READY_FOR_ADAPTATION; теперь модель обязана убрать echo, не уничтожая Me на независимых dev/hard данных."
-          next_sync_goal: "Заморозить training contract, воспроизвести baseline и получить первый leakage-free candidate decision."
+          next_sync_goal: "Заморозить audio-first training contract, воспроизвести baseline и получить первый leakage-free pre-ASR candidate без помощи transcript cleanup."
       dependent-path:
         title: "Зависимый путь"
         scope_nodes:

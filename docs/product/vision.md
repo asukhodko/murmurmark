@@ -40,10 +40,15 @@ input, changes one bounded error class, and either passes corpus-wide promotion 
 reproducible evidence limit. Failed promotion never weakens the selected transcript. Proven missing
 local speech now has a bounded completion profile and an executable text-review lane. The product
 path hides safe pipeline mechanics behind `murmurmark meeting`, while retaining checkpoints,
-review evidence and honest failure. Classical audio promotion has now proved that remote-only
-gating removes substantial echo but can delete short near-end speech during overlap. The current
-quality step tests a local remote-conditioned residual suppressor against those frozen
-counterexamples without weakening the `local_fir` baseline.
+review evidence and honest failure.
+
+Speech-quality work is audio-first. Remote audio leaking into the microphone must be removed before
+the primary ASR while genuine local speech remains intact. Transcript cleanup is a safety net and
+an audit layer; it cannot count as successful Echo suppression or hide a weak audio candidate.
+Classical audio promotion proved that remote-only gating removes substantial echo but can delete
+short near-end speech during overlap. The current quality step uses the frozen controlled corpus to
+build and promote a local remote-conditioned causal suppressor without weakening the `local_fir`
+fallback.
 
 Remote-speaker diarization is an independent research branch after base transcript quality closure.
 It starts with anonymous speaker intervals, then an evidence-backed speaker map and

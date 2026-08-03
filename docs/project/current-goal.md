@@ -2,7 +2,7 @@
 
 Status: current
 
-Updated: 2026-08-02
+Updated: 2026-08-03
 
 The stable product path remains `murmurmark meeting -> first Ctrl-C -> final result`. Batch output is
 authoritative. Live output is advisory. Production Echo suppression remains `local_fir_role_masked`
@@ -14,10 +14,10 @@ terms. `scripts/check-planning-consistency.py` keeps the representations aligned
 
 ## Speaker-Preserving Neural Echo v2
 
-OpsKarta nearest goal: Speaker-Preserving Neural Echo v2: обучить локальный causal residual-echo
-candidate на frozen controlled corpus, доказать на session-disjoint dev/hard сохранность Me и
-выигрыш по echo, затем завершить guarded PROMOTE либо точным DO_NOT_PROMOTE с неизменным fail-open
-fallback.
+OpsKarta nearest goal: Speaker-Preserving Neural Echo v2: создать и безопасно продвинуть локальный
+causal или hybrid pre-ASR suppressor, который на frozen train/dev/hard и real-meeting regressions
+удаляет remote из mic лучше local_fir без потери Me; отказ отдельного candidate не завершает цель,
+production меняется только после corpus-wide PROMOTE с fail-open local_fir.
 
 ## Starting Evidence
 
@@ -37,24 +37,37 @@ CAF, inspection inputs, split ownership and corpus artifacts are immutable evalu
 
 ## Objective
 
-Build a local causal residual-echo model that removes materially more remote leakage than
-`local_fir_role_masked` while preserving genuine `Me`, especially short openings and double-talk.
-Training success is not assumed. The goal ends with one reproducible corpus decision:
+Build and safely promote a local causal or hybrid remote-conditioned suppressor that removes
+materially more remote leakage than `local_fir_role_masked` while preserving genuine `Me`,
+especially short openings and double-talk. Its clean mic output must be the audio presented to the
+primary ASR.
+
+The goal is complete only with:
 
 ```text
 PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2
-DO_NOT_PROMOTE
 ```
 
-A promotion is guarded by exact model, policy and corpus fingerprints and retains `local_fir` as
-fail-open fallback. A failed experiment must still leave a reusable training/evaluation laboratory
-and a precise account of the limiting evidence.
+A candidate-level `DO_NOT_PROMOTE` remains valuable evidence and keeps production safe, but does not
+complete this goal. It starts the next bounded train/dev hypothesis. Promotion is guarded by exact
+model, policy and corpus fingerprints and retains `local_fir` as fail-open fallback.
+
+## Audio-First Contract
+
+- candidate audio, not repaired transcript text, is the intervention under evaluation;
+- primary whisper.cpp runs directly on the candidate clean mic track;
+- suppression comparisons disable post-ASR remote-duplicate deletion and role cleanup;
+- transcript cleanup remains a safety net, but contributes zero credit to Echo reduction;
+- a candidate that sounds clean by proxy metrics but loses local words cannot be promoted;
+- a candidate that needs downstream remote deletion to pass cannot be promoted.
 
 ## Frozen Boundary
 
 - Train data may optimize weights and preprocessing parameters.
 - Dev may select checkpoints and bounded hyperparameters.
 - Hard-test audio is evaluated once after the candidate and thresholds are locked.
+- A hard-test failure rejects that candidate. Any later candidate requires a newly versioned
+  held-out hard set chosen before further tuning; the failed hard set cannot become training data.
 - No dev/hard target may enter training, augmentation, normalization fitting or threshold tuning.
 - Raw CAF and accepted corpus materialization are read-only.
 - Baselines are the current production `local_fir_role_masked` and pinned Microsoft DEC model.
@@ -67,19 +80,23 @@ and a precise account of the limiting evidence.
    context, features, augmentation bounds, seeds, checkpoint selection and acceptance gates.
 2. Reproduce `local_fir` and DEC baselines on exact train/dev/hard manifests and store byte-stable
    reports.
-3. Implement a deterministic local training harness. Prefer the smallest causal residual-mask or
-   waveform model that can export to ONNX/Core ML and run without cloud services.
+3. Implement a deterministic local training harness. Evaluate the smallest useful causal
+   residual-mask, complex-spectral or hybrid classical/neural family that can export to ONNX/Core
+   ML and run without cloud services.
 4. Train only on the train split. Preserve measured local targets, measured echo paths and explicit
    mixture gains in every batch provenance row.
 5. Select one checkpoint using dev only, freeze its SHA-256, then run the immutable hard test once.
 6. Measure echo reduction, local speech distortion, Target-Me retention, opening/double-talk recall,
-   ASR text preservation, chronology, clipping, silence behavior and runtime.
+   direct candidate-audio ASR preservation, chronology, clipping, silence behavior and runtime.
 7. Materialize an isolated `speaker_preserving_neural_echo_v2` candidate. Do not overwrite current
    preprocessing or transcript artifacts during evaluation.
 8. Add guarded selection with exact corpus/model/policy compatibility and automatic `local_fir`
    fallback for every failure mode.
-9. Run corpus replay and ordinary meeting regressions, then issue PROMOTE or DO_NOT_PROMOTE.
-10. Update README, architecture, contracts, runbook, current goal, roadmap and OpsKarta; commit and
+9. Reject failing candidates without changing production and continue bounded train/dev iteration.
+   Run hard-test only after weights and gates are locked; do not tune against its result.
+10. Run corpus replay and ordinary meeting regressions, then issue guarded PROMOTE. Post-ASR cleanup
+    is disabled when measuring the candidate's contribution.
+11. Update README, architecture, contracts, runbook, current goal, roadmap and OpsKarta; commit and
     push the finished decision.
 
 ## Acceptance Gates
@@ -87,12 +104,14 @@ and a precise account of the limiting evidence.
 - corpus membership, split isolation and every source SHA match the frozen manifests;
 - training and inference are deterministic within the documented tolerance;
 - remote-only echo improves materially over `local_fir`, not merely over raw mic;
+- the candidate clean track is the actual mic input to primary ASR in evaluation and production;
 - local-only reconstruction and ASR do not regress beyond predeclared bounds;
 - protected opening and hard double-talk items retain their expected local speech;
 - no remote text is manufactured as `Me`, and no genuine `Me` is removed to improve an audio score;
 - chronology, clipping, finite-value and no-speech controls pass;
 - runtime and memory fit the supported local machine or the candidate remains shadow-only;
 - ordinary meeting corpus verdict, notes evidence and guarded export do not regress;
+- no promotion metric depends on downstream deletion of remote-like transcript spans;
 - unsupported environment, stale model or any gate failure selects `local_fir_role_masked`.
 
 Exact numeric thresholds belong in the tracked v2 policy and must be frozen before the hard-test
@@ -105,7 +124,9 @@ run. They may not be lowered after observing the result.
 - train/dev/hard leakage checks pass;
 - the hard test has exactly one recorded evaluation for the frozen candidate;
 - every accepted or rejected candidate has full provenance;
-- production changes only under a passing guarded promotion policy;
+- a promoted pre-ASR profile passes every controlled and real-meeting gate and is selected by the
+  normal pipeline;
+- rejected candidates do not close the goal or change production;
 - failure paths demonstrably return to `local_fir` without breaking transcription;
 - automated unit, integration, corpus replay and runtime tests pass;
 - the final decision and its evidence are documented, committed and pushed.
@@ -141,5 +162,6 @@ flowchart LR
     D --> E["One immutable hard test"]
     E --> F{"All preservation, echo and runtime gates pass?"}
     F -->|"yes"| G["Guarded PROMOTE with local_fir fallback"]
-    F -->|"no"| H["DO_NOT_PROMOTE with exact evidence"]
+    F -->|"no"| H["Reject candidate; next bounded train/dev hypothesis"]
+    H --> B
 ```
