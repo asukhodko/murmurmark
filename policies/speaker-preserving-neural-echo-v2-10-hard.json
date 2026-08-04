@@ -1,0 +1,25 @@
+{
+  "schema": "murmurmark.speaker_preserving_neural_echo_hard_policy/v2.10",
+  "selector_policy": "policies/speaker-preserving-neural-echo-v2-10.json",
+  "selector_policy_sha256": "d5a4e399d8bea74e75248683008abefcbf3f4a18dc8438c0e6cb43d8dcaf651c",
+  "selector_runtime": "scripts/speaker-preserving-neural-echo-v2-10.py",
+  "selector_runtime_sha256": "0acc8af9c0f34893468b2f73328e5f14721ad12e0ba555f30f13a4629d6a9c2d",
+  "hard_set": "policies/speaker-preserving-neural-echo-v2-10-hard-set.json",
+  "hard_set_sha256": "d6d9a6d57733d06398f9460c10116a5437f1ed60cb4b41639a90e378c88b8069",
+  "v2_9_corpus_report": "sessions/_reports/speaker-preserving-neural-echo-v2-9-corpus/corpus_report.json",
+  "v2_9_corpus_report_sha256": "4138d2d81558148e3dfb97a5d3c5e235908106ba40ed309f32b4e92749ba53f1",
+  "ordinary_sessions": [
+    "2026-07-30_16-00-21",
+    "2026-07-31_11-15-24"
+  ],
+  "hard_gates": {
+    "candidate_sessions_min": 1,
+    "remote_reduction_sec_min": 1.0,
+    "remote_token_reduction_min": 1,
+    "candidate_local_retention_ratio_min": 1.0,
+    "all_fallbacks_bit_exact": true,
+    "all_selected_candidates_full_shadow_passed": true,
+    "all_outcome_comparisons_profile_matched": true
+  },
+  "post_asr_cleanup_promotion_credit": 0
+}

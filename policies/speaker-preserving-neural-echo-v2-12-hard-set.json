@@ -1,0 +1,23 @@
+{
+  "schema": "murmurmark.speaker_preserving_neural_echo_hard_set/v2.12",
+  "status": "frozen_before_v2_12_implementation",
+  "frozen_at": "2026-08-04T07:22:47+03:00",
+  "purpose": "independent hard test for window-identical candidate-audio ASR and outcome-preserving pre-ASR echo attenuation",
+  "selection_rule": "eligible ordinary sessions not evaluated by v2.11, with two speaker-playback meetings of different duration and one explicit headphones negative control",
+  "training_use": "forbidden",
+  "threshold_tuning_use": "forbidden",
+  "sessions": [
+    {
+      "id": "2026-07-20_15-15-26-live",
+      "expected_mode": "speaker_playback"
+    },
+    {
+      "id": "2026-07-20_16-30-42-live",
+      "expected_mode": "speaker_playback"
+    },
+    {
+      "id": "2026-06-30_17-17-20",
+      "expected_mode": "headphones_or_low_leak"
+    }
+  ]
+}

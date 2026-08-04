@@ -1,0 +1,24 @@
+{
+  "schema": "murmurmark.speaker_preserving_neural_echo_hard_policy/v2.8",
+  "status": "candidate_version_holdout_before_v2_8_execution",
+  "selector_policy": "policies/speaker-preserving-neural-echo-v2-8.json",
+  "selector_policy_sha256": "4e23e3a37042f891acc4d871a69eea63b1876fa28c0de866c51976ad918e3ffc",
+  "selector_runtime": "scripts/speaker-preserving-neural-echo-v2-8.py",
+  "selector_runtime_sha256": "8db1f84112320d5712b174234962c164777c460c05a6a945d464cd49111e0845",
+  "v2_7_hard_report": "sessions/_reports/speaker-preserving-neural-echo-v2-7-hard/hard_evaluation.json",
+  "v2_7_hard_report_sha256": "e2b0594e920c2811bac12e1d5be1db26d6c91c160b92e44626d772a4276b469b",
+  "v2_7_hard_use": "controlled_audio_invariance_only; failed ordinary selector behavior is not reused as v2.8 hard evidence",
+  "audio_transform_changed_from_v2_7": false,
+  "ordinary_sessions": [
+    "2026-07-30_11-16-54",
+    "2026-07-31_15-15-56"
+  ],
+  "hard_gates": {
+    "candidate_sessions_min": 1,
+    "remote_reduction_sec_min": 1.0,
+    "remote_token_reduction_min": 1,
+    "all_fallbacks_bit_exact": true,
+    "all_selected_candidates_full_shadow_passed": true
+  },
+  "post_asr_cleanup_promotion_credit": 0
+}

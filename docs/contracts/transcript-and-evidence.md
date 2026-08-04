@@ -7936,3 +7936,96 @@ The frozen v1 decision is `READY_FOR_ADAPTATION`, fingerprint
 files without a difference. Coverage is five train captures (`620s` local-only, `640s` remote-only,
 `1804s` synthetic), one dev capture (`124s`, `128s`, `352s`) and one hard-test capture (`68s`
 double-talk). This decision permits a separate training goal; it does not select production audio.
+
+## Speaker-Preserving Neural Echo Production v2.16
+
+The tracked production policy is
+`policies/speaker-preserving-neural-echo-production-v2.json`, schema
+`murmurmark.speaker_preserving_neural_echo_production_policy/v2.16`. It pins the selector, audio,
+shadow, transcriber and evaluator hashes plus local hard/corpus decision hashes. Its decision is
+`PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2`; `post_asr_cleanup_promotion_credit` must equal zero.
+
+Private enrollment and promotion reports remain under ignored `sessions/_reports/`. If those files,
+the local WavLM model, a tracked runtime or any fingerprint is absent or changed, the selector must
+return exact `local_fir_role_masked`. A clean open-source checkout must not infer promotion from the
+tracked policy alone.
+
+### Baseline Preparation
+
+`derived/preprocess/speaker-preserving-neural-echo-v2/baseline_prepare_report.json` uses schema
+`murmurmark.speaker_preserving_neural_echo_baseline_prepare/v2.16`:
+
+```json
+{
+  "status": "prepared",
+  "action": "snapshotted_fresh_local_fir | restored_exact_local_fir | already_baseline_or_no_publication",
+  "fresh_preprocess": true,
+  "selected_profile": "local_fir_role_masked",
+  "batch_authoritative": true
+}
+```
+
+A fresh Echo Guard run clears stale audio/transcript fallback snapshots before copying the current
+canonical FIR audio. A repeated or resumed transcription restores a verifiable exact fallback
+before primary ASR. Failure to prove either a committed candidate or its baseline fails closed.
+
+### Selection Report
+
+`production_selection_report.json` uses
+`murmurmark.speaker_preserving_neural_echo_production_selection/v2.16`.
+
+Candidate result:
+
+```json
+{
+  "status": "candidate",
+  "selected_profile": "speaker_preserving_neural_echo_v2",
+  "selected_transcript_base_profile": "shadow_v2",
+  "batch_authoritative": true,
+  "post_asr_cleanup_promotion_credit": 0,
+  "policy_checks": {},
+  "selector": {},
+  "baseline_snapshot": {},
+  "audio_baseline_snapshot": {},
+  "published": {},
+  "selection_fingerprint": "sha256"
+}
+```
+
+Fallback result has `status: fallback`, `selected_profile: local_fir_role_masked`, an explicit
+`reason`, `exact_fallback: true` and no published candidate files. Known reasons include incompatible
+policy/evidence, non-speaker acoustic mode, inapplicable session, candidate safety regression and
+publication failure.
+
+On a candidate result, these canonical files must have the same selected audio SHA-256:
+
+```text
+derived/preprocess/audio/mic_for_asr.wav
+derived/preprocess/audio/mic_role_masked_for_asr.wav
+derived/asr/mic.wav
+```
+
+The selected `shadow_v2` transcript family and `repair_comparison.json` are copied from the same
+full-shadow stage. The direct candidate ASR, not later text deletion, establishes its result.
+
+### Publication Transaction
+
+`publication_transaction.json` uses
+`murmurmark.speaker_preserving_neural_echo_publication_transaction/v2.16` and moves through:
+
+```text
+baseline_prepared_from_fresh_local_fir
+  -> prepared
+  -> publishing
+  -> committed
+```
+
+`prepared` stores exact audio and resolved-transcript fallback fingerprints. `committed` stores the
+fingerprint of every published file. A process that sees `prepared` or `publishing` on the next run
+must restore all fallback files and mark `recovered_on_next_run`. Any exception after publication
+starts must restore the baseline before writing a fallback selection report.
+
+The sealed v2.16 evidence is `HARD_TEST_PASSED_V2_16` plus
+`PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2`. Its corpus selected candidate audio in `5/12` sessions,
+exact fallback in `7/12`, removed `41.940s` and `90` remote-supported tokens, retained local tokens
+at `1.0`, and gave post-ASR cleanup no credit.

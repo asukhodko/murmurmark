@@ -43,15 +43,16 @@ Read in this order:
 39. [Echo Suppression Promotion v1 result](research/2026-07-23-echo-suppression-promotion-v1.md)
 40. [Neural Residual Echo Suppression v1 result](research/2026-07-23-neural-residual-echo-v1.md)
 41. [Speaker-Preserving Echo Adaptation Corpus v1 result](research/2026-07-23-speaker-preserving-echo-adaptation-corpus-v1.md)
-42. [Planning and development history](history/README.md)
+42. [Speaker-Preserving Neural Echo v2 result](research/2026-08-04-speaker-preserving-neural-echo-v2.md)
+43. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
-Planning snapshot: 2026-08-02. Controlled Echo Supervision Lab v1 completed with
-`READY_FOR_ADAPTATION`: five train, one dev and one hard-test capture passed, all corpus gates are
-green and replay matches `1465/1465` files. Speaker-Preserving Neural Echo v2 is now the executable
-goal. It trains only on the frozen train split, selects on dev and evaluates one locked candidate on
-hard-test. `local_fir_role_masked` remains production until a separate guarded promotion passes.
+Planning snapshot: 2026-08-04. Speaker-Preserving Neural Echo v2 completed with guarded
+`PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2`: the sealed corpus selected candidate audio in `5/12`
+sessions, exact fallback in `7/12`, removed `41.940s` and `90` remote-supported tokens, and retained
+all candidate local tokens. Evidence Notes And Export v2 is now the executable goal: one versioned
+handoff must bind transcript, verdict, review evidence, notes and export readiness.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

@@ -1,0 +1,13 @@
+{
+  "schema": "murmurmark.speaker_preserving_neural_echo_hard_set/v2.10",
+  "status": "frozen_before_v2_10_implementation",
+  "frozen_at": "2026-08-04T03:12:40+03:00",
+  "purpose": "independent ordinary-session hard set for an exact-local-retention audio selector",
+  "selection_rule": "earliest eligible speaker_playback sessions after the v2.9 corpus boundary, with complete baseline artifacts and no v2.7/v2.8/v2.9 candidate outputs at selection time",
+  "training_use": "forbidden",
+  "threshold_tuning_use": "forbidden",
+  "sessions": [
+    "2026-07-30_16-00-21",
+    "2026-07-31_11-15-24"
+  ]
+}

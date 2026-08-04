@@ -64,7 +64,10 @@ nodes:
     parent: working-capabilities
     status: done
     effort: 6
-    notes: "local_fir остаётся production baseline; новые engines допускаются только как shadow."
+    notes: |
+      Personalized Speaker-Preserving Neural Echo v2 продвинут для совместимых speaker-playback
+      сессий. Он подаёт candidate audio напрямую в whisper.cpp и транзакционно публикует результат;
+      headphones, stale/missing evidence и любые regressions выбирают exact local_fir fallback.
 
   capability-authoritative-transcript:
     title: "Authoritative batch transcript"
@@ -293,11 +296,13 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [research-speaker-preserving-neural-echo-v2]
-    status: next
+    status: current
     effort: 7
     notes: |
-      Улучшить review-aware notes и пользовательский handoff поверх выбранного transcript profile.
-      Стабильные v1 notes/export уже работают; этот этап повышает качество, а не создаёт основу заново.
+      Собрать один versioned deterministic handoff bundle поверх выбранного transcript profile,
+      quality verdict, evidence notes, unresolved review burden и export readiness. Каждая видимая
+      запись обязана ссылаться на существующие evidence IDs; stale или blocked input fail closed.
+      Markdown/Obsidian export должен стать прямым результатом lifecycle без ручного склеивания.
 
   product-release-quality-cli:
     title: "Release-quality CLI"
@@ -361,15 +366,14 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-controlled-echo-supervision-lab-v1]
-    status: current
+    status: done
     effort: 14
     notes: |
-      Controlled corpus завершён READY_FOR_ADAPTATION. Обучить causal residual-echo candidate только
-      на train split, выбрать его по dev и один раз проверить на immutable hard-test. Сравнить с
-      local_fir и pinned DEC по echo reduction, сохранности Me, прямому pre-ASR transcript,
-      chronology и runtime. Post-ASR cleanup не засчитывается как подавление эха. Любой missing
-      artifact, leakage или regression отклоняет candidate и оставляет production на local_fir,
-      но не завершает цель. Этап завершается corpus-wide guarded PROMOTE.
+      Завершено PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2. Победил guarded hybrid v2.15:
+      personalized WavLM/Resemblyzer и remote evidence выбирают bounded attenuation, direct
+      whisper.cpp и window/full-shadow gates откатывают небезопасные места. Sealed corpus v2.16:
+      5/12 candidate, 7/12 exact fallback, 41.940s и 90 remote tokens удалены, local retention 1.0,
+      post-ASR credit 0. Headphones, missing/stale evidence и regressions остаются на exact local_fir.
 
   research-evidence-guarded-llm:
     title: "Evidence-guarded LLM synthesis"
@@ -434,11 +438,11 @@ views:
         nodes: [working-capabilities, corpus-regression]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [research-speaker-preserving-neural-echo-v2]
+        nodes: [product-evidence-export-v2]
       dependent:
         title: "Следующие зависимые этапы"
         nodes:
-          - product-evidence-export-v2
+          - product-release-quality-cli
 
   critical-path:
     title: "Критический CLI-путь"
@@ -514,8 +518,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Speaker-Preserving Neural Echo v2: создать и безопасно продвинуть локальный causal или hybrid pre-ASR suppressor, который на frozen train/dev/hard и real-meeting regressions удаляет remote из mic лучше local_fir без потери Me; отказ отдельного candidate не завершает цель, production меняется только после corpus-wide PROMOTE с fail-open local_fir."
-      success_by_next_sync: "Training contract и audio-first gates заморожены, baseline воспроизведён, train/dev iteration локальна и детерминирована, а лучший candidate приближается к pre-ASR promotion без помощи transcript cleanup."
+      nearest_goal: "Evidence Notes And Export v2: собрать один versioned deterministic handoff bundle из выбранного transcript profile, quality verdict, review evidence, notes и export readiness; каждая видимая запись ссылается на существующие evidence IDs, stale или blocked inputs fail closed, а Markdown/Obsidian export не требует ручного склеивания артефактов."
+      success_by_next_sync: "Одна команда выдаёт проверяемый handoff bundle или точный блокирующий reason/next command; notes, verdict, review burden и export ссылаются на одну версию transcript и совместимые evidence fingerprints."
     defaults:
       status_progress:
         done: 1.0
@@ -536,13 +540,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle, batch transcript, review, notes/export и Live Shadow уже работают."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Текущая цель"
-        scope_nodes: [research-speaker-preserving-neural-echo-v2]
+        title: "Текущая продуктовая цель"
+        scope_nodes: [product-evidence-export-v2]
         kind: main
         mgmt:
-          health: yellow
-          sync_note: "Controlled corpus прошёл READY_FOR_ADAPTATION; теперь модель обязана убрать echo, не уничтожая Me на независимых dev/hard данных."
-          next_sync_goal: "Заморозить audio-first training contract, воспроизвести baseline и получить первый leakage-free pre-ASR candidate без помощи transcript cleanup."
+          health: green
+          sync_note: "Pre-ASR Echo v2 продвинут с exact fallback; теперь нужно превратить выбранный transcript и evidence в один пользовательский результат."
+          next_sync_goal: "Заморозить handoff v2 и получить deterministic Markdown/Obsidian bundle с валидными evidence IDs и fail-closed export gate."
       dependent-path:
         title: "Зависимый путь"
         scope_nodes:
@@ -559,8 +563,8 @@ x:
         kind: main
         mgmt:
           health: neutral
-          sync_note: "После neural echo decision продуктовый путь возвращается к handoff v2 и release-quality CLI."
-          next_sync_goal: "Не менять production default до прохождения neural corpus и runtime gates."
+          sync_note: "Audio-first Echo promotion завершён; критический путь идёт через handoff v2 к release-quality CLI."
+          next_sync_goal: "Не расширять synthesis до доказанного versioned handoff и согласованных export gates."
       research:
         title: "Параллельные исследования"
         scope_nodes: [parallel-research]

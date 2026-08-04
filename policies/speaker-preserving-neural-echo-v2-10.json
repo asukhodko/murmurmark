@@ -1,0 +1,33 @@
+{
+  "schema": "murmurmark.speaker_preserving_neural_echo_policy/v2.10",
+  "candidate_revision": "speaker_preserving_neural_echo_v2_10",
+  "audio_candidate_revision": "exact_local_chunk_guard_v1",
+  "purpose": "select exact-local pre-ASR attenuation with outcome-based profile-matched shadow gates",
+  "v2_7_policy": "policies/speaker-preserving-neural-echo-v2-10-audio.json",
+  "audio_policy_sha256": "2e6ddd89af027920ee27a9734b83ccef55c863e70362c7127c5044366199c8f5",
+  "audio_runtime": "scripts/speaker-preserving-neural-echo-v2-10-audio.py",
+  "audio_runtime_sha256": "63c7281738174fc8085410d59814be1cc832f73105a776accd5a6a9bca5e183a",
+  "selector_base": "scripts/speaker-preserving-neural-echo-v2-8.py",
+  "selector_base_sha256": "8db1f84112320d5712b174234962c164777c460c05a6a945d464cd49111e0845",
+  "shadow_common": "scripts/speaker_preserving_echo_full_shadow_v2_5.py",
+  "shadow_common_sha256": "515302824bbf46517ed827fcd5ba51f8f2d622e426f687ee3bd139141c8a0403",
+  "shadow_runtime": "scripts/speaker-preserving-echo-full-shadow-v2-10.py",
+  "shadow_runtime_sha256": "96429c29850c35773eb8950e9710ec3a93637cc455be751074213f9b14d0e6cb",
+  "transcriber": "scripts/transcribe-simple-whispercpp.py",
+  "transcriber_sha256": "7c40a63c14dc2b308cb99eb39402a04061fddf22cbef5a3dc7d33e2a1853a11f",
+  "hard_set": "policies/speaker-preserving-neural-echo-v2-10-hard-set.json",
+  "hard_set_sha256": "d6d9a6d57733d06398f9460c10116a5437f1ed60cb4b41639a90e378c88b8069",
+  "comparison_gate_profile": "speaker_preserving_echo_v2",
+  "selection_gates": {
+    "audio_runtime_status": "candidate",
+    "audio_runtime_checks_all_pass": true,
+    "candidate_audio_is_primary_whisper_input": true,
+    "exact_local_token_retention_per_changed_chunk": true,
+    "baseline_and_candidate_verdict_profile": "shadow_v2",
+    "full_shadow_passed": true,
+    "full_shadow_gates_all_pass": true,
+    "failed_gate_action": "exact_local_fir_role_masked_fallback"
+  },
+  "fallback": "local_fir_role_masked",
+  "post_asr_cleanup_promotion_credit": 0
+}

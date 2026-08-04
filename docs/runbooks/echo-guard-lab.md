@@ -736,3 +736,34 @@ leaked remote speech as the user's speech without deleting the user's real words
 Use the standalone
 [Controlled Echo Supervision Lab v1 runbook](controlled-echo-supervision-lab.md). It contains the
 complete preflight, acoustic rules, six frozen scenarios, inspection commands and recovery path.
+
+## Speaker-Preserving Neural Echo v2 Result
+
+The controlled lab has completed its purpose. The separately sealed v2.16 corpus promoted a
+personalized hybrid pre-ASR selector:
+
+```text
+PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2
+candidate sessions: 5/12
+exact fallback sessions: 7/12
+remote-supported reduction: 41.940s / 90 tokens
+candidate local-token retention: 1.0
+post-ASR cleanup credit: 0
+```
+
+The normal pipeline runs it automatically. Verify only when debugging the audio layer:
+
+```bash
+SESSION="sessions/<session-id>"
+
+.venv/bin/python scripts/apply-speaker-preserving-neural-echo-v2.py \
+  "$SESSION" --verify-only
+
+jq '{status, reason, selected_profile, exact_fallback}' \
+  "$SESSION/derived/preprocess/speaker-preserving-neural-echo-v2/production_selection_report.json"
+```
+
+Do not edit frozen thresholds, promotion hashes or private enrollment manifests to make a session
+pass. Missing evidence, headphones, no useful remote residue and every safety failure intentionally
+select exact `local_fir_role_masked`. A new speaker or machine needs new controlled enrollment and a
+separate guarded corpus decision.

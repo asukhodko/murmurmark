@@ -67,8 +67,10 @@ record --out SESSION
 
 process SESSION
   -> capture health gate
-  -> local_fir Echo Guard + speaker_state
-  -> resumable whisper.cpp ASR chunks
+  -> local_fir Echo Guard + speaker_state + exact fallback snapshot
+  -> baseline whisper.cpp evidence
+  -> guarded personalized pre-ASR Echo selector
+       -> direct candidate whisper.cpp or exact local_fir fallback
   -> timeline/start/boundary repair candidates
   -> audit cleanup + reviewed transcript profiles
   -> quality verdict + evidence-backed extractive notes

@@ -1,0 +1,85 @@
+{
+  "schema": "murmurmark.speaker_preserving_neural_echo_policy/v2.3",
+  "profile": "speaker_preserving_neural_echo_v2",
+  "candidate_revision": "v2.3_physical_only_hypothesis_bank",
+  "status": "pre_hard_locked",
+  "source": {
+    "training_policy": "policies/speaker-preserving-neural-echo-v2.json",
+    "training_policy_sha256": "d62f8c3179d5994a0d5813686798f35b3ae3809dd504b60c784ff50143672904",
+    "previous_policy": "policies/speaker-preserving-neural-echo-v2-2.json",
+    "previous_policy_sha256": "832a0f05ba4695acbc328322385cafc62bd982424000457fcdf6e719300a9081",
+    "failed_corpus_report": "sessions/_reports/speaker-preserving-neural-echo-v2-corpus/corpus_report.json",
+    "failed_corpus_report_sha256": "6e95de94e03ff50c1fc7340fe38aeb41c0ba4e7a5a78e709428793e507611a95",
+    "failed_corpus_decision_fingerprint": "7ca8314a2670f3e73c12917dcf3961bbd4f60872b3870b59dfd8701d671628f5",
+    "arbitration": "scripts/speaker_preserving_echo_arbitration.py",
+    "arbitration_sha256": "64085331477425e250a0b828636a4fdc8dd264545a07d7c179eaf1281a656cf6",
+    "physical_bank": "scripts/speaker_preserving_echo_physical_bank.py",
+    "physical_bank_sha256": "0e77f3aa5f8bce9d23f7f329588e41c68f99b5229054c44296d01c32991168fa",
+    "hard_builder": "scripts/build-speaker-preserving-neural-echo-v2-3-hard.py",
+    "hard_builder_sha256": "4e942302ad38c3b3fce9ec40c426c7195eb0c093a7afcdfb24a8fd9c8432e994",
+    "hard_manifest": "sessions/_reports/speaker-preserving-neural-echo-v2-3-hard/hard_manifest.json",
+    "hard_manifest_sha256": "d2e915ca3dc154238a19d3780d22188dc5ae1734ccf3f5084cefdbc67e1f563c",
+    "hard_cache": "sessions/_reports/speaker-preserving-neural-echo-v2-3-hard/hard_waveforms.npz",
+    "hard_cache_sha256": "cf298a677a4b9af9223acf28ca822134c7999fce290d5ad3001b457f3de73df1",
+    "hard_fingerprint": "1fb8b4ad338effd64b47ea7535c9c859830079fbe36e1113d03f1a0ec121b957",
+    "fallback": "local_fir_role_masked"
+  },
+  "isolation": {
+    "development_source": "frozen_train_dev_only",
+    "failed_v2_2_corpus_used_for_selection": true,
+    "failed_v2_2_corpus_training_use": false,
+    "hard_source_sessions": [
+      "2026-07-28_15-01-01",
+      "2026-07-30_14-01-49"
+    ],
+    "hard_source_sessions_used_for_training": false,
+    "hard_source_sessions_used_for_selection": false,
+    "previous_hard_sets_reused_for_promotion": false,
+    "hard_test_attempts": 1,
+    "training_after_hard_freeze": false
+  },
+  "hypothesis_bank": {
+    "window_sec": 4.0,
+    "additional_fir_multipliers": [0.25, 0.5, 1.0, 1.75],
+    "neural_candidate_allowed": false,
+    "selection": "lowest_remote_coherence_among_improvement_only_physical_candidates",
+    "minimum_baseline_remote_coherence": 0.05,
+    "maximum_candidate_to_baseline_remote_coherence": 0.99,
+    "maximum_energy_increase_db": 6.0,
+    "maximum_energy_reduction_db": 18.0,
+    "no_accepted_hypothesis": "exact_baseline",
+    "non_finite_or_shape_failure": "exact_baseline",
+    "local_only": "exact_baseline",
+    "uncertain": "exact_baseline",
+    "trusted_remote_only": "pre_asr_zero_gate"
+  },
+  "development_gates": {
+    "synthetic_snr_improvement_db_p50_min": 3.0,
+    "synthetic_snr_improvement_db_min": 0.0,
+    "synthetic_candidate_selection_ratio_min": 0.75,
+    "negative_exact_fallback_ratio_min": 1.0,
+    "controlled_dev_exact_fallback_required": true,
+    "cpu_realtime_factor_max": 0.10,
+    "deterministic_max_abs_error": 0.000001
+  },
+  "hard_test_gates": {
+    "known_target_snr_improvement_db_p50_min": 1.0,
+    "known_target_snr_improvement_db_min": 0.0,
+    "known_target_correlation_regressions_max": 0,
+    "direct_asr_local_token_recall_ratio_min": 0.99,
+    "direct_asr_remote_unique_token_growth_max": 0,
+    "direct_asr_chronology_regressions_max": 0,
+    "candidate_selection_ratio_min": 0.20,
+    "clipped_sample_ratio_max": 0.0001,
+    "non_finite_samples_max": 0
+  },
+  "production_contract": {
+    "candidate_audio_is_primary_whisper_input": true,
+    "post_asr_cleanup_promotion_credit": 0,
+    "raw_caf_mutation_forbidden": true,
+    "runtime_failure": "exact_local_fir_role_masked",
+    "ordinary_corpus_promotion_required": true,
+    "promotion_value": "PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2",
+    "hard_failure_value": "DO_NOT_PROMOTE"
+  }
+}

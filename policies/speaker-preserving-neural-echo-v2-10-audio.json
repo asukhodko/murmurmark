@@ -1,0 +1,20 @@
+{
+  "schema": "murmurmark.speaker_preserving_neural_echo_audio_policy/v2.10",
+  "candidate_revision": "exact_local_chunk_guard_v1",
+  "purpose": "retain only pre-ASR attenuation choices that preserve every local reference token in each changed ASR chunk",
+  "base_policy": "policies/speaker-preserving-neural-echo-v2-7.json",
+  "base_policy_sha256": "da9c553bcee59bf2ed30d209ef006b88bdc878bbd82bf61e574ef869b7679cef",
+  "base_runtime": "scripts/speaker-preserving-neural-echo-v2-7.py",
+  "base_runtime_sha256": "eb546974f180266a096abb4db0c50639e01212ab1893b33c6809a82647c38b5b",
+  "overrides": {
+    "diagnostic_asr_guard": {
+      "local_token_retention_ratio_min": 1.0,
+      "selection": "maximum_remote_reduction_among_attenuations_with_exact_local_token_retention"
+    },
+    "development_gates": {
+      "final_local_token_retention_ratio_min": 1.0
+    }
+  },
+  "fallback": "local_fir_role_masked",
+  "post_asr_cleanup_promotion_credit": 0
+}

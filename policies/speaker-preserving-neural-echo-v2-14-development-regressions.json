@@ -1,0 +1,25 @@
+{
+  "schema": "murmurmark.speaker_preserving_neural_echo_development_regressions/v2.14",
+  "status": "frozen_after_v2_13_rejection_before_v2_14_implementation",
+  "frozen_at": "2026-08-04T11:45:19+03:00",
+  "purpose": "development-only regressions revealed by the consumed v2.13 hard test",
+  "training_use": "forbidden",
+  "hard_test_credit": "forbidden",
+  "sessions": [
+    {
+      "id": "2026-07-21_14-27-53-live",
+      "expected_mode": "speaker_playback",
+      "required_fix": "map local-only island recall loss to the exact changed pre-ASR windows and roll back only those windows"
+    },
+    {
+      "id": "2026-07-23_15-16-36-live",
+      "expected_mode": "speaker_playback",
+      "required_fix": "remove the overlap-extending selected windows without discarding safe selections from the same 60-second ASR chunk"
+    },
+    {
+      "id": "2026-07-22_11-15-26-live",
+      "expected_mode": "headphones_or_low_leak",
+      "required_fix": "preserve exact fallback"
+    }
+  ]
+}

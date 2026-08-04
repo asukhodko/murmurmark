@@ -1,0 +1,26 @@
+{
+  "schema": "murmurmark.speaker_preserving_neural_echo_hard_policy/v2.9",
+  "selector_policy": "policies/speaker-preserving-neural-echo-v2-9.json",
+  "selector_policy_sha256": "122c5507719bbfb1a7fd66c2d9872f1e11198575ebb9192dc31a24402730e413",
+  "selector_runtime": "scripts/speaker-preserving-neural-echo-v2-9.py",
+  "selector_runtime_sha256": "ad3bf43e2c50d068ff1734ae7b970663bfc481bc8d17729480aad682a703c6ef",
+  "hard_set": "policies/speaker-preserving-neural-echo-v2-9-hard-set.json",
+  "hard_set_sha256": "d89f422afbab259c5847a37e51cc2083d409e43dc6b54fbcbf431e6856b21ed4",
+  "v2_8_hard_report": "sessions/_reports/speaker-preserving-neural-echo-v2-8-hard/hard_evaluation.json",
+  "v2_8_hard_report_sha256": "644965c5db3dd6eead04479093bff575a041f8574c859b3c75b2ac26d5e36faa",
+  "v2_8_selection_report": "sessions/2026-07-31_15-15-56/derived/preprocess/speaker-preserving-neural-echo-v2-8/selection_report.json",
+  "v2_8_selection_report_sha256": "e7a508a83a9cc1b7c595c9fb937e96d1254d601cd6025a0669faae010feef596",
+  "ordinary_sessions": [
+    "2026-07-27_11-15-25-live",
+    "2026-07-28_15-01-01"
+  ],
+  "hard_gates": {
+    "candidate_sessions_min": 1,
+    "remote_reduction_sec_min": 1.0,
+    "remote_token_reduction_min": 1,
+    "all_fallbacks_bit_exact": true,
+    "all_selected_candidates_full_shadow_passed": true,
+    "all_verdict_comparisons_profile_matched": true
+  },
+  "post_asr_cleanup_promotion_credit": 0
+}

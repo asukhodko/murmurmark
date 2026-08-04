@@ -21,6 +21,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -241,6 +242,23 @@ def parse_args() -> argparse.Namespace:
         default="current",
         help="write the current transcript or also compute a separate shadow repair candidate",
     )
+    parser.add_argument(
+        "--comparison-reference-resolved-dir",
+        type=Path,
+        default=None,
+        help="internal: compare shadow_v2 against an existing resolved baseline without rebuilding it",
+    )
+    parser.add_argument(
+        "--comparison-reference-suffix",
+        default="",
+        help="internal: artifact suffix in --comparison-reference-resolved-dir, for example .shadow_v2",
+    )
+    parser.add_argument(
+        "--comparison-gate-profile",
+        choices=("default", "speaker_preserving_echo_v2"),
+        default="default",
+        help="internal: select no-regression gates for an isolated comparison run",
+    )
     return parser.parse_args()
 
 
@@ -325,6 +343,32 @@ def audio_fingerprint(path: Path) -> dict[str, Any]:
     }
 
 
+_SOURCE_SHA256_CACHE: dict[tuple[str, int, int], str] = {}
+_SOURCE_SHA256_CACHE_LOCK = threading.Lock()
+
+
+def source_content_fingerprint(path: Path) -> dict[str, Any]:
+    """Fingerprint a reusable ASR source once per immutable file revision."""
+
+    resolved = path.resolve()
+    stat = resolved.stat()
+    key = (str(resolved), stat.st_size, stat.st_mtime_ns)
+    with _SOURCE_SHA256_CACHE_LOCK:
+        digest = _SOURCE_SHA256_CACHE.get(key)
+        if digest is None:
+            digest = sha256_file(resolved)
+            stale = [item for item in _SOURCE_SHA256_CACHE if item[0] == str(resolved)]
+            for item in stale:
+                _SOURCE_SHA256_CACHE.pop(item, None)
+            _SOURCE_SHA256_CACHE[key] = digest
+    return {
+        "path": str(path),
+        "resolved_path": str(resolved),
+        "size": stat.st_size,
+        "sha256": digest,
+    }
+
+
 def whisper_cache_config(
     *,
     model: Path,
@@ -368,13 +412,40 @@ def cache_matches(output_base: Path, expected: dict[str, Any]) -> bool:
         actual = json.loads(meta_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         return False
-    if actual == expected:
+    if cache_configs_equivalent(actual, expected):
         return True
     if "source_audio" in expected and "source_audio" not in actual:
         legacy_expected = dict(expected)
         legacy_expected.pop("source_audio", None)
         return actual == legacy_expected
     return False
+
+
+def audio_fingerprints_equivalent(left: Any, right: Any) -> bool:
+    if not isinstance(left, dict) or not isinstance(right, dict):
+        return left == right
+    return (
+        left.get("sha256") == right.get("sha256")
+        and left.get("size") == right.get("size")
+        and bool(left.get("sha256"))
+    )
+
+
+def cache_configs_equivalent(left: Any, right: Any) -> bool:
+    if not isinstance(left, dict) or not isinstance(right, dict):
+        return left == right
+    if set(left) != set(right):
+        return False
+    for key in left:
+        if key == "source_audio":
+            if not audio_fingerprints_equivalent(left[key], right[key]):
+                return False
+        elif key == "raw_cache":
+            if not cache_configs_equivalent(left[key], right[key]):
+                return False
+        elif left[key] != right[key]:
+            return False
+    return True
 
 
 def chunk_report_complete(output_base: Path) -> bool:
@@ -709,7 +780,7 @@ def chunk_cache_matches(chunk_base: Path, expected: dict[str, Any]) -> bool:
         actual = json.loads(meta_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         return False
-    return actual == expected
+    return cache_configs_equivalent(actual, expected)
 
 
 def write_chunk_cache_report(
@@ -1891,6 +1962,41 @@ def drops_baseline_prefix(candidate_text: str, baseline_text: str) -> bool:
     return start_index is not None and 0 < start_index <= 3
 
 
+def reuse_identical_micro_reasr(
+    *,
+    micro_dir: Path,
+    slice_wav: Path,
+    output_base: Path,
+    cache_glob: str,
+) -> dict[str, Any] | None:
+    """Reuse Whisper output only when the prepared PCM slice is byte-identical."""
+
+    slice_fingerprint = source_content_fingerprint(slice_wav)
+    for cached_json in sorted(micro_dir.glob(cache_glob)):
+        if cached_json == output_base.with_suffix(".json"):
+            continue
+        cached_base = cached_json.with_suffix("")
+        cached_wav = cached_base.with_suffix(".wav")
+        if not cached_wav.is_file():
+            continue
+        cached_stat = cached_wav.stat()
+        if cached_stat.st_size != slice_fingerprint["size"]:
+            continue
+        if source_content_fingerprint(cached_wav)["sha256"] != slice_fingerprint["sha256"]:
+            continue
+
+        for suffix in (".json", ".txt", ".score.txt", ".run.log"):
+            source_path = cached_base.with_suffix(suffix)
+            if source_path.is_file():
+                shutil.copy2(source_path, output_base.with_suffix(suffix))
+        return {
+            "mode": "slice_content_cache",
+            "cached_output_base": str(cached_base),
+            "slice_sha256": slice_fingerprint["sha256"],
+        }
+    return None
+
+
 def materialize_micro_reasr(
     *,
     source: Path,
@@ -1914,8 +2020,10 @@ def materialize_micro_reasr(
     local_score: float = 0.0,
 ) -> tuple[str, dict[str, Any]]:
     slice_duration_ms = max(1, recognition_end_ms - recognition_start_ms)
+    source_fingerprint = source_content_fingerprint(source)
     stem = (
         f"micro_{repair_profile}_{window_label}_{source_label}_"
+        f"src{source_fingerprint['sha256'][:12]}_"
         f"{target_start_ms:010d}_{target_end_ms:010d}_"
         f"{recognition_start_ms:010d}_{recognition_end_ms:010d}_"
         f"sil{leading_silence_ms:04d}"
@@ -1957,6 +2065,23 @@ def materialize_micro_reasr(
                 str(slice_wav),
             ]
         )
+        if not force:
+            cache_suffix = (
+                f"_{target_start_ms:010d}_{target_end_ms:010d}_"
+                f"{recognition_start_ms:010d}_{recognition_end_ms:010d}_"
+                f"sil{leading_silence_ms:04d}.json"
+            )
+            cached_execution = reuse_identical_micro_reasr(
+                micro_dir=micro_dir,
+                slice_wav=slice_wav,
+                output_base=output_base,
+                cache_glob=(
+                    f"micro_{repair_profile}_{window_label}_{source_label}_"
+                    f"src*{cache_suffix}"
+                ),
+            )
+            if cached_execution is not None:
+                execution = cached_execution
         command = [
             whisper_cli,
             "--model",
@@ -1985,32 +2110,35 @@ def materialize_micro_reasr(
             "--file",
             str(slice_wav),
         ]
-        print("+ " + " ".join(command))
-        try:
-            execution = run_whisper_cli_with_cpu_fallback(command, output_base.with_suffix(".run.log"))
-        except subprocess.CalledProcessError as error:
-            return "", {
-                "status": "failed",
-                "reason": "whisper_cli_failed",
-                "returncode": error.returncode,
-                "execution": getattr(error, "murmurmark_execution", {"mode": "failed"}),
-                "source": str(source),
-                "source_label": source_label,
-                "window_label": window_label,
-                "slice_start_ms": recognition_start_ms,
-                "slice_end_ms": recognition_end_ms,
-                "leading_silence_ms": leading_silence_ms,
-                "selection_start_ms": selection_start_ms,
-                "selection_end_ms": selection_end_ms,
-                "target_start_ms": target_start_ms,
-                "target_end_ms": target_end_ms,
-                "output_base": str(output_base),
-            }
+        if not json_path.exists():
+            print("+ " + " ".join(command))
+            try:
+                execution = run_whisper_cli_with_cpu_fallback(command, output_base.with_suffix(".run.log"))
+            except subprocess.CalledProcessError as error:
+                return "", {
+                    "status": "failed",
+                    "reason": "whisper_cli_failed",
+                    "returncode": error.returncode,
+                    "execution": getattr(error, "murmurmark_execution", {"mode": "failed"}),
+                    "source": str(source),
+                    "source_fingerprint": source_fingerprint,
+                    "source_label": source_label,
+                    "window_label": window_label,
+                    "slice_start_ms": recognition_start_ms,
+                    "slice_end_ms": recognition_end_ms,
+                    "leading_silence_ms": leading_silence_ms,
+                    "selection_start_ms": selection_start_ms,
+                    "selection_end_ms": selection_end_ms,
+                    "target_start_ms": target_start_ms,
+                    "target_end_ms": target_end_ms,
+                    "output_base": str(output_base),
+                }
     if not json_path.exists():
         return "", {
             "status": "failed",
             "reason": "micro_json_not_found",
             "source": str(source),
+            "source_fingerprint": source_fingerprint,
             "source_label": source_label,
             "window_label": window_label,
             "slice_start_ms": recognition_start_ms,
@@ -2047,6 +2175,7 @@ def materialize_micro_reasr(
             "status": "failed",
             "reason": "empty_micro_text",
             "source": str(source),
+            "source_fingerprint": source_fingerprint,
             "source_label": source_label,
             "window_label": window_label,
             "slice_start_ms": recognition_start_ms,
@@ -2063,6 +2192,7 @@ def materialize_micro_reasr(
     return text, {
         "status": "ok",
         "source": str(source),
+        "source_fingerprint": source_fingerprint,
         "source_label": source_label,
         "window_label": window_label,
         "slice_start_ms": recognition_start_ms,
@@ -5375,6 +5505,40 @@ def metric_value(output: dict[str, Any], name: str, default: float = 0.0) -> flo
         return default
 
 
+def load_comparison_reference(
+    resolved_dir: Path,
+    artifact_suffix: str,
+) -> dict[str, Any]:
+    def artifact(filename: str) -> Path:
+        return resolved_dir / suffixed_name(filename, artifact_suffix)
+
+    required = {
+        "quality_report": artifact("quality_report.json"),
+        "clean_dialogue": artifact("clean_dialogue.json"),
+        "overlaps": artifact("overlaps.json"),
+        "transcript": artifact("transcript.md"),
+        "transcribe_simple_report": artifact("transcribe_simple_report.json"),
+    }
+    missing = [name for name, path in required.items() if not path.is_file()]
+    if missing:
+        raise SystemExit(f"comparison reference is incomplete ({', '.join(missing)}): {resolved_dir}")
+    quality = json.loads(required["quality_report"].read_text(encoding="utf-8"))
+    dialogue = json.loads(required["clean_dialogue"].read_text(encoding="utf-8"))
+    overlaps = json.loads(required["overlaps"].read_text(encoding="utf-8"))
+    report = json.loads(required["transcribe_simple_report"].read_text(encoding="utf-8"))
+    utterances = dialogue.get("utterances") if isinstance(dialogue, dict) else []
+    overlap_rows = overlaps.get("overlaps") if isinstance(overlaps, dict) else []
+    return {
+        "utterance_count": len(utterances) if isinstance(utterances, list) else 0,
+        "quality": quality,
+        "report": report,
+        "utterances": utterances if isinstance(utterances, list) else [],
+        "overlaps": overlap_rows if isinstance(overlap_rows, list) else [],
+        "paths": {name: str(path) for name, path in required.items()},
+        "comparison_reference": True,
+    }
+
+
 def transcript_contains(path: Path, text: str) -> bool:
     if not path.exists():
         return False
@@ -5397,6 +5561,7 @@ def write_repair_comparison(
     resolved_dir: Path,
     current_output: dict[str, Any],
     shadow_output: dict[str, Any],
+    gate_profile: str = "default",
 ) -> None:
     current_paths = current_output.get("paths") or {}
     shadow_paths = shadow_output.get("paths") or {}
@@ -5421,6 +5586,11 @@ def write_repair_comparison(
         "golden_phrase_fail_count": metric_value(shadow_output, "golden_phrase_fail_count") == 0,
         "control_texts_present": not expected_control_texts or all(item["shadow_present"] for item in control_texts),
     }
+    if gate_profile != "default":
+        del gates["micro_reasr_success_count"]
+        gates["remote_duplicate_in_me_seconds"] = metric_value(
+            shadow_output, "remote_duplicate_in_me_seconds"
+        ) <= metric_value(current_output, "remote_duplicate_in_me_seconds")
     current_quality = current_output.get("quality") or {}
     shadow_quality = shadow_output.get("quality") or {}
     quality_keys = set(current_quality.keys()) | set(shadow_quality.keys())
@@ -5444,6 +5614,8 @@ def write_repair_comparison(
         "no_regression_gates": gates,
         "passed": all(gates.values()),
     }
+    if gate_profile != "default":
+        comparison["gate_profile"] = gate_profile
     (resolved_dir / "repair_comparison.json").write_text(
         json.dumps(comparison, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
@@ -5454,6 +5626,8 @@ def main() -> int:
     args = parse_args()
     session = args.session.resolve()
     args.murmurmark_bin = resolve_murmurmark_bin(args.murmurmark_bin)
+    if args.comparison_reference_resolved_dir and args.repair_profile != "shadow_v2":
+        raise SystemExit("--comparison-reference-resolved-dir requires --repair-profile shadow_v2")
     model = expand(args.model)
     whisper_cli = shutil.which(args.whisper_cli) or args.whisper_cli
     prompt = read_prompt(args.prompt_file)
@@ -5582,50 +5756,57 @@ def main() -> int:
         max_merged_chars=args.max_merged_chars,
         max_merged_ms=args.max_merged_ms,
     )
-    candidates, timeline_repair_report, timeline_repair_examples = timeline_repair(
-        session=session,
-        candidates=base_candidates,
-        utterances=utterances,
-        speaker_states=speaker_states,
-        whisper_cli=whisper_cli,
-        model=model,
-        language=args.language,
-        threads=args.threads,
-        resolved_dir=resolved_dir,
-        force=args.force,
-        repair_profile="current",
-        micro_asr_workers=args.micro_asr_workers,
-    )
-    decisions = decide_roles(candidates, args.mic_policy)
+    decisions: list[RoleDecision] = []
+    if args.comparison_reference_resolved_dir:
+        current_output = load_comparison_reference(
+            args.comparison_reference_resolved_dir.expanduser().resolve(),
+            args.comparison_reference_suffix,
+        )
+    else:
+        candidates, timeline_repair_report, timeline_repair_examples = timeline_repair(
+            session=session,
+            candidates=base_candidates,
+            utterances=utterances,
+            speaker_states=speaker_states,
+            whisper_cli=whisper_cli,
+            model=model,
+            language=args.language,
+            threads=args.threads,
+            resolved_dir=resolved_dir,
+            force=args.force,
+            repair_profile="current",
+            micro_asr_workers=args.micro_asr_workers,
+        )
+        decisions = decide_roles(candidates, args.mic_policy)
 
-    current_output = write_outputs(
-        session=session,
-        model=model,
-        language=args.language,
-        max_context=args.max_context,
-        asr_mode=args.asr_mode,
-        asr_window_sec=args.asr_window_sec,
-        asr_overlap_sec=args.asr_overlap_sec,
-        threads=args.threads,
-        track_workers=args.track_workers,
-        micro_asr_workers=args.micro_asr_workers,
-        mic_audio_prep=args.mic_audio_prep,
-        remote_audio_prep=args.remote_audio_prep,
-        prompt_file=args.prompt_file,
-        prompt=prompt,
-        raw_utterances=utterances,
-        raw_dropped=dropped,
-        candidates=candidates,
-        decisions=decisions,
-        resolved_dir=resolved_dir,
-        merge_gap_ms=args.merge_gap_ms,
-        max_merged_chars=args.max_merged_chars,
-        max_merged_ms=args.max_merged_ms,
-        mic_policy=args.mic_policy,
-        timeline_repair_report=timeline_repair_report,
-        timeline_repair_examples=timeline_repair_examples,
-        speaker_states=speaker_states,
-    )
+        current_output = write_outputs(
+            session=session,
+            model=model,
+            language=args.language,
+            max_context=args.max_context,
+            asr_mode=args.asr_mode,
+            asr_window_sec=args.asr_window_sec,
+            asr_overlap_sec=args.asr_overlap_sec,
+            threads=args.threads,
+            track_workers=args.track_workers,
+            micro_asr_workers=args.micro_asr_workers,
+            mic_audio_prep=args.mic_audio_prep,
+            remote_audio_prep=args.remote_audio_prep,
+            prompt_file=args.prompt_file,
+            prompt=prompt,
+            raw_utterances=utterances,
+            raw_dropped=dropped,
+            candidates=candidates,
+            decisions=decisions,
+            resolved_dir=resolved_dir,
+            merge_gap_ms=args.merge_gap_ms,
+            max_merged_chars=args.max_merged_chars,
+            max_merged_ms=args.max_merged_ms,
+            mic_policy=args.mic_policy,
+            timeline_repair_report=timeline_repair_report,
+            timeline_repair_examples=timeline_repair_examples,
+            speaker_states=speaker_states,
+        )
     utterance_count = int(current_output["utterance_count"])
 
     if args.repair_profile == "shadow_v2":
@@ -5690,11 +5871,13 @@ def main() -> int:
             resolved_dir=resolved_dir,
             current_output=current_output,
             shadow_output=shadow_output,
+            gate_profile=args.comparison_gate_profile,
         )
         print(f"written shadow: {resolved_dir / 'transcript.shadow_v2.md'}")
         print(f"repair_comparison: {resolved_dir / 'repair_comparison.json'}")
 
-    print(f"written: {resolved_dir / 'transcript.md'}")
+    if not args.comparison_reference_resolved_dir:
+        print(f"written: {resolved_dir / 'transcript.md'}")
     print(f"utterances: {utterance_count}")
     print(f"dropped_segments: {len(dropped) + sum(1 for item in decisions if item.decision == 'drop')}")
     return 0

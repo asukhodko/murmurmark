@@ -415,13 +415,65 @@ class WavLMXVectorBackend(EmbeddingBackend):
         os.environ.setdefault("HF_HUB_OFFLINE", "1")
         try:
             import torch
-            from transformers import AutoModelForAudioXVector, AutoProcessor
+            from transformers import AutoFeatureExtractor, AutoModelForAudioXVector
         except ImportError as error:
-            raise RuntimeError("missing torch/transformers AutoModelForAudioXVector") from error
+            raise RuntimeError(
+                "missing torch/transformers audio x-vector support"
+            ) from error
         self._torch = torch
-        self._processor = AutoProcessor.from_pretrained(str(self.model_path), local_files_only=True)
+        self._processor = AutoFeatureExtractor.from_pretrained(
+            str(self.model_path), local_files_only=True
+        )
         self._model = AutoModelForAudioXVector.from_pretrained(str(self.model_path), local_files_only=True)
         self._model.eval()
+
+    @staticmethod
+    def _prepare_audio(audio: np.ndarray) -> np.ndarray | None:
+        values = np.asarray(audio, dtype=np.float32).reshape(-1)
+        if values.size < int(0.35 * SAMPLE_RATE):
+            return None
+        values, _ = librosa.effects.trim(values, top_db=35)
+        if values.size < int(0.35 * SAMPLE_RATE):
+            return None
+        return values.astype(np.float32, copy=False)
+
+    def embed_audio_batch(
+        self,
+        audio_rows: list[np.ndarray],
+        *,
+        batch_size: int = 16,
+    ) -> list[np.ndarray | None]:
+        ready, reason = self.ready()
+        if not ready:
+            raise RuntimeError(reason)
+        self._load()
+        assert self._processor is not None
+        assert self._model is not None
+        assert self._torch is not None
+        prepared = [self._prepare_audio(audio) for audio in audio_rows]
+        results: list[np.ndarray | None] = [None] * len(prepared)
+        valid = [(index, audio) for index, audio in enumerate(prepared) if audio is not None]
+        for offset in range(0, len(valid), max(1, batch_size)):
+            batch = valid[offset : offset + max(1, batch_size)]
+            inputs = self._processor(
+                [audio for _, audio in batch],
+                sampling_rate=SAMPLE_RATE,
+                return_tensors="pt",
+                padding=True,
+            )
+            with self._torch.no_grad():
+                outputs = self._model(**inputs)
+            embeddings = getattr(outputs, "embeddings", None)
+            if embeddings is None:
+                values = list(outputs.values()) if hasattr(outputs, "values") else list(outputs)
+                embeddings = values[-1]
+            matrix = embeddings.detach().cpu().numpy().astype(np.float64)
+            for (index, _), vector in zip(batch, matrix):
+                vector = np.nan_to_num(vector, nan=0.0, posinf=0.0, neginf=0.0)
+                norm = float(np.linalg.norm(vector))
+                if norm > EPS:
+                    results[index] = vector / norm
+        return results
 
     def embed(self, path: Path) -> tuple[np.ndarray | None, dict[str, Any]]:
         ready, reason = self.ready()
@@ -431,34 +483,19 @@ class WavLMXVectorBackend(EmbeddingBackend):
             audio, sr = librosa.load(path, sr=SAMPLE_RATE, mono=True)
         except Exception as error:
             return None, {"backend": self.method, "error": str(error), "path": str(path)}
-        if audio.size < int(0.35 * SAMPLE_RATE):
-            return None, {"backend": self.method, "error": "too_short", "path": str(path)}
-        audio, _ = librosa.effects.trim(audio, top_db=35)
-        if audio.size < int(0.35 * SAMPLE_RATE):
+        prepared = self._prepare_audio(audio)
+        if prepared is None:
             return None, {"backend": self.method, "error": "too_silent_after_trim", "path": str(path)}
         try:
-            self._load()
-            assert self._processor is not None
-            assert self._model is not None
-            assert self._torch is not None
-            inputs = self._processor(audio, sampling_rate=SAMPLE_RATE, return_tensors="pt", padding=True)
-            with self._torch.no_grad():
-                outputs = self._model(**inputs)
-            embedding = getattr(outputs, "embeddings", None)
-            if embedding is None:
-                values = list(outputs.values()) if hasattr(outputs, "values") else list(outputs)
-                embedding = values[-1]
-            vector = embedding.detach().cpu().numpy()[0].astype(np.float64)
+            vector = self.embed_audio_batch([prepared], batch_size=1)[0]
         except Exception as error:
             return None, {"backend": self.method, "error": str(error), "path": str(path)}
-        vector = np.nan_to_num(vector, nan=0.0, posinf=0.0, neginf=0.0)
-        norm = float(np.linalg.norm(vector))
-        if norm <= EPS:
+        if vector is None:
             return None, {"backend": self.method, "error": "zero_embedding", "path": str(path)}
-        return vector / norm, {
+        return vector, {
             "backend": self.method,
             "path": str(path),
-            "duration_sec": round(audio.size / SAMPLE_RATE, 3),
+            "duration_sec": round(prepared.size / SAMPLE_RATE, 3),
             "sample_rate": SAMPLE_RATE,
             "model": str(self.model_path),
         }
@@ -490,6 +527,34 @@ class ResemblyzerDVectorBackend(EmbeddingBackend):
         self._preprocess_wav = preprocess_wav
         with redirect_stdout(io.StringIO()):
             self._encoder = VoiceEncoder(device="cpu")
+
+    def embed_audio_batch(self, audio_rows: list[np.ndarray]) -> list[np.ndarray | None]:
+        ready, reason = self.ready()
+        if not ready:
+            raise RuntimeError(reason)
+        self._load()
+        assert self._encoder is not None
+        assert self._preprocess_wav is not None
+        results: list[np.ndarray | None] = []
+        for audio in audio_rows:
+            values = np.asarray(audio, dtype=np.float32).reshape(-1)
+            if values.size < int(0.35 * SAMPLE_RATE):
+                results.append(None)
+                continue
+            peak = float(np.max(np.abs(values))) if values.size else 0.0
+            rms = float(np.sqrt(np.mean(np.square(values, dtype=np.float64))))
+            if not np.isfinite(rms) or peak <= EPS or rms <= EPS:
+                results.append(None)
+                continue
+            prepared = self._preprocess_wav(values, source_sr=SAMPLE_RATE)
+            if prepared.size < int(0.35 * SAMPLE_RATE):
+                results.append(None)
+                continue
+            vector = self._encoder.embed_utterance(prepared).astype(np.float64)
+            vector = np.nan_to_num(vector, nan=0.0, posinf=0.0, neginf=0.0)
+            norm = float(np.linalg.norm(vector))
+            results.append(vector / norm if norm > EPS else None)
+        return results
 
     def embed(self, path: Path) -> tuple[np.ndarray | None, dict[str, Any]]:
         ready, reason = self.ready()

@@ -436,6 +436,7 @@ enum Commands {
         DoctorChecks.checkWhisperModel(&report)
         DoctorChecks.checkStrongerAudioJudge(&report)
         DoctorChecks.checkTargetMeSpeakerBackend(&report)
+        DoctorChecks.checkSpeakerPreservingEchoModel(&report)
 
         do {
             let content = try await ScreenCaptureContent.current()
@@ -1052,6 +1053,7 @@ enum DoctorChecks {
             "scripts/run-asr-positive-echo-candidate.py",
             "scripts/report-asr-positive-echo-candidate-corpus.py",
             "scripts/echo-suppression-promotion-v1.py",
+            "scripts/apply-speaker-preserving-neural-echo-v2.py",
             "scripts/controlled-echo-supervision-lab.py",
             "scripts/build-controlled-echo-supervision-v1.py",
             "scripts/controlled_echo_supervision.py",
@@ -1173,6 +1175,102 @@ enum DoctorChecks {
             }
         } catch {
             report.check(.warn, "resemblyzer", "not checked: \(error.localizedDescription)")
+        }
+    }
+
+    static func checkSpeakerPreservingEchoModel(_ report: inout DoctorReport) {
+        do {
+            let python = try PythonRuntime.resolve()
+            let moduleCode = """
+            import importlib.util
+            required = ["torch", "transformers"]
+            print(",".join(name for name in required if importlib.util.find_spec(name) is None))
+            """
+            let missingModules = (
+                try Tooling.runPathCapturing(python, ["-c", moduleCode])
+            ).trimmedSingleLine()
+            if missingModules.isEmpty {
+                report.check(.passed, "speaker-preserving echo modules", "torch, transformers")
+            } else {
+                report.check(
+                    .warn,
+                    "speaker-preserving echo modules",
+                    "missing: \(missingModules)",
+                    hint: "install the optional local WavLM runtime; transcription will otherwise use exact local_fir fallback"
+                )
+            }
+        } catch {
+            report.check(
+                .warn,
+                "speaker-preserving echo modules",
+                "not checked: \(error.localizedDescription)"
+            )
+        }
+
+        let model = ProcessInfo.processInfo.environment["MURMURMARK_TARGET_ME_WAVLM_MODEL"]
+            ?? "~/.local/share/murmurmark/models/target-me/wavlm-base-plus-sv"
+        let url = PathURLs.fileURL(model)
+        let required = ["config.json", "preprocessor_config.json", "pytorch_model.bin"]
+        let missing = required.filter {
+            !FileManager.default.fileExists(atPath: url.appendingPathComponent($0).path)
+        }
+        if missing.isEmpty {
+            report.check(.passed, "speaker-preserving echo model", PathDisplay.display(url))
+        } else {
+            report.check(
+                .warn,
+                "speaker-preserving echo model",
+                "missing: \(missing.joined(separator: ", ")) under \(url.path)",
+                hint: "install the local WavLM speaker model; transcription will otherwise use exact local_fir fallback"
+            )
+        }
+
+        let corpusRoot = PathURLs.fileURL(
+            "sessions/_reports/controlled-echo-supervision-v1"
+        )
+        let corpusFiles = [
+            "frozen_corpus.json",
+            "split_manifest.json",
+            "supervision_manifest.jsonl",
+        ]
+        let missingCorpus = corpusFiles.filter {
+            !FileManager.default.fileExists(
+                atPath: corpusRoot.appendingPathComponent($0).path
+            )
+        }
+        if missingCorpus.isEmpty {
+            report.check(
+                .passed,
+                "speaker-preserving echo enrollment",
+                PathDisplay.display(corpusRoot)
+            )
+        } else {
+            report.check(
+                .warn,
+                "speaker-preserving echo enrollment",
+                "missing: \(missingCorpus.joined(separator: ", "))",
+                hint: "run the controlled Echo Lab before enabling the personalized profile; local_fir remains the fallback"
+            )
+        }
+
+        let evidenceFiles = [
+            "sessions/_reports/speaker-preserving-neural-echo-v2-16-hard/hard_evaluation.json",
+            "sessions/_reports/speaker-preserving-neural-echo-v2-16-hard/hard_test_decision.json",
+            "sessions/_reports/speaker-preserving-neural-echo-v2-16-corpus/corpus_report.json",
+            "sessions/_reports/speaker-preserving-neural-echo-v2-16-corpus/promotion_decision.json",
+        ]
+        let missingEvidence = evidenceFiles.filter {
+            !FileManager.default.fileExists(atPath: PathURLs.fileURL($0).path)
+        }
+        if missingEvidence.isEmpty {
+            report.check(.passed, "speaker-preserving echo promotion evidence", "v2.16")
+        } else {
+            report.check(
+                .warn,
+                "speaker-preserving echo promotion evidence",
+                "missing local evidence",
+                hint: "the personalized profile stays disabled until its guarded hard/corpus evidence is available"
+            )
         }
     }
 
@@ -13806,6 +13904,7 @@ enum ReadinessPrinter {
         printCaptureSummary(session)
         printLivePipelineSummary(session)
         printExperimentSidecarSummary(session)
+        printSpeakerPreservingEchoSummary(session)
         printStrongerAudioJudgeSummary(session)
         printSuggestedClosureSummary(session)
         printOutcomeSummary(session, readinessProfile: profile)
@@ -14237,6 +14336,38 @@ enum ReadinessPrinter {
         print(String(format: "    suggested_drop_me: %.2f min", dropSeconds / 60.0))
         if let skipped = string(payload["skipped_reason"]), !skipped.isEmpty {
             print("    skipped: \(skipped)")
+        }
+    }
+
+    private static func printSpeakerPreservingEchoSummary(_ session: URL) {
+        let reportURL = session.appendingPathComponent(
+            "derived/preprocess/speaker-preserving-neural-echo-v2/production_selection_report.json"
+        )
+        guard FileManager.default.fileExists(atPath: reportURL.path),
+              let payload = try? JSONFiles.object(reportURL)
+        else {
+            return
+        }
+        print("  pre_asr_echo_selection:")
+        print("    status: \(string(payload["status"]) ?? "unknown")")
+        print("    profile: \(string(payload["selected_profile"]) ?? "local_fir_role_masked")")
+        print("    batch_authoritative: \(bool(payload["batch_authoritative"]) ?? true)")
+        if let reason = string(payload["reason"]), !reason.isEmpty {
+            print("    reason: \(reason)")
+        }
+        if let selector = payload["selector"] as? [String: Any] {
+            let applicability = selector["applicability"] as? [String: Any] ?? [:]
+            if let classification = string(applicability["classification"]) {
+                print("    applicability: \(classification)")
+            }
+            let runtime = selector["source_runtime"] as? [String: Any] ?? [:]
+            let metrics = runtime["metrics"] as? [String: Any] ?? [:]
+            if let removedSeconds = double(metrics["remote_like_reduction_sec"]) {
+                print(String(format: "    remote_like_removed: %.3f sec", removedSeconds))
+            }
+            if let removedTokens = int(metrics["remote_supported_token_reduction"]) {
+                print("    remote_tokens_removed: \(removedTokens)")
+            }
         }
     }
 

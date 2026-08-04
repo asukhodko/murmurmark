@@ -1,0 +1,82 @@
+{
+  "schema": "murmurmark.speaker_preserving_neural_echo_corpus_policy/v2.3",
+  "status": "frozen_before_corpus_asr",
+  "candidate_policy": "policies/speaker-preserving-neural-echo-v2-3.json",
+  "candidate_policy_sha256": "b4d2701fe143b601b0371062811bcfb30ef17cdb9678a6027719c35c285c24e7",
+  "hard_decision": "sessions/_reports/speaker-preserving-neural-echo-v2-3/hard_test_decision.json",
+  "hard_decision_sha256": "9a68e9333a9bd989d226c7c0fa8a18cd2c56eac0ab8ab7899981e420ab600417",
+  "runtime": "scripts/materialize-speaker-preserving-neural-echo-v2-3.py",
+  "runtime_sha256": "14e21bfbfb75e9045664273978480d4291769b95a4d7de886b6f4dde32a8e308",
+  "evaluator": "scripts/report-speaker-preserving-neural-echo-v2-3-corpus.py",
+  "evaluator_sha256": "2c53bb7c059a6a558f89941c7d05a3d486c2e8503847549c257998a59203fed0",
+  "shadow_helper": "scripts/echo-suppression-promotion-v1.py",
+  "shadow_helper_sha256": "b068f009d3cd7c580a074b47e19df5a847b2c8f760909321e96b0b7a3a9d3773",
+  "transcriber": "scripts/transcribe-simple-whispercpp.py",
+  "transcriber_sha256": "9f6652d7ebb584704a4489bb7542cb8f8e4a821d95b932bdde8b59ed11d80c9a",
+  "post_asr_cleanup_promotion_credit": 0,
+  "sessions": [
+    {
+      "id": "2026-07-28_11-14-35",
+      "expected_mode": "speaker_playback"
+    },
+    {
+      "id": "2026-07-30_16-00-21",
+      "expected_mode": "speaker_playback"
+    },
+    {
+      "id": "2026-07-31_16-02-38",
+      "expected_mode": "speaker_playback"
+    },
+    {
+      "id": "2026-07-31_17-45-13",
+      "expected_mode": "speaker_playback"
+    },
+    {
+      "id": "2026-07-31_16-32-30",
+      "expected_mode": "speaker_playback"
+    },
+    {
+      "id": "2026-07-29_11-14-41",
+      "expected_mode": "headphones_or_low_leak"
+    }
+  ],
+  "isolation": {
+    "sessions_used_for_training": false,
+    "sessions_used_for_dev_selection": false,
+    "sessions_used_for_hard_test": false,
+    "candidate_audio_asr_inspected_before_freeze": false,
+    "runtime_or_gate_tuning_after_freeze": false,
+    "baseline_and_candidate_use_same_whisper_model_and_prompt": true
+  },
+  "direct_asr_gates": {
+    "local_token_retention_ratio_per_session_min": 0.9,
+    "local_token_retention_ratio_aggregate_min": 0.97,
+    "remote_like_seconds_increase_per_session_max": 1.0,
+    "remote_like_seconds_reduction_aggregate_min": 5.0,
+    "remote_like_seconds_reduction_ratio_min": 0.1,
+    "sessions_with_remote_like_reduction_min": 2,
+    "opening_token_retention_ratio_min": 0.9
+  },
+  "pipeline_gates": {
+    "unrepaired_crossings_max": 0,
+    "golden_phrase_failures_max": 0,
+    "local_recall_regressions_max": 0,
+    "chronology_regressions_max": 0,
+    "remote_content_changes_max": 0,
+    "verdict_regressions_max": 0,
+    "notes_evidence_failures_max": 0,
+    "guarded_export_failures_max": 0
+  },
+  "runtime_gates": {
+    "outside_double_talk_exact_required": true,
+    "non_finite_samples_max": 0,
+    "clipped_sample_ratio_max": 0.0001,
+    "candidate_windows_min": 20,
+    "cpu_realtime_factor_max": 0.1,
+    "raw_caf_changes_max": 0
+  },
+  "decision_values": [
+    "PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2",
+    "DO_NOT_PROMOTE"
+  ]
+}

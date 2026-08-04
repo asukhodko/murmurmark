@@ -168,15 +168,17 @@ hard-test coverage also stopped at `6s` double-talk and no independently confirm
 acknowledgement. Replay matched `414/414` files, no training ran and production stayed on
 `local_fir`.
 
-Controlled Echo Supervision Lab v1 has now supplied the missing evidence and completed with
-`READY_FOR_ADAPTATION`. Five train, one dev and one hard-test capture passed; replay matches
-`1465/1465`, with `1804s` train and `352s` dev synthetic mixtures plus `68s` measured hard-test
-double-talk. The recommended bounded step is Speaker-Preserving Neural Echo v2: train only on the
-frozen train split, select on dev, then evaluate one locked candidate once on immutable hard-test.
-The promoted result must become the mic audio presented to ASR; downstream deletion of remote-like
-`Me` text cannot compensate for weak suppression. Any failed preservation, echo, chronology or
-runtime gate rejects that candidate and keeps `local_fir_role_masked` in production, but does not
-complete the audio-first product goal. Evidence Notes And Export v2 follows successful promotion.
+Controlled Echo Supervision Lab v1 supplied the missing evidence and completed with
+`READY_FOR_ADAPTATION`. Speaker-Preserving Neural Echo v2 then completed with guarded
+`PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2`. Its personalized hybrid selected candidate audio in
+`5/12` sealed corpus sessions, removed `41.940s` and `90` remote-supported tokens, and retained all
+candidate local tokens. The other `7/12` sessions used exact fallback. The candidate clean mic is
+transcribed directly and downstream deletion receives zero suppression credit. Missing enrollment,
+headphones, stale fingerprints or any preservation regression keep `local_fir_role_masked`.
+
+The critical path now moves to Evidence Notes And Export v2: one fingerprinted handoff must bind the
+selected transcript, verdict, review burden, evidence-backed notes and export readiness. That
+bundle, rather than profile-specific file discovery, becomes the stable product boundary.
 The failed live-recovery profile remains diagnostic evidence rather than another user-facing branch.
 
 ## Route To Reliability

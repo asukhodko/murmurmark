@@ -22,6 +22,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-echo-promotion-timeline.py
 "$python_bin" scripts/check-echo-suppression-promotion.py
 "$python_bin" scripts/check-neural-residual-echo.py
+"$python_bin" scripts/check-speaker-preserving-neural-echo-v2.py
 "$python_bin" scripts/check-speaker-preserving-echo-adaptation-corpus.py
 "$python_bin" scripts/check-controlled-echo-supervision-v1.py
 "$python_bin" scripts/check-speaker-mode-hardening.py

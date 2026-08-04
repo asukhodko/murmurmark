@@ -1,0 +1,176 @@
+{
+  "schema": "murmurmark.speaker_preserving_neural_echo_policy/v2",
+  "profile": "speaker_preserving_neural_echo_v2",
+  "status": "pre_hard_locked",
+  "source": {
+    "controlled_policy": "policies/controlled-echo-supervision-v1.json",
+    "controlled_policy_sha256": "fce637a7cb85da808e0ec49832a29c60000f0a7100af7d2aaa89846c9b370e90",
+    "frozen_corpus": "sessions/_reports/controlled-echo-supervision-v1/frozen_corpus.json",
+    "frozen_corpus_sha256": "d8f977652c81f1ddeed40e9d77c84cd2dd3c246c7a40f9016a04337c8038f778",
+    "split_manifest": "sessions/_reports/controlled-echo-supervision-v1/split_manifest.json",
+    "split_manifest_sha256": "6190dfe2040faba8985f4af4162348e6984d5a9742b97447c3537d3902a932d0",
+    "supervision_manifest": "sessions/_reports/controlled-echo-supervision-v1/supervision_manifest.jsonl",
+    "supervision_manifest_sha256": "12a3162efcf1d0aec99744b755d30d0f38fb994b8126a7a94eeb44c9a1520c2a",
+    "corpus_decision": "sessions/_reports/controlled-echo-supervision-v1/corpus_decision.json",
+    "corpus_decision_sha256": "a6f76eb657e06f7e9b04e0c4a37254c161b1c99938a0fdbe3c4147eb2b2968d9",
+    "corpus_fingerprint": "be7b68f3267a20bfbd2fcf186587107e4201517e4edb3abbda3287857b008ffd",
+    "replay_report": "sessions/_reports/controlled-echo-supervision-v1/replay_report.json",
+    "replay_report_sha256": "f35727a4dd4231a2c1558bde047e13a95c0f42c7fc21483d341d67acd1bbc44d",
+    "replay_matched_files": 1465,
+    "production_policy": "policies/echo-suppression-production-v1.json",
+    "production_policy_sha256": "4dd21f8bd8ca129d6cebd5966bbc4bb897b4312f6755203710bf55546a613ea2",
+    "fallback": "local_fir_role_masked"
+  },
+  "isolation": {
+    "train_splits": ["train"],
+    "selection_splits": ["dev"],
+    "hard_test_split": "hard_test",
+    "ordinary_meeting_counterexamples": "evaluation_only",
+    "training_on_measured_double_talk": false,
+    "hard_test_access_before_candidate_lock": false,
+    "hard_test_attempts_per_policy_version": 1,
+    "failed_hard_test_becomes_training_data": false,
+    "next_candidate_after_hard_failure_requires_new_held_out_set": true
+  },
+  "audio_contract": {
+    "sample_rate": 16000,
+    "clip_samples": 64000,
+    "frame_size": 320,
+    "hop_size": 160,
+    "window": "periodic_sqrt_hann",
+    "causal": true,
+    "future_frames": 0,
+    "normalization": "none",
+    "primary_asr_input": "candidate_clean_mic",
+    "post_asr_cleanup_promotion_credit": 0,
+    "raw_caf_mutation_forbidden": true,
+    "frozen_input_mutation_forbidden": true
+  },
+  "baseline": {
+    "production": "local_fir_role_masked",
+    "local_fir": {
+      "tail_ms": 80,
+      "regularization": 0.01,
+      "role_policy": "preserve_local",
+      "double_talk_strength": 0.35,
+      "double_talk_high_correlation_threshold": 0.45,
+      "double_talk_high_strength": 0.70
+    },
+    "external": {
+      "id": "microsoft_icassp2022_dec",
+      "model_sha256": "4436ee4f80e5f1d0299196bd7057137a3cad7cac324409dce7540f2a113bb931",
+      "role": "comparison_only"
+    }
+  },
+  "candidate_matrix": [
+    {
+      "id": "magnitude_h96_l1",
+      "family": "residual_magnitude_mask",
+      "hidden_size": 96,
+      "layers": 1,
+      "epochs": 12,
+      "learning_rate": 0.0003
+    },
+    {
+      "id": "complex_h128_l1",
+      "family": "residual_complex_mask",
+      "hidden_size": 128,
+      "layers": 1,
+      "epochs": 12,
+      "learning_rate": 0.0003
+    },
+    {
+      "id": "echo_mapper_h128_l1",
+      "family": "fir_residual_echo_mapper",
+      "hidden_size": 128,
+      "layers": 1,
+      "epochs": 16,
+      "learning_rate": 0.0005
+    },
+    {
+      "id": "echo_mapper_h160_l2",
+      "family": "fir_residual_echo_mapper",
+      "hidden_size": 160,
+      "layers": 2,
+      "epochs": 16,
+      "learning_rate": 0.0005
+    }
+  ],
+  "hybrid_selector": {
+    "local_only": "exact_fir_clean_bypass",
+    "headphones_or_low_leak": "exact_production_fallback",
+    "double_talk": "locked_neural_candidate",
+    "remote_only_high_confidence": "pre_asr_zero_gate",
+    "uncertain": "exact_production_fallback",
+    "missing_state": "exact_production_fallback"
+  },
+  "training": {
+    "python": "3.12",
+    "torch": "2.12.0",
+    "device": "cpu",
+    "seed": 20260803,
+    "batch_size": 16,
+    "deterministic_algorithms": true,
+    "gradient_clip_norm": 5.0,
+    "optimizer": "AdamW",
+    "weight_decay": 0.00001,
+    "features": [
+      "log_fir_residual_or_echo_estimate_magnitude",
+      "log_authoritative_remote_magnitude",
+      "normalized_cross_spectrum_real",
+      "normalized_cross_spectrum_imaginary"
+    ],
+    "loss": {
+      "normalized_complex_l1": 0.70,
+      "log_magnitude_l1": 0.30,
+      "headphone_negative_identity": 0.35,
+      "temporal_smoothness": 0.01,
+      "remote_only_weight": 1.40,
+      "headphone_negative_weight": 2.0
+    },
+    "augmentation": {
+      "synthetic_gains_db": [-12, -9, -6, -3, 0],
+      "uncorrelated_remote_without_echo": true,
+      "new_random_audio": false,
+      "cross_split_pairing": false
+    }
+  },
+  "development_gates": {
+    "synthetic_snr_improvement_db_p50_min": 3.0,
+    "synthetic_snr_improvement_db_p10_min": 2.0,
+    "synthetic_snr_improvement_db_min": 0.0,
+    "synthetic_target_correlation_p10_min": 0.90,
+    "synthetic_target_correlation_p10_gain_over_baseline_min": 0.05,
+    "local_remote_negative_snr_db_p10_min": 40.0,
+    "local_remote_negative_correlation_p10_min": 0.999,
+    "opening_correlation_p10_min": 0.999,
+    "trusted_remote_only_output_rms_db_max": -90.0,
+    "cpu_realtime_factor_max": 0.10,
+    "deterministic_max_abs_error": 0.000001
+  },
+  "hard_test_gates": {
+    "measured_double_talk_prompt_token_recall_ratio_min": 0.99,
+    "measured_double_talk_target_me_similarity_delta_min": -0.02,
+    "opening_prompt_token_recall_ratio_min": 1.0,
+    "local_only_prompt_token_recall_ratio_min": 1.0,
+    "remote_only_unique_local_token_count_max": 0,
+    "chronology_regressions_max": 0,
+    "clipped_sample_ratio_max": 0.0001,
+    "non_finite_samples_max": 0
+  },
+  "corpus_promotion_gates": {
+    "ordinary_meeting_local_recall_regressions_max": 0,
+    "ordinary_meeting_order_regressions_max": 0,
+    "opening_regressions_max": 0,
+    "remote_like_me_seconds_increase_max": 0.0,
+    "notes_missing_evidence_items_max": 0,
+    "guarded_export_regressions_max": 0,
+    "runtime_fail_open_passed": true,
+    "primary_whisper_reads_candidate_audio": true,
+    "post_asr_cleanup_required_for_promotion": false
+  },
+  "decision_values": [
+    "PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2",
+    "DO_NOT_PROMOTE"
+  ]
+}

@@ -1,0 +1,75 @@
+{
+  "schema": "murmurmark.speaker_preserving_neural_echo_policy/v2.1",
+  "profile": "speaker_preserving_neural_echo_v2",
+  "candidate_revision": "v2.1_improvement_only_arbitration",
+  "status": "pre_hard_locked",
+  "source": {
+    "training_policy": "policies/speaker-preserving-neural-echo-v2.json",
+    "training_policy_sha256": "d62f8c3179d5994a0d5813686798f35b3ae3809dd504b60c784ff50143672904",
+    "failed_candidate_lock": "sessions/_reports/speaker-preserving-neural-echo-v2/candidate_lock.json",
+    "failed_candidate_lock_sha256": "7a025b36127b1433b2c19503325335f45c3c6c9ee87c841b2d08cd3d763d6f1c",
+    "failed_hard_decision": "sessions/_reports/speaker-preserving-neural-echo-v2/hard_test_decision.json",
+    "failed_hard_decision_sha256": "3b75725451a1fe9a71cac5e90a9f033c174689847c08c06c139743147112964a",
+    "checkpoint": "sessions/_reports/speaker-preserving-neural-echo-v2/trials/echo_mapper_h128_l1/best.pt",
+    "checkpoint_sha256": "1d51c6467b00aed6b4b7f577a021fe160139f010fc41e223a18e05390776e878",
+    "arbitration": "scripts/speaker_preserving_echo_arbitration.py",
+    "arbitration_sha256": "64085331477425e250a0b828636a4fdc8dd264545a07d7c179eaf1281a656cf6",
+    "hard_builder": "scripts/build-speaker-preserving-neural-echo-v2-1-hard.py",
+    "hard_builder_sha256": "040f5b3695e26af7f7fc9b1725d0900ef51d8c988baadca1af1527de515556fc",
+    "hard_manifest": "sessions/_reports/speaker-preserving-neural-echo-v2-1-hard/hard_manifest.json",
+    "hard_manifest_sha256": "6466b1db34c78890ece0805c0850ce79d00752f622b68a21cb99acb1aeca9f2b",
+    "hard_fingerprint": "29304d204dd13aefb7ddc6f40b269d6aea94dbe243bb47e3b19ee9b97504710c",
+    "fallback": "local_fir_role_masked"
+  },
+  "hard_isolation": {
+    "source_sessions": [
+      "2026-07-16_11-15-15-live",
+      "2026-07-20_15-15-26-live"
+    ],
+    "source_sessions_used_for_training": false,
+    "source_sessions_used_for_selection": false,
+    "failed_v2_hard_reused_for_promotion": false,
+    "hard_test_attempts": 1,
+    "training_after_hard_freeze": false
+  },
+  "arbitration": {
+    "window_sec": 4.0,
+    "minimum_baseline_remote_coherence": 0.05,
+    "maximum_candidate_to_baseline_remote_coherence": 0.99,
+    "maximum_energy_increase_db": 6.0,
+    "maximum_energy_reduction_db": 18.0,
+    "non_finite_or_shape_failure": "exact_baseline",
+    "failed_improvement_gate": "exact_baseline",
+    "local_only": "exact_baseline",
+    "uncertain": "exact_baseline",
+    "trusted_remote_only": "pre_asr_zero_gate"
+  },
+  "development_gates": {
+    "synthetic_snr_improvement_db_p50_min": 3.0,
+    "synthetic_snr_improvement_db_min": 0.0,
+    "synthetic_candidate_selection_ratio_min": 0.75,
+    "negative_exact_fallback_ratio_min": 1.0,
+    "controlled_dev_direct_asr_regressions_max": 0,
+    "controlled_dev_remote_unique_token_growth_max": 0,
+    "cpu_realtime_factor_max": 0.10,
+    "deterministic_max_abs_error": 0.000001
+  },
+  "hard_test_gates": {
+    "known_target_snr_improvement_db_p50_min": 1.0,
+    "known_target_snr_improvement_db_min": 0.0,
+    "known_target_correlation_regressions_max": 0,
+    "direct_asr_local_token_recall_ratio_min": 0.99,
+    "direct_asr_remote_unique_token_growth_max": 0,
+    "direct_asr_chronology_regressions_max": 0,
+    "candidate_selection_ratio_min": 0.20,
+    "clipped_sample_ratio_max": 0.0001,
+    "non_finite_samples_max": 0
+  },
+  "production_contract": {
+    "candidate_audio_is_primary_whisper_input": true,
+    "post_asr_cleanup_promotion_credit": 0,
+    "raw_caf_mutation_forbidden": true,
+    "runtime_failure": "exact_local_fir_role_masked",
+    "ordinary_corpus_promotion_required": true
+  }
+}

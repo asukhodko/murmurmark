@@ -56,6 +56,14 @@ STEP_COST_HINTS: dict[str, dict[str, str]] = {
         "cost": "heavy",
         "reason": "runs whisper.cpp ASR unless cached raw ASR is reused",
     },
+    "speaker_preserving_neural_echo_v2": {
+        "cost": "heavy",
+        "reason": "runs the promoted pre-ASR echo candidate only for speaker-playback sessions and fails open to local_fir",
+    },
+    "speaker_preserving_neural_echo_v2_prepare": {
+        "cost": "light",
+        "reason": "snapshots the freshly rebuilt local-FIR audio before primary ASR",
+    },
     "check_asr_chunk_cache": {
         "cost": "light",
         "reason": "verifies that raw ASR JSON can be rebuilt from cached chunks",
@@ -724,6 +732,18 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
             reason="--skip-preprocess",
         ),
         step(
+            "speaker_preserving_neural_echo_v2_prepare",
+            [
+                py,
+                str(repo_root / "scripts/apply-speaker-preserving-neural-echo-v2.py"),
+                str(session),
+                "--prepare-baseline",
+                *([] if args.skip_preprocess else ["--fresh-preprocess"]),
+            ],
+            enabled=not args.skip_transcription,
+            reason="--skip-transcription",
+        ),
+        step(
             "materialize_live_asr_cache",
             live_cache_materialize,
             enabled=live_report_exists and not args.skip_transcription and not args.force_asr,
@@ -735,6 +755,18 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
             [py, str(repo_root / "scripts/check-asr-chunk-cache.py"), str(session), "--require-chunks"],
             enabled=not args.skip_transcription,
             reason="--skip-transcription",
+        ),
+        step(
+            "speaker_preserving_neural_echo_v2",
+            [
+                py,
+                str(repo_root / "scripts/apply-speaker-preserving-neural-echo-v2.py"),
+                str(session),
+                "--whisper-model",
+                str(args.model),
+            ],
+            enabled=not args.skip_transcription and not args.skip_preprocess,
+            reason="--skip-transcription/--skip-preprocess",
         ),
         step(
             "audit_local_recall",
@@ -1489,6 +1521,16 @@ def expected_output_specs(session: Path, report_path: Path) -> list[dict[str, st
             "path": rel(session / "derived/preprocess/audio/mic_for_asr.wav", session),
             "produced_by": "echo_preprocess",
             "purpose": "ASR-ready local speaker audio",
+        },
+        {
+            "id": "pre_asr_echo_selection",
+            "path": rel(
+                session
+                / "derived/preprocess/speaker-preserving-neural-echo-v2/production_selection_report.json",
+                session,
+            ),
+            "produced_by": "speaker_preserving_neural_echo_v2",
+            "purpose": "promoted pre-ASR profile decision and exact fallback provenance",
         },
         {
             "id": "transcript",

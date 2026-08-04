@@ -1,0 +1,29 @@
+{
+  "schema": "murmurmark.speaker_preserving_neural_echo_corpus_set/v2.11",
+  "status": "amended_before_v2_11_evaluation_no_candidate_observation",
+  "frozen_at": "2026-08-04T05:23:13+03:00",
+  "amended_at": "2026-08-04T05:55:44+03:00",
+  "amendment_reason": "the original headphones control lacked retained derived/asr/mic.wav and remote_for_aec.wav; no v2.11 candidate had been run on any hard or corpus session",
+  "purpose": "independent promotion corpus after the v2.11 one-shot hard test",
+  "selection_rule": "eligible ordinary sessions not evaluated by v2.10, disjoint from the v2.11 hard set, with varied speaker-playback duration and a second explicit headphones negative control",
+  "training_use": "forbidden",
+  "threshold_tuning_use": "forbidden",
+  "sessions": [
+    {
+      "id": "2026-07-30_11-16-54",
+      "expected_mode": "speaker_playback"
+    },
+    {
+      "id": "2026-07-30_14-01-49",
+      "expected_mode": "speaker_playback"
+    },
+    {
+      "id": "2026-07-31_16-32-30",
+      "expected_mode": "speaker_playback"
+    },
+    {
+      "id": "2026-06-30_11-15-56",
+      "expected_mode": "headphones_or_low_leak"
+    }
+  ]
+}

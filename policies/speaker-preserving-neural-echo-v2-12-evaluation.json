@@ -1,0 +1,15 @@
+{
+  "schema": "murmurmark.speaker_preserving_neural_echo_evaluation_policy/v2.12",
+  "selector_policy": "policies/speaker-preserving-neural-echo-v2-12.json",
+  "selector_policy_sha256": "637790a06887bfbcc1980615ec1437ebd9495e199d0c63ed4efd5ab401ca647b",
+  "selector_runtime": "scripts/speaker-preserving-neural-echo-v2-12.py",
+  "selector_runtime_sha256": "11578a6840566d259fb3cf6b45220e23d93a247ac5c2136b803a4ed8ec87bf74",
+  "hard_set": "policies/speaker-preserving-neural-echo-v2-12-hard-set.json",
+  "hard_set_sha256": "362ebbdc28e8766559d7ef6befa096ae5a9419c99ce52fd247f06e4726778e4b",
+  "corpus_set": "policies/speaker-preserving-neural-echo-v2-12-corpus-set.json",
+  "corpus_set_sha256": "2b9c9d2a81d49ba612cc6e60f3fd394fd08570604f8d0cbf2ba72721f951ff3f",
+  "evaluator": "scripts/evaluate-speaker-preserving-neural-echo-v2-12.py",
+  "evaluator_sha256": "0d883baf6d112e9c9f9f45745e083270152348dfb4db7fe129f95c3290d78278",
+  "fallback": "local_fir_role_masked",
+  "post_asr_cleanup_promotion_credit": 0
+}

@@ -45,10 +45,11 @@ review evidence and honest failure.
 Speech-quality work is audio-first. Remote audio leaking into the microphone must be removed before
 the primary ASR while genuine local speech remains intact. Transcript cleanup is a safety net and
 an audit layer; it cannot count as successful Echo suppression or hide a weak audio candidate.
-Classical audio promotion proved that remote-only gating removes substantial echo but can delete
-short near-end speech during overlap. The current quality step uses the frozen controlled corpus to
-build and promote a local remote-conditioned causal suppressor without weakening the `local_fir`
-fallback.
+Classical and end-to-end neural trials established that aggressive remote suppression can delete
+short near-end speech during overlap. The promoted personalized hybrid now uses controlled
+Target-Me enrollment, remote evidence, bounded attenuation and direct whisper.cpp gates; every
+unsupported or unsafe session returns to exact `local_fir`. The current product step binds the
+selected transcript, verdict, review evidence, notes and export into one verifiable handoff.
 
 Remote-speaker diarization is an independent research branch after base transcript quality closure.
 It starts with anonymous speaker intervals, then an evidence-backed speaker map and

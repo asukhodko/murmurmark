@@ -1,0 +1,23 @@
+{
+  "schema": "murmurmark.speaker_preserving_neural_echo_hard_set/v2.15",
+  "status": "frozen_before_v2_15_implementation",
+  "frozen_at": "2026-08-04T12:40:50+03:00",
+  "purpose": "independent safety and applicability hard test after the v2.14 rejection",
+  "selection_rule": "previously unused by v2.14 development, hard and promotion sets; two speaker-playback sessions and one headphones fail-open control with complete reproducible baseline evidence",
+  "training_use": "forbidden",
+  "threshold_tuning_use": "forbidden",
+  "sessions": [
+    {
+      "id": "2026-07-21_11-19-06-live",
+      "expected_mode": "speaker_playback"
+    },
+    {
+      "id": "2026-07-23_11-16-13-live",
+      "expected_mode": "speaker_playback"
+    },
+    {
+      "id": "2026-07-24_11-12-40",
+      "expected_mode": "headphones_or_low_leak"
+    }
+  ]
+}

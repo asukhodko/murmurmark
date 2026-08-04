@@ -1,0 +1,25 @@
+{
+  "schema": "murmurmark.speaker_preserving_neural_echo_development_regressions/v2.15",
+  "status": "frozen_before_v2_15_implementation",
+  "frozen_at": "2026-08-04T12:40:50+03:00",
+  "purpose": "development-only proof that utility, exact local preservation and exact fallback remain compatible",
+  "training_use": "forbidden",
+  "hard_test_credit": "forbidden",
+  "sessions": [
+    {
+      "id": "2026-07-21_14-27-53-live",
+      "expected_mode": "speaker_playback",
+      "required_result": "candidate with exact local retention and positive remote reduction"
+    },
+    {
+      "id": "2026-07-23_15-16-36-live",
+      "expected_mode": "speaker_playback",
+      "required_result": "candidate with chronology preservation and positive remote reduction"
+    },
+    {
+      "id": "2026-07-22_11-15-26-live",
+      "expected_mode": "headphones_or_low_leak",
+      "required_result": "bit-exact not_applicable fallback"
+    }
+  ]
+}

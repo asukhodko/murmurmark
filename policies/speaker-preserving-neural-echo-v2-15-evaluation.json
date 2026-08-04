@@ -1,0 +1,17 @@
+{
+  "schema": "murmurmark.speaker_preserving_neural_echo_evaluation_policy/v2.15",
+  "status": "locked_before_one_shot_hard_test",
+  "locked_at": "2026-08-04T12:55:52+03:00",
+  "selector_policy": "policies/speaker-preserving-neural-echo-v2-15.json",
+  "selector_policy_sha256": "3cd7c0c613d51e5a74058befb6c4d3dcf2dac00319b280aca68433df72d606ae",
+  "selector_runtime": "scripts/speaker-preserving-neural-echo-v2-15.py",
+  "selector_runtime_sha256": "d586dd99abd94b7ba1e677f6e0187432525b64544bd732948f18bdef350df582",
+  "hard_set": "policies/speaker-preserving-neural-echo-v2-15-hard-set.json",
+  "hard_set_sha256": "ccd0f05ceb94bf2ea96335d3862bcc08de16f7a87c506c7392677c25336cc9b3",
+  "corpus_set": "policies/speaker-preserving-neural-echo-v2-15-corpus-set.json",
+  "corpus_set_sha256": "87df042195d1a7796fe63282fcb5a56c9a5fb5ce6ea44466b33c8e26b711b25a",
+  "evaluator": "scripts/evaluate-speaker-preserving-neural-echo-v2-15.py",
+  "evaluator_sha256": "d5726c5aa0c0f359067c95da3a0e62ccedecdae083895542737ebfaff203461e",
+  "fallback": "local_fir_role_masked",
+  "post_asr_cleanup_promotion_credit": 0
+}

@@ -1,0 +1,14 @@
+{
+  "schema": "murmurmark.speaker_preserving_neural_echo_hard_set/v2.9",
+  "status": "frozen_before_v2_9_implementation",
+  "frozen_at": "2026-08-04T01:11:41+03:00",
+  "purpose": "independent ordinary-session hard set for profile-matched shadow_v2 verdict comparison",
+  "candidate_audio_changed_from_v2_7": false,
+  "selection_rule": "latest eligible speaker_playback sessions with complete baseline artifacts and no v2.7/v2.8 candidate outputs at selection time",
+  "training_use": "forbidden",
+  "threshold_tuning_use": "forbidden",
+  "sessions": [
+    "2026-07-27_11-15-25-live",
+    "2026-07-28_15-01-01"
+  ]
+}

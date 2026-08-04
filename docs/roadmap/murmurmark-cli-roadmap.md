@@ -1,6 +1,6 @@
 # MurmurMark CLI Roadmap
 
-Updated: 2026-07-28
+Updated: 2026-08-04
 
 This is the readable view of the active OpsKarta v3 plan:
 
@@ -53,19 +53,25 @@ remain, while rebuildable media below `derived/` can be removed through
 
 ## Current Goal
 
-**Speaker-Preserving Neural Echo v2** is the current goal. Controlled Echo Supervision Lab v1 has
-produced `READY_FOR_ADAPTATION` with session-disjoint train/dev/hard evidence and replay `1465/1465`.
-The current step trains only on train, selects on dev and evaluates one locked candidate on the
-immutable hard test. Its completion requires a guarded pre-ASR audio promotion. A rejected candidate
-is evidence for the next bounded hypothesis, not completion of the product goal; `local_fir` remains
-the fallback for every incompatibility or regression.
+**Evidence Notes And Export v2** is the current goal. It turns the selected transcript, quality
+verdict, review evidence, notes and export readiness into one versioned deterministic handoff. Every
+visible claim must cite a compatible evidence ID; stale or blocked inputs fail closed instead of
+producing a mixed-generation bundle.
+
+The preceding **Speaker-Preserving Neural Echo v2** goal is complete with
+`PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2`. The sealed twelve-session corpus selected personalized
+candidate audio in `5/12` sessions and exact fallback in `7/12`; it removed `41.940s` and `90`
+remote-supported tokens with candidate local retention `1.0`. Headphones and unsafe or inapplicable
+speaker sessions remain byte-exact `local_fir_role_masked` fallback. Post-ASR cleanup received zero
+promotion credit.
 
 Two suppression families established the same safety ceiling. Classical state-level suppression
 removed `68.2845%` of bounded remote-risk, but lost protected `Me` in two speaker sessions. The
 pinned Microsoft DEC model removed all `3.49s` of bounded remote-risk in those hard sessions, yet
 protected-local recall fell to `45.45%`, chronology and double-talk recall to `0%`, and incremental
 runtime reached `52.85%` of `local_fir`. AECMOS still rated the audio well, so it remains a secondary
-metric rather than a word-preservation gate. `local_fir_role_masked` remains production.
+metric rather than a word-preservation gate. These failures established the exact fallback retained
+by the later promoted hybrid.
 
 Speaker-Preserving Echo Adaptation Corpus v1 then completed with reproducible `DO_NOT_TRAIN`.
 Privacy checks and session-disjoint splits passed; local-only target coverage reached `192s` train
@@ -73,8 +79,8 @@ and `96s` dev. However, no remote-only interval passed the frozen confidence gat
 contains neither measured echo supervision nor valid synthetic pairs. Hard-test retained four
 protected-local and four chronology examples, but only `6s` double-talk and no independently
 confirmed opening acknowledgement. Replay matched `414/414` files. Training on that passive corpus
-would manufacture ground truth, so it could not unblock Speaker-Preserving Neural Echo v2. The
-controlled lab below later supplied the required measured supervision.
+would manufacture ground truth. The controlled lab below later supplied the required measured
+supervision.
 
 **One-Command Meeting Lifecycle v1** is complete. `murmurmark meeting` owns durable capture,
 authoritative processing, evidence enrichment, conservative review and guarded export. It uses
@@ -122,9 +128,9 @@ flowchart LR
     N["Done<br/>Neural Residual Echo v1"]
     S["Done: DO_NOT_TRAIN<br/>Speaker-Preserving<br/>Adaptation Corpus v1"]
     C["Done: READY<br/>Controlled Echo<br/>Supervision Lab v1"]
-    E["Current<br/>Speaker-Preserving<br/>Neural Echo v2"]
-    H["Next<br/>Evidence Notes And Export v2"]
-    D["Release-quality CLI"]
+    E["Done: PROMOTE<br/>Speaker-Preserving<br/>Neural Echo v2"]
+    H["Current<br/>Evidence Notes And Export v2"]
+    D["Next dependent<br/>Release-quality CLI"]
 
     P --> L --> A --> B --> N --> S --> C --> E --> H --> D
 ```
@@ -179,22 +185,24 @@ inside a split, preserve existing real counterexamples as hard-test only, and is
 adaptation decision. Final replay is `1465/1465`: train has `620s` local, `640s` remote and `1804s`
 synthetic; dev has `124s` local, `128s` remote and `352s` synthetic; hard-test has `68s` measured
 double-talk. Local-FIR residual Target-Me removes raw echo false positives while retaining their
-diagnostic evidence. No gate failed. Production remains `local_fir_role_masked`.
+diagnostic evidence. No gate failed. The lab itself did not alter production; the separately gated
+v2.16 corpus later promoted the personalized hybrid.
 
 ### 7. Speaker-Preserving Neural Echo v2
 
-Current. Freeze the training/evaluation contract, reproduce `local_fir` and DEC baselines, train a
-small causal residual candidate on train only, select on dev and run one immutable hard test after
-locking weights and gates. Promotion requires better echo suppression plus preserved `Me`, opening,
-double-talk, direct pre-ASR text, chronology and acceptable runtime. Downstream transcript cleanup
-cannot contribute to the gain. Any failure rejects the candidate and keeps `local_fir` as default;
-the stage completes only after a corpus-wide guarded promotion.
+Completed with guarded `PROMOTE`. Small residual-mask, complex-spectral, echo-mapper and pretrained
+DEC candidates established the local-preservation ceiling. The winning hybrid uses controlled
+Target-Me enrollment, WavLM/Resemblyzer, authoritative remote evidence, bounded attenuation and
+direct whisper.cpp checks with per-window rollback. The immutable hard test proved fail-open safety;
+the sealed corpus proved utility. Candidate publication is transactional and every incompatibility,
+headphones session or regression restores the exact `local_fir` fallback.
 
 ### 8. Evidence Notes And Export v2
 
-Next. Define one versioned, byte-stable handoff contract over the selected transcript profile,
+Current. Define one versioned, byte-stable handoff contract over the selected transcript profile,
 quality verdict, evidence notes, unresolved review burden and export readiness. Every visible claim
-must cite valid evidence IDs; stale or blocked input must fail closed.
+must cite valid evidence IDs; stale or blocked input must fail closed. The normal lifecycle should
+publish one coherent Markdown/Obsidian bundle or one precise blocker and next command.
 
 ### 9. Release-quality CLI
 
@@ -218,8 +226,8 @@ flowchart LR
     Q -.-> V
 ```
 
-Speaker-Preserving Neural Echo v2 is unblocked by the controlled `READY_FOR_ADAPTATION` decision and
-is now the executable goal. Train/dev/hard ownership and thresholds remain immutable.
+Speaker-Preserving Neural Echo v2 is complete; its controlled train/dev/hard ownership, hashes and
+promotion evidence remain immutable. Evidence Notes And Export v2 is now the executable goal.
 
 Remote diarization works on authoritative `remote` and does not require complete Echo suppression.
 It starts after base quality closure, first produces anonymous stable speaker IDs, then an

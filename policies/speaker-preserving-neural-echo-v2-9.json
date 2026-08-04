@@ -1,0 +1,29 @@
+{
+  "schema": "murmurmark.speaker_preserving_neural_echo_policy/v2.9",
+  "candidate_revision": "speaker_preserving_neural_echo_v2_9",
+  "audio_candidate_revision": "speaker_preserving_neural_echo_v2_7",
+  "purpose": "compare candidate and baseline verdicts at the same shadow_v2 layer before fail-open selection",
+  "audio_transform_changed_from_v2_7": false,
+  "verdict_comparison_profile": "shadow_v2",
+  "v2_7_policy": "policies/speaker-preserving-neural-echo-v2-7.json",
+  "v2_7_policy_sha256": "da9c553bcee59bf2ed30d209ef006b88bdc878bbd82bf61e574ef869b7679cef",
+  "v2_7_runtime": "scripts/speaker-preserving-neural-echo-v2-7.py",
+  "v2_7_runtime_sha256": "eb546974f180266a096abb4db0c50639e01212ab1893b33c6809a82647c38b5b",
+  "v2_7_shadow_shared": "scripts/speaker_preserving_echo_full_shadow_v2_5.py",
+  "v2_7_shadow_shared_sha256": "515302824bbf46517ed827fcd5ba51f8f2d622e426f687ee3bd139141c8a0403",
+  "v2_9_shadow": "scripts/speaker-preserving-echo-full-shadow-v2-9.py",
+  "v2_9_shadow_sha256": "cb41ad3f236ebc568655b463f8ab2ce020c7bfff7d8a33c3798f4e3729eba151",
+  "hard_set": "policies/speaker-preserving-neural-echo-v2-9-hard-set.json",
+  "hard_set_sha256": "d89f422afbab259c5847a37e51cc2083d409e43dc6b54fbcbf431e6856b21ed4",
+  "selection_gates": {
+    "v2_7_runtime_status": "candidate",
+    "v2_7_runtime_checks_all_pass": true,
+    "candidate_audio_is_primary_whisper_input": true,
+    "baseline_and_candidate_verdict_profile": "shadow_v2",
+    "full_shadow_passed": true,
+    "full_shadow_gates_all_pass": true,
+    "failed_gate_action": "exact_local_fir_role_masked_fallback"
+  },
+  "fallback": "local_fir_role_masked",
+  "post_asr_cleanup_promotion_credit": 0
+}

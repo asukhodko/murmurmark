@@ -232,61 +232,33 @@ automated regression coverage, fresh permission-capable capture soak and strict 
 all pass. The normal user path is now one command plus `Ctrl-C`; the older commands remain available
 for diagnostics and recovery.
 
-**Echo Suppression Promotion v1** is complete with a reproducible `DO_NOT_PROMOTE`. The best
-candidate, `coverage_v2_remote_gate_local_fir`, reduced bounded ASR-visible remote-risk seconds by
-`68.2845%` and stayed within the runtime budget, but passed only `3/5` applicable speaker sessions.
-Two real counterexamples lost protected local speech or a short overlap acknowledgement. The
-automatic production policy therefore keeps the exact `local_fir` baseline.
+Earlier classical, pretrained DEC and passive-corpus experiments ended safely in `DO_NOT_PROMOTE`
+or `DO_NOT_TRAIN`; their counterexamples established the local-word gates. Controlled Echo
+Supervision Lab v1 then supplied reproducible train/dev/hard evidence with replay `1465/1465`.
 
-**Neural Residual Echo Suppression v1** is also complete with `DO_NOT_PROMOTE`. The pinned Microsoft
-DEC model removed all `3.49s` of bounded ASR-visible remote-risk in the two mandatory
-counterexamples, but minimum protected-local recall fell to `45.45%`, chronology recall to `0%`,
-and incremental runtime reached `52.85%` of `local_fir`. AECMOS looked good despite the lost words,
-so production correctly remains on the exact baseline.
+**Speaker-Preserving Neural Echo v2** is complete with guarded
+`PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2`. Its personalized hybrid selected candidate audio in
+`5/12` sealed corpus sessions, removed `41.940s` and `90` remote-supported tokens, and retained all
+candidate local tokens. The selected clean mic is transcribed directly; post-ASR cleanup received
+zero promotion credit. The remaining `7/12` sessions used exact fallback, including headphones and
+every unsafe or inapplicable case.
 
-**Speaker-Preserving Echo Adaptation Corpus v1** is complete with reproducible `DO_NOT_TRAIN`.
-Session-disjoint splits and privacy checks passed, and the corpus contains `192s` train plus `96s`
-dev local-only targets. However, no remote-only interval passed the frozen confidence gate, so no
-measured echo supervision or synthetic pair could be built. Hard-test coverage also stopped at
-`6s` double-talk and zero independently confirmed opening acknowledgements. Training on this
-evidence would manufacture ground truth.
+The current goal is **Evidence Notes And Export v2**: publish one deterministic handoff bundle whose
+transcript, verdict, notes, review burden and export manifest all refer to the same fingerprinted
+profile generation. Missing evidence IDs, stale hashes or blocked readiness must fail closed with a
+precise next command.
 
-**Controlled Echo Supervision Lab v1** completed with `READY_FOR_ADAPTATION`: five train, one dev
-and one hard-test capture pass, replay is `1465/1465`, and no corpus gate failed. The corpus provides
-`1804s` train plus `352s` dev synthetic mixtures and `68s` measured hard double-talk.
-
-The current goal is **Speaker-Preserving Neural Echo v2**: produce and safely promote a pre-ASR
-clean mic track that removes remote better than `local_fir` while preserving `Me`. Candidate
-rejections are intermediate evidence, not completion of the goal. Post-ASR duplicate removal cannot
-count toward promotion; every incompatibility or regression falls back to `local_fir_role_masked`.
-
-The stable batch CLI already supports durable capture, resumable processing, evidence-backed review,
-guarded export and retention planning. `local_speech_completion_v2` is promoted for its frozen
-two-session scope. It classified six remaining local-recall rows / `35.85s`, safely closed three
-rows / `22.4s`, materialized two independently confirmed local fragments, recognized one fragment
-already present in the transcript, and removed the duplicate ASR tail `дает сп`. Three ambiguous
-intervals / `13.45s` remain explicit. `residual_local_recall_v1` remains the fallback outside this
-frozen promotion scope.
-
-Speaker-Mode Transcript Quality Hardening v1 completed with a reproducible `DO_NOT_PROMOTE`.
-Automatic acoustic classification matched `17/17` labeled sessions, the sparse-overrange limiter
-raised accepted Echo Guard candidates from `11` to `13`, and the latest long speaker session now
-passes the clean-audio gate. The isolated transcript profile safely proved three lossless retimes,
-one double-talk interval and one genuine `Me` row, but reached only `2.7%` duplicate reduction and
-`7.9%` review reduction. It therefore remains shadow-only.
-
-Mixed-Utterance Remote Span Separation v1 also completed with a reproducible `DO_NOT_PROMOTE`. Its
-frozen scope contains `12` mixed `Me` rows / `54.940s` across `7` sessions. All rows received stable
-word-level evidence, but none had enough independent proof to remove a remote span while preserving
-every local island. The profile applied no edits, did not regress raw inputs, remote text, local
-recall, chronology, notes or verdict, and remains ineligible for automatic selection.
+The stable CLI already supports durable capture, resumable processing, guarded transcript profiles,
+evidence-backed review, export and retention. Historical profile decisions and exact metrics live
+in the research documents and roadmap rather than in this user entry point.
 
 The dependent critical path is:
 
 ```text
 Meeting Lifecycle -> Mixed-Utterance Separation -> Echo Suppression Promotion
 -> Neural Residual Echo -> Adaptation Corpus -> Controlled Echo Lab
--> Speaker-Preserving Neural Echo v2 (current) -> Evidence Notes and Export v2 -> Release-quality CLI
+-> Speaker-Preserving Neural Echo v2 (done) -> Evidence Notes and Export v2 (current)
+-> Release-quality CLI
 ```
 
 Remote diarization, heavy local validators, LLM synthesis and UI are parallel or parked work. Live
@@ -297,8 +269,9 @@ and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 
 ## Controlled Echo Supervision Lab
 
-This completed private lab is the frozen input to speaker-preserving neural Echo suppression. It
-does not itself train a model or change production.
+This completed private lab is the frozen enrollment and evaluation source for the personalized
+speaker-preserving Echo profile. It remains private and immutable; ordinary users without it keep
+the exact `local_fir_role_masked` fallback.
 
 Prepare generic Russian TTS once:
 
@@ -342,16 +315,18 @@ spoken prompt evidence and corpus examples stay under ignored `sessions/`.
 
 - Current roles are `Me` and aggregate `Colleagues`; individual remote-speaker diarization is future
   work.
-- Echo Guard reduces remote leakage but cannot yet guarantee that remote speech is absent from every
-  `Me` candidate.
+- The personalized pre-ASR profile removes independently supported remote leakage on compatible
+  speaker-playback sessions; it does not promise waveform-perfect echo removal on every room/device.
 - Echo Guard records `speaker_playback`, `headphones_or_low_leak` or `uncertain` in
   `local_fir_report.json`; no user acoustic-mode flag is required.
 - `local_speech_completion_v2` is selected only for sessions named by its passing frozen-corpus
   decision; stale hashes, missing local models or failed gates fall back without changing text.
 - `mixed_utterance_separation_v1` is audit-only after `DO_NOT_PROMOTE`; it never replaces the
   selected transcript.
-- `echo_suppression_promotion_v1` is also audit-only after `DO_NOT_PROMOTE`; the production policy
-  selects `local_fir_role_masked` and never launches a second full ASR.
+- `echo_suppression_promotion_v1` remains historical audit evidence after `DO_NOT_PROMOTE`.
+- `speaker_preserving_neural_echo_v2` is the guarded personalized production selector. It runs only
+  with matching local enrollment/model/promotion evidence and speaker playback; otherwise it
+  returns to exact `local_fir_role_masked`.
 - `neural_residual_echo_v1` is audit-only after `DO_NOT_PROMOTE`; it has no apply command and its
   ONNX models are never required by the normal meeting path.
 - `speaker_preserving_echo_adaptation_corpus_v1` is a private local corpus audit after
@@ -369,6 +344,7 @@ spoken prompt evidence and corpus examples stay under ignored `sessions/`.
 - [Echo Suppression Promotion v1 result](docs/research/2026-07-23-echo-suppression-promotion-v1.md)
 - [Neural Residual Echo Suppression v1 result](docs/research/2026-07-23-neural-residual-echo-v1.md)
 - [Speaker-Preserving Echo Adaptation Corpus v1 result](docs/research/2026-07-23-speaker-preserving-echo-adaptation-corpus-v1.md)
+- [Speaker-Preserving Neural Echo v2 result](docs/research/2026-08-04-speaker-preserving-neural-echo-v2.md)
 - [Reliable transcription route](docs/project/reliable-transcription-route.md)
 - [Readable roadmap](docs/roadmap/murmurmark-cli-roadmap.md)
 - [OpsKarta v3 roadmap](docs/roadmap/murmurmark-cli-roadmap.plan.yaml)

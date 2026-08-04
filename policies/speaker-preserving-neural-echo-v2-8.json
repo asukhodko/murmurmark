@@ -1,0 +1,25 @@
+{
+  "schema": "murmurmark.speaker_preserving_neural_echo_policy/v2.8",
+  "candidate_revision": "speaker_preserving_neural_echo_v2_8",
+  "audio_candidate_revision": "speaker_preserving_neural_echo_v2_7",
+  "purpose": "session-level fail-open selection around the frozen v2.7 pre-ASR audio candidate",
+  "audio_transform_changed_from_v2_7": false,
+  "v2_7_policy": "policies/speaker-preserving-neural-echo-v2-7.json",
+  "v2_7_policy_sha256": "da9c553bcee59bf2ed30d209ef006b88bdc878bbd82bf61e574ef869b7679cef",
+  "v2_7_runtime": "scripts/speaker-preserving-neural-echo-v2-7.py",
+  "v2_7_runtime_sha256": "eb546974f180266a096abb4db0c50639e01212ab1893b33c6809a82647c38b5b",
+  "v2_7_shadow": "scripts/speaker-preserving-echo-full-shadow-v2-7.py",
+  "v2_7_shadow_sha256": "81fd82518aea421349816a54efcfe722903b071fd19a1b4bffa2a301e5a4cedd",
+  "v2_7_shadow_shared": "scripts/speaker_preserving_echo_full_shadow_v2_5.py",
+  "v2_7_shadow_shared_sha256": "515302824bbf46517ed827fcd5ba51f8f2d622e426f687ee3bd139141c8a0403",
+  "selection_gates": {
+    "v2_7_runtime_status": "candidate",
+    "v2_7_runtime_checks_all_pass": true,
+    "candidate_audio_is_primary_whisper_input": true,
+    "full_shadow_passed": true,
+    "full_shadow_gates_all_pass": true,
+    "failed_gate_action": "exact_local_fir_role_masked_fallback"
+  },
+  "fallback": "local_fir_role_masked",
+  "post_asr_cleanup_promotion_credit": 0
+}

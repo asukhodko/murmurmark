@@ -140,7 +140,7 @@ def main() -> int:
         session = SESSIONS / session_id
         frozen = baseline_by_session[session_id]
         input_profile = str(frozen["input_profile"])
-        assert completion.fingerprint(completion.frozen_artifacts(session, input_profile)) == completion.fingerprint(
+        assert synthesis_module.frozen_artifact_tree_matches(
             frozen["artifacts"]
         ), f"frozen artifacts changed: {session_id}"
 

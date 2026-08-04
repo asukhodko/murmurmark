@@ -2,166 +2,115 @@
 
 Status: current
 
-Updated: 2026-08-03
+Updated: 2026-08-04
 
-The stable product path remains `murmurmark meeting -> first Ctrl-C -> final result`. Batch output is
-authoritative. Live output is advisory. Production Echo suppression remains `local_fir_role_masked`
-until a fingerprinted candidate passes every gate below.
+The stable product path remains `murmurmark meeting -> first Ctrl-C -> final result`. Raw CAF and
+batch output are authoritative. Speaker-Preserving Neural Echo v2 is now a guarded pre-ASR
+capability: compatible speaker-playback sessions may use its personalized clean mic, while every
+missing artifact, incompatible acoustic mode or regression returns to exact `local_fir_role_masked`.
 
-Roadmap status and dependency truth live in
+Roadmap status and dependencies live in
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`. This file expands the one executable goal in human
-terms. `scripts/check-planning-consistency.py` keeps the representations aligned.
+terms. `scripts/check-planning-consistency.py` keeps README, roadmap and OpsKarta aligned.
 
-## Speaker-Preserving Neural Echo v2
+## Evidence Notes And Export v2
 
-OpsKarta nearest goal: Speaker-Preserving Neural Echo v2: создать и безопасно продвинуть локальный
-causal или hybrid pre-ASR suppressor, который на frozen train/dev/hard и real-meeting regressions
-удаляет remote из mic лучше local_fir без потери Me; отказ отдельного candidate не завершает цель,
-production меняется только после corpus-wide PROMOTE с fail-open local_fir.
+OpsKarta nearest goal: Evidence Notes And Export v2: собрать один versioned deterministic handoff
+bundle из выбранного transcript profile, quality verdict, review evidence, notes и export readiness;
+каждая видимая запись ссылается на существующие evidence IDs, stale или blocked inputs fail closed,
+а Markdown/Obsidian export не требует ручного склеивания артефактов.
 
 ## Starting Evidence
 
-Controlled Echo Supervision Lab v1 completed with `READY_FOR_ADAPTATION`:
-
-- corpus fingerprint: `be7b68f3267a20bfbd2fcf186587107e4201517e4edb3abbda3287857b008ffd`;
-- deterministic replay: `1465/1465`;
-- train: five captures, `620s` local-only, `640s` remote-only, `1804s` synthetic mixtures;
-- dev: one capture, `124s` local-only, `128s` remote-only, `352s` synthetic mixtures;
-- hard test: one capture and `68s` measured double-talk;
-- protected evidence: 392 local/opening items across the accepted corpus;
-- failed corpus gates: none.
-
-The private archive pins all eight controlled recordings, including the excluded negative attempt,
-through `sessions/_reports/private-pins/controlled-echo-supervision-v1/pinned_sessions.json`. Raw
-CAF, inspection inputs, split ownership and corpus artifacts are immutable evaluation evidence.
+- durable capture, authoritative transcription, review, notes, export and retention already work;
+- `murmurmark meeting` owns the normal unattended lifecycle and resume contract;
+- Speaker-Preserving Neural Echo v2 is promoted: `5/12` corpus sessions used candidate audio,
+  `41.940s` and `90` remote-supported tokens were removed with local retention `1.0`;
+- quality verdict, extractive notes and guarded export exist, but their version/fingerprint
+  relationship is spread across several artifacts;
+- profile-specific aliases and late enrichment can make it harder to prove that transcript, notes,
+  verdict and export all describe the same immutable result;
+- unresolved review burden is visible, but the user-facing bundle is not yet one strict contract.
 
 ## Objective
 
-Build and safely promote a local causal or hybrid remote-conditioned suppressor that removes
-materially more remote leakage than `local_fir_role_masked` while preserving genuine `Me`,
-especially short openings and double-talk. Its clean mic output must be the audio presented to the
-primary ASR.
+Publish one local, deterministic and verifiable handoff bundle for every successfully processed
+session. It either contains a coherent transcript, verdict, evidence-backed notes, review summary
+and export payload, or fails closed with a precise reason and next command.
 
-The goal is complete only with:
+The bundle must be usable by a person or a later local/controlled synthesis layer without guessing
+profile filenames or joining incompatible generations of artifacts.
 
-```text
-PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2
-```
+## Contract
 
-A candidate-level `DO_NOT_PROMOTE` remains valuable evidence and keeps production safe, but does not
-complete this goal. It starts the next bounded train/dev hypothesis. Promotion is guarded by exact
-model, policy and corpus fingerprints and retains `local_fir` as fail-open fallback.
+The versioned handoff must freeze:
 
-## Audio-First Contract
+- selected transcript profile, path, schema and SHA-256;
+- quality verdict, readiness/use gate and unresolved review burden;
+- evidence notes and every cited utterance/audit ID;
+- export format, privacy mode and payload manifest;
+- generator versions, source fingerprints and creation time;
+- exact commands to review, rebuild or export when blocked.
 
-- candidate audio, not repaired transcript text, is the intervention under evaluation;
-- primary whisper.cpp runs directly on the candidate clean mic track;
-- suppression comparisons disable post-ASR remote-duplicate deletion and role cleanup;
-- transcript cleanup remains a safety net, but contributes zero credit to Echo reduction;
-- a candidate that sounds clean by proxy metrics but loses local words cannot be promoted;
-- a candidate that needs downstream remote deletion to pass cannot be promoted.
-
-## Frozen Boundary
-
-- Train data may optimize weights and preprocessing parameters.
-- Dev may select checkpoints and bounded hyperparameters.
-- Hard-test audio is evaluated once after the candidate and thresholds are locked.
-- A hard-test failure rejects that candidate. Any later candidate requires a newly versioned
-  held-out hard set chosen before further tuning; the failed hard set cannot become training data.
-- No dev/hard target may enter training, augmentation, normalization fitting or threshold tuning.
-- Raw CAF and accepted corpus materialization are read-only.
-- Baselines are the current production `local_fir_role_masked` and pinned Microsoft DEC model.
-- AECMOS remains secondary; word and speaker preservation gates are authoritative.
-- Missing models, changed hashes, non-finite audio or incomplete provenance fail open to `local_fir`.
+Every claim visible in Markdown or Obsidian must resolve to an existing item in the selected
+transcript/evidence generation. Missing IDs, stale hashes, incompatible profiles, blocked readiness
+or incomplete review evidence reject publication. A rejection must preserve all source artifacts.
 
 ## Execution Scope
 
-1. Freeze a v2 training policy before the first hard-test result: architecture family, causal
-   context, features, augmentation bounds, seeds, checkpoint selection and acceptance gates.
-2. Reproduce `local_fir` and DEC baselines on exact train/dev/hard manifests and store byte-stable
-   reports.
-3. Implement a deterministic local training harness. Evaluate the smallest useful causal
-   residual-mask, complex-spectral or hybrid classical/neural family that can export to ONNX/Core
-   ML and run without cloud services.
-4. Train only on the train split. Preserve measured local targets, measured echo paths and explicit
-   mixture gains in every batch provenance row.
-5. Select one checkpoint using dev only, freeze its SHA-256, then run the immutable hard test once.
-6. Measure echo reduction, local speech distortion, Target-Me retention, opening/double-talk recall,
-   direct candidate-audio ASR preservation, chronology, clipping, silence behavior and runtime.
-7. Materialize an isolated `speaker_preserving_neural_echo_v2` candidate. Do not overwrite current
-   preprocessing or transcript artifacts during evaluation.
-8. Add guarded selection with exact corpus/model/policy compatibility and automatic `local_fir`
-   fallback for every failure mode.
-9. Reject failing candidates without changing production and continue bounded train/dev iteration.
-   Run hard-test only after weights and gates are locked; do not tune against its result.
-10. Run corpus replay and ordinary meeting regressions, then issue guarded PROMOTE. Post-ASR cleanup
-    is disabled when measuring the candidate's contribution.
-11. Update README, architecture, contracts, runbook, current goal, roadmap and OpsKarta; commit and
-    push the finished decision.
+1. Freeze `murmurmark.handoff_bundle/v2` and related manifest schemas before implementation.
+2. Define one resolver that selects transcript, notes, verdict, review and export evidence from the
+   same compatible profile generation.
+3. Validate referential integrity for utterance IDs, audit IDs, review decisions and note evidence.
+4. Materialize a byte-stable local bundle with Markdown and optional Obsidian views plus structured
+   JSON provenance.
+5. Make `meeting`, `finish`, `status`, `outcome`, `notes`, `transcript` and `export` point to the same
+   handoff decision rather than recomputing conflicting recommendations.
+6. Preserve `review_first` as a useful result: export stays blocked where policy requires, but the
+   user receives the exact review queue and next command.
+7. Add deterministic replay, stale-input, interrupted-write, invalid-reference, empty-conversation
+   and profile-fallback tests.
+8. Run corpus regression over representative 1x1, group, headphones, speaker-playback, noisy-office
+   and verified-no-speech sessions.
+9. Update README, contracts, runbooks, current goal, roadmap and OpsKarta; commit and push the result.
 
 ## Acceptance Gates
 
-- corpus membership, split isolation and every source SHA match the frozen manifests;
-- training and inference are deterministic within the documented tolerance;
-- remote-only echo improves materially over `local_fir`, not merely over raw mic;
-- the candidate clean track is the actual mic input to primary ASR in evaluation and production;
-- local-only reconstruction and ASR do not regress beyond predeclared bounds;
-- protected opening and hard double-talk items retain their expected local speech;
-- no remote text is manufactured as `Me`, and no genuine `Me` is removed to improve an audio score;
-- chronology, clipping, finite-value and no-speech controls pass;
-- runtime and memory fit the supported local machine or the candidate remains shadow-only;
-- ordinary meeting corpus verdict, notes evidence and guarded export do not regress;
-- no promotion metric depends on downstream deletion of remote-like transcript spans;
-- unsupported environment, stale model or any gate failure selects `local_fir_role_masked`.
-
-Exact numeric thresholds belong in the tracked v2 policy and must be frozen before the hard-test
-run. They may not be lowered after observing the result.
+- one selected transcript fingerprint is shared by handoff, notes, verdict and export manifest;
+- every visible claim cites valid evidence from that selected generation;
+- stale or missing evidence cannot produce a successful bundle;
+- repeated materialization from unchanged inputs is byte-stable except explicitly volatile timing;
+- interrupted publication leaves either the previous valid bundle or no bundle, never a mixed one;
+- `ready_for_notes`, `review_first` and `blocked` remain distinguishable and actionable;
+- no command reports export success while readiness or privacy gates block it;
+- verified-no-speech sessions produce a valid empty-conversation bundle rather than fabricated text;
+- selected transcript text and role order are unchanged by bundling;
+- raw CAF, Echo Guard, primary ASR and transcript profile selection are unchanged;
+- no network, LLM or external write is needed;
+- corpus verdict, review burden and existing evidence-note selections do not regress.
 
 ## Definition Of Done
 
-- one model/training contract and one immutable evaluation manifest exist;
-- baselines and the selected candidate have reproducible reports;
-- train/dev/hard leakage checks pass;
-- the hard test has exactly one recorded evaluation for the frozen candidate;
-- every accepted or rejected candidate has full provenance;
-- a promoted pre-ASR profile passes every controlled and real-meeting gate and is selected by the
-  normal pipeline;
-- rejected candidates do not close the goal or change production;
-- failure paths demonstrably return to `local_fir` without breaking transcription;
-- automated unit, integration, corpus replay and runtime tests pass;
-- the final decision and its evidence are documented, committed and pushed.
+- tracked v2 schemas and one implementation own handoff resolution and publication;
+- normal lifecycle produces the bundle automatically without extra user commands;
+- CLI accessors resolve through the validated bundle and report one consistent next action;
+- Markdown and Obsidian outputs are complete local deliverables with evidence references;
+- failure and resume paths are explicit, atomic and tested;
+- fixture, integration, corpus replay, planning and open-source checks pass;
+- documentation and roadmap describe the implemented behavior rather than an aspiration;
+- changes are committed, pushed to `origin/main`, and the worktree is clean.
 
 ## Outside This Goal
 
-- cloud training or inference;
-- changing capture, durable raw writing or the main whisper.cpp ASR;
-- diarization of individual `Colleagues`;
-- Live Shadow promotion;
-- LLM synthesis, external issue creation and UI work.
+- changing capture, Echo Guard, Speaker-Preserving Neural Echo or whisper.cpp;
+- adding cloud models, LLM summaries or automatic external writes;
+- diarizing individual `Colleagues`;
+- promoting Live Shadow;
+- building a UI.
 
-## Main Artifacts
+## Previous Goal Result
 
-```text
-policies/speaker-preserving-neural-echo-v2.json
-sessions/_reports/speaker-preserving-neural-echo-v2/
-  frozen_training_manifest.json
-  baseline_report.json
-  training_manifest.json
-  checkpoint_manifest.json
-  evaluation_report.json
-  corpus_decision.json
-  corpus_decision.md
-  replay_report.json
-```
-
-```mermaid
-flowchart LR
-    A["Frozen controlled corpus"] --> B["Train split only"]
-    B --> C["Dev checkpoint selection"]
-    C --> D["Lock candidate and gates"]
-    D --> E["One immutable hard test"]
-    E --> F{"All preservation, echo and runtime gates pass?"}
-    F -->|"yes"| G["Guarded PROMOTE with local_fir fallback"]
-    F -->|"no"| H["Reject candidate; next bounded train/dev hypothesis"]
-    H --> B
-```
+Speaker-Preserving Neural Echo v2 completed with
+`PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2`. The detailed result, frozen fingerprints, safety
+boundary and production contract are recorded in
+`docs/research/2026-08-04-speaker-preserving-neural-echo-v2.md`.

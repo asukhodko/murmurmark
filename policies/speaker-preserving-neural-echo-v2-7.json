@@ -1,0 +1,195 @@
+{
+  "schema": "murmurmark.speaker_preserving_neural_echo_policy/v2.7",
+  "profile": "speaker_preserving_neural_echo_v2_7",
+  "candidate_revision": "reviewed_me_chunk_rollback_v1",
+  "status": "development_locked_before_v2_7_hard_test",
+  "source": {
+    "controlled_corpus": "sessions/_reports/controlled-echo-supervision-v1/frozen_corpus.json",
+    "controlled_corpus_sha256": "d8f977652c81f1ddeed40e9d77c84cd2dd3c246c7a40f9016a04337c8038f778",
+    "split_manifest": "sessions/_reports/controlled-echo-supervision-v1/split_manifest.json",
+    "split_manifest_sha256": "6190dfe2040faba8985f4af4162348e6984d5a9742b97447c3537d3902a932d0",
+    "supervision_manifest": "sessions/_reports/controlled-echo-supervision-v1/supervision_manifest.jsonl",
+    "supervision_manifest_sha256": "12a3162efcf1d0aec99744b755d30d0f38fb994b8126a7a94eeb44c9a1520c2a",
+    "fallback": "local_fir_role_masked"
+  },
+  "models": {
+    "wavlm": {
+      "id": "microsoft/wavlm-base-plus-sv",
+      "path": "~/.local/share/murmurmark/models/target-me/wavlm-base-plus-sv",
+      "revision": "feb593a6c23c1cc3d9510425c29b0a14d2b07b1e",
+      "files": {
+        "config.json": "c6ac8c0ce55b18d4612677931036fe5ce78093e87361c552a173f00a0bb07514",
+        "preprocessor_config.json": "99272fe8ccfab114b68b478681ea47ee3a1ce62bb788cb92dd6e4f69fb1f1da2",
+        "pytorch_model.bin": "e906bce2fa42fb497a1d1a9ecf81548adb7e03b12a5644e32d2f42f0d6500fad"
+      }
+    },
+    "resemblyzer": {
+      "id": "resemblyzer.VoiceEncoder",
+      "role": "independent_prefilter"
+    },
+    "primary_asr": {
+      "id": "whisper.cpp/ggml-large-v3-q5_0",
+      "role": "diagnostic_guard_and_final_candidate_asr"
+    }
+  },
+  "enrollment": {
+    "source_manifest_sha256": "7f5e3f7ee7673c58f0f6d44ed46130bd36accf7a099cfa0b7039c09254ff0d58",
+    "allowed_split": "train",
+    "allowed_kinds": ["measured_local_target", "opening_backchannel"],
+    "expected_items": 195,
+    "minimum_valid_items": {
+      "wavlm": 195,
+      "resemblyzer": 194
+    },
+    "centroid": "normalized_componentwise_median",
+    "dev_or_hard_items_forbidden": true
+  },
+  "audio_contract": {
+    "sample_rate": 16000,
+    "window_sec": 0.5,
+    "fade_sec": 0.05,
+    "local_state_guard_sec": 0.25,
+    "baseline": "derived/asr/mic.wav",
+    "output": "candidate_clean_mic_pcm16.wav",
+    "outside_selected_samples": "bit_exact_baseline",
+    "candidate_audio_is_primary_whisper_input": true,
+    "post_asr_cleanup_promotion_credit": 0,
+    "raw_caf_mutation_forbidden": true
+  },
+  "proposal_gate": {
+    "states": ["remote_only", "remote_only_correlation", "remote_only_level"],
+    "resemblyzer_target_me_similarity_max": 0.55,
+    "resemblyzer_mic_remote_similarity_min": 0.70,
+    "wavlm_target_me_similarity_max": 0.75,
+    "wavlm_mic_remote_similarity_min": 0.80,
+    "wavlm_target_remote_margin_max": -0.05,
+    "mic_rms_db_min": -65.0,
+    "remote_rms_db_min": -55.0,
+    "missing_embedding": "reject_window",
+    "near_local_or_double_talk": "reject_window",
+    "selection": "strict_gate_or_train_calibrated_classifier",
+    "train_calibrated_classifier": {
+      "schema": "murmurmark.echo_window_logistic_classifier/v1",
+      "training_split": "train",
+      "positive_kind": "measured_remote_echo",
+      "negative_kind": "synthetic_double_talk",
+      "window_sec": 0.5,
+      "features": [
+        "wavlm_target_me_similarity",
+        "resemblyzer_target_me_similarity",
+        "wavlm_mic_remote_similarity",
+        "resemblyzer_mic_remote_similarity",
+        "wavlm_target_remote_margin",
+        "resemblyzer_target_remote_margin"
+      ],
+      "mean": [
+        0.5259490002456795,
+        0.4101935733605168,
+        0.58648247330095,
+        0.6636940063222436,
+        -0.06053347305527371,
+        -0.2535004329617248
+      ],
+      "scale": [
+        0.17640386283490384,
+        0.06510284154355178,
+        0.24974968072973805,
+        0.08989119945900602,
+        0.3369277400453951,
+        0.14206292059767103
+      ],
+      "coefficients": [
+        0.276919461708277,
+        -0.3762295809648661,
+        0.9569908598421805,
+        1.2295793037181402,
+        -0.5643895600336828,
+        -0.9504378247799787
+      ],
+      "intercept": -1.9289227951225256,
+      "score_min": 0.65,
+      "target_guard": "at_least_one_target_check",
+      "train_group_cv": {
+        "sessions": 5,
+        "auc": 0.927439
+      },
+      "controlled_dev": {
+        "metric_scope": "all_feature_rows_with_target_guard",
+        "positive_windows": 256,
+        "negative_windows": 704,
+        "recall": 0.672,
+        "false_positive_rate": 0.048,
+        "precision": 0.835
+      },
+      "calibration_features": {
+        "train_sha256": "2c1ac6bf37863a1e9ba12ad95e0598fefb955d3492651daf38a6149c808aadcb",
+        "dev_sha256": "815b3e379c5536c3b4aabe9842b30b0e224825940bd5a6ba1d8ff838dea3e90a"
+      }
+    }
+  },
+  "diagnostic_asr_guard": {
+    "attenuation_levels_db": [-3, -4.5, -6, -7.5, -9, -12],
+    "chunk_workers": 2,
+    "attenuation_workers": 1,
+    "window_sec": 60,
+    "overlap_sec": 5,
+    "local_token_retention_ratio_min": 0.92,
+    "remote_like_reduction_sec_min": 0.25,
+    "remote_like_increase_sec_max": 0.0,
+    "remote_supported_token_reduction_min": 1,
+    "reviewed_me_token_regressions_max": 0,
+    "selection": "screen_strongest_with_segmentation_stable_remote_token_support_then_choose_safe_attenuation_with_maximum_remote_reduction_and_least_attenuation_tiebreak",
+    "diagnostic_audio_scope": "window_clip_with_existing_overlap",
+    "window_acceptance": "all_touching_asr_chunks_must_pass",
+    "no_passing_level": "exact_baseline",
+    "final_asr_required_after_materialization": true
+  },
+  "development_gates": {
+    "final_local_token_retention_ratio_min": 0.99,
+    "opening_token_retention_ratio_min": 1.0,
+    "remote_like_seconds_increase_max": 0.0,
+    "remote_like_seconds_reduction_min": 1.0,
+    "remote_supported_token_reduction_min": 3,
+    "reviewed_me_token_regressions_max": 0,
+    "reviewed_me_regression_action": "rollback_entire_changed_asr_chunk_to_bit_exact_baseline",
+    "non_finite_samples_max": 0,
+    "clipped_sample_ratio_max": 0.0001
+  },
+  "hard_test_gates": {
+    "attempts_allowed": 1,
+    "controlled_split": "hard_test",
+    "controlled_measured_double_talk_seconds_min": 68.0,
+    "controlled_remote_proposed_windows_min": 1,
+    "controlled_protected_proposed_windows_max": 0,
+    "known_local_audio_retention_ratio_min": 1.0,
+    "known_opening_audio_retention_ratio_min": 1.0,
+    "known_double_talk_audio_retention_ratio_min": 1.0,
+    "remote_unique_token_growth_max": 0,
+    "chronology_regressions_max": 0,
+    "ordinary_sessions": [
+      "2026-07-22_14-02-55-live",
+      "2026-07-27_15-15-05"
+    ],
+    "ordinary_sessions_evaluated_min": 2,
+    "ordinary_candidate_sessions_min": 1,
+    "ordinary_aggregate_remote_supported_reduction_sec_min": 5.0,
+    "ordinary_aggregate_remote_supported_token_reduction_min": 3,
+    "ordinary_local_token_regressions_max": 0,
+    "ordinary_reviewed_me_token_regressions_max": 0,
+    "ordinary_opening_token_regressions_max": 0,
+    "exact_fallback_required": true,
+    "candidate_audio_is_primary_whisper_input": true
+  },
+  "promotion": {
+    "ordinary_meeting_local_recall_regressions_max": 0,
+    "ordinary_meeting_order_regressions_max": 0,
+    "aggregate_remote_supported_reduction_sec_min": 5.0,
+    "aggregate_remote_supported_reduction_ratio_min": 0.01,
+    "aggregate_remote_supported_token_reduction_min": 6,
+    "sessions_with_remote_supported_reduction_min": 2,
+    "notes_missing_evidence_items_max": 0,
+    "guarded_export_regressions_max": 0,
+    "decision_pass": "PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2",
+    "decision_fail": "DO_NOT_PROMOTE"
+  }
+}

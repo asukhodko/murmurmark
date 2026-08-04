@@ -2282,6 +2282,48 @@ scripts/transcribe-simple-whispercpp.py "$SESSION" \
   --force
 ```
 
+## Guarded Pre-ASR Echo Selection
+
+The normal `murmurmark process` path automatically runs Speaker-Preserving Neural Echo v2 after
+building and transcribing the exact `local_fir_role_masked` baseline. Do not copy candidate WAVs or
+profile-specific transcripts by hand.
+
+```bash
+SESSION="sessions/<session-id>"
+
+murmurmark process "$SESSION"
+
+jq '{status, reason, selected_profile, exact_fallback,
+     post_asr_cleanup_promotion_credit,
+     applicability: .selector.applicability.classification,
+     metrics: .selector.source_runtime.metrics}' \
+  "$SESSION/derived/preprocess/speaker-preserving-neural-echo-v2/production_selection_report.json"
+```
+
+Expected outcomes:
+
+- `candidate`: the personalized clean mic and its direct `shadow_v2` whisper.cpp result passed all
+  session gates and were published transactionally;
+- `fallback`: exact FIR audio remains selected, with an explicit reason;
+- headphones or low-leak sessions should normally be fallback, not forced candidates.
+
+Check the local prerequisites and frozen promotion evidence:
+
+```bash
+murmurmark doctor
+
+.venv/bin/python scripts/apply-speaker-preserving-neural-echo-v2.py \
+  "$SESSION" --verify-only
+```
+
+The optional personalized path requires local WavLM/transformers support, Controlled Echo
+Supervision enrollment and matching local v2.16 hard/corpus reports. Their absence is safe: normal
+transcription continues on exact `local_fir_role_masked`.
+
+Repeated processing is supported. The pipeline restores the exact baseline before primary ASR and
+then either republishes the same compatible candidate or keeps fallback. `publication_transaction.json`
+records snapshots and recovers an interrupted publication on the next run.
+
 ## Known Limitations
 
 - The transcript is a draft.
@@ -2291,3 +2333,5 @@ scripts/transcribe-simple-whispercpp.py "$SESSION" \
 - Track roles are only first-level roles. `Colleagues` is not diarized into individual people.
 - The bridge can pass a compact domain prompt to `whisper.cpp`, but it still does not perform
   glossary-based post-correction or semantic correction.
+- The personalized Echo profile can add bounded/full-shadow ASR work on applicable speaker sessions;
+  first-run processing may therefore be slower than exact fallback.

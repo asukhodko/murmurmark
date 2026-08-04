@@ -1,0 +1,47 @@
+{
+  "schema": "murmurmark.speaker_preserving_neural_echo_corpus_set/v2.12",
+  "status": "frozen_before_v2_12_implementation",
+  "frozen_at": "2026-08-04T07:22:47+03:00",
+  "purpose": "corpus-wide promotion gate after the immutable v2.12 hard test",
+  "selection_rule": "all eligible v2.11 hard and corpus sessions plus two additional ordinary speaker-playback regression sessions; disjoint from the v2.12 hard set",
+  "training_use": "forbidden",
+  "threshold_tuning_use": "forbidden",
+  "sessions": [
+    {
+      "id": "2026-08-03_16-04-41",
+      "expected_mode": "speaker_playback"
+    },
+    {
+      "id": "2026-08-03_16-34-32",
+      "expected_mode": "speaker_playback"
+    },
+    {
+      "id": "2026-07-16_11-15-15-live",
+      "expected_mode": "headphones_or_low_leak"
+    },
+    {
+      "id": "2026-07-30_11-16-54",
+      "expected_mode": "speaker_playback"
+    },
+    {
+      "id": "2026-07-30_14-01-49",
+      "expected_mode": "speaker_playback"
+    },
+    {
+      "id": "2026-07-31_16-32-30",
+      "expected_mode": "speaker_playback"
+    },
+    {
+      "id": "2026-06-30_11-15-56",
+      "expected_mode": "headphones_or_low_leak"
+    },
+    {
+      "id": "2026-07-31_15-15-56",
+      "expected_mode": "speaker_playback"
+    },
+    {
+      "id": "2026-07-31_16-02-38",
+      "expected_mode": "speaker_playback"
+    }
+  ]
+}

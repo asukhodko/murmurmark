@@ -1593,7 +1593,11 @@ def copy_remote_asr_cache(session: Path, stage: Path) -> str | None:
             shutil.copy2(path, destination / path.name)
     chunks = source / "chunks/remote"
     if chunks.exists():
-        safe_link(chunks, destination / "chunks/remote")
+        source_report = chunks / "chunk_cache_report.json"
+        if source_report.is_file():
+            destination_chunks = destination / "chunks/remote"
+            destination_chunks.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source_report, destination_chunks / source_report.name)
     metadata = read_json(source / "remote.meta.json")
     prompt = metadata.get("prompt")
     if not isinstance(prompt, str) or not prompt.strip():
@@ -1633,17 +1637,27 @@ def evidence_ids_valid(stage: Path) -> bool:
     valid_ids = {str(row.get("id")) for row in utterances}
     referenced: set[str] = set()
 
+    def is_utterance_reference(key: str) -> bool:
+        normalized = key.lower()
+        return "utterance" in normalized and (
+            normalized.endswith("_id")
+            or normalized.endswith("_ids")
+            or "reference" in normalized
+        )
+
     def visit(value: Any, parent_key: str = "") -> None:
         if isinstance(value, dict):
             for key, item in value.items():
                 visit(item, str(key))
         elif isinstance(value, list):
-            if "utterance" in parent_key and all(not isinstance(item, (dict, list)) for item in value):
+            if is_utterance_reference(parent_key) and all(
+                not isinstance(item, (dict, list)) for item in value
+            ):
                 referenced.update(str(item) for item in value)
             else:
                 for item in value:
                     visit(item, parent_key)
-        elif "utterance" in parent_key and value is not None:
+        elif is_utterance_reference(parent_key) and value is not None:
             referenced.add(str(value))
 
     visit(selected)
@@ -1706,6 +1720,7 @@ def full_shadow_stage(
     stage_echo = stage / "derived/preprocess/echo"
     stage_audio.mkdir(parents=True, exist_ok=True)
     stage_echo.mkdir(parents=True, exist_ok=True)
+    safe_link(candidate_audio, stage_audio / "mic_for_asr.wav")
     safe_link(candidate_audio, stage_audio / "mic_role_masked_for_asr.wav")
     safe_link(candidate_audio, stage_audio / "mic_clean_local_fir.wav")
     safe_link(output_root / "canonical/mic.wav", stage_audio / "mic_raw_for_asr.wav")

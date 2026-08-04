@@ -2,7 +2,9 @@
 
 Echo Guard is the MurmurMark subsystem for handling remote audio that leaks into the microphone track.
 
-The goal is not to make the raw microphone recording "clean". The goal is to keep role attribution and ASR input safe when `mic` contains a quieter, delayed, room-colored copy of `remote`.
+The goal is to keep role attribution and ASR input safe when `mic` contains a quieter, delayed,
+room-colored copy of `remote`, while preserving genuine local speech. Waveform cleanliness is a
+proxy; direct local/remote word retention is authoritative.
 
 For speaker bleed, the v1 engineering target is offline Echo Guard over the already separated `mic` and `remote` tracks. Headphones remain the simplest user workaround, but MurmurMark should not depend on BlackHole, Loopback or other routing changes to solve the algorithmic subtraction problem.
 
@@ -70,7 +72,38 @@ session/
 
 `mic_for_asr.wav` is the selected working microphone track for ASR. It may point to a prepared raw mic file or to a clean derived file. It is not a source of truth.
 
-For the current `local_fir` engine, `mic_for_asr.wav` is copied from `mic_role_masked_for_asr.wav` only after the quality gate accepts the candidate. `mic_clean_local_fir.wav` remains the diagnostic cleaned signal, and `mic_role_preview.wav` is a listening aid that concatenates retained mic regions with short guards.
+`local_fir` always produces the exact safe baseline. On a machine with compatible personalized
+enrollment and promotion evidence, Speaker-Preserving Neural Echo v2 may replace the canonical
+`mic_for_asr.wav`, `mic_role_masked_for_asr.wav` and `derived/asr/mic.wav` with one byte-identical
+candidate after direct ASR and safety gates pass. `mic_clean_local_fir.wav` remains the diagnostic
+baseline, and every unsupported or unsafe session restores it exactly.
+
+## Current Production Selection
+
+```text
+raw mic + authoritative remote
+  -> local_fir role-aware baseline
+  -> exact fallback snapshot
+  -> baseline whisper.cpp evidence
+  -> personalized remote-window selector
+  -> direct candidate whisper.cpp shadow
+  -> per-window + whole-session gates
+  -> transactional candidate publication | exact fallback
+```
+
+The promoted selector combines controlled Target-Me enrollment, WavLM/Resemblyzer speaker
+evidence, authoritative remote tokens and bounded attenuation. It is intentionally hybrid: the
+evaluated end-to-end residual-mask, complex-spectral, echo-mapper and pinned DEC candidates removed
+echo but crossed local-word, chronology, double-talk or runtime limits.
+
+The sealed v2.16 corpus selected candidate audio in `5/12` sessions and exact fallback in `7/12`,
+removing `41.940s` and `90` remote-supported tokens with local-token retention `1.0`. Headphones,
+missing private evidence, stale hashes, no useful leakage and any safety regression select exact
+`local_fir_role_masked`. Post-ASR duplicate deletion contributes zero promotion credit.
+
+Publication is recoverable. Fresh preprocessing invalidates stale baseline snapshots; a repeated
+ASR run restores the exact baseline before comparison; interrupted publication rolls back on the
+next run. See the [frozen result](../research/2026-08-04-speaker-preserving-neural-echo-v2.md).
 
 ## CLI Modes and Profiles
 
@@ -85,7 +118,7 @@ For the current `local_fir` engine, `mic_for_asr.wav` is copied from `mic_role_m
 - `role_safe`: hard-mute only high-confidence `remote_only` regions.
 - `strict_silence`: hard-mute every remote-active mic region; this can delete local overlap speech.
 
-Default for the next useful pipeline pass:
+Baseline preprocessing contract:
 
 ```yaml
 echo_mode: clean
@@ -303,7 +336,8 @@ This policy intentionally keeps ambiguous remote-active regions as mildly cleane
 
 ## Complete Echo Removal Research
 
-Status: research and experiment plan, not a default engine.
+Status: research history. A guarded personalized hybrid is now promoted; broader universal echo
+removal remains research.
 
 The current `local_fir` engine is a preserve-local compromise: it reduces remote leakage, but it is not expected to remove every recognizable remote word from `mic`. Real sessions show that remaining remote residue creates review burden and role-attribution risk.
 
@@ -321,7 +355,8 @@ Promising directions:
 - target-speaker extraction for `Me` from local-only enrollment islands;
 - token-level remote-forbidden transcript construction as the final safety net.
 
-None of these should replace `local_fir` by default until corpus gates show lower remote-token leakage without worse local-word recall.
+No new candidate may replace the promoted selector or its exact fallback until corpus gates show
+lower remote-token leakage without worse local-word recall.
 
 ## Offline AEC v2 Shadow Lab
 
@@ -985,21 +1020,22 @@ excluded.
 - missing faster-whisper or Target-Me fails closed;
 - private voice, prompt evidence and audio remain ignored under `sessions/`.
 
-The current production profile remains `local_fir_role_masked` regardless of the lab result.
+The lab result alone did not alter production. The separate v2.16 hard/corpus decision later
+promoted the personalized selector while retaining `local_fir_role_masked` as exact fallback.
 
 The frozen result is `READY_FOR_ADAPTATION`. Five train, one dev and one controlled hard-test
 speaker-mode capture passed all corpus gates. Replay matches `1465/1465`; train contains `620s`
 local-only, `640s` remote-only and `1804s` synthetic mixtures, dev contains `124s`, `128s` and
 `352s`, and hard-test contains `68s` measured double-talk. This decision unblocks
-Speaker-Preserving Neural Echo v2 but does not promote an audio profile by itself.
+Speaker-Preserving Neural Echo v2; the later v2.16 decision performs the actual guarded promotion.
 
 ### Audio-First Promotion Invariant
 
-The v2 candidate must materialize the mic audio consumed by the primary ASR. Evaluation compares
-that audio and its direct ASR output with `local_fir`; post-ASR role filtering and duplicate cleanup
-are disabled for the suppression comparison. Those later layers remain safety guards, but their
-edits cannot count as Echo reduction. A rejected candidate leaves production unchanged and feeds
-the next train/dev hypothesis; the product goal ends only after corpus-wide guarded promotion.
+The promoted v2 candidate materializes the mic audio consumed by its selected whisper.cpp run.
+Evaluation compares that audio and direct ASR output with `local_fir`; post-ASR role filtering and
+duplicate cleanup are disabled for suppression credit. Later layers remain safety guards. Rejected
+or inapplicable sessions preserve the exact baseline. Corpus-wide promotion is fingerprinted and
+personalized; a clean checkout without private enrollment cannot accidentally enable it.
 
 ## References
 

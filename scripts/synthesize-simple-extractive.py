@@ -850,11 +850,52 @@ def frozen_boundary_inputs_match(baseline: dict[str, Any] | None, session: Path)
     )
 
 
+def promoted_echo_fallback_matches(value: dict[str, Any]) -> bool:
+    path = Path(str(value.get("path") or ""))
+    if path.name != "mic_role_masked_for_asr.wav" or len(path.parents) < 4:
+        return False
+    session = path.parents[3]
+    canonical = session / "derived/preprocess/audio/mic_role_masked_for_asr.wav"
+    if path.resolve() != canonical.resolve():
+        return False
+    output = session / "derived/preprocess/speaker-preserving-neural-echo-v2"
+    report, report_error = read_json(output / "production_selection_report.json")
+    transaction, transaction_error = read_json(output / "publication_transaction.json")
+    if report_error is not None or transaction_error is not None:
+        return False
+    if not isinstance(report, dict) or not isinstance(transaction, dict):
+        return False
+    checks = report.get("policy_checks")
+    published = transaction.get("published")
+    key = "derived/preprocess/audio/mic_role_masked_for_asr.wav"
+    published_role = published.get(key) if isinstance(published, dict) else None
+    fallback = output / "baseline-local-fir-role-masked" / key
+    return bool(
+        report.get("status") == "candidate"
+        and report.get("selected_profile") == "speaker_preserving_neural_echo_v2"
+        and isinstance(checks, dict)
+        and checks
+        and all(item is True for item in checks.values())
+        and transaction.get("state") == "committed"
+        and isinstance(published_role, dict)
+        and canonical.is_file()
+        and sha256_file(canonical) == published_role.get("sha256")
+        and fallback.is_file()
+        and sha256_file(fallback) == value.get("sha256")
+        and (
+            value.get("size") is None
+            or fallback.stat().st_size == value.get("size")
+        )
+    )
+
+
 def frozen_artifact_tree_matches(value: Any) -> bool:
     if isinstance(value, dict):
         if value.get("sha256"):
             path = Path(str(value.get("path") or ""))
-            return path.is_file() and sha256_file(path) == value.get("sha256")
+            return (
+                path.is_file() and sha256_file(path) == value.get("sha256")
+            ) or promoted_echo_fallback_matches(value)
         return all(frozen_artifact_tree_matches(child) for child in value.values())
     if isinstance(value, list):
         return all(frozen_artifact_tree_matches(child) for child in value)

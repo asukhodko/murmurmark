@@ -28,7 +28,7 @@ Working now:
 - live-ASR cache bridge exists as a diagnostic/future acceleration layer; incompatible or unsafe
   chunks fall back to batch ASR.
 
-Current operating point, 2026-07-23:
+Current operating point, 2026-08-04:
 
 - stable batch capture and processing produce a transcript, verdict, evidence notes, review plan,
   guarded export and retention plan;
@@ -60,15 +60,18 @@ Current operating point, 2026-07-23:
 - Controlled Echo Supervision Lab v1 completed with `READY_FOR_ADAPTATION`: five train, one dev and
   one hard-test capture passed, replay matches `1465/1465`, and the frozen corpus contains `1804s`
   train plus `352s` dev synthetic mixtures and `68s` hard-test double-talk;
-- the current goal is Speaker-Preserving Neural Echo v2: produce and safely promote a clean mic
-  track before ASR, with materially lower remote leakage and no loss of genuine `Me`;
+- Speaker-Preserving Neural Echo v2 completed with guarded `PROMOTE`: candidate audio was selected
+  for `5/12` sealed corpus sessions, removed `41.940s` and `90` remote-supported tokens, retained
+  local tokens at `1.0`, and used exact fallback for the other `7/12`;
+- the current goal is Evidence Notes And Export v2: bind the selected transcript, verdict, review
+  evidence, notes and export readiness into one fingerprinted deterministic handoff;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 
-Dependent product work is Evidence Notes And Export v2 and then release-quality CLI.
-Speaker-Preserving Neural Echo v2 is unblocked by the controlled corpus, but production remains on
-`local_fir_role_masked` unless every preservation, echo, chronology and runtime gate passes.
-Post-ASR duplicate cleanup is not promotion evidence. Remote diarization, speaker mapping and
+Dependent product work is release-quality CLI after Evidence Notes And Export v2.
+The personalized Echo selector activates only with compatible local enrollment and promotion
+evidence; every unsupported acoustic mode or regression uses exact `local_fir_role_masked`.
+Post-ASR duplicate cleanup received no promotion credit. Remote diarization, speaker mapping and
 `transcript.rich.json` form a parallel future branch after base quality closure. Heavy validators,
 LLM synthesis, reviewed external integrations and UI remain research or optional work outside the
 critical path.

@@ -1,0 +1,85 @@
+{
+  "schema": "murmurmark.speaker_preserving_neural_echo_policy/v2.2",
+  "profile": "speaker_preserving_neural_echo_v2",
+  "candidate_revision": "v2.2_physical_hypothesis_bank",
+  "status": "pre_hard_locked",
+  "source": {
+    "training_policy": "policies/speaker-preserving-neural-echo-v2.json",
+    "training_policy_sha256": "d62f8c3179d5994a0d5813686798f35b3ae3809dd504b60c784ff50143672904",
+    "previous_policy": "policies/speaker-preserving-neural-echo-v2-1.json",
+    "previous_policy_sha256": "0957c5832c5ee07c2cba13ace37e9dfb8dcc4ce02447a52fb8c16e5756e44911",
+    "previous_candidate_lock": "sessions/_reports/speaker-preserving-neural-echo-v2-1/candidate_lock.json",
+    "previous_candidate_lock_sha256": "20e444f82b70522b970b7e0e1266fad5e64463c2edf375e6ae882c3b80bc92ff",
+    "previous_hard_decision": "sessions/_reports/speaker-preserving-neural-echo-v2-1/hard_test_decision.json",
+    "previous_hard_decision_sha256": "c9e32e4384f01e555d9f5f51c65a4542d84d89006bb2419fa19fcf627047e6ea",
+    "checkpoint": "sessions/_reports/speaker-preserving-neural-echo-v2/trials/echo_mapper_h128_l1/best.pt",
+    "checkpoint_sha256": "1d51c6467b00aed6b4b7f577a021fe160139f010fc41e223a18e05390776e878",
+    "arbitration": "scripts/speaker_preserving_echo_arbitration.py",
+    "arbitration_sha256": "64085331477425e250a0b828636a4fdc8dd264545a07d7c179eaf1281a656cf6",
+    "hypothesis_bank": "scripts/speaker_preserving_echo_hypothesis_bank.py",
+    "hypothesis_bank_sha256": "c5507fe33088f4e5d374a9c5941121a085730cf9bf907246d87a598de34a3e80",
+    "hard_builder": "scripts/build-speaker-preserving-neural-echo-v2-2-hard.py",
+    "hard_builder_sha256": "d5e831e4549ab543b0d451469ff855df05d8177f5aa984868c39a304380c557f",
+    "hard_manifest": "sessions/_reports/speaker-preserving-neural-echo-v2-2-hard/hard_manifest.json",
+    "hard_manifest_sha256": "280276b7d3c3d7b4adc0b88c2a92e95d259f3a5c8f5e5e2d09ddee136b487c04",
+    "hard_cache": "sessions/_reports/speaker-preserving-neural-echo-v2-2-hard/hard_waveforms.npz",
+    "hard_cache_sha256": "f08dddafb4605d502435d511f09aef80710d018f79b31f72aa3207b376ef6c5c",
+    "hard_fingerprint": "27654fa888f8bf3685e3400b9dce1dc48d568252ce4995c09c898319a0336584",
+    "fallback": "local_fir_role_masked"
+  },
+  "hard_isolation": {
+    "source_sessions": [
+      "2026-07-21_14-27-53-live",
+      "2026-07-20_16-30-42-live"
+    ],
+    "source_sessions_used_for_training": false,
+    "source_sessions_used_for_selection": false,
+    "previous_hard_sets_reused_for_promotion": false,
+    "hard_test_attempts": 1,
+    "training_after_hard_freeze": false
+  },
+  "hypothesis_bank": {
+    "window_sec": 4.0,
+    "additional_fir_multipliers": [0.25, 0.5, 1.0, 1.75],
+    "neural_candidate": "frozen_echo_mapper_h128_l1",
+    "selection": "lowest_remote_coherence_among_improvement_only_candidates",
+    "minimum_baseline_remote_coherence": 0.05,
+    "maximum_candidate_to_baseline_remote_coherence": 0.99,
+    "maximum_energy_increase_db": 6.0,
+    "maximum_energy_reduction_db": 18.0,
+    "no_accepted_hypothesis": "exact_baseline",
+    "non_finite_or_shape_failure": "exact_baseline",
+    "local_only": "exact_baseline",
+    "uncertain": "exact_baseline",
+    "trusted_remote_only": "pre_asr_zero_gate"
+  },
+  "development_gates": {
+    "synthetic_snr_improvement_db_p50_min": 3.0,
+    "synthetic_snr_improvement_db_min": 0.0,
+    "synthetic_candidate_selection_ratio_min": 0.75,
+    "negative_exact_fallback_ratio_min": 1.0,
+    "controlled_dev_exact_fallback_required": true,
+    "cpu_realtime_factor_max": 0.10,
+    "deterministic_max_abs_error": 0.000001
+  },
+  "hard_test_gates": {
+    "known_target_snr_improvement_db_p50_min": 1.0,
+    "known_target_snr_improvement_db_min": 0.0,
+    "known_target_correlation_regressions_max": 0,
+    "direct_asr_local_token_recall_ratio_min": 0.99,
+    "direct_asr_remote_unique_token_growth_max": 0,
+    "direct_asr_chronology_regressions_max": 0,
+    "candidate_selection_ratio_min": 0.20,
+    "clipped_sample_ratio_max": 0.0001,
+    "non_finite_samples_max": 0
+  },
+  "production_contract": {
+    "candidate_audio_is_primary_whisper_input": true,
+    "post_asr_cleanup_promotion_credit": 0,
+    "raw_caf_mutation_forbidden": true,
+    "runtime_failure": "exact_local_fir_role_masked",
+    "ordinary_corpus_promotion_required": true,
+    "promotion_value": "PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2",
+    "hard_failure_value": "DO_NOT_PROMOTE"
+  }
+}

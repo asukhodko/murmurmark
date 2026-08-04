@@ -1,0 +1,48 @@
+{
+  "schema": "murmurmark.speaker_preserving_neural_echo_corpus_policy/v2.9",
+  "candidate": "speaker_preserving_neural_echo_v2_9",
+  "selector_policy": "policies/speaker-preserving-neural-echo-v2-9.json",
+  "selector_policy_sha256": "122c5507719bbfb1a7fd66c2d9872f1e11198575ebb9192dc31a24402730e413",
+  "selector_runtime": "scripts/speaker-preserving-neural-echo-v2-9.py",
+  "selector_runtime_sha256": "ad3bf43e2c50d068ff1734ae7b970663bfc481bc8d17729480aad682a703c6ef",
+  "hard_decision": "sessions/_reports/speaker-preserving-neural-echo-v2-9-hard/hard_test_decision.json",
+  "hard_decision_sha256": "e3a9e235d2f1f3a8d4ae4ec8c61470c22cc20e64aed4887269e80ec807dc8280",
+  "evaluator": "scripts/report-speaker-preserving-neural-echo-v2-9-corpus.py",
+  "evaluator_sha256": "b6605f01bff90d9834ccc2793adc1bb36ea0add6f8a381ce7c376d878b9b9a16",
+  "sessions": [
+    {
+      "id": "2026-07-28_10-07-14-live",
+      "expected_mode": "speaker_playback"
+    },
+    {
+      "id": "2026-07-28_11-14-35",
+      "expected_mode": "speaker_playback"
+    },
+    {
+      "id": "2026-07-31_17-45-13",
+      "expected_mode": "speaker_playback"
+    },
+    {
+      "id": "2026-08-03_11-15-07",
+      "expected_mode": "speaker_playback"
+    },
+    {
+      "id": "2026-07-29_11-14-41",
+      "expected_mode": "headphones_or_low_leak"
+    }
+  ],
+  "session_gates": {
+    "candidate_local_retention_ratio_min": 0.99,
+    "candidate_opening_retention_ratio_min": 1.0,
+    "candidate_reviewed_me_regressions_max": 0,
+    "selector_runtime_factor_max": 0.75
+  },
+  "promotion_gates": {
+    "candidate_sessions_min": 2,
+    "remote_reduction_sec_min": 5.0,
+    "remote_token_reduction_min": 6,
+    "positive_sessions_min": 2
+  },
+  "fallback": "local_fir_role_masked",
+  "post_asr_cleanup_promotion_credit": 0
+}

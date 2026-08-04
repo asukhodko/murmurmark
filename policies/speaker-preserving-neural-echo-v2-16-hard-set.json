@@ -1,0 +1,24 @@
+{
+  "schema": "murmurmark.speaker_preserving_neural_echo_hard_set/v2.16",
+  "status": "frozen_before_v2_16_implementation",
+  "frozen_at": "2026-08-04T14:20:27+03:00",
+  "purpose": "independent safety test for the fail-open applicability contract after the v2.15 rejection",
+  "selection_rule": "previously unused by every speaker-preserving neural echo development, hard and corpus set; two ordinary speaker-playback meetings plus one verified no-speech control",
+  "training_use": "forbidden",
+  "threshold_tuning_use": "forbidden",
+  "prior_hard_content_use": "forbidden",
+  "sessions": [
+    {
+      "id": "2026-07-14_15-01-19-live",
+      "expected_mode": "speaker_playback"
+    },
+    {
+      "id": "2026-07-16_14-01-26-live",
+      "expected_mode": "speaker_playback"
+    },
+    {
+      "id": "2026-07-20_14-00-54-live",
+      "expected_mode": "no_speech_control"
+    }
+  ]
+}
