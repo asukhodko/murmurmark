@@ -327,34 +327,36 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-target-me-identifiability-corpus-v1, corpus-regression]
-    status: current
+    status: done
     effort: 15
     notes: |
-      Обучить bounded speaker-query separator только на READY corpus. Воспроизвести v1 baseline,
-      обучать на paired correct/swap queries, выбрать ровно один candidate только по dev и
-      опубликовать immutable lock до открытия hard. После hard success проверить sealed meeting
-      corpus против byte-exact Speaker-Preserving Neural Echo v2. Завершить PROMOTE либо точным
-      DO_NOT_PROMOTE; train/dev, hard и sealed meetings не могут подстраивать друг друга.
+      Завершено DO_NOT_PROMOTE_REFERENCE_CONDITIONED_TARGET_ME_SEPARATION_V2, fingerprint
+      5b9fb8ec1cbc84340bcda4245edfd1f2113493c8f73d8e7fc25bb0a572aab26c. v1 baseline
+      воспроизведён точно. Единственный paired-query FiLM+GRU candidate детерминированно показал
+      4.991 dB correct-vs-wrong margin и 0% collapse, но достиг лишь 4.852 dB Target-Me,
+      4.107 dB non-target SNR и 8.293 dB absent-query attenuation. Immutable dev lock отклонил
+      candidate; hard и sealed corpus остались unopened, production v2 byte-exact.
 
   product-evidence-export-v2:
     title: "Evidence Notes And Export v2"
     kind: task
     parent: murmurmark-cli
     deps: [research-reference-conditioned-target-me-separation-v2]
-    status: next
+    status: current
     effort: 7
     notes: |
       Собрать один versioned deterministic handoff bundle поверх выбранного transcript profile,
       quality verdict, evidence notes, unresolved review burden и export readiness. Каждая видимая
       запись обязана ссылаться на существующие evidence IDs; stale или blocked input fail closed.
-      Markdown/Obsidian export должен стать прямым результатом lifecycle без ручного склеивания.
+      Встроить transactional build/resume в meeting/finish, сделать Markdown/Obsidian export
+      прямым результатом lifecycle и подтвердить corpus-wide referential integrity.
 
   product-release-quality-cli:
     title: "Release-quality CLI"
     kind: task
     parent: murmurmark-cli
     deps: [product-evidence-export-v2]
-    status: later
+    status: next
     effort: 7
     notes: |
       Зафиксировать supported environment, installation, model/config handling, end-to-end acceptance,
@@ -560,8 +562,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Reference-Conditioned Target-Me Separation v2: обучить bounded speaker-query separator только на READY Target-Me Identifiability Corpus v1, выбрать candidate на dev, открыть hard только после immutable lock и проверить sealed meeting corpus; завершить PROMOTE либо точным DO_NOT_PROMOTE без ослабления Speaker-Preserving Neural Echo v2."
-      success_by_next_sync: "Воспроизведён v1 baseline, зафиксированы train/dev policy и paired speaker-query метрики; ровно один dev-selected candidate либо immutably locked для hard evaluation, либо гипотеза остановлена точным DO_NOT_PROMOTE без изменения production."
+      nearest_goal: "Evidence Notes And Export v2: собрать один versioned deterministic handoff bundle из выбранного transcript profile, quality verdict, unresolved review burden и evidence-backed notes; сделать guarded Markdown/Obsidian export прямым результатом lifecycle, запретить stale evidence и unsupported claims, завершить документацией, corpus regression и release-ready CLI contract."
+      success_by_next_sync: "Для каждой завершённой сессии существует один fingerprinted handoff со согласованными transcript, verdict, review burden и evidence IDs; finish и guarded export используют его транзакционно и fail closed на stale или unresolved inputs."
     defaults:
       status_progress:
         done: 1.0
@@ -582,13 +584,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle, batch transcript, review, notes/export и Live Shadow уже работают."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Текущая speaker-query audio цель"
-        scope_nodes: [research-reference-conditioned-target-me-separation-v2]
+        title: "Текущий product handoff"
+        scope_nodes: [product-evidence-export-v2]
         kind: main
         mgmt:
           health: green
-          sync_note: "Target-Me Identifiability Corpus v1 закрыт READY; speaker attribution теперь проверяется paired correct/swap queries без изменения mixture."
-          next_sync_goal: "Выбрать один candidate только по dev и опубликовать immutable lock до первого чтения hard targets."
+          sync_note: "Reference-Conditioned v2 завершён DO_NOT_PROMOTE без открытия hard; production audio остаётся Speaker-Preserving Neural Echo v2."
+          next_sync_goal: "Собрать один deterministic evidence-backed handoff и сделать его единственным входом guarded export."
       dependent-path:
         title: "Зависимый путь"
         scope_nodes:
@@ -608,8 +610,8 @@ x:
         kind: main
         mgmt:
           health: neutral
-          sync_note: "После bounded separator decision критический путь возвращается к evidence/export handoff и release-quality CLI."
-          next_sync_goal: "Не менять production profile до hard и sealed-corpus gates; отрицательный результат должен быть точным и воспроизводимым."
+          sync_note: "Audio decision закрыт; критический путь вернулся к evidence/export handoff и release-quality CLI."
+          next_sync_goal: "Не добавлять новые profile-specific user steps; meeting/finish должны сходиться к одному handoff."
       research:
         title: "Параллельные исследования"
         scope_nodes: [parallel-research]

@@ -1,6 +1,6 @@
 # MurmurMark CLI Roadmap
 
-Updated: 2026-08-04
+Updated: 2026-08-05
 
 This is the readable view of the active OpsKarta v3 plan:
 
@@ -53,10 +53,11 @@ remain, while rebuildable media below `derived/` can be removed through
 
 ## Current Goal
 
-**Reference-Conditioned Target-Me Separation v2** is the current goal. It trains the smallest
-speaker-query separator on paired correct/wrong enrollment rows, selects one candidate using only
-`dev`, locks it before opening `hard`, and only then checks the sealed meeting corpus. Production
-audio remains Speaker-Preserving Neural Echo v2 until every promotion gate passes.
+**Evidence Notes And Export v2** is the current goal. It must bind the selected transcript profile,
+quality verdict, unresolved review burden, evidence-backed notes and export readiness into one
+versioned, byte-stable handoff. Every visible claim must resolve to existing evidence IDs; stale or
+blocked input fails closed. `meeting` and `finish` should publish one coherent Markdown/Obsidian
+bundle or one precise blocker and next command.
 
 The prerequisite **Target-Me Identifiability Corpus v1** is complete with
 `READY_FOR_TARGET_CONDITIONED_TRAINING`, fingerprint
@@ -77,6 +78,13 @@ The intervening **Reference-Conditioned Target-Me Separation v1** completed with
 reached `11.470/12 dB` Target-Me and `7.788/8 dB` echo SNR. The frozen train split also had one
 fixed enrollment and zero independently labelled non-target local-speech rows. Hard-test and sealed
 corpus access remained denied; no production profile changed.
+
+**Reference-Conditioned Target-Me Separation v2** also completed with reproducible
+`DO_NOT_PROMOTE`. The paired-query model proved that the new corpus carries speaker identity:
+correct enrollment beat wrong enrollment by `4.991 dB` with `0%` query collapse. The small
+scratch-trained separator still reached only `4.852/12 dB` Target-Me SNR, `4.107/12 dB` non-target
+SNR and `8.293/15 dB` absent-query attenuation. The immutable dev lock therefore denied hard and
+sealed access; Speaker-Preserving Neural Echo v2 remains production.
 
 **One-Command Meeting Lifecycle v1** is complete. `murmurmark meeting` owns durable capture,
 authoritative processing, evidence enrichment, conservative review and guarded export. It uses
@@ -101,9 +109,9 @@ flowchart LR
     E["Done: PROMOTE<br/>Speaker-Preserving<br/>Neural Echo v2"]
     X["Done: DO_NOT_PROMOTE<br/>Reference-Conditioned<br/>Target-Me Separation v1"]
     I["Done: READY<br/>Target-Me Identifiability<br/>Corpus v1"]
-    V["Current<br/>Reference-Conditioned<br/>Target-Me Separation v2"]
-    H["Next<br/>Evidence Notes And Export v2"]
-    D["Later<br/>Release-quality CLI"]
+    V["Done: DO_NOT_PROMOTE<br/>Reference-Conditioned<br/>Target-Me Separation v2"]
+    H["Current<br/>Evidence Notes And Export v2"]
+    D["Next<br/>Release-quality CLI"]
 
     P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D
 ```
@@ -190,15 +198,15 @@ verification pass. No model was trained and production remained byte-exact.
 
 ### 10. Reference-Conditioned Target-Me Separation v2
 
-Current. Reproduce the v1 baseline, then train only on paired `train` queries. Select one candidate
-using `dev` speaker attribution, Target-Me, echo, remix and safety gates. Publish an immutable
-candidate lock before reading hard targets. Open the sealed ordinary-meeting corpus only after hard
-success. Finish with a fingerprinted `PROMOTE` or exact `DO_NOT_PROMOTE`; neither hard nor sealed
-meetings may tune weights or thresholds.
+Completed with fingerprinted `DO_NOT_PROMOTE`. The v1 baseline replayed exactly. One frozen
+FiLM+GRU paired-query candidate was trained three times with identical checkpoint, model-state and
+report fingerprints. It learned query adherence (`4.991 dB` correct-vs-wrong margin, `0%`
+collapse), but missed Target-Me, non-target and absent-query dev gates. Hard-test and sealed meeting
+targets remained unopened, and production audio stayed byte-exact.
 
 ### 11. Evidence Notes And Export v2
 
-Next. Define one versioned, byte-stable handoff contract over the selected transcript profile,
+Current. Define one versioned, byte-stable handoff contract over the selected transcript profile,
 quality verdict, evidence notes, unresolved review burden and export readiness. Every visible claim
 must cite valid evidence IDs; stale or blocked input must fail closed. The normal lifecycle should
 publish one coherent Markdown/Obsidian bundle or one precise blocker and next command.
@@ -228,10 +236,10 @@ flowchart LR
     Q -.-> V
 ```
 
-Speaker-Preserving Neural Echo v2 remains production. Reference-Conditioned Target-Me Separation v1
-is complete with `DO_NOT_PROMOTE`, and Target-Me Identifiability Corpus v1 closed its missing-data
-prerequisite with `READY`. Reference-Conditioned v2 is now executable; Evidence Notes And Export v2
-follows its bounded decision.
+Speaker-Preserving Neural Echo v2 remains production. Both Reference-Conditioned Target-Me
+Separation experiments are complete with `DO_NOT_PROMOTE`; v2 showed that paired enrollment is
+identifiable but the small scratch-trained separator is below the waveform-quality ceiling.
+Evidence Notes And Export v2 is now the current product goal.
 
 Remote diarization works on authoritative `remote` and does not require complete Echo suppression.
 It starts after base quality closure, first produces anonymous stable speaker IDs, then an

@@ -69,13 +69,16 @@ Current operating point, 2026-08-04:
 - Target-Me Identifiability Corpus v1 completed with `READY_FOR_TARGET_CONDITIONED_TRAINING`:
   `4/2/2` split-disjoint non-target speakers, `1200/300/300s` full mixtures, `490` items and
   `980` paired correct/wrong queries passed contamination, exact replay and publication gates;
-- the current goal is Reference-Conditioned Target-Me Separation v2: train only on the READY
-  corpus, select one candidate on dev, lock it before hard and preserve production v2 until every
-  hard and sealed-meeting gate passes;
+- Reference-Conditioned Target-Me Separation v2 completed with `DO_NOT_PROMOTE`: its frozen
+  paired-query candidate learned a `4.991 dB` correct-vs-wrong margin with `0%` collapse, but missed
+  Target-Me, non-target and absent-query dev gates; hard and sealed data remained unopened and
+  production v2 stayed byte-exact;
+- the current goal is Evidence Notes And Export v2: publish one versioned handoff over selected
+  transcript, verdict, unresolved review burden, evidence notes and guarded export readiness;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 
-Dependent product work is Evidence Notes And Export v2, followed by release-quality CLI.
+Release-quality CLI follows Evidence Notes And Export v2.
 The personalized Echo selector activates only with compatible local enrollment and promotion
 evidence; every unsupported acoustic mode or regression uses exact `local_fir_role_masked`.
 Any later separator remains isolated until a corpus-wide decision and cannot use exact remix or

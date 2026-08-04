@@ -1,7 +1,67 @@
 # Reference-Conditioned Target-Me Separation Contract
 
-This contract defines the isolated pre-ASR experiment that follows the promoted
-`speaker_preserving_neural_echo_v2` baseline. It does not change production selection by itself.
+This contract defines isolated pre-ASR experiments that follow the promoted
+`speaker_preserving_neural_echo_v2` baseline. They do not change production selection by
+themselves.
+
+## v2 Speaker-Query Contract
+
+Reference-Conditioned Target-Me Separation v2 is bound to
+`policies/reference-conditioned-target-me-separation-v2.json` and Target-Me Identifiability Corpus
+v1 publication
+`530cb0fd23503884d438bc24be10fff45610da1fb8fe710aad1b6b6cd992b2ce`.
+
+Its access ladder is strict:
+
+```text
+preflight
+  -> reproduce frozen v1
+  -> train on train
+  -> select once on dev
+  -> immutable candidate lock
+  -> hard once, only if authorized
+  -> sealed meetings, only after hard pass
+  -> PROMOTE | DO_NOT_PROMOTE
+```
+
+The query manifest supplies two rows over identical mixture bytes. A `target_me` enrollment must
+recover the Target-Me stem; the paired `other_local_speech` enrollment must recover the known
+non-target speaker. Both absent-speaker controls and wrong-query quality margins are mandatory.
+
+The audio contract is:
+
+```text
+mixture = query_target + remote_echo + other_local
+```
+
+`remote_echo` is separately accounted input evidence. The model predicts only the query-selected
+local stem; every unexplained sample is assigned to `other_local`. Reconstruction error must remain
+at most `1e-5`, but reconstruction alone gives no speaker-attribution credit.
+
+Outputs use schemas:
+
+- `murmurmark.reference_conditioned_target_me_preflight/v2`;
+- `murmurmark.reference_conditioned_target_me_v1_replay/v2`;
+- `murmurmark.reference_conditioned_target_me_cache/v2`;
+- `murmurmark.reference_conditioned_target_me_train_dev/v2`;
+- `murmurmark.reference_conditioned_target_me_candidate_lock/v2`;
+- `murmurmark.reference_conditioned_target_me_determinism/v2`;
+- `murmurmark.reference_conditioned_target_me_hard_test/v2`;
+- `murmurmark.reference_conditioned_target_me_sealed_corpus/v2`;
+- `murmurmark.reference_conditioned_target_me_decision/v2`.
+
+A rejected candidate lock has `hard_test_access_authorized=false`. Missing or changed corpus,
+checkpoint, policy, enrollment or production evidence fails open to byte-exact
+Speaker-Preserving Neural Echo v2. Hard and sealed data cannot tune weights or thresholds.
+
+The frozen v2 result is
+`DO_NOT_PROMOTE_REFERENCE_CONDITIONED_TARGET_ME_SEPARATION_V2`, fingerprint
+`5b9fb8ec1cbc84340bcda4245edfd1f2113493c8f73d8e7fc25bb0a572aab26c`. The model proved query
+adherence (`4.990806 dB` paired margin, zero collapse) but reached only `4.852357 dB` Target-Me and
+`4.106966 dB` non-target SNR. It was rejected on dev; hard and sealed meeting audio remained
+unopened.
+
+## v1 Historical Contract
 
 ## Inputs
 

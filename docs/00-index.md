@@ -49,11 +49,13 @@ Read in this order:
 45. [Target-Me Identifiability Corpus v1 result](research/2026-08-04-target-me-identifiability-corpus-v1.md)
 46. [Target-Me Identifiability Corpus contract](contracts/target-me-identifiability-corpus.md)
 47. [Target-Me Identifiability Corpus runbook](runbooks/target-me-identifiability-corpus.md)
-48. [Planning and development history](history/README.md)
+48. [Reference-Conditioned Target-Me Separation v2 result](research/2026-08-05-reference-conditioned-target-me-separation-v2.md)
+49. [Reference-Conditioned Target-Me Separation runbook](runbooks/reference-conditioned-target-me-separation.md)
+50. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
-Planning snapshot: 2026-08-04. Speaker-Preserving Neural Echo v2 completed with guarded
+Planning snapshot: 2026-08-05. Speaker-Preserving Neural Echo v2 completed with guarded
 `PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2`: the sealed corpus selected candidate audio in `5/12`
 sessions, exact fallback in `7/12`, removed `41.940s` and `90` remote-supported tokens, and retained
 all candidate local tokens. Reference-Conditioned Target-Me Separation v1 then completed with
@@ -61,8 +63,10 @@ all candidate local tokens. Reference-Conditioned Target-Me Separation v1 then c
 the corpus had no labelled non-target local speech. Target-Me Identifiability Corpus v1 then
 completed with `READY_FOR_TARGET_CONDITIONED_TRAINING`: `4/2/2` split-disjoint non-target speakers,
 `1200/300/300s` full mixtures, `980` paired query controls, zero contamination and replay
-`2470/2470`. Reference-Conditioned Target-Me Separation v2 is now the executable shadow-only goal;
-Speaker-Preserving Neural Echo v2 remains production.
+`2470/2470`. Reference-Conditioned Target-Me Separation v2 then learned speaker-query adherence but
+missed three immutable dev quality gates and completed with `DO_NOT_PROMOTE`; hard and sealed data
+remained unopened. Speaker-Preserving Neural Echo v2 remains production. The current goal is
+Evidence Notes And Export v2.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

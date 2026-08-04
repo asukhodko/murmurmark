@@ -1,0 +1,154 @@
+{
+  "schema": "murmurmark.reference_conditioned_target_me_separation_policy/v2",
+  "profile": "reference_conditioned_target_me_separation_v2",
+  "status": "train_dev_locked",
+  "production_baseline": {
+    "profile": "speaker_preserving_neural_echo_v2",
+    "policy": "policies/speaker-preserving-neural-echo-production-v2.json",
+    "policy_sha256": "68f9abab1197035c76a936b97cca6fba05d3992e7a0ccce82de4d8ec0959a425",
+    "decision": "PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2",
+    "corpus_fingerprint": "a70e9bd3a0d1834a8c016a80c75d55f550da022b0fcf60ae32ca29cefe55b9de",
+    "fallback": "byte_exact_speaker_preserving_neural_echo_v2"
+  },
+  "identifiability_corpus": {
+    "decision": "READY_FOR_TARGET_CONDITIONED_TRAINING",
+    "fingerprint": "530cb0fd23503884d438bc24be10fff45610da1fb8fe710aad1b6b6cd992b2ce",
+    "current": "sessions/_reports/target-me-identifiability-corpus-v1/current.json",
+    "current_sha256": "634cafc2cba6dc0df2814f010de2628fc89f163e19fd4ceb740a29698e10088d",
+    "root": "sessions/_reports/target-me-identifiability-corpus-v1/published/530cb0fd23503884d438bc24be10fff45610da1fb8fe710aad1b6b6cd992b2ce",
+    "files": {
+      "publication_manifest.json": "0a27067fcd63314ec6fba901bb4808477a2e0f85757bd8dd7beb61b94f0063e6",
+      "corpus_decision.json": "1acf3d710131ecc8b68044248c7b7b0ff509dcd69a1f2c3e5e27fc22aa854803",
+      "item_manifest.jsonl": "0db427db488bf48117084997a540775ce53376b7426e3ae4ce6dfffef0dae8a0",
+      "query_manifest.jsonl": "cf0446a55cddc770dd790eee7d9d36d53d25e9ce2453c4053dcd03c385a69fa3",
+      "enrollment_manifest.jsonl": "468e4df836645e7970a9b31439ab9ef7dad5168b2d5d072c6b8ebbc3add6d447",
+      "split_manifest.json": "280b49e74fe2abaac8b78442fb60f713681e8e0245b214738f3660d37113deb2",
+      "replay_report.json": "2c8d56f21b6b09bf4dedfb2a7a33be9bd2e1a636cc2cf87bab35d74a81094c82"
+    },
+    "split_counts": {
+      "train": {"items": 320, "queries": 640, "non_target_speakers": 4},
+      "dev": {"items": 85, "queries": 170, "non_target_speakers": 2},
+      "hard": {"items": 85, "queries": 170, "non_target_speakers": 2}
+    }
+  },
+  "v1_baseline": {
+    "policy": "policies/reference-conditioned-target-me-separation-v1.json",
+    "policy_sha256": "9e345fc023ae11c7e0bff7075f25f9e6a8b7dde95b2c1c2730e4353aed5e3d20",
+    "decision_report": "sessions/_reports/reference-conditioned-target-me-separation-v1/decision.json",
+    "decision_report_sha256": "28493427d2e8114a31f2b35682b11fbad1d1bbe5eba95a66d8d19d8055a20ef1",
+    "decision": "DO_NOT_PROMOTE_REFERENCE_CONDITIONED_TARGET_ME_SEPARATION_V1",
+    "fingerprint": "e3c925f005f0e85e7dc22e555e2a25701a1b297372babcc3551339da861324a3",
+    "train_dev_report": "sessions/_reports/reference-conditioned-target-me-separation-v1/train-dev-attempt-02/train_dev_report.json",
+    "train_dev_report_sha256": "417e34b37b9a167164657fc24f1f8903f2aea633414afc8770a9b0fc6042cf45",
+    "checkpoint": "sessions/_reports/reference-conditioned-target-me-separation-v1/train-dev-attempt-02/separator.pt",
+    "checkpoint_sha256": "9027ab9c91e8902ce4c882327e9cb225ad332a6e6ccf9cacad60988292e1dc5c",
+    "target_snr_db_median": 11.469766,
+    "target_improvement_db_median": 5.133877,
+    "echo_snr_db_median": 7.788047,
+    "metric_tolerance": 0.000001
+  },
+  "models": {
+    "target_me_encoder": {
+      "model_id": "microsoft/wavlm-base-plus-sv",
+      "local_path": "~/.local/share/murmurmark/models/target-me/wavlm-base-plus-sv",
+      "files": {
+        "README.md": "97f5513cde351b3adb4e182b60ec23154dadba7ca83e667ceace237177855b8e",
+        "config.json": "c6ac8c0ce55b18d4612677931036fe5ce78093e87361c552a173f00a0bb07514",
+        "preprocessor_config.json": "99272fe8ccfab114b68b478681ea47ee3a1ce62bb788cb92dd6e4f69fb1f1da2",
+        "pytorch_model.bin": "e906bce2fa42fb497a1d1a9ecf81548adb7e03b12a5644e32d2f42f0d6500fad"
+      },
+      "network_access": "forbidden"
+    }
+  },
+  "data_isolation": {
+    "training_split": "train",
+    "selection_split": "dev",
+    "hard_split": "hard",
+    "hard_audio_access_before_candidate_lock": false,
+    "sealed_access_before_hard_pass": false,
+    "ordinary_meeting_training": false,
+    "threshold_tuning_on_hard_or_sealed": false,
+    "paired_query_required": true
+  },
+  "audio_contract": {
+    "sample_rate": 16000,
+    "channels": 1,
+    "clip_samples": 64000,
+    "input": "mixture_plus_accounted_remote_echo",
+    "stems": ["query_target", "remote_echo", "other_local"],
+    "residual_assignment": "other_local",
+    "reconstruction_max_abs_error": 0.00001,
+    "peak_limit": 1.0,
+    "post_asr_cleanup_promotion_credit": 0,
+    "raw_caf_mutation_forbidden": true
+  },
+  "candidate": {
+    "candidate_id": "speaker_query_film_gru_v2",
+    "seed": 8052026,
+    "hidden_size": 96,
+    "layers": 1,
+    "mask_limit": 4.0,
+    "batch_items": 8,
+    "epochs": 12,
+    "learning_rate": 0.0015,
+    "gradient_clip": 5.0,
+    "target_loss_weight": 1.0,
+    "other_loss_weight": 0.25,
+    "pair_sum_loss_weight": 0.2,
+    "required_families": [
+      "ordinary_double_talk",
+      "quiet_target_me",
+      "quiet_other_local",
+      "keyboard_background",
+      "opening_backchannel",
+      "target_only",
+      "remote_only",
+      "other_speaker_only",
+      "target_remote",
+      "target_other"
+    ],
+    "dev_gates": {
+      "target_me_snr_db_median_min": 12.0,
+      "target_me_improvement_db_median_min": 3.0,
+      "other_speaker_snr_db_median_min": 12.0,
+      "paired_query_margin_db_median_min": 3.0,
+      "query_collapse_rate_max": 0.05,
+      "absent_query_attenuation_db_median_min": 15.0,
+      "remote_echo_snr_db_median_min": 8.0,
+      "remote_only_attenuation_db_median_min": 15.0,
+      "reconstruction_max_abs_error_max": 0.00001,
+      "clipped_outputs_max": 0,
+      "non_finite_outputs_max": 0,
+      "hard_audio_files_read_max": 0
+    },
+    "hard_gates": {
+      "target_me_snr_db_median_min": 12.0,
+      "target_me_improvement_db_median_min": 3.0,
+      "other_speaker_snr_db_median_min": 12.0,
+      "paired_query_margin_db_median_min": 3.0,
+      "query_collapse_rate_max": 0.05,
+      "quiet_target_me_snr_db_median_min": 10.0,
+      "opening_backchannel_snr_db_median_min": 10.0,
+      "ordinary_double_talk_snr_db_median_min": 12.0,
+      "absent_query_attenuation_db_median_min": 15.0,
+      "remote_only_attenuation_db_median_min": 15.0,
+      "reconstruction_max_abs_error_max": 0.00001,
+      "clipped_outputs_max": 0,
+      "non_finite_outputs_max": 0
+    }
+  },
+  "sealed_evaluation": {
+    "corpus_report": "sessions/_reports/speaker-preserving-neural-echo-v2-16-corpus/corpus_report.json",
+    "corpus_report_sha256": "819a8ce2e00df8f59f83fe99e0de30cad367e886b253930e6b6555a42031a7e3",
+    "promotion_decision": "sessions/_reports/speaker-preserving-neural-echo-v2-16-corpus/promotion_decision.json",
+    "promotion_decision_sha256": "0e5be06cb7ea2368824d1e4a35a55f732753e1ec15c70b2ab7ceb29a39e10863",
+    "evaluation_manifest": "sessions/_reports/speaker-preserving-neural-echo-v2-16-corpus/evaluation_manifest.json",
+    "evaluation_manifest_sha256": "db81a27c651a5ffe72b2b7c91aad413aeba6900fa6eec9ac5e7c86298c630df9",
+    "session_count": 12,
+    "threshold_tuning_use": "forbidden"
+  },
+  "decision_values": {
+    "promote": "PROMOTE_REFERENCE_CONDITIONED_TARGET_ME_SEPARATION_V2",
+    "reject": "DO_NOT_PROMOTE_REFERENCE_CONDITIONED_TARGET_ME_SEPARATION_V2"
+  }
+}

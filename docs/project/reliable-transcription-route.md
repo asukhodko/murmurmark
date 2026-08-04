@@ -187,15 +187,15 @@ Target-Me Identifiability Corpus v1 closed that prerequisite with
 `1200/300/300s` full mixtures and `980` paired correct/wrong enrollment queries passed exact replay
 and contamination gates. It did not alter `mic_for_asr.wav` or production.
 
-The critical path now runs Reference-Conditioned Target-Me Separation v2. It trains only on the
-READY train split, selects one candidate only on dev, locks it before hard, and opens the sealed
-meeting corpus only after hard success. Any failed gate leaves Speaker-Preserving Neural Echo v2
-byte-exact.
+Reference-Conditioned Target-Me Separation v2 has now completed with reproducible
+`DO_NOT_PROMOTE`. The paired corpus proved enrollment adherence (`4.991 dB` median query margin,
+zero collapse), but the bounded spectral candidate reached only `4.852 dB` Target-Me and
+`4.107 dB` non-target SNR. It failed dev before hard access, so the sealed meetings and production
+audio remained untouched.
 
-Evidence Notes And Export v2 follows after that audio profile decision. One fingerprinted handoff
-will then bind the selected transcript, verdict, review burden, evidence-backed notes and export
-readiness. That bundle, rather than profile-specific file discovery, becomes the stable product
-boundary.
+The critical path now runs Evidence Notes And Export v2. One fingerprinted handoff must bind the
+selected transcript, verdict, review burden, evidence-backed notes and export readiness. That
+bundle, rather than profile-specific file discovery, becomes the stable product boundary.
 The failed live-recovery profile remains diagnostic evidence rather than another user-facing branch.
 
 ## Route To Reliability
@@ -437,10 +437,10 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Reference-Conditioned Target-Me Separation v2: обучить bounded speaker-query separator только на
-READY Target-Me Identifiability Corpus v1, выбрать candidate на dev, открыть hard только после
-immutable lock и проверить sealed meeting corpus; завершить PROMOTE либо точным DO_NOT_PROMOTE без
-ослабления Speaker-Preserving Neural Echo v2.
+Evidence Notes And Export v2: собрать один versioned deterministic handoff bundle из выбранного
+transcript profile, quality verdict, unresolved review burden и evidence-backed notes; сделать
+guarded Markdown/Obsidian export прямым результатом lifecycle, запретить stale evidence и
+unsupported claims, завершить документацией, corpus regression и release-ready CLI contract.
 ```
 
 ## Consultation Prompt

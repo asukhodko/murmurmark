@@ -25,6 +25,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-speaker-preserving-neural-echo-v2.py
 "$python_bin" scripts/check-reference-conditioned-target-me-separation-v1.py
 "$python_bin" scripts/check-target-me-identifiability-corpus-v1.py
+"$python_bin" scripts/check-reference-conditioned-target-me-separation-v2.py
 "$python_bin" scripts/check-speaker-preserving-echo-adaptation-corpus.py
 "$python_bin" scripts/check-controlled-echo-supervision-v1.py
 "$python_bin" scripts/check-speaker-mode-hardening.py

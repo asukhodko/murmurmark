@@ -131,16 +131,24 @@ split-disjoint non-target speakers, `1200/300/300s` full mixtures and paired cor
 targets over identical mixture bytes. Identity, source, enrollment and rendering contamination are
 zero; exact audio replay passed `2470/2470`.
 
-Reference-Conditioned Target-Me Separation v2 is now unblocked as a separate shadow experiment.
-It may train on `train`, select on `dev`, open `hard` only after candidate lock and then evaluate the
-sealed meeting corpus. The current production path remains Speaker-Preserving Neural Echo v2 until
-that ladder produces an independent `PROMOTE`.
+Reference-Conditioned Target-Me Separation v2 completed that experiment with
+`DO_NOT_PROMOTE_REFERENCE_CONDITIONED_TARGET_ME_SEPARATION_V2`. Its paired correct/swap queries
+proved that the bounded FiLM+GRU model used the enrollment: median query margin was `4.990806 dB`
+with zero collapse. Waveform quality remained below the locked gates, however: `4.852357 dB`
+Target-Me SNR, `4.106966 dB` non-target SNR and `8.293271 dB` absent-query attenuation. The dev lock
+therefore denied hard and sealed access. Speaker-Preserving Neural Echo v2 remains production.
+
+The next audio attempt, if resumed, needs a pretrained target-speaker extraction representation or
+a much larger multilingual speaker-query corpus. Another small spectral mask trained from scratch
+on the same five identities is not a useful next experiment.
 
 The experiment contract, data ownership, model ladder and decision gates are recorded in
 [Reference-Conditioned Target-Me Separation v1](../research/2026-08-04-reference-conditioned-target-me-separation-v1.md).
 The successor corpus result and schemas are in
 [Target-Me Identifiability Corpus v1](../research/2026-08-04-target-me-identifiability-corpus-v1.md)
 and its [contract](../contracts/target-me-identifiability-corpus.md).
+The measured v2 result is in
+[Reference-Conditioned Target-Me Separation v2](../research/2026-08-05-reference-conditioned-target-me-separation-v2.md).
 
 ## CLI Modes and Profiles
 
