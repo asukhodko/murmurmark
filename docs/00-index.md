@@ -44,15 +44,21 @@ Read in this order:
 40. [Neural Residual Echo Suppression v1 result](research/2026-07-23-neural-residual-echo-v1.md)
 41. [Speaker-Preserving Echo Adaptation Corpus v1 result](research/2026-07-23-speaker-preserving-echo-adaptation-corpus-v1.md)
 42. [Speaker-Preserving Neural Echo v2 result](research/2026-08-04-speaker-preserving-neural-echo-v2.md)
-43. [Planning and development history](history/README.md)
+43. [Reference-Conditioned Target-Me Separation v1](research/2026-08-04-reference-conditioned-target-me-separation-v1.md)
+44. [Reference-Conditioned Target-Me Separation contract](contracts/reference-conditioned-target-me-separation.md)
+45. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
 Planning snapshot: 2026-08-04. Speaker-Preserving Neural Echo v2 completed with guarded
 `PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2`: the sealed corpus selected candidate audio in `5/12`
 sessions, exact fallback in `7/12`, removed `41.940s` and `90` remote-supported tokens, and retained
-all candidate local tokens. Evidence Notes And Export v2 is now the executable goal: one versioned
-handoff must bind transcript, verdict, review evidence, notes and export readiness.
+all candidate local tokens. Reference-Conditioned Target-Me Separation v1 then completed with
+`DO_NOT_PROMOTE`: oracle and overfit passed, but two train/dev attempts missed the locked gates and
+the corpus had no labelled non-target local speech. Hard-test remained unopened. Target-Me
+Identifiability Corpus v1 is now the executable goal: add speaker-disjoint non-target speech and
+correct/wrong enrollment controls without changing production. Evidence Notes And Export v2
+follows this bounded data decision.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

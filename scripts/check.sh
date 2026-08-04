@@ -23,6 +23,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-echo-suppression-promotion.py
 "$python_bin" scripts/check-neural-residual-echo.py
 "$python_bin" scripts/check-speaker-preserving-neural-echo-v2.py
+"$python_bin" scripts/check-reference-conditioned-target-me-separation-v1.py
 "$python_bin" scripts/check-speaker-preserving-echo-adaptation-corpus.py
 "$python_bin" scripts/check-controlled-echo-supervision-v1.py
 "$python_bin" scripts/check-speaker-mode-hardening.py
@@ -43,6 +44,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-authoritative-handoff-corpus.py
 "$python_bin" scripts/check-fast-diagnostics.py
 "$python_bin" scripts/check-bounded-asr-parallelism.py
+"$python_bin" scripts/check-resource-policy.py
 "$python_bin" scripts/check-audio-review-clip-parallelism.py
 "$python_bin" scripts/check-stronger-audio-judge.py
 "$python_bin" scripts/check-independent-me-evidence.py

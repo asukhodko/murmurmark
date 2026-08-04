@@ -5,112 +5,117 @@ Status: current
 Updated: 2026-08-04
 
 The stable product path remains `murmurmark meeting -> first Ctrl-C -> final result`. Raw CAF and
-batch output are authoritative. Speaker-Preserving Neural Echo v2 is now a guarded pre-ASR
-capability: compatible speaker-playback sessions may use its personalized clean mic, while every
-missing artifact, incompatible acoustic mode or regression returns to exact `local_fir_role_masked`.
+batch output are authoritative. Speaker-Preserving Neural Echo v2 remains the exact production
+baseline; every missing artifact, incompatible acoustic mode or regression returns to its byte-exact
+fallback.
 
 Roadmap status and dependencies live in
-`docs/roadmap/murmurmark-cli-roadmap.plan.yaml`. This file expands the one executable goal in human
-terms. `scripts/check-planning-consistency.py` keeps README, roadmap and OpsKarta aligned.
+`docs/roadmap/murmurmark-cli-roadmap.plan.yaml`. `scripts/check-planning-consistency.py` keeps the
+README, roadmap and OpsKarta wording aligned.
 
-## Evidence Notes And Export v2
+## Target-Me Identifiability Corpus v1
 
-OpsKarta nearest goal: Evidence Notes And Export v2: собрать один versioned deterministic handoff
-bundle из выбранного transcript profile, quality verdict, review evidence, notes и export readiness;
-каждая видимая запись ссылается на существующие evidence IDs, stale или blocked inputs fail closed,
-а Markdown/Obsidian export не требует ручного склеивания артефактов.
+OpsKarta nearest goal: Target-Me Identifiability Corpus v1: построить локальный воспроизводимый и speaker-disjoint train/dev/hard корпус с независимо известными target_me, remote_echo и non-target other_local speech, correct/wrong enrollment controls и акустическими вариантами основного speaker-mode; завершить READY_FOR_TARGET_CONDITIONED_TRAINING либо точным DO_NOT_TRAIN, не обучая production-модель и не меняя Speaker-Preserving Neural Echo v2.
 
-## Starting Evidence
+## Why This Is Next
 
-- durable capture, authoritative transcription, review, notes, export and retention already work;
-- `murmurmark meeting` owns the normal unattended lifecycle and resume contract;
-- Speaker-Preserving Neural Echo v2 is promoted: `5/12` corpus sessions used candidate audio,
-  `41.940s` and `90` remote-supported tokens were removed with local retention `1.0`;
-- quality verdict, extractive notes and guarded export exist, but their version/fingerprint
-  relationship is spread across several artifacts;
-- profile-specific aliases and late enrichment can make it harder to prove that transcript, notes,
-  verdict and export all describe the same immutable result;
-- unresolved review burden is visible, but the user-facing bundle is not yet one strict contract.
+Reference-Conditioned Target-Me Separation v1 completed with
+`DO_NOT_PROMOTE_REFERENCE_CONDITIONED_TARGET_ME_SEPARATION_V1`, fingerprint
+`e3c925f005f0e85e7dc22e555e2a25701a1b297372babcc3551339da861324a3`.
+
+The experiment established two different facts:
+
+- the ideal complex-mask representation has a wide ceiling: Target-Me SNR p05 `58.383 dB` and echo
+  SNR p05 `48.578 dB`;
+- the bounded separator can overfit four examples, but two deterministic train/dev attempts missed
+  the locked gates. The best reached `11.470/12 dB` Target-Me SNR and `7.788/8 dB` echo SNR.
+
+The decisive gap is data identifiability. All trainable rows used one fixed Target-Me enrollment.
+The only labelled `other_local` targets were keyboard and silence; no row contained independently
+known speech from another nearby person. Exact remix therefore could not distinguish correct
+Target-Me attribution from a semantic speaker swap. Hard-test and the sealed twelve-session corpus
+stayed unopened, and production output remained unchanged.
 
 ## Objective
 
-Publish one local, deterministic and verifiable handoff bundle for every successfully processed
-session. It either contains a coherent transcript, verdict, evidence-backed notes, review summary
-and export payload, or fails closed with a precise reason and next command.
+Create the smallest private corpus that can answer whether a separator actually follows a speaker
+query. Every accepted example must provide known, independently sourced components:
 
-The bundle must be usable by a person or a later local/controlled synthesis layer without guessing
-profile filenames or joining incompatible generations of artifacts.
+```text
+mic_mixture = target_me + remote_echo + other_local_speech + other_local_noise
+```
 
-## Contract
+Each example also carries:
 
-The versioned handoff must freeze:
+- the correct Target-Me enrollment;
+- at least one wrong-speaker enrollment;
+- exact source identities and split ownership;
+- acoustic rendering provenance, gain, delay and room/speaker-path parameters;
+- SHA-256 for every source and rendered artifact;
+- license, privacy and redistribution classification.
 
-- selected transcript profile, path, schema and SHA-256;
-- quality verdict, readiness/use gate and unresolved review burden;
-- evidence notes and every cited utterance/audit ID;
-- export format, privacy mode and payload manifest;
-- generator versions, source fingerprints and creation time;
-- exact commands to review, rebuild or export when blocked.
+This goal prepares evidence only. It does not train or promote a separator.
 
-Every claim visible in Markdown or Obsidian must resolve to an existing item in the selected
-transcript/evidence generation. Missing IDs, stale hashes, incompatible profiles, blocked readiness
-or incomplete review evidence reject publication. A rejection must preserve all source artifacts.
+## Data Route
 
-## Execution Scope
-
-1. Freeze `murmurmark.handoff_bundle/v2` and related manifest schemas before implementation.
-2. Define one resolver that selects transcript, notes, verdict, review and export evidence from the
-   same compatible profile generation.
-3. Validate referential integrity for utterance IDs, audit IDs, review decisions and note evidence.
-4. Materialize a byte-stable local bundle with Markdown and optional Obsidian views plus structured
-   JSON provenance.
-5. Make `meeting`, `finish`, `status`, `outcome`, `notes`, `transcript` and `export` point to the same
-   handoff decision rather than recomputing conflicting recommendations.
-6. Preserve `review_first` as a useful result: export stays blocked where policy requires, but the
-   user receives the exact review queue and next command.
-7. Add deterministic replay, stale-input, interrupted-write, invalid-reference, empty-conversation
-   and profile-fallback tests.
-8. Run corpus regression over representative 1x1, group, headphones, speaker-playback, noisy-office
-   and verified-no-speech sessions.
-9. Update README, contracts, runbooks, current goal, roadmap and OpsKarta; commit and push the result.
+1. Reuse the frozen controlled Target-Me speech only in its existing split.
+2. Audit a local, permissively licensed multi-speaker speech source for non-target identities. Private
+   meeting speech may be diagnostic only and must not become redistributable training material.
+3. Render non-target speech through a path distinct from the exact remote echo path, preserving its
+   clean source as independent ground truth.
+4. Build target-only, remote-only, other-speaker-only, target+remote, target+other and full
+   target+remote+other mixtures inside one split.
+5. Generate correct-enrollment, wrong-enrollment and enrollment-swap pairs without crossing speaker
+   or source ownership between train, dev and hard.
+6. Replay the corpus from manifests and compare every artifact hash.
 
 ## Acceptance Gates
 
-- one selected transcript fingerprint is shared by handoff, notes, verdict and export manifest;
-- every visible claim cites valid evidence from that selected generation;
-- stale or missing evidence cannot produce a successful bundle;
-- repeated materialization from unchanged inputs is byte-stable except explicitly volatile timing;
-- interrupted publication leaves either the previous valid bundle or no bundle, never a mixed one;
-- `ready_for_notes`, `review_first` and `blocked` remain distinguishable and actionable;
-- no command reports export success while readiness or privacy gates block it;
-- verified-no-speech sessions produce a valid empty-conversation bundle rather than fabricated text;
-- selected transcript text and role order are unchanged by bundling;
-- raw CAF, Echo Guard, primary ASR and transcript profile selection are unchanged;
-- no network, LLM or external write is needed;
-- corpus verdict, review burden and existing evidence-note selections do not regress.
+- at least `4` non-target speaker identities in train, `2` in dev and `2` in hard;
+- no speaker identity, source clip or acoustic rendering seed crosses splits;
+- at least `20 min` train, `5 min` dev and `5 min` hard full three-source mixtures;
+- every split includes quiet Target-Me, quiet non-target speech, double-talk, keyboard/background and
+  opening/backchannel examples;
+- correct and wrong enrollment vectors exist for every speaker-bearing example;
+- an enrollment-swap oracle changes speaker attribution while mixture conservation stays exact;
+- target, echo and other-speech source SNR oracle gates pass before any trainable candidate;
+- replay matches every tracked descriptor and raw source remains unchanged;
+- private sources, model files and generated audio stay ignored; tracked reports contain no meeting
+  text or absolute workstation paths;
+- missing licenses, weak identity ownership, stale hashes or cross-split contamination fail closed.
+
+## Decision
+
+The goal ends in exactly one fingerprinted result:
+
+- `READY_FOR_TARGET_CONDITIONED_TRAINING`; or
+- `DO_NOT_TRAIN_TARGET_ME_IDENTIFIABILITY_V1` with a precise data, license or supervision ceiling.
+
+`READY` authorizes a later separator experiment only. It does not change `mic_for_asr.wav`, transcript
+selection, export or retention.
 
 ## Definition Of Done
 
-- tracked v2 schemas and one implementation own handoff resolution and publication;
-- normal lifecycle produces the bundle automatically without extra user commands;
-- CLI accessors resolve through the validated bundle and report one consistent next action;
-- Markdown and Obsidian outputs are complete local deliverables with evidence references;
-- failure and resume paths are explicit, atomic and tested;
-- fixture, integration, corpus replay, planning and open-source checks pass;
-- documentation and roadmap describe the implemented behavior rather than an aspiration;
+- versioned corpus, item, enrollment, replay and decision schemas exist;
+- manifests, data card, license/privacy audit and deterministic builder are reproducible locally;
+- fixture tests cover semantic speaker swap, split contamination, stale source, missing enrollment,
+  silence, clipping and interrupted publication;
+- corpus replay and oracle reports produce one immutable decision;
+- Speaker-Preserving Neural Echo v2 policy and all raw CAF hashes remain unchanged;
+- README, architecture, contracts, runbook, current goal, roadmap and OpsKarta record the measured
+  result and next dependency;
+- full regression, planning, privacy and open-source checks pass;
 - changes are committed, pushed to `origin/main`, and the worktree is clean.
 
 ## Outside This Goal
 
-- changing capture, Echo Guard, Speaker-Preserving Neural Echo or whisper.cpp;
-- adding cloud models, LLM summaries or automatic external writes;
-- diarizing individual `Colleagues`;
-- promoting Live Shadow;
-- building a UI.
+- training or promoting a separator;
+- changing capture, Echo Guard, whisper.cpp or transcript post-processing;
+- cloud inference or uploading private meeting audio;
+- remote diarization, Live promotion, LLM synthesis and UI.
 
-## Previous Goal Result
+## Deferred Product Goal
 
-Speaker-Preserving Neural Echo v2 completed with
-`PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2`. The detailed result, frozen fingerprints, safety
-boundary and production contract are recorded in
-`docs/research/2026-08-04-speaker-preserving-neural-echo-v2.md`.
+Evidence Notes And Export v2 remains the next product handoff goal. It can proceed after this bounded
+data prerequisite or in parallel if audio research is paused; it must continue to use the selected
+production transcript profile.

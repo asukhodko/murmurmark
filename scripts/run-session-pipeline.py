@@ -17,8 +17,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from murmurmark_resource_policy import (
+    PROFILE_DEFAULTS,
+    apply_resource_policy,
+    bounded_threads,
+    max_threads_from_environment,
+    print_resource_policy,
+    profile_name_from_environment,
+    resolve_resource_policy,
+)
 
-SCRIPT_VERSION = "0.2.1"
+SCRIPT_VERSION = "0.2.2"
 SCHEMA = "murmurmark.session_pipeline_run/v1"
 RUN_STATE_SCHEMA = "murmurmark.pipeline_run_state/v1"
 HANDOFF_SCHEMA = "murmurmark.authoritative_handoff/v1"
@@ -143,24 +152,36 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-stronger-audio-judge", action="store_true")
     parser.add_argument("--skip-cleanup", action="store_true")
     parser.add_argument(
+        "--resource-profile",
+        choices=tuple(sorted(PROFILE_DEFAULTS)),
+        default=profile_name_from_environment(),
+        help="Scheduling profile for derived work. Default: background.",
+    )
+    parser.add_argument(
+        "--max-compute-threads",
+        type=int,
+        default=None,
+        help="Cap native compute thread pools. Default: 4 for background, unlimited for performance.",
+    )
+    parser.add_argument(
         "--asr-threads",
         type=int,
-        default=6,
-        help="whisper.cpp compute threads per ASR process. Default: 6.",
+        default=None,
+        help="whisper.cpp compute threads per ASR process. Profile default: 4 background, 6 performance.",
     )
     parser.add_argument(
         "--asr-track-workers",
         type=int,
         choices=(1, 2),
-        default=2,
-        help="Bounded independent mic/remote whisper.cpp workers. Default: 2.",
+        default=None,
+        help="Bounded independent mic/remote whisper.cpp workers. Profile default: 1 background, 2 performance.",
     )
     parser.add_argument(
         "--micro-asr-workers",
         type=int,
         choices=(1, 2, 4),
-        default=4,
-        help="Bounded independent micro-ASR source/window workers. Default: 4.",
+        default=None,
+        help="Bounded independent micro-ASR source/window workers. Profile default: 1 background, 4 performance.",
     )
     parser.add_argument(
         "--phase",
@@ -204,7 +225,22 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         help="Report path. Defaults to SESSION/derived/pipeline-run/pipeline_run_report.json.",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    try:
+        environment_profile = profile_name_from_environment()
+        environment_limit = max_threads_from_environment()
+        requested_limit = args.max_compute_threads
+        if requested_limit is None and args.resource_profile == environment_profile:
+            requested_limit = environment_limit
+        policy = resolve_resource_policy(args.resource_profile, requested_limit)
+    except ValueError as error:
+        parser.error(str(error))
+    args.max_compute_threads = policy.max_compute_threads
+    args.asr_threads = bounded_threads(args.asr_threads or policy.asr_threads, policy)
+    args.asr_track_workers = args.asr_track_workers or policy.asr_track_workers
+    args.micro_asr_workers = args.micro_asr_workers or policy.micro_asr_workers
+    args.resource_policy_spec = policy
+    return args
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -1151,6 +1187,8 @@ def append_authoritative_handoff_run(
         "transcript_fingerprint": checkpoint.get("transcript_fingerprint"),
         "asr_provenance": provenance,
         "runtime": {
+            "resource_profile": getattr(args, "resource_profile", "background"),
+            "max_compute_threads": getattr(args, "max_compute_threads", 4),
             "asr_track_workers": args.asr_track_workers,
             "asr_threads": args.asr_threads,
             "micro_asr_workers": args.micro_asr_workers,
@@ -1293,6 +1331,8 @@ def asr_invocation(args: argparse.Namespace) -> dict[str, Any]:
         "force_asr": bool(args.force_asr),
         "reuse_asr_cache": bool(args.reuse_asr_cache),
         "skip_transcription": bool(args.skip_transcription),
+        "resource_profile": args.resource_profile,
+        "max_compute_threads": args.max_compute_threads,
         "track_workers": args.asr_track_workers,
         "threads": args.asr_threads,
         "micro_asr_workers": args.micro_asr_workers,
@@ -2082,6 +2122,8 @@ def main() -> int:
     invocation_started_at = datetime.now(timezone.utc).isoformat()
     invocation_started_clock = time.monotonic()
     args = parse_args()
+    resource_policy_report = apply_resource_policy(args.resource_policy_spec)
+    print_resource_policy(resource_policy_report)
     requested_phase = "full" if args.full else args.phase
     repo_root = Path(__file__).resolve().parents[1]
     args.murmurmark_bin = resolve_murmurmark_bin(args.murmurmark_bin, repo_root)
@@ -2153,6 +2195,7 @@ def main() -> int:
                 "session": str(session),
                 "status": "running",
                 "phase": requested_phase,
+                "resource_policy": resource_policy_report,
                 "plan": plan_metadata,
                 "steps": [],
             },
@@ -2392,6 +2435,8 @@ def main() -> int:
             "prompt_file": str(args.prompt_file) if args.prompt_file and args.prompt_file.exists() else None,
             "audio_judge_queue": str(args.audio_judge_queue) if args.audio_judge_queue.exists() else None,
             "progress_interval_sec": args.progress_interval_sec,
+            "resource_profile": args.resource_profile,
+            "max_compute_threads": args.max_compute_threads,
             "asr_track_workers": args.asr_track_workers,
             "asr_threads": args.asr_threads,
             "micro_asr_workers": args.micro_asr_workers,
@@ -2422,6 +2467,7 @@ def main() -> int:
             ),
         },
         "performance": {
+            "resource_policy": resource_policy_report,
             "authoritative_handoff_elapsed_sec": round(handoff_elapsed, 3),
             "deferred_elapsed_sec": round(deferred_elapsed, 3),
             "critical_path_stages": [

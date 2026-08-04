@@ -126,5 +126,10 @@ under `sessions/_reports/`.
   on sessions where the pre-ASR candidate passes.
 - A new machine or speaker needs its own controlled enrollment and guarded promotion evidence.
 
-The next critical-path goal is Evidence Notes And Export v2. Echo work returns to research only when
-new corpus evidence shows a concrete regression or a materially better bounded hypothesis.
+This result originally handed the critical path to Evidence Notes And Export v2. The later
+source-separation review supplied a materially different bounded hypothesis: conserve mic as
+Target-Me, remote-echo and other-local stems while conditioning on the exact remote reference.
+Reference-Conditioned Target-Me Separation v1 later completed with `DO_NOT_PROMOTE`: its train/dev
+data could not identify non-target local speech and hard-test stayed unopened. Target-Me
+Identifiability Corpus v1 is the resulting bounded data prerequisite. This v2 result remains the
+immutable production baseline and fallback throughout that work.

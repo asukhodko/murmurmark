@@ -1,0 +1,255 @@
+{
+  "schema": "murmurmark.reference_conditioned_target_me_separation_policy/v1",
+  "profile": "reference_conditioned_target_me_separation_v1",
+  "status": "preflight_locked",
+  "production_baseline": {
+    "profile": "speaker_preserving_neural_echo_v2",
+    "policy": "policies/speaker-preserving-neural-echo-production-v2.json",
+    "policy_sha256": "68f9abab1197035c76a936b97cca6fba05d3992e7a0ccce82de4d8ec0959a425",
+    "decision": "PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2",
+    "corpus_fingerprint": "a70e9bd3a0d1834a8c016a80c75d55f550da022b0fcf60ae32ca29cefe55b9de",
+    "fallback": "byte_exact_speaker_preserving_neural_echo_v2"
+  },
+  "controlled_supervision": {
+    "frozen_corpus": "sessions/_reports/controlled-echo-supervision-v1/frozen_corpus.json",
+    "frozen_corpus_sha256": "d8f977652c81f1ddeed40e9d77c84cd2dd3c246c7a40f9016a04337c8038f778",
+    "split_manifest": "sessions/_reports/controlled-echo-supervision-v1/split_manifest.json",
+    "split_manifest_sha256": "6190dfe2040faba8985f4af4162348e6984d5a9742b97447c3537d3902a932d0",
+    "supervision_manifest": "sessions/_reports/controlled-echo-supervision-v1/supervision_manifest.jsonl",
+    "supervision_manifest_sha256": "12a3162efcf1d0aec99744b755d30d0f38fb994b8126a7a94eeb44c9a1520c2a",
+    "corpus_decision": "sessions/_reports/controlled-echo-supervision-v1/corpus_decision.json",
+    "corpus_decision_sha256": "a6f76eb657e06f7e9b04e0c4a37254c161b1c99938a0fdbe3c4147eb2b2968d9",
+    "corpus_fingerprint": "be7b68f3267a20bfbd2fcf186587107e4201517e4edb3abbda3287857b008ffd",
+    "replay_report": "sessions/_reports/controlled-echo-supervision-v1/replay_report.json",
+    "replay_report_sha256": "f35727a4dd4231a2c1558bde047e13a95c0f42c7fc21483d341d67acd1bbc44d",
+    "replay_matched_files": 1465
+  },
+  "sealed_evaluation": {
+    "corpus_report": "sessions/_reports/speaker-preserving-neural-echo-v2-16-corpus/corpus_report.json",
+    "corpus_report_sha256": "819a8ce2e00df8f59f83fe99e0de30cad367e886b253930e6b6555a42031a7e3",
+    "promotion_decision": "sessions/_reports/speaker-preserving-neural-echo-v2-16-corpus/promotion_decision.json",
+    "promotion_decision_sha256": "0e5be06cb7ea2368824d1e4a35a55f732753e1ec15c70b2ab7ceb29a39e10863",
+    "evaluation_manifest": "sessions/_reports/speaker-preserving-neural-echo-v2-16-corpus/evaluation_manifest.json",
+    "evaluation_manifest_sha256": "db81a27c651a5ffe72b2b7c91aad413aeba6900fa6eec9ac5e7c86298c630df9",
+    "session_count": 12,
+    "development_reuse_allowed": true,
+    "threshold_tuning_use": "forbidden"
+  },
+  "data_isolation": {
+    "train_splits": ["train"],
+    "selection_splits": ["dev"],
+    "hard_test_split": "hard_test",
+    "measured_double_talk_supervision": false,
+    "measured_double_talk_evaluation": true,
+    "cross_split_pairing": false,
+    "ordinary_meeting_training": false,
+    "hard_test_access_before_candidate_lock": false
+  },
+  "models": {
+    "target_me_encoder": {
+      "model_id": "microsoft/wavlm-base-plus-sv",
+      "local_path": "~/.local/share/murmurmark/models/target-me/wavlm-base-plus-sv",
+      "files": {
+        "README.md": "97f5513cde351b3adb4e182b60ec23154dadba7ca83e667ceace237177855b8e",
+        "config.json": "c6ac8c0ce55b18d4612677931036fe5ce78093e87361c552a173f00a0bb07514",
+        "preprocessor_config.json": "99272fe8ccfab114b68b478681ea47ee3a1ce62bb788cb92dd6e4f69fb1f1da2",
+        "pytorch_model.bin": "e906bce2fa42fb497a1d1a9ecf81548adb7e03b12a5644e32d2f42f0d6500fad"
+      },
+      "network_access": "forbidden"
+    },
+    "production_v2_echo_mapper": {
+      "local_path": "~/.local/share/murmurmark/models/speaker-preserving-neural-echo-v2",
+      "files": {
+        "echo_mapper_h128_l1.pt": "1d51c6467b00aed6b4b7f577a021fe160139f010fc41e223a18e05390776e878"
+      },
+      "role": "byte_exact_fallback_reference"
+    }
+  },
+  "reference_enrollment": {
+    "backend": "wavlm_xvector_v0",
+    "source_split": "train",
+    "source_embedding_count": 195,
+    "dimension": 512,
+    "card": "sessions/_reports/speaker-preserving-neural-echo-v2-4-exploration/controlled_wavlm_target_me_enrollment.json",
+    "card_sha256": "171d797e041bc9b702392703133d86edbbc2d40924994f36748f537efde2b638",
+    "vector": "sessions/_reports/speaker-preserving-neural-echo-v2-4-exploration/controlled_wavlm_target_me_enrollment.npy",
+    "vector_sha256": "55c8dfb6e544eef8bb3ac495968167736df57c42543862fa6f9f78be04101283"
+  },
+  "training_cache": {
+    "schema": "murmurmark.neural_echo_cache/v1",
+    "root": "sessions/_reports/speaker-preserving-neural-echo-v2/cache",
+    "train_manifest": "sessions/_reports/speaker-preserving-neural-echo-v2/cache/train_cache_manifest.json",
+    "train_manifest_sha256": "141494cef4b000b2d5931fc597a974af4b9fae1252425fade6b43c5b0efb1413",
+    "train_waveforms": "sessions/_reports/speaker-preserving-neural-echo-v2/cache/train_waveforms.npy",
+    "train_waveforms_sha256": "56c9a780c38ea21e878e3b3b2d2aa1c94afa3d3edf686bc65f4f3ac02b2205f5",
+    "train_kinds": "sessions/_reports/speaker-preserving-neural-echo-v2/cache/train_kinds.npy",
+    "train_kinds_sha256": "a7d3c8ae6cae83d5d3738592c6c1cd1ebe58b0c66352a96104176ab8f6fee39d",
+    "train_index": "sessions/_reports/speaker-preserving-neural-echo-v2/cache/train_index.json",
+    "train_index_sha256": "b24b8cdbe737cbfa363db0a80b035318d91f22a0b8130988f7bac96345a43561",
+    "train_fingerprint": "6262fdbe9414bc7141e5769eb67d44a1f168a661e3b6b0bf121496894ae5c013",
+    "dev_manifest": "sessions/_reports/speaker-preserving-neural-echo-v2/cache/dev_cache_manifest.json",
+    "dev_manifest_sha256": "ea846cf01ad6c09cf10414a6f8edad9c13346aa3294858b7667755696ace7b25",
+    "dev_waveforms": "sessions/_reports/speaker-preserving-neural-echo-v2/cache/dev_waveforms.npy",
+    "dev_waveforms_sha256": "56c7a7404ce7735b17423609c37ea6f8da7ae4a6f492a5b582376bb851e2e052",
+    "dev_kinds": "sessions/_reports/speaker-preserving-neural-echo-v2/cache/dev_kinds.npy",
+    "dev_kinds_sha256": "87666ccbf3c4080729fee4e39181903d4eea5f9747200215cc2b3cc10f509b7d",
+    "dev_index": "sessions/_reports/speaker-preserving-neural-echo-v2/cache/dev_index.json",
+    "dev_index_sha256": "b9c3c7480ebdf141b975fa0af5852d2e3ca0bdc94ce63d8a93bad55c1a77efc5",
+    "dev_fingerprint": "1a3309face410c80393c7e75cad346169c035b8cbc0521ce4f511217e8407e82"
+  },
+  "audio_contract": {
+    "sample_rate": 16000,
+    "channels": 1,
+    "clip_samples": 64000,
+    "normalization": "none",
+    "stems": ["target_me", "remote_echo", "other_local"],
+    "residual_assignment": "other_local",
+    "duration_must_match_input": true,
+    "finite_samples_required": true,
+    "reconstruction_max_abs_error": 0.00001,
+    "reconstruction_is_semantic_proof": false,
+    "primary_asr_candidate": "target_me",
+    "post_asr_cleanup_promotion_credit": 0,
+    "raw_caf_mutation_forbidden": true
+  },
+  "experiment_ladder": [
+    "preflight",
+    "oracle_ideal_ratio_and_complex_mask",
+    "single_batch_overfit",
+    "reference_only_echo_stem",
+    "reference_and_target_conditioned_three_stem",
+    "dev_selection",
+    "sealed_hard_test",
+    "sealed_twelve_session_shadow",
+    "corpus_decision"
+  ],
+  "candidate_families": [
+    {
+      "id": "oracle_stft_masks_v1",
+      "role": "representation_ceiling",
+      "trainable": false
+    },
+    {
+      "id": "reference_conditioned_tf_separator_v1",
+      "role": "primary_bounded_candidate",
+      "trainable": true
+    },
+    {
+      "id": "established_target_speaker_extractor_v1",
+      "role": "optional_comparison",
+      "trainable": true,
+      "requires_license_and_runtime_audit": true
+    }
+  ],
+  "preflight_gates": {
+    "controlled_decision": "READY_FOR_ADAPTATION",
+    "replay_status": "passed",
+    "required_core_modules": ["numpy", "scipy", "soundfile", "torch", "transformers"],
+    "optional_toolkits": ["asteroid", "speechbrain", "wesep", "demucs", "torchaudio"],
+    "minimum_train_synthetic_double_talk": 400,
+    "minimum_dev_synthetic_double_talk": 80,
+    "minimum_train_measured_local_target": 100,
+    "minimum_train_measured_remote_echo": 100,
+    "minimum_hard_measured_double_talk": 10
+  },
+  "oracle_gates": {
+    "allowed_splits": ["train", "dev"],
+    "minimum_rows": {
+      "train": 400,
+      "dev": 80
+    },
+    "complex_target_snr_db_p05_min": 30.0,
+    "complex_target_si_sdr_db_p05_min": 30.0,
+    "complex_echo_snr_db_p05_min": 30.0,
+    "reconstruction_max_abs_error_max": 0.00001,
+    "other_local_rms_ratio_p95_max": 0.001,
+    "hard_test_rows_max": 0,
+    "threshold_lock": {
+      "revision": 1,
+      "locked_before_trainable_candidate": true,
+      "change": "other_local_rms_ratio_p95_max:0.0001->0.001",
+      "reason": "The first train/dev oracle run measured only deterministic STFT inversion residue at approximately -62 dB while target and echo p05 SNR exceeded 48 dB. The revised -60 dB accounting threshold remains below speech relevance and was locked before overfit, model selection, or hard-test access."
+    }
+  },
+  "overfit_probe": {
+    "seed": 8042026,
+    "rows": 4,
+    "enrollment_rows": 4,
+    "hidden_size": 96,
+    "layers": 1,
+    "mask_limit": 8.0,
+    "steps": 600,
+    "learning_rate": 0.002,
+    "gradient_clip": 5.0,
+    "architecture_revision": {
+      "revision": 3,
+      "locked_before_corpus_training": true,
+      "reason": "Probe 0 exposed an undersized complex mask. Probe 1 reached 12.51 dB echo SNR from raw remote. Probe 2 added the deterministic v2 FIR hint and reached 14.56 dB against the unchanged 15 dB gate with a still-decreasing loss. Revision 3 extends only the bounded probe from 480 to 600 steps; representation, data and acceptance gates remain locked."
+    },
+    "gates": {
+      "loss_reduction_ratio_min": 0.9,
+      "target_snr_db_median_min": 18.0,
+      "target_snr_improvement_db_median_min": 8.0,
+      "echo_snr_db_median_min": 15.0,
+      "reconstruction_max_abs_error_max": 0.00001,
+      "hard_test_rows_max": 0
+    }
+  },
+  "train_dev_candidate": {
+    "candidate_id": "reference_conditioned_tf_separator_v1",
+    "seed": 8042027,
+    "hidden_size": 96,
+    "layers": 1,
+    "mask_limit": 8.0,
+    "batch_size": 8,
+    "epochs": 12,
+    "learning_rate": 0.0015,
+    "gradient_clip": 5.0,
+    "model_kinds": [
+      "synthetic_double_talk",
+      "measured_remote_echo",
+      "local_remote_negative"
+    ],
+    "exact_target_kinds": [
+      "measured_local_target",
+      "opening_backchannel"
+    ],
+    "exact_other_kinds": [
+      "keyboard_noise",
+      "silence_background"
+    ],
+    "selection_gates": {
+      "synthetic_target_snr_db_median_min": 12.0,
+      "synthetic_target_improvement_db_median_min": 3.0,
+      "synthetic_echo_snr_db_median_min": 8.0,
+      "remote_only_attenuation_db_median_min": 15.0,
+      "local_remote_negative_snr_db_p05_min": 18.0,
+      "exact_target_max_abs_error_max": 0.0,
+      "exact_other_target_rms_max": 0.0,
+      "reconstruction_max_abs_error_max": 0.00001,
+      "hard_test_rows_max": 0
+    }
+  },
+  "promotion_gates": {
+    "protected_local_token_recall_min": 1.0,
+    "opening_recall_min": 1.0,
+    "chronology_recall_min": 1.0,
+    "double_talk_recall_min": 1.0,
+    "target_me_similarity_delta_min": 0.0,
+    "remote_supported_token_reduction_min": 135,
+    "remote_supported_reduction_sec_min": 62.91,
+    "candidate_sessions_min": 8,
+    "sealed_session_count": 12,
+    "local_recall_regressions_max": 0,
+    "order_regressions_max": 0,
+    "no_speech_regressions_max": 0,
+    "notes_evidence_regressions_max": 0,
+    "guarded_export_regressions_max": 0,
+    "post_asr_cleanup_credit": 0,
+    "default_resource_profile": "background"
+  },
+  "decision_values": [
+    "PROMOTE_REFERENCE_CONDITIONED_TARGET_ME_SEPARATION_V1",
+    "DO_NOT_PROMOTE_REFERENCE_CONDITIONED_TARGET_ME_SEPARATION_V1"
+  ]
+}

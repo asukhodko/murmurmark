@@ -110,6 +110,25 @@ batch pipeline, bounded local enrichment, safe suggested review and guarded fini
 murmurmark meeting --resume sessions/<id>
 ```
 
+Post-capture work uses the `background` resource profile by default:
+
+- the capture child keeps normal scheduling until both raw tracks are finalized;
+- batch and enrichment run at `nice=20` under Darwin background scheduling;
+- native numerical libraries are capped at four threads;
+- primary mic/remote ASR runs sequentially instead of loading both tracks at once;
+- live ASR is a single best-effort worker and cannot change capture priority.
+
+Confirm the active settings with `murmurmark config print`. For a deliberate benchmark, bypass the
+limits for one low-level run with:
+
+```bash
+murmurmark process "$SESSION" --resource-profile performance
+```
+
+Do not make `performance` the normal meeting default: it restores the old parallelism and can
+consume most CPU/GPU and charger headroom. A custom cap can be set with
+`--max-compute-threads N` or `processing.max_compute_threads` in the local config.
+
 Use the low-level `record -> inspect -> process` sequence only for diagnostics or older sessions.
 The lifecycle contract and artifact paths are documented in
 `docs/contracts/meeting-lifecycle.md`.

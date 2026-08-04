@@ -105,6 +105,32 @@ Publication is recoverable. Fresh preprocessing invalidates stale baseline snaps
 ASR run restores the exact baseline before comparison; interrupted publication rolls back on the
 next run. See the [frozen result](../research/2026-08-04-speaker-preserving-neural-echo-v2.md).
 
+## Reference-Conditioned Separation Result
+
+Reference-Conditioned Target-Me Separation v1 completed as an isolated successor experiment to the
+promoted hybrid. It tested accounting for the microphone mixture through three stems:
+
+```text
+mic = target_me + remote_echo + other_local + explicit reconstruction residual
+```
+
+The ideal complex-mask ceiling and bounded overfit passed. Two deterministic train/dev attempts
+then missed the locked `12 dB` Target-Me and `8 dB` echo gates; the best reached `11.470` and
+`7.788 dB`. The frozen train data also used one fixed enrollment and contained no independently
+labelled non-target local speech. It could not prove that a nearby speaker would reach
+`other_local` instead of `target_me` even when mixture reconstruction was exact.
+
+The final decision is `DO_NOT_PROMOTE_REFERENCE_CONDITIONED_TARGET_ME_SEPARATION_V1`. Candidate
+hard-test and sealed corpus access remained blocked. The exact Speaker-Preserving Neural Echo v2
+output therefore stayed byte-identical.
+
+The active prerequisite is Target-Me Identifiability Corpus v1: independently known non-target
+local speech, speaker-disjoint train/dev/hard ownership and correct/wrong enrollment controls. It
+must establish semantic speaker identifiability before another separator is trained.
+
+The experiment contract, data ownership, model ladder and decision gates are recorded in
+[Reference-Conditioned Target-Me Separation v1](../research/2026-08-04-reference-conditioned-target-me-separation-v1.md).
+
 ## CLI Modes and Profiles
 
 - `off`: do nothing.

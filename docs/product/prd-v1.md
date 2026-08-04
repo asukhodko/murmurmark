@@ -63,15 +63,20 @@ Current operating point, 2026-08-04:
 - Speaker-Preserving Neural Echo v2 completed with guarded `PROMOTE`: candidate audio was selected
   for `5/12` sealed corpus sessions, removed `41.940s` and `90` remote-supported tokens, retained
   local tokens at `1.0`, and used exact fallback for the other `7/12`;
-- the current goal is Evidence Notes And Export v2: bind the selected transcript, verdict, review
-  evidence, notes and export readiness into one fingerprinted deterministic handoff;
+- Reference-Conditioned Target-Me Separation v1 completed with `DO_NOT_PROMOTE`: two train/dev
+  attempts missed locked gates and the frozen corpus could not identify non-target local speech;
+  hard-test stayed unopened and production v2 stayed byte-exact;
+- the current goal is Target-Me Identifiability Corpus v1: add speaker-disjoint non-target local
+  speech and correct/wrong enrollment controls without training or changing production;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 
-Dependent product work is release-quality CLI after Evidence Notes And Export v2.
+Dependent product work is Evidence Notes And Export v2, followed by release-quality CLI.
 The personalized Echo selector activates only with compatible local enrollment and promotion
 evidence; every unsupported acoustic mode or regression uses exact `local_fir_role_masked`.
-Post-ASR duplicate cleanup received no promotion credit. Remote diarization, speaker mapping and
+Any later separator remains isolated until a corpus-wide decision and cannot use exact remix or
+audio quality alone as evidence of correct word attribution. Post-ASR duplicate cleanup receives no
+promotion credit. Remote diarization, speaker mapping and
 `transcript.rich.json` form a parallel future branch after base quality closure. Heavy validators,
 LLM synthesis, reviewed external integrations and UI remain research or optional work outside the
 critical path.

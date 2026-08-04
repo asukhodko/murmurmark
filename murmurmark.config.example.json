@@ -5,6 +5,10 @@
     "language": "ru",
     "prompt_file": null
   },
+  "processing": {
+    "resource_profile": "background",
+    "max_compute_threads": 4
+  },
   "export": {
     "format": "markdown",
     "profile": "auto",

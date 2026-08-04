@@ -48,8 +48,15 @@ an audit layer; it cannot count as successful Echo suppression or hide a weak au
 Classical and end-to-end neural trials established that aggressive remote suppression can delete
 short near-end speech during overlap. The promoted personalized hybrid now uses controlled
 Target-Me enrollment, remote evidence, bounded attenuation and direct whisper.cpp gates; every
-unsupported or unsafe session returns to exact `local_fir`. The current product step binds the
-selected transcript, verdict, review evidence, notes and export into one verifiable handoff.
+unsupported or unsafe session returns to exact `local_fir`. Reference-conditioned three-stem
+research showed that exact remix alone cannot identify another nearby speaker: the available train
+data had one fixed enrollment and no labelled non-target local speech, so the candidate stopped
+before hard-test. The current bounded data goal adds speaker-disjoint non-target speech and
+correct/wrong enrollment controls without changing production.
+
+Evidence Notes And Export v2 remains the next product step after this data decision. It will bind
+the selected transcript, verdict, review evidence, notes and export into one verifiable handoff
+without depending on profile-specific filenames.
 
 Remote-speaker diarization is an independent research branch after base transcript quality closure.
 It starts with anonymous speaker intervals, then an evidence-backed speaker map and

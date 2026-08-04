@@ -18,13 +18,43 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from murmurmark_resource_policy import (
+    PROFILE_DEFAULTS,
+    apply_resource_policy,
+    bounded_threads,
+    configure_thread_environment,
+    max_threads_from_environment,
+    print_resource_policy,
+    profile_name_from_environment,
+    resolve_resource_policy,
+)
+
+
+def early_option(name: str) -> str | None:
+    flag = f"--{name}"
+    for index, value in enumerate(sys.argv[1:]):
+        if value == flag and index + 2 <= len(sys.argv[1:]):
+            return sys.argv[index + 2]
+        if value.startswith(f"{flag}="):
+            return value.split("=", 1)[1]
+    return None
+
+
+try:
+    _early_limit_text = early_option("max-compute-threads")
+    _early_limit = int(_early_limit_text) if _early_limit_text is not None else max_threads_from_environment()
+    _early_policy = resolve_resource_policy(early_option("resource-profile"), _early_limit)
+except (TypeError, ValueError):
+    _early_policy = resolve_resource_policy("background")
+configure_thread_environment(_early_policy)
+
 import numpy as np
 from scipy import linalg, signal
 from scipy.io import wavfile
 
 
 SCHEMA = "murmurmark.live_pipeline_report/v1"
-SCRIPT_VERSION = "0.8.2"
+SCRIPT_VERSION = "0.8.3"
 EPSILON = 1.0e-12
 LIVE_ROLE_DUPLICATE_THRESHOLD = 0.55
 LIVE_RESCUE_SHADOW_POLICY = "audio_safe_union_v1"
@@ -64,13 +94,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--heartbeat-sec", type=float, default=2.0)
     parser.add_argument("--ffmpeg-timeout-sec", type=float, default=45.0)
     parser.add_argument("--whisper-timeout-sec", type=float, default=180.0)
-    parser.add_argument("--asr-threads", type=int, default=4)
+    parser.add_argument(
+        "--resource-profile",
+        choices=tuple(sorted(PROFILE_DEFAULTS)),
+        default=profile_name_from_environment(),
+    )
+    parser.add_argument("--max-compute-threads", type=int, default=None)
+    parser.add_argument("--asr-threads", type=int, default=None)
     parser.add_argument(
         "--asr-parallelism",
         type=int,
         choices=(0, 1, 2),
-        default=0,
-        help="Base mic/remote ASR concurrency. 0 selects 2 only on hosts with at least 12 logical CPUs.",
+        default=None,
+        help="Base mic/remote ASR concurrency. Profile default: 1 background, 2 performance.",
     )
     parser.add_argument(
         "--causal-target-me-timeout-sec",
@@ -117,9 +153,22 @@ def parse_args() -> argparse.Namespace:
         help="Disable the explicit-only local-island v2 + remote-active v1 runtime child.",
     )
     args = parser.parse_args()
-    if args.asr_parallelism == 0:
-        args.asr_parallelism = 2 if (os.cpu_count() or 1) >= 12 else 1
-    args.asr_threads = max(1, args.asr_threads)
+    try:
+        environment_profile = profile_name_from_environment()
+        environment_limit = max_threads_from_environment()
+        requested_limit = args.max_compute_threads
+        if requested_limit is None and args.resource_profile == environment_profile:
+            requested_limit = environment_limit
+        policy = resolve_resource_policy(args.resource_profile, requested_limit)
+    except ValueError as error:
+        parser.error(str(error))
+    args.max_compute_threads = policy.max_compute_threads
+    args.asr_threads = bounded_threads(args.asr_threads or policy.live_asr_threads, policy)
+    if args.asr_parallelism is None:
+        args.asr_parallelism = policy.live_asr_parallelism
+    elif args.asr_parallelism == 0:
+        args.asr_parallelism = 2 if (os.cpu_count() or 1) >= 12 and policy.profile == "performance" else 1
+    args.resource_policy_spec = policy
     return args
 
 
@@ -1695,6 +1744,9 @@ def write_report(
         "current_worker": "live-pipeline-shadow",
         "current_stage": status,
         "parameters": {
+            "resource_profile": args.resource_profile,
+            "max_compute_threads": args.max_compute_threads,
+            "resource_policy": getattr(args, "resource_policy_report", None),
             "commit_delay_sec": args.commit_delay_sec,
             "language": args.language,
             "model": str(args.model),
@@ -1740,6 +1792,8 @@ def write_report(
 def main() -> int:
     global SHUTDOWN_REQUESTED
     args = parse_args()
+    args.resource_policy_report = apply_resource_policy(args.resource_policy_spec)
+    print_resource_policy(args.resource_policy_report, prefix="live_resource_policy")
     session = args.session.expanduser().resolve()
     segments_path = resolve_output_path(session, args.segments_path)
     output_dir = resolve_output_path(session, args.output_dir)

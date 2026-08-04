@@ -2,7 +2,7 @@
 
 Status: implemented
 Date: 2026-06-22
-Last updated: 2026-07-22
+Last updated: 2026-08-04
 
 ## Summary
 
@@ -23,8 +23,12 @@ Current implementation status, 2026-07-22:
 - `local_speech_completion_v2` is promoted for its frozen two-session scope; it safely materializes
   independently confirmed local speech and exposes every unresolved local/text defect through an
   executable review lane. `residual_local_recall_v1` remains the fallback outside that scope;
-- residual audio and Speaker-Mode arbitration completed with `DO_NOT_PROMOTE`; the current bounded
-  goal is span-level separation of remote-supported text inside mixed `Me` utterances;
+- Speaker-Preserving Neural Echo v2 is the guarded pre-ASR production selector for compatible
+  speaker-playback sessions, with exact `local_fir_role_masked` fallback;
+- reference-conditioned three-stem separation completed with `DO_NOT_PROMOTE`: hard-test remained
+  sealed because train/dev gates and non-target-speaker identifiability were not sufficient;
+- the current bounded data goal is a speaker-disjoint Target-Me identifiability corpus with known
+  non-target local speech and correct/wrong enrollment controls. It cannot alter production;
 - committed-PCM live preview exists as an advisory shadow, while batch remains authoritative;
 - heavy-local validators, individual remote diarization, rich transcript, evidence-guarded LLM
   synthesis and UI remain future or optional work.

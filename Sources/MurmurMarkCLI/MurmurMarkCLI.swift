@@ -281,6 +281,7 @@ struct MurmurMark {
           murmurmark process ./session|latest [--model ./model.bin] [--language ru] [--prompt-file ./prompt.txt]
                                 [--full]
                                 [--force-asr] [--reuse-asr-cache] [--plan-only] [--skip-build]
+                                [--resource-profile background|performance] [--max-compute-threads N]
                                 [--asr-track-workers 1|2] [--asr-threads N] [--micro-asr-workers 1|2|4]
                                 [--skip-preprocess] [--skip-transcription] [--skip-audits] [--skip-cleanup]
                                 [--skip-stronger-audio-judge] [--stronger-audio-judge-exhaustive]
@@ -431,6 +432,7 @@ enum Commands {
         DoctorChecks.checkExecutable("whisper-cli", required: true, report: &report)
         DoctorChecks.checkExecutable("jq", required: false, report: &report)
         DoctorChecks.checkExecutable("swiftlint", required: false, report: &report)
+        DoctorChecks.checkResourceScheduling(&report)
         DoctorChecks.checkScripts(&report)
         DoctorChecks.checkPython(&report)
         DoctorChecks.checkWhisperModel(&report)
@@ -1008,14 +1010,48 @@ enum DoctorChecks {
                     hint: "run murmurmark config init when you want local defaults"
                 )
             }
+            let processing = config.effectiveProcessing()
+            let profile = (processing["resource_profile"] as? String) ?? "background"
+            let maxThreads = (processing["max_compute_threads"] as? NSNumber)?.intValue ?? 4
+            if !["background", "performance"].contains(profile) || maxThreads < 0 {
+                report.check(
+                    .fail,
+                    "processing resource profile",
+                    "invalid profile=\(profile) max_compute_threads=\(maxThreads)",
+                    hint: "use background|performance and a non-negative max_compute_threads"
+                )
+            } else {
+                report.check(
+                    .passed,
+                    "processing resource profile",
+                    "profile=\(profile) max_compute_threads=\(maxThreads)"
+                )
+            }
         } catch {
             report.check(.fail, "config", error.localizedDescription, hint: "fix or remove murmurmark.config.json")
+        }
+    }
+
+    static func checkResourceScheduling(_ report: inout DoctorReport) {
+        let nice = "/usr/bin/nice"
+        let taskpolicy = "/usr/sbin/taskpolicy"
+        let missing = [nice, taskpolicy].filter { !FileManager.default.isExecutableFile(atPath: $0) }
+        if missing.isEmpty {
+            report.check(.passed, "background scheduling", "nice=20, Darwin taskpolicy available")
+        } else {
+            report.check(
+                .warn,
+                "background scheduling",
+                "missing: \(missing.joined(separator: ", "))",
+                hint: "derived work will continue, but without the complete low-impact scheduling policy"
+            )
         }
     }
 
     static func checkScripts(_ report: inout DoctorReport) {
         for path in [
             "scripts/run-session-pipeline.py",
+            "scripts/murmurmark_resource_policy.py",
             "scripts/run-meeting-lifecycle.py",
             "scripts/evaluate-outcome.py",
             "scripts/live-pipeline-shadow.py",
@@ -1795,6 +1831,7 @@ enum PipelineHelp {
         usage: murmurmark process ./session|latest [--model ./model.bin] [--language ru] [--prompt-file ./prompt.txt]
                                 [--full]
                                 [--force-asr] [--reuse-asr-cache] [--plan-only] [--skip-build]
+                                [--resource-profile background|performance] [--max-compute-threads N]
                                 [--asr-track-workers 1|2] [--asr-threads N] [--micro-asr-workers 1|2|4]
                                 [--skip-preprocess] [--skip-transcription] [--skip-audits] [--skip-cleanup]
                                 [--skip-stronger-audio-judge] [--stronger-audio-judge-exhaustive]
@@ -1805,6 +1842,9 @@ enum PipelineHelp {
         audio judges and live-vs-batch diagnostics are intentionally left for `murmurmark enrich`.
         Use --full to run both phases in one foreground command.
         Defaults come from murmurmark.config.json when present; explicit CLI flags win.
+        The default background resource profile runs derived work at nice=20, applies the macOS
+        background scheduling policy and bounds native/ASR concurrency. Use --resource-profile
+        performance only for an intentional foreground speed run.
         The --skip-* flags are for debugging or refreshing only selected derived layers.
         The normal stronger-audio-judge pass audits the residual queue with mic_clean+remote.
         Use --stronger-audio-judge-exhaustive only for deliberate four-source diagnostics.
@@ -8072,6 +8112,10 @@ struct MurmurMarkConfig {
         appendString(section: "transcription", key: "model", option: "model", unless: args, to: &defaults, expandHomePath: true)
         appendString(section: "transcription", key: "language", option: "language", unless: args, to: &defaults)
         appendString(section: "transcription", key: "prompt_file", option: "prompt-file", unless: args, to: &defaults, expandHomePath: true)
+        appendString(section: "processing", key: "resource_profile", option: "resource-profile", unless: args, to: &defaults)
+        if !ArgumentEditing.hasOption("resource-profile", in: args) {
+            appendInt(section: "processing", key: "max_compute_threads", option: "max-compute-threads", unless: args, to: &defaults)
+        }
         return defaults
     }
 
@@ -8089,6 +8133,17 @@ struct MurmurMarkConfig {
         raw[name] as? [String: Any] ?? [:]
     }
 
+    func effectiveProcessing() -> [String: Any] {
+        var processing = section("processing")
+        if processing["resource_profile"] == nil {
+            processing["resource_profile"] = "background"
+        }
+        if processing["max_compute_threads"] == nil {
+            processing["max_compute_threads"] = 4
+        }
+        return processing
+    }
+
     private func string(section sectionName: String, key: String) -> String? {
         guard let value = section(sectionName)[key] as? String else { return nil }
         return value.isEmpty ? nil : value
@@ -8102,6 +8157,19 @@ struct MurmurMarkConfig {
             return ["true", "yes", "1"].contains(value.lowercased())
         }
         return false
+    }
+
+    private func int(section sectionName: String, key: String) -> Int? {
+        if let value = section(sectionName)[key] as? Int {
+            return value
+        }
+        if let value = section(sectionName)[key] as? NSNumber {
+            return value.intValue
+        }
+        if let value = section(sectionName)[key] as? String {
+            return Int(value)
+        }
+        return nil
     }
 
     private func appendString(
@@ -8121,6 +8189,11 @@ struct MurmurMarkConfig {
         defaults.append("--\(option)")
     }
 
+    private func appendInt(section sectionName: String, key: String, option: String, unless args: [String], to defaults: inout [String]) {
+        guard !ArgumentEditing.hasOption(option, in: args), let value = int(section: sectionName, key: key) else { return }
+        defaults += ["--\(option)", String(value)]
+    }
+
     private func expandHome(_ value: String) -> String {
         value.hasPrefix("~") ? PathURLs.fileURL(value).path : value
     }
@@ -8138,6 +8211,7 @@ enum ConfigPrinter {
             Swift.print("  next: murmurmark config init")
         }
         Swift.print("  transcription: \(compactJSON(config.section("transcription")))")
+        Swift.print("  processing: \(compactJSON(config.effectiveProcessing()))")
         Swift.print("  export: \(compactJSON(config.section("export")))")
     }
 

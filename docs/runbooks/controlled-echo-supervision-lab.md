@@ -1,7 +1,7 @@
 # Controlled Echo Supervision Lab v1
 
-This runbook collects private speaker-mode evidence for a future echo model. It does not train a
-model and does not change the production Echo Guard.
+This runbook records how the frozen private speaker-mode evidence was collected. It does not train
+a model and does not change the production Echo Guard.
 
 Each capture uses the ordinary durable raw writer and stops automatically after about 7 minutes
 40 seconds. Run it from a normal macOS Terminal session, not from a background agent.
@@ -227,8 +227,11 @@ gates do not pass. `status` also lists the missing scenarios and prints the next
 The frozen v1 result is `READY_FOR_ADAPTATION`. Five train, one dev and one hard-test capture passed
 all gates. Train contains `620s` local-only, `640s` remote-only and `1804s` synthetic mixtures; dev
 contains `124s`, `128s` and `352s`; hard-test contains `68s` measured double-talk. Replay matches
-`1465/1465`. Do not collect more v1 captures. Continue with the separate Speaker-Preserving Neural
-Echo v2 goal; this lab result still does not change production.
+`1465/1465`. Do not collect more v1 captures. The lab first supplied Speaker-Preserving Neural Echo
+v2, which later completed with guarded PROMOTE. Reference-Conditioned Target-Me Separation v1 then
+used the same immutable ownership and completed with `DO_NOT_PROMOTE`: the corpus lacked labelled
+non-target local speech. Do not relabel or extend frozen v1. Build the separate Target-Me
+Identifiability Corpus v1 for correct/wrong enrollment and other-speaker evidence.
 
 ## Recovery
 

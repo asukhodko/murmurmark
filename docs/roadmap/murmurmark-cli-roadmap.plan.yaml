@@ -33,7 +33,7 @@ nodes:
     title: "MurmurMark CLI"
     kind: summary
     status: current
-    effort: 120
+    effort: 135
     notes: |
       Активная CLI-first, local-first и evidence-backed программа. Batch transcript остаётся
       authoritative. В работе одновременно может быть только одна исполнимая продуктовая цель.
@@ -291,12 +291,43 @@ nodes:
       fingerprint be7b68f3267a20bfbd2fcf186587107e4201517e4edb3abbda3287857b008ffd.
       Local-FIR residual устраняет raw Target-Me false positives без изменения frozen thresholds.
 
+  research-reference-conditioned-target-me-separation-v1:
+    title: "Reference-Conditioned Target-Me Separation v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [research-speaker-preserving-neural-echo-v2, corpus-regression]
+    status: done
+    effort: 15
+    notes: |
+      Завершено DO_NOT_PROMOTE_REFERENCE_CONDITIONED_TARGET_ME_SEPARATION_V1, fingerprint
+      e3c925f005f0e85e7dc22e555e2a25701a1b297372babcc3551339da861324a3. Oracle и bounded
+      overfit прошли, но два deterministic train/dev кандидата прошли только 7/9 locked gates;
+      лучший достиг 11.470/12 dB Target-Me и 7.788/8 dB echo SNR. Frozen train имел один fixed
+      enrollment и 0 independently labelled non-target local-speech rows, поэтому semantic
+      other_local attribution неидентифицируема. Hard-test и sealed 12-session corpus не открыты;
+      production v2 остался byte-exact.
+
+  quality-target-me-identifiability-corpus-v1:
+    title: "Target-Me Identifiability Corpus v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [research-reference-conditioned-target-me-separation-v1, corpus-regression]
+    status: current
+    effort: 10
+    notes: |
+      Построить local-only, private и speaker-disjoint train/dev/hard corpus с independently known
+      target_me, remote_echo и non-target other_local speech. Для каждого speaker-bearing примера
+      сохранить correct/wrong enrollment controls, source identity, acoustic rendering provenance,
+      hashes, license и privacy class. Проверить enrollment-swap oracle, split contamination,
+      exact replay и source SNR до обучения. Завершить READY_FOR_TARGET_CONDITIONED_TRAINING либо
+      точным DO_NOT_TRAIN; не обучать production model и не менять Speaker-Preserving Neural Echo v2.
+
   product-evidence-export-v2:
     title: "Evidence Notes And Export v2"
     kind: task
     parent: murmurmark-cli
-    deps: [research-speaker-preserving-neural-echo-v2]
-    status: current
+    deps: [quality-target-me-identifiability-corpus-v1]
+    status: next
     effort: 7
     notes: |
       Собрать один versioned deterministic handoff bundle поверх выбранного transcript profile,
@@ -412,15 +443,6 @@ nodes:
     effort: 4
     notes: "Только reviewed proposals; никаких автоматических внешних записей без подтверждения."
 
-  parked-ui:
-    title: "Optional UI/Menu Bar"
-    kind: task
-    parent: parking-lot
-    deps: [product-release-quality-cli]
-    status: optional
-    effort: 6
-    notes: "UI переиспользует CLI contracts и не является условием полезности продукта."
-
 views:
   roadmap-tree:
     title: "Полный активный roadmap"
@@ -438,10 +460,11 @@ views:
         nodes: [working-capabilities, corpus-regression]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [product-evidence-export-v2]
+        nodes: [quality-target-me-identifiability-corpus-v1]
       dependent:
         title: "Следующие зависимые этапы"
         nodes:
+          - product-evidence-export-v2
           - product-release-quality-cli
 
   critical-path:
@@ -462,6 +485,8 @@ views:
           - quality-speaker-preserving-echo-adaptation-corpus-v1
           - quality-controlled-echo-supervision-lab-v1
           - research-speaker-preserving-neural-echo-v2
+          - research-reference-conditioned-target-me-separation-v1
+          - quality-target-me-identifiability-corpus-v1
           - product-evidence-export-v2
           - product-release-quality-cli
 
@@ -488,7 +513,6 @@ views:
         nodes:
           - parked-live-promotion
           - parked-reviewed-integrations
-          - parked-ui
 
   deps-map:
     title: "Зависимости активного плана"
@@ -510,6 +534,8 @@ views:
           - quality-speaker-preserving-echo-adaptation-corpus-v1
           - quality-controlled-echo-supervision-lab-v1
           - research-speaker-preserving-neural-echo-v2
+          - research-reference-conditioned-target-me-separation-v1
+          - quality-target-me-identifiability-corpus-v1
           - product-evidence-export-v2
           - product-release-quality-cli
           - parallel-research
@@ -518,8 +544,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Evidence Notes And Export v2: собрать один versioned deterministic handoff bundle из выбранного transcript profile, quality verdict, review evidence, notes и export readiness; каждая видимая запись ссылается на существующие evidence IDs, stale или blocked inputs fail closed, а Markdown/Obsidian export не требует ручного склеивания артефактов."
-      success_by_next_sync: "Одна команда выдаёт проверяемый handoff bundle или точный блокирующий reason/next command; notes, verdict, review burden и export ссылаются на одну версию transcript и совместимые evidence fingerprints."
+      nearest_goal: "Target-Me Identifiability Corpus v1: построить локальный воспроизводимый и speaker-disjoint train/dev/hard корпус с независимо известными target_me, remote_echo и non-target other_local speech, correct/wrong enrollment controls и акустическими вариантами основного speaker-mode; завершить READY_FOR_TARGET_CONDITIONED_TRAINING либо точным DO_NOT_TRAIN, не обучая production-модель и не меняя Speaker-Preserving Neural Echo v2."
+      success_by_next_sync: "Выбраны license/privacy-safe non-target speakers, зафиксированы split ownership и source identities, а deterministic builder доказал минимум один correct/wrong enrollment и semantic speaker-swap fixture без изменения production."
     defaults:
       status_progress:
         done: 1.0
@@ -540,13 +566,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle, batch transcript, review, notes/export и Live Shadow уже работают."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Текущая продуктовая цель"
-        scope_nodes: [product-evidence-export-v2]
+        title: "Текущая data-first audio цель"
+        scope_nodes: [quality-target-me-identifiability-corpus-v1]
         kind: main
         mgmt:
           health: green
-          sync_note: "Pre-ASR Echo v2 продвинут с exact fallback; теперь нужно превратить выбранный transcript и evidence в один пользовательский результат."
-          next_sync_goal: "Заморозить handoff v2 и получить deterministic Markdown/Obsidian bundle с валидными evidence IDs и fail-closed export gate."
+          sync_note: "Reference-conditioned v1 остановлен до hard-test: существующие пары не различают Target-Me и речь другого локального человека."
+          next_sync_goal: "Добавить independently known non-target local speech и correct/wrong enrollment controls с speaker-disjoint ownership."
       dependent-path:
         title: "Зависимый путь"
         scope_nodes:
@@ -558,13 +584,15 @@ x:
           - quality-speaker-preserving-echo-adaptation-corpus-v1
           - quality-controlled-echo-supervision-lab-v1
           - research-speaker-preserving-neural-echo-v2
+          - research-reference-conditioned-target-me-separation-v1
+          - quality-target-me-identifiability-corpus-v1
           - product-evidence-export-v2
           - product-release-quality-cli
         kind: main
         mgmt:
           health: neutral
-          sync_note: "Audio-first Echo promotion завершён; критический путь идёт через handoff v2 к release-quality CLI."
-          next_sync_goal: "Не расширять synthesis до доказанного versioned handoff и согласованных export gates."
+          sync_note: "После bounded corpus decision критический путь возвращается к evidence/export handoff и release-quality CLI."
+          next_sync_goal: "Не менять production profile; сначала доказать speaker identifiability либо выпустить точный DO_NOT_TRAIN."
       research:
         title: "Параллельные исследования"
         scope_nodes: [parallel-research]
@@ -572,7 +600,7 @@ x:
         mgmt:
           health: neutral
           sync_note: "Diarization и validators могут собирать isolated evidence, не меняя production."
-          next_sync_goal: "Не отвлекать ресурсы текущей quality-цели без отдельного решения."
+          next_sync_goal: "Не смешивать remote diarization с текущим Target-Me supervision corpus."
       parked:
         title: "Parking lot"
         scope_nodes: [parking-lot]
@@ -580,7 +608,7 @@ x:
         progress_override: 0.0
         mgmt:
           health: neutral
-          sync_note: "Live promotion, integrations и UI не держат полезность CLI."
+          sync_note: "Live promotion и внешние integrations не держат полезность CLI; UI остаётся вне обязательного roadmap."
           next_sync_goal: "Не активировать без нового product signal или снятия blocker."
     edges:
       - from: working-now

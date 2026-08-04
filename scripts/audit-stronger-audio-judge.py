@@ -810,7 +810,15 @@ def load_model(model_path: Path, args: argparse.Namespace) -> Any:
         from faster_whisper import WhisperModel
     except ImportError as error:
         raise SystemExit("missing faster_whisper module; install faster-whisper ctranslate2") from error
-    return WhisperModel(str(model_path), device=args.device, compute_type=args.compute_type)
+    model_options: dict[str, Any] = {
+        "device": args.device,
+        "compute_type": args.compute_type,
+    }
+    thread_limit = int(os.environ.get("MURMURMARK_MAX_COMPUTE_THREADS") or 0)
+    if args.device == "cpu" and thread_limit > 0:
+        model_options["cpu_threads"] = thread_limit
+        model_options["num_workers"] = 1
+    return WhisperModel(str(model_path), **model_options)
 
 
 def transcribe_clip(model: Any, path: Path, args: argparse.Namespace) -> dict[str, Any]:

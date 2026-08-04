@@ -47,6 +47,8 @@ CRITICAL_PATH = (
     "quality-speaker-preserving-echo-adaptation-corpus-v1",
     "quality-controlled-echo-supervision-lab-v1",
     "research-speaker-preserving-neural-echo-v2",
+    "research-reference-conditioned-target-me-separation-v1",
+    "quality-target-me-identifiability-corpus-v1",
     "product-evidence-export-v2",
     "product-release-quality-cli",
 )
@@ -125,7 +127,7 @@ def validate_statuses_and_goal(plan: dict) -> tuple[dict, str]:
     require(isinstance(statuses, dict), "plan.statuses must be a mapping")
     require(set(statuses) == EXPECTED_STATUSES, "plan status set does not match the planning contract")
     require(isinstance(nodes, dict) and nodes, "plan.nodes must be a non-empty mapping")
-    require(len(nodes) <= 35, f"active plan is too large: {len(nodes)} nodes, expected at most 35")
+    require(len(nodes) <= 36, f"active plan is too large: {len(nodes)} nodes, expected at most 36")
 
     current = [(node_id, node) for node_id, node in nodes.items() if node.get("status") == "current"]
     current_tasks = [(node_id, node) for node_id, node in current if node.get("kind") == "task"]
@@ -226,7 +228,7 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
         "rich transcript must follow speaker mapping",
     )
     require(nodes["parked-live-promotion"].get("status") == "blocked", "live promotion must stay blocked")
-    require(nodes["parked-ui"].get("status") == "optional", "UI must stay optional")
+    require("parked-ui" not in nodes, "UI must not occupy the active CLI roadmap")
 
 
 def validate_markdown() -> None:

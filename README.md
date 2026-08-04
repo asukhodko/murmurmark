@@ -106,6 +106,21 @@ Plain `process` is the authoritative path. `process --full` is a blocking compat
 not used by `meeting`. `--force-asr` and `--allow-partial` are diagnostics only and are never added
 by the meeting supervisor.
 
+## Resource Use
+
+Derived work runs with the `background` resource profile by default. MurmurMark sets `nice=20`,
+applies the macOS background scheduling policy and limits native compute pools to four threads.
+Batch ASR uses one track worker, and the live sidecar uses one ASR worker. Durable capture is never
+demoted, so processing an older session cannot weaken a new recording.
+
+The defaults are configurable in `murmurmark.config.json`:
+
+```json
+"processing": {"resource_profile": "background", "max_compute_threads": 4}
+```
+
+Use `murmurmark process "$SESSION" --resource-profile performance` only for an intentional
+foreground speed run. That restores the previous parallel ASR defaults and may occupy the machine.
 An interrupted processing run is resumed with the same command and session path:
 
 ```bash
@@ -243,10 +258,18 @@ candidate local tokens. The selected clean mic is transcribed directly; post-ASR
 zero promotion credit. The remaining `7/12` sessions used exact fallback, including headphones and
 every unsafe or inapplicable case.
 
-The current goal is **Evidence Notes And Export v2**: publish one deterministic handoff bundle whose
-transcript, verdict, notes, review burden and export manifest all refer to the same fingerprinted
-profile generation. Missing evidence IDs, stale hashes or blocked readiness must fail closed with a
-precise next command.
+**Reference-Conditioned Target-Me Separation v1** is complete with reproducible
+`DO_NOT_PROMOTE_REFERENCE_CONDITIONED_TARGET_ME_SEPARATION_V1`. The ideal-mask oracle and bounded
+overfit passed, but two deterministic train/dev attempts missed the locked gates: the best candidate
+reached `11.470/12 dB` Target-Me SNR and `7.788/8 dB` echo SNR. More importantly, the frozen train
+split had one fixed Target-Me enrollment and no independently labelled non-target local speech, so
+correct `other_local speech` attribution could not be proved. Hard-test and the sealed twelve-session
+corpus stayed unopened; production remains byte-exact Speaker-Preserving Neural Echo v2.
+
+The current goal is **Target-Me Identifiability Corpus v1**: build a private, reproducible,
+speaker-disjoint corpus with known Target-Me, remote echo and non-target local speech, plus correct
+and wrong enrollment controls. It changes no production audio and ends in `READY_FOR_TARGET_CONDITIONED_TRAINING`
+or a precise `DO_NOT_TRAIN`.
 
 The stable CLI already supports durable capture, resumable processing, guarded transcript profiles,
 evidence-backed review, export and retention. Historical profile decisions and exact metrics live
@@ -257,7 +280,8 @@ The dependent critical path is:
 ```text
 Meeting Lifecycle -> Mixed-Utterance Separation -> Echo Suppression Promotion
 -> Neural Residual Echo -> Adaptation Corpus -> Controlled Echo Lab
--> Speaker-Preserving Neural Echo v2 (done) -> Evidence Notes and Export v2 (current)
+-> Speaker-Preserving Neural Echo v2 (done) -> Reference-Conditioned Target-Me Separation (done)
+-> Target-Me Identifiability Corpus (current) -> Evidence Notes and Export v2 (next)
 -> Release-quality CLI
 ```
 
@@ -327,6 +351,8 @@ spoken prompt evidence and corpus examples stay under ignored `sessions/`.
 - `speaker_preserving_neural_echo_v2` is the guarded personalized production selector. It runs only
   with matching local enrollment/model/promotion evidence and speaker playback; otherwise it
   returns to exact `local_fir_role_masked`.
+- `reference_conditioned_target_me_separation_v1` is frozen research after `DO_NOT_PROMOTE`; its
+  Target-Me, remote-echo and other-local stems never replace production.
 - `neural_residual_echo_v1` is audit-only after `DO_NOT_PROMOTE`; it has no apply command and its
   ONNX models are never required by the normal meeting path.
 - `speaker_preserving_echo_adaptation_corpus_v1` is a private local corpus audit after
@@ -341,10 +367,8 @@ spoken prompt evidence and corpus examples stay under ignored `sessions/`.
 - [Mission and vision](docs/product/vision.md)
 - [Product requirements](docs/product/prd-v1.md)
 - [Current goal](docs/project/current-goal.md)
-- [Echo Suppression Promotion v1 result](docs/research/2026-07-23-echo-suppression-promotion-v1.md)
-- [Neural Residual Echo Suppression v1 result](docs/research/2026-07-23-neural-residual-echo-v1.md)
-- [Speaker-Preserving Echo Adaptation Corpus v1 result](docs/research/2026-07-23-speaker-preserving-echo-adaptation-corpus-v1.md)
 - [Speaker-Preserving Neural Echo v2 result](docs/research/2026-08-04-speaker-preserving-neural-echo-v2.md)
+- [Reference-Conditioned Target-Me Separation v1](docs/research/2026-08-04-reference-conditioned-target-me-separation-v1.md)
 - [Reliable transcription route](docs/project/reliable-transcription-route.md)
 - [Readable roadmap](docs/roadmap/murmurmark-cli-roadmap.md)
 - [OpsKarta v3 roadmap](docs/roadmap/murmurmark-cli-roadmap.plan.yaml)

@@ -101,12 +101,11 @@ would require one of three unsafe substitutions:
 2. treating measured double-talk as if its clean near-end target were known;
 3. inventing opening labels from absent or uncertain text evidence.
 
-The decision is therefore `DO_NOT_TRAIN`. `local_fir_role_masked` remains production, and the
-critical product path continues to Evidence Notes And Export v2.
-
-Speaker-Preserving Neural Echo v2 remains blocked. It may be reconsidered only after materially new
-supervision exists, such as controlled local playback captures with known clean near-end targets,
-independently verified remote-only echo, and confirmed opening/double-talk labels.
+The decision is therefore `DO_NOT_TRAIN`. `local_fir_role_masked` remained production at this
+stage. Controlled supervision later supplied those missing known targets and promoted
+Speaker-Preserving Neural Echo v2 without weakening this decision. Reference-Conditioned Target-Me
+Separation v1 subsequently reused that newer immutable corpus and stopped at dev because
+non-target local-speech identity was still not supervised.
 
 ## Commands
 

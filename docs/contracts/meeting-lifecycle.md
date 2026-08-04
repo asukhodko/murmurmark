@@ -35,6 +35,9 @@ meeting.
   lifecycle supervisor.
 - The lifecycle records SHA-256 identities before post-processing and verifies them at the end.
 - Capture is finalized before any processing action starts.
+- Capture keeps normal scheduling. Post-capture processing and the optional live sidecar use the
+  fail-open `background` resource policy (`nice=20`, Darwin background scheduling and bounded
+  compute pools); a scheduling-policy failure must not invalidate raw capture.
 - A non-partial `completed_with_warnings` capture may continue; its warnings remain visible and the
   existing process capture gates still reject interrupted, silent or sparse audio.
 - The authoritative processing action is plain `murmurmark process SESSION`; `--full`, `--force-asr`

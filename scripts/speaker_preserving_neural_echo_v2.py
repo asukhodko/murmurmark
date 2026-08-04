@@ -420,7 +420,10 @@ def configure_determinism(seed: int) -> None:
     if torch.backends.mps.is_available():
         torch.mps.manual_seed(seed)
     torch.use_deterministic_algorithms(True)
-    torch.set_num_threads(max(1, min(8, os.cpu_count() or 1)))
+    configured_limit = int(os.environ.get("MURMURMARK_MAX_COMPUTE_THREADS") or 0)
+    default_limit = max(1, min(8, os.cpu_count() or 1))
+    thread_limit = max(1, min(default_limit, configured_limit)) if configured_limit > 0 else default_limit
+    torch.set_num_threads(thread_limit)
 
 
 def analysis_window() -> np.ndarray:

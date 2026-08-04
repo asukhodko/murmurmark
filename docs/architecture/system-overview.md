@@ -179,6 +179,8 @@ Does not own:
 Owns:
 
 - local audio preprocessing;
+- low-impact derived execution: normal-priority durable capture followed by `nice=20`, Darwin
+  background scheduling and bounded numerical/ASR parallelism;
 - Echo Guard diagnostics and derived audio selection;
 - window planning for long sessions;
 - ASR and diarization adapters;

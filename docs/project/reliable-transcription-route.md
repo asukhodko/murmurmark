@@ -176,9 +176,20 @@ candidate local tokens. The other `7/12` sessions used exact fallback. The candi
 transcribed directly and downstream deletion receives zero suppression credit. Missing enrollment,
 headphones, stale fingerprints or any preservation regression keep `local_fir_role_masked`.
 
-The critical path now moves to Evidence Notes And Export v2: one fingerprinted handoff must bind the
-selected transcript, verdict, review burden, evidence-backed notes and export readiness. That
-bundle, rather than profile-specific file discovery, becomes the stable product boundary.
+Reference-Conditioned Target-Me Separation v1 completed with `DO_NOT_PROMOTE`. Oracle and overfit
+passed, but two train/dev candidates missed locked source gates. More importantly, one fixed
+enrollment and zero independently labelled non-target local-speech rows could not prove semantic
+speaker attribution. Hard-test and the sealed corpus remained unopened; Speaker-Preserving Neural
+Echo v2 stayed byte-exact.
+
+The critical path now builds Target-Me Identifiability Corpus v1: speaker-disjoint target,
+remote-echo and non-target local-speech sources with correct/wrong enrollment controls. This is a
+data prerequisite only and cannot alter `mic_for_asr.wav`.
+
+Evidence Notes And Export v2 follows after that audio profile decision. One fingerprinted handoff
+will then bind the selected transcript, verdict, review burden, evidence-backed notes and export
+readiness. That bundle, rather than profile-specific file discovery, becomes the stable product
+boundary.
 The failed live-recovery profile remains diagnostic evidence rather than another user-facing branch.
 
 ## Route To Reliability
@@ -420,11 +431,11 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Evidence Notes And Export v2: превратить выбранный transcript profile, structured quality verdict
-и unresolved review evidence в один deterministic handoff bundle. Каждая пользовательская заметка
-должна ссылаться на существующие utterance/evidence IDs. Bundle либо готов к локальному
-Markdown/Obsidian export, либо явно заблокирован с точной причиной и next command. Не использовать
-LLM, не писать во внешние системы и не менять capture, Echo Guard, ASR или transcript profiles.
+Target-Me Identifiability Corpus v1: построить local-only, private и speaker-disjoint train/dev/hard
+corpus с independently known target_me, remote_echo и non-target other_local speech. Для каждого
+speaker-bearing примера сохранить correct/wrong enrollment controls, source identity, acoustic
+rendering provenance и hashes. Завершить READY_FOR_TARGET_CONDITIONED_TRAINING либо точным
+DO_NOT_TRAIN; не обучать production model и не менять Speaker-Preserving Neural Echo v2.
 ```
 
 ## Consultation Prompt
