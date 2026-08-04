@@ -33,7 +33,7 @@ nodes:
     title: "MurmurMark CLI"
     kind: summary
     status: current
-    effort: 135
+    effort: 150
     notes: |
       Активная CLI-first, local-first и evidence-backed программа. Batch transcript остаётся
       authoritative. В работе одновременно может быть только одна исполнимая продуктовая цель.
@@ -312,21 +312,35 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [research-reference-conditioned-target-me-separation-v1, corpus-regression]
-    status: current
+    status: done
     effort: 10
     notes: |
-      Построить local-only, private и speaker-disjoint train/dev/hard corpus с independently known
-      target_me, remote_echo и non-target other_local speech. Для каждого speaker-bearing примера
-      сохранить correct/wrong enrollment controls, source identity, acoustic rendering provenance,
-      hashes, license и privacy class. Проверить enrollment-swap oracle, split contamination,
-      exact replay и source SNR до обучения. Завершить READY_FOR_TARGET_CONDITIONED_TRAINING либо
-      точным DO_NOT_TRAIN; не обучать production model и не менять Speaker-Preserving Neural Echo v2.
+      Завершено READY_FOR_TARGET_CONDITIONED_TRAINING, fingerprint
+      530cb0fd23503884d438bc24be10fff45610da1fb8fe710aad1b6b6cd992b2ce. Корпус содержит
+      4/2/2 split-disjoint non-target speakers, 1200/300/300s full mixtures, 490 items,
+      980 paired correct/wrong queries и 11 split-local enrollments. Identity, source,
+      enrollment и render-seed contamination равны нулю; exact replay 2470/2470,
+      publication verification 2504/2504. Production v2 не менялся.
+
+  research-reference-conditioned-target-me-separation-v2:
+    title: "Reference-Conditioned Target-Me Separation v2"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-target-me-identifiability-corpus-v1, corpus-regression]
+    status: current
+    effort: 15
+    notes: |
+      Обучить bounded speaker-query separator только на READY corpus. Воспроизвести v1 baseline,
+      обучать на paired correct/swap queries, выбрать ровно один candidate только по dev и
+      опубликовать immutable lock до открытия hard. После hard success проверить sealed meeting
+      corpus против byte-exact Speaker-Preserving Neural Echo v2. Завершить PROMOTE либо точным
+      DO_NOT_PROMOTE; train/dev, hard и sealed meetings не могут подстраивать друг друга.
 
   product-evidence-export-v2:
     title: "Evidence Notes And Export v2"
     kind: task
     parent: murmurmark-cli
-    deps: [quality-target-me-identifiability-corpus-v1]
+    deps: [research-reference-conditioned-target-me-separation-v2]
     status: next
     effort: 7
     notes: |
@@ -460,7 +474,7 @@ views:
         nodes: [working-capabilities, corpus-regression]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-target-me-identifiability-corpus-v1]
+        nodes: [research-reference-conditioned-target-me-separation-v2]
       dependent:
         title: "Следующие зависимые этапы"
         nodes:
@@ -487,6 +501,7 @@ views:
           - research-speaker-preserving-neural-echo-v2
           - research-reference-conditioned-target-me-separation-v1
           - quality-target-me-identifiability-corpus-v1
+          - research-reference-conditioned-target-me-separation-v2
           - product-evidence-export-v2
           - product-release-quality-cli
 
@@ -536,6 +551,7 @@ views:
           - research-speaker-preserving-neural-echo-v2
           - research-reference-conditioned-target-me-separation-v1
           - quality-target-me-identifiability-corpus-v1
+          - research-reference-conditioned-target-me-separation-v2
           - product-evidence-export-v2
           - product-release-quality-cli
           - parallel-research
@@ -544,8 +560,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Target-Me Identifiability Corpus v1: построить локальный воспроизводимый и speaker-disjoint train/dev/hard корпус с независимо известными target_me, remote_echo и non-target other_local speech, correct/wrong enrollment controls и акустическими вариантами основного speaker-mode; завершить READY_FOR_TARGET_CONDITIONED_TRAINING либо точным DO_NOT_TRAIN, не обучая production-модель и не меняя Speaker-Preserving Neural Echo v2."
-      success_by_next_sync: "Выбраны license/privacy-safe non-target speakers, зафиксированы split ownership и source identities, а deterministic builder доказал минимум один correct/wrong enrollment и semantic speaker-swap fixture без изменения production."
+      nearest_goal: "Reference-Conditioned Target-Me Separation v2: обучить bounded speaker-query separator только на READY Target-Me Identifiability Corpus v1, выбрать candidate на dev, открыть hard только после immutable lock и проверить sealed meeting corpus; завершить PROMOTE либо точным DO_NOT_PROMOTE без ослабления Speaker-Preserving Neural Echo v2."
+      success_by_next_sync: "Воспроизведён v1 baseline, зафиксированы train/dev policy и paired speaker-query метрики; ровно один dev-selected candidate либо immutably locked для hard evaluation, либо гипотеза остановлена точным DO_NOT_PROMOTE без изменения production."
     defaults:
       status_progress:
         done: 1.0
@@ -566,13 +582,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle, batch transcript, review, notes/export и Live Shadow уже работают."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Текущая data-first audio цель"
-        scope_nodes: [quality-target-me-identifiability-corpus-v1]
+        title: "Текущая speaker-query audio цель"
+        scope_nodes: [research-reference-conditioned-target-me-separation-v2]
         kind: main
         mgmt:
           health: green
-          sync_note: "Reference-conditioned v1 остановлен до hard-test: существующие пары не различают Target-Me и речь другого локального человека."
-          next_sync_goal: "Добавить independently known non-target local speech и correct/wrong enrollment controls с speaker-disjoint ownership."
+          sync_note: "Target-Me Identifiability Corpus v1 закрыт READY; speaker attribution теперь проверяется paired correct/swap queries без изменения mixture."
+          next_sync_goal: "Выбрать один candidate только по dev и опубликовать immutable lock до первого чтения hard targets."
       dependent-path:
         title: "Зависимый путь"
         scope_nodes:
@@ -586,13 +602,14 @@ x:
           - research-speaker-preserving-neural-echo-v2
           - research-reference-conditioned-target-me-separation-v1
           - quality-target-me-identifiability-corpus-v1
+          - research-reference-conditioned-target-me-separation-v2
           - product-evidence-export-v2
           - product-release-quality-cli
         kind: main
         mgmt:
           health: neutral
-          sync_note: "После bounded corpus decision критический путь возвращается к evidence/export handoff и release-quality CLI."
-          next_sync_goal: "Не менять production profile; сначала доказать speaker identifiability либо выпустить точный DO_NOT_TRAIN."
+          sync_note: "После bounded separator decision критический путь возвращается к evidence/export handoff и release-quality CLI."
+          next_sync_goal: "Не менять production profile до hard и sealed-corpus gates; отрицательный результат должен быть точным и воспроизводимым."
       research:
         title: "Параллельные исследования"
         scope_nodes: [parallel-research]

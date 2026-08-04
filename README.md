@@ -259,30 +259,29 @@ zero promotion credit. The remaining `7/12` sessions used exact fallback, includ
 every unsafe or inapplicable case.
 
 **Reference-Conditioned Target-Me Separation v1** is complete with reproducible
-`DO_NOT_PROMOTE_REFERENCE_CONDITIONED_TARGET_ME_SEPARATION_V1`. The ideal-mask oracle and bounded
-overfit passed, but two deterministic train/dev attempts missed the locked gates: the best candidate
-reached `11.470/12 dB` Target-Me SNR and `7.788/8 dB` echo SNR. More importantly, the frozen train
-split had one fixed Target-Me enrollment and no independently labelled non-target local speech, so
-correct `other_local speech` attribution could not be proved. Hard-test and the sealed twelve-session
-corpus stayed unopened; production remains byte-exact Speaker-Preserving Neural Echo v2.
+`DO_NOT_PROMOTE_REFERENCE_CONDITIONED_TARGET_ME_SEPARATION_V1`: its data could not identify
+non-target local speech, so hard and sealed meetings stayed unopened and production remained exact.
 
-The current goal is **Target-Me Identifiability Corpus v1**: build a private, reproducible,
-speaker-disjoint corpus with known Target-Me, remote echo and non-target local speech, plus correct
-and wrong enrollment controls. It changes no production audio and ends in `READY_FOR_TARGET_CONDITIONED_TRAINING`
-or a precise `DO_NOT_TRAIN`.
+**Target-Me Identifiability Corpus v1** is complete with
+`READY_FOR_TARGET_CONDITIONED_TRAINING`, fingerprint
+`530cb0fd23503884d438bc24be10fff45610da1fb8fe710aad1b6b6cd992b2ce`. It contains `4/2/2`
+split-disjoint non-target speakers, `1200/300/300s` full train/dev/hard mixtures, `980` paired
+correct/swap queries, zero split contamination and exact replay `2470/2470`.
 
-The stable CLI already supports durable capture, resumable processing, guarded transcript profiles,
-evidence-backed review, export and retention. Historical profile decisions and exact metrics live
-in the research documents and roadmap rather than in this user entry point.
+The current goal is **Reference-Conditioned Target-Me Separation v2**: train only on the new
+identifiable corpus, select on dev, open hard only after candidate lock, and compare with the sealed
+meeting corpus. It remains shadow-only until a separate `PROMOTE`; production is still byte-exact
+Speaker-Preserving Neural Echo v2.
+
+The stable CLI supports durable capture, resumable processing, guarded profiles, evidence-backed
+review, export and retention. Exact experiment metrics live in the research documents and roadmap.
 
 The dependent critical path is:
 
 ```text
-Meeting Lifecycle -> Mixed-Utterance Separation -> Echo Suppression Promotion
--> Neural Residual Echo -> Adaptation Corpus -> Controlled Echo Lab
--> Speaker-Preserving Neural Echo v2 (done) -> Reference-Conditioned Target-Me Separation (done)
--> Target-Me Identifiability Corpus (current) -> Evidence Notes and Export v2 (next)
--> Release-quality CLI
+Meeting Lifecycle -> Echo evidence and controlled lab -> Speaker-Preserving Neural Echo v2 (done)
+-> Reference-Conditioned v1 (done) -> Identifiability Corpus (done)
+-> Target-Me Separation v2 (current) -> Evidence Export v2 (next) -> Release-quality CLI
 ```
 
 Remote diarization, heavy local validators, LLM synthesis and UI are parallel or parked work. Live
@@ -369,6 +368,7 @@ spoken prompt evidence and corpus examples stay under ignored `sessions/`.
 - [Current goal](docs/project/current-goal.md)
 - [Speaker-Preserving Neural Echo v2 result](docs/research/2026-08-04-speaker-preserving-neural-echo-v2.md)
 - [Reference-Conditioned Target-Me Separation v1](docs/research/2026-08-04-reference-conditioned-target-me-separation-v1.md)
+- [Target-Me Identifiability Corpus v1](docs/research/2026-08-04-target-me-identifiability-corpus-v1.md)
 - [Reliable transcription route](docs/project/reliable-transcription-route.md)
 - [Readable roadmap](docs/roadmap/murmurmark-cli-roadmap.md)
 - [OpsKarta v3 roadmap](docs/roadmap/murmurmark-cli-roadmap.plan.yaml)

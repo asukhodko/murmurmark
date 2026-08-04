@@ -124,12 +124,23 @@ The final decision is `DO_NOT_PROMOTE_REFERENCE_CONDITIONED_TARGET_ME_SEPARATION
 hard-test and sealed corpus access remained blocked. The exact Speaker-Preserving Neural Echo v2
 output therefore stayed byte-identical.
 
-The active prerequisite is Target-Me Identifiability Corpus v1: independently known non-target
-local speech, speaker-disjoint train/dev/hard ownership and correct/wrong enrollment controls. It
-must establish semantic speaker identifiability before another separator is trained.
+Target-Me Identifiability Corpus v1 completed that prerequisite with
+`READY_FOR_TARGET_CONDITIONED_TRAINING`, fingerprint
+`530cb0fd23503884d438bc24be10fff45610da1fb8fe710aad1b6b6cd992b2ce`. It supplies `4/2/2`
+split-disjoint non-target speakers, `1200/300/300s` full mixtures and paired correct/swap enrollment
+targets over identical mixture bytes. Identity, source, enrollment and rendering contamination are
+zero; exact audio replay passed `2470/2470`.
+
+Reference-Conditioned Target-Me Separation v2 is now unblocked as a separate shadow experiment.
+It may train on `train`, select on `dev`, open `hard` only after candidate lock and then evaluate the
+sealed meeting corpus. The current production path remains Speaker-Preserving Neural Echo v2 until
+that ladder produces an independent `PROMOTE`.
 
 The experiment contract, data ownership, model ladder and decision gates are recorded in
 [Reference-Conditioned Target-Me Separation v1](../research/2026-08-04-reference-conditioned-target-me-separation-v1.md).
+The successor corpus result and schemas are in
+[Target-Me Identifiability Corpus v1](../research/2026-08-04-target-me-identifiability-corpus-v1.md)
+and its [contract](../contracts/target-me-identifiability-corpus.md).
 
 ## CLI Modes and Profiles
 

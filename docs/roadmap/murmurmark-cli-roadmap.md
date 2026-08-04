@@ -53,10 +53,17 @@ remain, while rebuildable media below `derived/` can be removed through
 
 ## Current Goal
 
-**Target-Me Identifiability Corpus v1** is the current goal. It builds the missing speaker-disjoint
-supervision needed to distinguish Target-Me from another nearby local speaker: independently known
-target, remote echo and other-local speech, plus correct and wrong enrollment controls. It prepares
-data and evidence only; production audio remains Speaker-Preserving Neural Echo v2.
+**Reference-Conditioned Target-Me Separation v2** is the current goal. It trains the smallest
+speaker-query separator on paired correct/wrong enrollment rows, selects one candidate using only
+`dev`, locks it before opening `hard`, and only then checks the sealed meeting corpus. Production
+audio remains Speaker-Preserving Neural Echo v2 until every promotion gate passes.
+
+The prerequisite **Target-Me Identifiability Corpus v1** is complete with
+`READY_FOR_TARGET_CONDITIONED_TRAINING`, fingerprint
+`530cb0fd23503884d438bc24be10fff45610da1fb8fe710aad1b6b6cd992b2ce`. It contains `4/2/2`
+split-disjoint non-target speakers, `1200/300/300s` full mixtures, `490` items, `980` paired
+queries and `11` split-local enrollments. Identity, source, enrollment and render-seed contamination
+are zero; exact replay is `2470/2470` and publication verification is `2504/2504`.
 
 The preceding **Speaker-Preserving Neural Echo v2** goal is complete with
 `PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2`. The sealed twelve-session corpus selected personalized
@@ -80,32 +87,6 @@ Startup and shutdown are bounded, and a failed startup releases the recording lo
 checks, real-artifact interrupt/resume, a fresh permission-capable capture soak and strict lifecycle
 acceptance all pass.
 
-Speaker-Mode Transcript Quality Hardening v1 completed with `DO_NOT_PROMOTE`. The frozen corpus
-proved three lossless retimes, one real double-talk interval and one genuine `Me` row, but no whole
-`Me` deletion. Duplicate reduction was `2.7%` and review reduction `7.9%`, below the `25%` and `15%`
-promotion gates.
-
-The immediate Evidence-Backed Me Completion v2 predecessor is now complete and promoted for its
-frozen two-session scope. It closed `3/6` residual local-recall rows and `22.4/35.85s`, repaired one
-duplicate text tail, preserved raw/remote/chronology/notes evidence, and exposed the remaining
-`13.45s` plus unresolved transcript text through concrete review lanes. Outside that frozen scope,
-`residual_local_recall_v1` remains the fallback.
-
-Mixed-Utterance Remote Span Separation v1 completed with `DO_NOT_PROMOTE`. It froze `12` mixed
-`Me` rows / `54.940s` across `7` sessions and produced deterministic evidence for all of them.
-Seven rows are probable ASR noise and five remain ambiguous, but no row proved both the removable
-remote span and the identity of every retained local edge. It applied no text changes and introduced
-no raw, remote, local-recall, chronology, notes or verdict regression.
-
-Echo Suppression Promotion v1 then aligned Offline AEC, WebRTC AEC3 and SpeexDSP under one signed
-timeline and automatic fail-open policy. The nine-session corpus kept `local_fir` in production and
-froze the exact overlap intervals that classical state-level suppression could not handle safely.
-
-Neural Residual Echo Suppression v1 then tested a pinned, offline Microsoft DEC ONNX model against
-those failures. It completed with deterministic `DO_NOT_PROMOTE`; full shadow was intentionally
-skipped after the mandatory local-loss stop rule fired. This rules out another blind engine swap
-and motivates proving supervision quality before any adaptation.
-
 ## Critical Path
 
 ```mermaid
@@ -119,11 +100,12 @@ flowchart LR
     C["Done: READY<br/>Controlled Echo<br/>Supervision Lab v1"]
     E["Done: PROMOTE<br/>Speaker-Preserving<br/>Neural Echo v2"]
     X["Done: DO_NOT_PROMOTE<br/>Reference-Conditioned<br/>Target-Me Separation v1"]
-    I["Current<br/>Target-Me Identifiability<br/>Corpus v1"]
+    I["Done: READY<br/>Target-Me Identifiability<br/>Corpus v1"]
+    V["Current<br/>Reference-Conditioned<br/>Target-Me Separation v2"]
     H["Next<br/>Evidence Notes And Export v2"]
     D["Later<br/>Release-quality CLI"]
 
-    P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> H --> D
+    P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D
 ```
 
 ### 0. Evidence-Backed Me Completion v2
@@ -199,20 +181,29 @@ the sealed twelve-session corpus stayed unopened. Production v2 remained byte-ex
 
 ### 9. Target-Me Identifiability Corpus v1
 
-Current. Build a local, private and reproducible speaker-disjoint train/dev/hard corpus with known
-Target-Me, remote echo and non-target local speech. Every speaker-bearing example receives correct
-and wrong enrollment controls; every source, acoustic rendering and split owner is hashed. Exact
-remix remains only a conservation check. Finish with `READY_FOR_TARGET_CONDITIONED_TRAINING` or a
-precise `DO_NOT_TRAIN`, without training a model or changing production.
+Completed with `READY_FOR_TARGET_CONDITIONED_TRAINING`. The private deterministic publication has
+known Target-Me, remote echo, non-target local speech and local noise stems. Every speaker-bearing
+mixture has paired correct/wrong enrollment queries over identical bytes. Split-local Target-Me
+sources and enrollment audio never cross train/dev/hard; all non-target identities are fully
+speaker-disjoint. Exact source replay, privacy/licensing checks and byte-level publication
+verification pass. No model was trained and production remained byte-exact.
 
-### 10. Evidence Notes And Export v2
+### 10. Reference-Conditioned Target-Me Separation v2
+
+Current. Reproduce the v1 baseline, then train only on paired `train` queries. Select one candidate
+using `dev` speaker attribution, Target-Me, echo, remix and safety gates. Publish an immutable
+candidate lock before reading hard targets. Open the sealed ordinary-meeting corpus only after hard
+success. Finish with a fingerprinted `PROMOTE` or exact `DO_NOT_PROMOTE`; neither hard nor sealed
+meetings may tune weights or thresholds.
+
+### 11. Evidence Notes And Export v2
 
 Next. Define one versioned, byte-stable handoff contract over the selected transcript profile,
 quality verdict, evidence notes, unresolved review burden and export readiness. Every visible claim
 must cite valid evidence IDs; stale or blocked input must fail closed. The normal lifecycle should
 publish one coherent Markdown/Obsidian bundle or one precise blocker and next command.
 
-### 10. Release-quality CLI
+### 12. Release-quality CLI
 
 Finalize the supported environment, installation, model/config handling, acceptance, release notes
 and public operational contract. UI is not required.
@@ -223,22 +214,24 @@ and public operational contract. UI is not required.
 flowchart LR
     Q["Controlled supervision decision"]
     E["Speaker-Preserving Neural Echo v2"]
-    X["Reference-conditioned Target-Me separation"]
+    X["Reference-conditioned Target-Me separation v1"]
     I["Target-Me identifiability corpus"]
+    C["Reference-conditioned Target-Me separation v2"]
     D["Remote diarization"]
     S["Speaker map"]
     T["transcript.rich.json"]
     V["Heavy local validators"]
     L["Evidence-guarded LLM"]
 
-    Q --> E --> X --> I
+    Q --> E --> X --> I --> C
     Q -.-> D --> S --> T --> L
     Q -.-> V
 ```
 
 Speaker-Preserving Neural Echo v2 remains production. Reference-Conditioned Target-Me Separation v1
-is complete with `DO_NOT_PROMOTE`; Target-Me Identifiability Corpus v1 is the executable data
-prerequisite, and Evidence Notes And Export v2 is the next dependent product step.
+is complete with `DO_NOT_PROMOTE`, and Target-Me Identifiability Corpus v1 closed its missing-data
+prerequisite with `READY`. Reference-Conditioned v2 is now executable; Evidence Notes And Export v2
+follows its bounded decision.
 
 Remote diarization works on authoritative `remote` and does not require complete Echo suppression.
 It starts after base quality closure, first produces anonymous stable speaker IDs, then an

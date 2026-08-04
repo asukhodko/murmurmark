@@ -182,9 +182,15 @@ enrollment and zero independently labelled non-target local-speech rows could no
 speaker attribution. Hard-test and the sealed corpus remained unopened; Speaker-Preserving Neural
 Echo v2 stayed byte-exact.
 
-The critical path now builds Target-Me Identifiability Corpus v1: speaker-disjoint target,
-remote-echo and non-target local-speech sources with correct/wrong enrollment controls. This is a
-data prerequisite only and cannot alter `mic_for_asr.wav`.
+Target-Me Identifiability Corpus v1 closed that prerequisite with
+`READY_FOR_TARGET_CONDITIONED_TRAINING`: `4/2/2` split-disjoint non-target speakers,
+`1200/300/300s` full mixtures and `980` paired correct/wrong enrollment queries passed exact replay
+and contamination gates. It did not alter `mic_for_asr.wav` or production.
+
+The critical path now runs Reference-Conditioned Target-Me Separation v2. It trains only on the
+READY train split, selects one candidate only on dev, locks it before hard, and opens the sealed
+meeting corpus only after hard success. Any failed gate leaves Speaker-Preserving Neural Echo v2
+byte-exact.
 
 Evidence Notes And Export v2 follows after that audio profile decision. One fingerprinted handoff
 will then bind the selected transcript, verdict, review burden, evidence-backed notes and export
@@ -431,11 +437,10 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Target-Me Identifiability Corpus v1: построить local-only, private и speaker-disjoint train/dev/hard
-corpus с independently known target_me, remote_echo и non-target other_local speech. Для каждого
-speaker-bearing примера сохранить correct/wrong enrollment controls, source identity, acoustic
-rendering provenance и hashes. Завершить READY_FOR_TARGET_CONDITIONED_TRAINING либо точным
-DO_NOT_TRAIN; не обучать production model и не менять Speaker-Preserving Neural Echo v2.
+Reference-Conditioned Target-Me Separation v2: обучить bounded speaker-query separator только на
+READY Target-Me Identifiability Corpus v1, выбрать candidate на dev, открыть hard только после
+immutable lock и проверить sealed meeting corpus; завершить PROMOTE либо точным DO_NOT_PROMOTE без
+ослабления Speaker-Preserving Neural Echo v2.
 ```
 
 ## Consultation Prompt

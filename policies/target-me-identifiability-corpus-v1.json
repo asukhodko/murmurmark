@@ -1,0 +1,146 @@
+{
+  "schema": "murmurmark.target_me_identifiability_policy/v1",
+  "profile": "target_me_identifiability_corpus_v1",
+  "status": "contract_locked_before_build",
+  "production_baseline": {
+    "policy": "policies/speaker-preserving-neural-echo-production-v2.json",
+    "policy_sha256": "68f9abab1197035c76a936b97cca6fba05d3992e7a0ccce82de4d8ec0959a425",
+    "decision": "PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2",
+    "selected_profile": "speaker_preserving_neural_echo_v2",
+    "corpus_fingerprint": "a70e9bd3a0d1834a8c016a80c75d55f550da022b0fcf60ae32ca29cefe55b9de"
+  },
+  "controlled_supervision": {
+    "root": "sessions/_reports/controlled-echo-supervision-v1",
+    "frozen_corpus": "sessions/_reports/controlled-echo-supervision-v1/frozen_corpus.json",
+    "frozen_corpus_sha256": "d8f977652c81f1ddeed40e9d77c84cd2dd3c246c7a40f9016a04337c8038f778",
+    "split_manifest": "sessions/_reports/controlled-echo-supervision-v1/split_manifest.json",
+    "split_manifest_sha256": "6190dfe2040faba8985f4af4162348e6984d5a9742b97447c3537d3902a932d0",
+    "supervision_manifest": "sessions/_reports/controlled-echo-supervision-v1/supervision_manifest.jsonl",
+    "supervision_manifest_sha256": "12a3162efcf1d0aec99744b755d30d0f38fb994b8126a7a94eeb44c9a1520c2a",
+    "corpus_decision": "sessions/_reports/controlled-echo-supervision-v1/corpus_decision.json",
+    "corpus_decision_sha256": "a6f76eb657e06f7e9b04e0c4a37254c161b1c99938a0fdbe3c4147eb2b2968d9",
+    "replay_report": "sessions/_reports/controlled-echo-supervision-v1/replay_report.json",
+    "replay_report_sha256": "f35727a4dd4231a2c1558bde047e13a95c0f42c7fc21483d341d67acd1bbc44d",
+    "decision": "READY_FOR_ADAPTATION",
+    "fingerprint": "be7b68f3267a20bfbd2fcf186587107e4201517e4edb3abbda3287857b008ffd",
+    "matched_files": 1465
+  },
+  "public_speech": {
+    "dataset_id": "openslr-slr31-mini-librispeech",
+    "landing_page": "https://www.openslr.org/31/",
+    "license": "CC-BY-4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "root": "sessions/_reports/target-me-identifiability-corpus-v1/sources/openslr31",
+    "archives": {
+      "train-clean-5.tar.gz": {
+        "url": "https://www.openslr.org/resources/31/train-clean-5.tar.gz",
+        "md5": "5df7d4e78065366204ca6845bb08f490",
+        "split_uses": ["train", "dev"]
+      },
+      "dev-clean-2.tar.gz": {
+        "url": "https://www.openslr.org/resources/31/dev-clean-2.tar.gz",
+        "md5": "6d7ab67ac6a1d2c993d050e16d61080d",
+        "split_uses": ["hard"]
+      }
+    }
+  },
+  "target_encoder": {
+    "backend": "wavlm_xvector_v0",
+    "model_id": "microsoft/wavlm-base-plus-sv",
+    "local_path": "~/.local/share/murmurmark/models/target-me/wavlm-base-plus-sv",
+    "files": {
+      "README.md": "97f5513cde351b3adb4e182b60ec23154dadba7ca83e667ceace237177855b8e",
+      "config.json": "c6ac8c0ce55b18d4612677931036fe5ce78093e87361c552a173f00a0bb07514",
+      "preprocessor_config.json": "99272fe8ccfab114b68b478681ea47ee3a1ce62bb788cb92dd6e4f69fb1f1da2",
+      "pytorch_model.bin": "e906bce2fa42fb497a1d1a9ecf81548adb7e03b12a5644e32d2f42f0d6500fad"
+    },
+    "network_access": "forbidden"
+  },
+  "audio": {
+    "sample_rate": 16000,
+    "channels": 1,
+    "clip_duration_sec": 4.0,
+    "clip_samples": 64000,
+    "subtype": "FLOAT",
+    "peak_limit": 0.92,
+    "reconstruction_max_abs_error": 0.00001,
+    "source_replay_snr_db_min": 80.0
+  },
+  "splits": {
+    "train": {
+      "dataset_subset": "train-clean-5",
+      "non_target_speakers": 4,
+      "full_mixture_rows": 300,
+      "minimum_full_mixture_sec": 1200.0
+    },
+    "dev": {
+      "dataset_subset": "train-clean-5",
+      "non_target_speakers": 2,
+      "full_mixture_rows": 75,
+      "minimum_full_mixture_sec": 300.0
+    },
+    "hard": {
+      "dataset_subset": "dev-clean-2",
+      "non_target_speakers": 2,
+      "full_mixture_rows": 75,
+      "minimum_full_mixture_sec": 300.0
+    }
+  },
+  "enrollment": {
+    "minimum_source_sec_per_speaker": 12.0,
+    "minimum_source_files_per_speaker": 2,
+    "minimum_embedding_similarity_margin_median": 0.02,
+    "target_identity": "private_target_me_v1",
+    "target_identity_cross_split": true,
+    "target_source_cross_split": false,
+    "non_target_identity_cross_split": false,
+    "enrollment_audio_in_mixtures": false
+  },
+  "rendering": {
+    "seed": 80420261,
+    "target_gain_db": [-6.0, -3.0, 0.0],
+    "remote_relative_db": [-3.0, 0.0, 3.0],
+    "other_relative_db": [-6.0, -3.0, 0.0],
+    "noise_relative_db": [-24.0, -18.0],
+    "other_local_paths": [
+      "nearfield_direct_v1",
+      "office_reflective_v1",
+      "offaxis_soft_v1"
+    ],
+    "families": [
+      "ordinary_double_talk",
+      "quiet_target_me",
+      "quiet_other_local",
+      "keyboard_background",
+      "opening_backchannel"
+    ],
+    "control_families": [
+      "target_only",
+      "remote_only",
+      "other_speaker_only",
+      "target_remote",
+      "target_other"
+    ]
+  },
+  "gates": {
+    "minimum_non_target_speakers": {"train": 4, "dev": 2, "hard": 2},
+    "minimum_full_mixture_sec": {"train": 1200.0, "dev": 300.0, "hard": 300.0},
+    "non_target_speaker_overlap_max": 0,
+    "source_file_overlap_max": 0,
+    "enrollment_mixture_overlap_max": 0,
+    "render_seed_overlap_max": 0,
+    "missing_query_controls_max": 0,
+    "failed_enrollment_swaps_max": 0,
+    "reconstruction_max_abs_error": 0.00001,
+    "source_replay_snr_db_min": 80.0,
+    "clipped_items_max": 0,
+    "changed_controlled_files_max": 0,
+    "changed_raw_caf_files_max": 0
+  },
+  "decision_values": [
+    "READY_FOR_TARGET_CONDITIONED_TRAINING",
+    "DO_NOT_TRAIN_TARGET_ME_IDENTIFIABILITY_V1"
+  ],
+  "training_performed": false,
+  "production_changed": false
+}

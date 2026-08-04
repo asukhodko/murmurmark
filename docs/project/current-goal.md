@@ -13,109 +13,116 @@ Roadmap status and dependencies live in
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`. `scripts/check-planning-consistency.py` keeps the
 README, roadmap and OpsKarta wording aligned.
 
-## Target-Me Identifiability Corpus v1
+## Reference-Conditioned Target-Me Separation v2
 
-OpsKarta nearest goal: Target-Me Identifiability Corpus v1: построить локальный воспроизводимый и speaker-disjoint train/dev/hard корпус с независимо известными target_me, remote_echo и non-target other_local speech, correct/wrong enrollment controls и акустическими вариантами основного speaker-mode; завершить READY_FOR_TARGET_CONDITIONED_TRAINING либо точным DO_NOT_TRAIN, не обучая production-модель и не меняя Speaker-Preserving Neural Echo v2.
+OpsKarta nearest goal: Reference-Conditioned Target-Me Separation v2: обучить bounded speaker-query separator только на READY Target-Me Identifiability Corpus v1, выбрать candidate на dev, открыть hard только после immutable lock и проверить sealed meeting corpus; завершить PROMOTE либо точным DO_NOT_PROMOTE без ослабления Speaker-Preserving Neural Echo v2.
 
 ## Why This Is Next
 
-Reference-Conditioned Target-Me Separation v1 completed with
-`DO_NOT_PROMOTE_REFERENCE_CONDITIONED_TARGET_ME_SEPARATION_V1`, fingerprint
-`e3c925f005f0e85e7dc22e555e2a25701a1b297372babcc3551339da861324a3`.
+Reference-Conditioned Target-Me Separation v1 proved a wide ideal-mask ceiling and bounded overfit,
+but ended in `DO_NOT_PROMOTE`: one fixed enrollment and no independently labelled nearby speaker
+made speaker attribution unidentifiable.
 
-The experiment established two different facts:
+Target-Me Identifiability Corpus v1 has now closed that exact prerequisite with
+`READY_FOR_TARGET_CONDITIONED_TRAINING`, fingerprint
+`530cb0fd23503884d438bc24be10fff45610da1fb8fe710aad1b6b6cd992b2ce`:
 
-- the ideal complex-mask representation has a wide ceiling: Target-Me SNR p05 `58.383 dB` and echo
-  SNR p05 `48.578 dB`;
-- the bounded separator can overfit four examples, but two deterministic train/dev attempts missed
-  the locked gates. The best reached `11.470/12 dB` Target-Me SNR and `7.788/8 dB` echo SNR.
+- `4/2/2` split-disjoint non-target speakers;
+- `1200/300/300s` full train/dev/hard mixtures;
+- `490` rendered items, `980` paired query controls and `11` split-local enrollments;
+- zero identity, source, enrollment and rendering-seed contamination;
+- enrollment similarity margin median `0.433614221`;
+- exact replay `2470/2470` and publication verification `2504/2504`.
 
-The decisive gap is data identifiability. All trainable rows used one fixed Target-Me enrollment.
-The only labelled `other_local` targets were keyboard and silence; no row contained independently
-known speech from another nearby person. Exact remix therefore could not distinguish correct
-Target-Me attribution from a semantic speaker swap. Hard-test and the sealed twelve-session corpus
-stayed unopened, and production output remained unchanged.
+The next uncertainty is therefore the model and promotion ladder, not missing supervision.
 
 ## Objective
 
-Create the smallest private corpus that can answer whether a separator actually follows a speaker
-query. Every accepted example must provide known, independently sourced components:
+Train and evaluate the smallest target-conditioned separator that must follow an enrollment query.
+For one fixed mixture it must recover Target-Me under the correct private enrollment and recover the
+known other-local speaker under the swapped enrollment, while accounting separately for measured
+remote echo and the remaining local component.
 
-```text
-mic_mixture = target_me + remote_echo + other_local_speech + other_local_noise
-```
+The experiment remains isolated until every gate passes. No train/dev result may replace production
+audio.
 
-Each example also carries:
+## Experiment Ladder
 
-- the correct Target-Me enrollment;
-- at least one wrong-speaker enrollment;
-- exact source identities and split ownership;
-- acoustic rendering provenance, gain, delay and room/speaker-path parameters;
-- SHA-256 for every source and rendered artifact;
-- license, privacy and redistribution classification.
+1. Freeze the READY corpus publication, policy, code revision, runtime and all model dependencies.
+2. Reproduce the v1 architecture and old train/dev metrics without opening the new hard split.
+3. Train paired correct/swap query rows from the new `train` split under deterministic seeds.
+4. Select one bounded candidate using only `dev` speaker attribution, Target-Me, echo and remix
+   gates.
+5. Publish an immutable candidate lock before reading any `hard` target.
+6. Open `hard` once and require unseen-speaker query adherence, quiet speech, double-talk,
+   opening/backchannel and keyboard/background preservation.
+7. Only after hard success, evaluate the sealed ordinary-meeting corpus against the byte-exact
+   Speaker-Preserving Neural Echo v2 baseline.
+8. Finish with one fingerprinted `PROMOTE` or `DO_NOT_PROMOTE` decision.
 
-This goal prepares evidence only. It does not train or promote a separator.
+## Locked Safety Boundary
 
-## Data Route
-
-1. Reuse the frozen controlled Target-Me speech only in its existing split.
-2. Audit a local, permissively licensed multi-speaker speech source for non-target identities. Private
-   meeting speech may be diagnostic only and must not become redistributable training material.
-3. Render non-target speech through a path distinct from the exact remote echo path, preserving its
-   clean source as independent ground truth.
-4. Build target-only, remote-only, other-speaker-only, target+remote, target+other and full
-   target+remote+other mixtures inside one split.
-5. Generate correct-enrollment, wrong-enrollment and enrollment-swap pairs without crossing speaker
-   or source ownership between train, dev and hard.
-6. Replay the corpus from manifests and compare every artifact hash.
+- train uses only `train`; candidate selection uses only `dev`;
+- hard data is unavailable before candidate lock;
+- sealed meetings cannot tune thresholds or model weights;
+- the same mixture bytes must produce the correct source for both enrollment queries;
+- mixture conservation alone receives no speaker-attribution credit;
+- no local or remote transcript text may be deleted after ASR to claim echo improvement;
+- missing model, enrollment, corpus or hash fails open to exact production fallback;
+- post-ASR cleanup receives zero promotion credit.
 
 ## Acceptance Gates
 
-- at least `4` non-target speaker identities in train, `2` in dev and `2` in hard;
-- no speaker identity, source clip or acoustic rendering seed crosses splits;
-- at least `20 min` train, `5 min` dev and `5 min` hard full three-source mixtures;
-- every split includes quiet Target-Me, quiet non-target speech, double-talk, keyboard/background and
-  opening/backchannel examples;
-- correct and wrong enrollment vectors exist for every speaker-bearing example;
-- an enrollment-swap oracle changes speaker attribution while mixture conservation stays exact;
-- target, echo and other-speech source SNR oracle gates pass before any trainable candidate;
-- replay matches every tracked descriptor and raw source remains unchanged;
-- private sources, model files and generated audio stay ignored; tracked reports contain no meeting
-  text or absolute workstation paths;
-- missing licenses, weak identity ownership, stale hashes or cross-split contamination fail closed.
+Before hard unlock, dev must show:
+
+- paired enrollment-swap attribution for every required family;
+- Target-Me SNR median at least `12 dB` and improvement at least `3 dB`;
+- remote-echo SNR median at least `8 dB` and remote-only attenuation at least `15 dB`;
+- correct-vs-wrong query target quality margin with no speaker-swap collapse;
+- exact reconstruction within `1e-5`, no clipping and no non-finite output;
+- unchanged exact-target and exact-other controls.
+
+Hard and sealed evaluation must then preserve:
+
+- all protected local tokens, opening phrases and double-talk Target-Me speech;
+- chronology, remote text, no-speech outcomes, notes evidence and guarded export;
+- non-target local speech attribution under swapped enrollment;
+- zero local-recall, order and speaker-attribution regressions;
+- measurable pre-ASR remote reduction beyond or equal to production v2 with positive utility, not
+  merely a different waveform.
 
 ## Decision
 
-The goal ends in exactly one fingerprinted result:
+The goal ends in exactly one immutable result:
 
-- `READY_FOR_TARGET_CONDITIONED_TRAINING`; or
-- `DO_NOT_TRAIN_TARGET_ME_IDENTIFIABILITY_V1` with a precise data, license or supervision ceiling.
+- `PROMOTE_REFERENCE_CONDITIONED_TARGET_ME_SEPARATION_V2`; or
+- `DO_NOT_PROMOTE_REFERENCE_CONDITIONED_TARGET_ME_SEPARATION_V2` with the precise model, data or
+  runtime ceiling.
 
-`READY` authorizes a later separator experiment only. It does not change `mic_for_asr.wav`, transcript
-selection, export or retention.
+Promotion may add a guarded pre-ASR candidate only for proven compatible speaker-playback sessions.
+Every unsafe or inapplicable session keeps exact Speaker-Preserving Neural Echo v2 output.
 
 ## Definition Of Done
 
-- versioned corpus, item, enrollment, replay and decision schemas exist;
-- manifests, data card, license/privacy audit and deterministic builder are reproducible locally;
-- fixture tests cover semantic speaker swap, split contamination, stale source, missing enrollment,
-  silence, clipping and interrupted publication;
-- corpus replay and oracle reports produce one immutable decision;
-- Speaker-Preserving Neural Echo v2 policy and all raw CAF hashes remain unchanged;
-- README, architecture, contracts, runbook, current goal, roadmap and OpsKarta record the measured
-  result and next dependency;
+- frozen experiment policy, train/dev report, candidate lock, hard decision and sealed-corpus report
+  exist with stable schemas and fingerprints;
+- repeated deterministic runs match before hard access;
+- negative fixtures cover wrong enrollment, absent target, other-local-only speech, remote-only,
+  silence, clipping, missing artifacts and publication interruption;
+- raw CAF and the Target-Me Identifiability corpus publication remain unchanged;
 - full regression, planning, privacy and open-source checks pass;
+- README, architecture, contracts, runbook, current goal, roadmap and OpsKarta record the measured
+  outcome and next dependency;
 - changes are committed, pushed to `origin/main`, and the worktree is clean.
 
 ## Outside This Goal
 
-- training or promoting a separator;
-- changing capture, Echo Guard, whisper.cpp or transcript post-processing;
-- cloud inference or uploading private meeting audio;
-- remote diarization, Live promotion, LLM synthesis and UI.
+- capture, Echo Guard topology or primary whisper.cpp replacement;
+- cloud inference or upload of private audio;
+- post-ASR duplicate deletion as promotion evidence;
+- remote diarization, LLM synthesis and UI.
 
 ## Deferred Product Goal
 
-Evidence Notes And Export v2 remains the next product handoff goal. It can proceed after this bounded
-data prerequisite or in parallel if audio research is paused; it must continue to use the selected
-production transcript profile.
+Evidence Notes And Export v2 remains the next product handoff after this bounded audio experiment.
+It continues to use whichever transcript profile is selected by the production gates.

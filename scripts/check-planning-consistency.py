@@ -49,6 +49,7 @@ CRITICAL_PATH = (
     "research-speaker-preserving-neural-echo-v2",
     "research-reference-conditioned-target-me-separation-v1",
     "quality-target-me-identifiability-corpus-v1",
+    "research-reference-conditioned-target-me-separation-v2",
     "product-evidence-export-v2",
     "product-release-quality-cli",
 )
@@ -127,7 +128,7 @@ def validate_statuses_and_goal(plan: dict) -> tuple[dict, str]:
     require(isinstance(statuses, dict), "plan.statuses must be a mapping")
     require(set(statuses) == EXPECTED_STATUSES, "plan status set does not match the planning contract")
     require(isinstance(nodes, dict) and nodes, "plan.nodes must be a non-empty mapping")
-    require(len(nodes) <= 36, f"active plan is too large: {len(nodes)} nodes, expected at most 36")
+    require(len(nodes) <= 40, f"active plan is too large: {len(nodes)} nodes, expected at most 40")
 
     current = [(node_id, node) for node_id, node in nodes.items() if node.get("status") == "current"]
     current_tasks = [(node_id, node) for node_id, node in current if node.get("kind") == "task"]

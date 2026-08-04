@@ -66,8 +66,12 @@ Current operating point, 2026-08-04:
 - Reference-Conditioned Target-Me Separation v1 completed with `DO_NOT_PROMOTE`: two train/dev
   attempts missed locked gates and the frozen corpus could not identify non-target local speech;
   hard-test stayed unopened and production v2 stayed byte-exact;
-- the current goal is Target-Me Identifiability Corpus v1: add speaker-disjoint non-target local
-  speech and correct/wrong enrollment controls without training or changing production;
+- Target-Me Identifiability Corpus v1 completed with `READY_FOR_TARGET_CONDITIONED_TRAINING`:
+  `4/2/2` split-disjoint non-target speakers, `1200/300/300s` full mixtures, `490` items and
+  `980` paired correct/wrong queries passed contamination, exact replay and publication gates;
+- the current goal is Reference-Conditioned Target-Me Separation v2: train only on the READY
+  corpus, select one candidate on dev, lock it before hard and preserve production v2 until every
+  hard and sealed-meeting gate passes;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 

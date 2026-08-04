@@ -230,8 +230,9 @@ contains `124s`, `128s` and `352s`; hard-test contains `68s` measured double-tal
 `1465/1465`. Do not collect more v1 captures. The lab first supplied Speaker-Preserving Neural Echo
 v2, which later completed with guarded PROMOTE. Reference-Conditioned Target-Me Separation v1 then
 used the same immutable ownership and completed with `DO_NOT_PROMOTE`: the corpus lacked labelled
-non-target local speech. Do not relabel or extend frozen v1. Build the separate Target-Me
-Identifiability Corpus v1 for correct/wrong enrollment and other-speaker evidence.
+non-target local speech. Do not relabel or extend frozen v1. The separate Target-Me Identifiability
+Corpus v1 has now completed with `READY_FOR_TARGET_CONDITIONED_TRAINING`; use its immutable
+publication for Reference-Conditioned Target-Me Separation v2.
 
 ## Recovery
 

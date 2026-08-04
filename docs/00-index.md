@@ -46,7 +46,10 @@ Read in this order:
 42. [Speaker-Preserving Neural Echo v2 result](research/2026-08-04-speaker-preserving-neural-echo-v2.md)
 43. [Reference-Conditioned Target-Me Separation v1](research/2026-08-04-reference-conditioned-target-me-separation-v1.md)
 44. [Reference-Conditioned Target-Me Separation contract](contracts/reference-conditioned-target-me-separation.md)
-45. [Planning and development history](history/README.md)
+45. [Target-Me Identifiability Corpus v1 result](research/2026-08-04-target-me-identifiability-corpus-v1.md)
+46. [Target-Me Identifiability Corpus contract](contracts/target-me-identifiability-corpus.md)
+47. [Target-Me Identifiability Corpus runbook](runbooks/target-me-identifiability-corpus.md)
+48. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
@@ -55,10 +58,11 @@ Planning snapshot: 2026-08-04. Speaker-Preserving Neural Echo v2 completed with 
 sessions, exact fallback in `7/12`, removed `41.940s` and `90` remote-supported tokens, and retained
 all candidate local tokens. Reference-Conditioned Target-Me Separation v1 then completed with
 `DO_NOT_PROMOTE`: oracle and overfit passed, but two train/dev attempts missed the locked gates and
-the corpus had no labelled non-target local speech. Hard-test remained unopened. Target-Me
-Identifiability Corpus v1 is now the executable goal: add speaker-disjoint non-target speech and
-correct/wrong enrollment controls without changing production. Evidence Notes And Export v2
-follows this bounded data decision.
+the corpus had no labelled non-target local speech. Target-Me Identifiability Corpus v1 then
+completed with `READY_FOR_TARGET_CONDITIONED_TRAINING`: `4/2/2` split-disjoint non-target speakers,
+`1200/300/300s` full mixtures, `980` paired query controls, zero contamination and replay
+`2470/2470`. Reference-Conditioned Target-Me Separation v2 is now the executable shadow-only goal;
+Speaker-Preserving Neural Echo v2 remains production.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,
