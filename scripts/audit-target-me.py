@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import io
 import importlib.util
 import json
 import math
 import os
+import re
 import shutil
 import subprocess
 import warnings
@@ -24,7 +26,7 @@ SCHEMA_ENROLLMENT = "murmurmark.target_me_enrollment/v1"
 SCHEMA_ROW = "murmurmark.target_me_audit/v1"
 SCHEMA_SUMMARY = "murmurmark.target_me_summary/v1"
 SCHEMA_CORPUS = "murmurmark.target_me_corpus_report/v1"
-SCRIPT_VERSION = "0.2.0"
+SCRIPT_VERSION = "0.2.1"
 SAMPLE_RATE = 16000
 EPS = 1e-9
 DEFAULT_WAVLM_MODEL = Path.home() / ".local/share/murmurmark/models/target-me/wavlm-base-plus-sv"
@@ -983,8 +985,71 @@ def item_source_audit_ids(item: dict[str, Any]) -> list[str]:
     return list(dict.fromkeys(ids))
 
 
-def existing_audit_by_id(path: Path) -> dict[str, dict[str, Any]]:
-    return {str(row.get("id") or row.get("source_pack_item_id") or ""): row for row in read_jsonl(path)}
+def normalize_text(value: Any) -> str:
+    text = str(value or "").lower().replace("ё", "е")
+    text = re.sub(r"[^0-9a-zа-я_./+-]+", " ", text)
+    return " ".join(text.split())
+
+
+def item_fingerprint_payload(item: dict[str, Any]) -> dict[str, Any]:
+    interval = item.get("interval") if isinstance(item.get("interval"), dict) else {}
+    utterances: list[dict[str, Any]] = []
+    for row in item.get("utterances") or []:
+        if not isinstance(row, dict):
+            continue
+        utterances.append(
+            {
+                "id": str(row.get("id") or ""),
+                "role": str(row.get("role") or ""),
+                "source_track": str(row.get("source_track") or ""),
+                "start": round(safe_float(row.get("start")), 3),
+                "end": round(safe_float(row.get("end")), 3),
+                "text": normalize_text(row.get("text")),
+            }
+        )
+    return {
+        "session_id": str(item.get("session_id") or ""),
+        "profile": str(item.get("profile") or ""),
+        "interval": {
+            "start": round(safe_float(interval.get("start")), 3),
+            "end": round(safe_float(interval.get("end")), 3),
+        },
+        "utterance_ids": [str(value) for value in item.get("utterance_ids") or []],
+        "utterances": utterances,
+    }
+
+
+def item_fingerprint(item: dict[str, Any]) -> str:
+    encoded = json.dumps(
+        item_fingerprint_payload(item),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def evidence_row_matches_item(row: dict[str, Any], item: dict[str, Any]) -> bool:
+    actual = str(row.get("source_pack_item_fingerprint") or "")
+    if actual:
+        return actual == item_fingerprint(item)
+    return item_fingerprint_payload(row) == item_fingerprint_payload(item)
+
+
+def evidence_rows_by_item_id(
+    items: list[dict[str, Any]],
+    rows: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    matched: dict[str, dict[str, Any]] = {}
+    for item in items:
+        pack_id = str(item.get("id") or "")
+        if not pack_id:
+            continue
+        for row in rows:
+            if evidence_row_matches_item(row, item):
+                matched[pack_id] = row
+                break
+    return matched
 
 
 def source_reasons_priority(item: dict[str, Any]) -> int:
@@ -1221,6 +1286,7 @@ def audit_item(
         "schema": SCHEMA_ROW,
         "id": f"tme_{pack_id.replace('arp_', '')}" if pack_id else "",
         "source_pack_item_id": pack_id,
+        "source_pack_item_fingerprint": item_fingerprint(item),
         "session_id": item.get("session_id"),
         "profile": item.get("profile"),
         "interval": interval,
@@ -1501,12 +1567,14 @@ def audit_session(session: Path, args: argparse.Namespace) -> dict[str, Any]:
     pack_dir = session / "derived/audit/audio-review-pack"
     items = read_jsonl(pack_dir / "review_pack_items.jsonl")
     selected = select_pack_items(items, args.max_items)
-    audio_review_by_id = existing_audit_by_id(pack_dir / "audio_review_audit.jsonl")
-    stronger_by_id = {
-        str(row.get("source_pack_item_id") or ""): row
-        for row in read_jsonl(pack_dir / "faster_whisper_judge.jsonl")
-        if row.get("source_pack_item_id")
-    }
+    audio_review_by_id = evidence_rows_by_item_id(
+        selected,
+        read_jsonl(pack_dir / "audio_review_audit.jsonl"),
+    )
+    stronger_by_id = evidence_rows_by_item_id(
+        selected,
+        read_jsonl(pack_dir / "faster_whisper_judge.jsonl"),
+    )
     calibration = enrollment.get("calibration") if isinstance(enrollment.get("calibration"), dict) else {}
     rows: list[dict[str, Any]] = []
     for index, item in enumerate(selected, start=1):

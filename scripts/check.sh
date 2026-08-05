@@ -30,6 +30,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-controlled-echo-supervision-v1.py
 "$python_bin" scripts/check-speaker-mode-hardening.py
 "$python_bin" scripts/check-target-me-silence.py
+"$python_bin" scripts/check-target-me-evidence-matching.py
 "$python_bin" scripts/check-no-speech-outcome.py
 "$python_bin" scripts/check-live-profile-selection.py
 "$python_bin" scripts/check-live-order-role-reconciliation.py
