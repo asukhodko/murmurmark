@@ -62,6 +62,10 @@ STEP_COST_HINTS: dict[str, dict[str, str]] = {
         "cost": "light",
         "reason": "validates the frozen Echo Guard promotion policy and fails open to local_fir",
     },
+    "export_asr_audio": {
+        "cost": "light",
+        "reason": "materializes the canonical mic/remote WAV inputs before baseline snapshot and ASR",
+    },
     "transcribe_current": {
         "cost": "heavy",
         "reason": "runs whisper.cpp ASR unless cached raw ASR is reused",
@@ -717,11 +721,15 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
     # One invocation writes both the baseline and shadow_v2 outputs. Running the
     # same script again with --skip-transcribe repeated current timeline repair
     # and made the authoritative path materially slower without changing output.
-    current_transcribe = list(transcribe_base) + ["--repair-profile", "shadow_v2"]
+    current_transcribe = list(transcribe_base) + [
+        "--skip-export",
+        "--repair-profile",
+        "shadow_v2",
+    ]
     if args.force_asr:
         current_transcribe.append("--force")
     if args.reuse_asr_cache:
-        current_transcribe += ["--skip-export", "--skip-transcribe"]
+        current_transcribe.append("--skip-transcribe")
 
     live_cache_materialize = [
         py,
@@ -767,6 +775,12 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
             ],
             enabled=not args.skip_preprocess,
             reason="--skip-preprocess",
+        ),
+        step(
+            "export_asr_audio",
+            [str(args.murmurmark_bin), "export-audio", str(session)],
+            enabled=not args.skip_transcription,
+            reason="--skip-transcription",
         ),
         step(
             "speaker_preserving_neural_echo_v2_prepare",

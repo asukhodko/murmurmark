@@ -1366,6 +1366,7 @@ def production_pipeline_order_checks() -> None:
     step_names = re.findall(r'\bstep\(\s*"([^"]+)"', source)
     required = (
         "echo_suppression_policy",
+        "export_asr_audio",
         "speaker_preserving_neural_echo_v2_prepare",
         "transcribe_current",
         "speaker_preserving_neural_echo_v2",
@@ -1373,7 +1374,7 @@ def production_pipeline_order_checks() -> None:
     positions = {name: step_names.index(name) for name in required}
     require(
         list(positions.values()) == sorted(positions.values()),
-        "production pipeline does not preserve baseline -> primary ASR -> selection order",
+        "production pipeline does not preserve export -> baseline -> primary ASR -> selection order",
     )
     prepare_start = source.index(
         'step(\n            "speaker_preserving_neural_echo_v2_prepare"'

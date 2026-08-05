@@ -240,6 +240,18 @@ def main() -> int:
         transcribe_steps = [item for item in pipeline_steps if item["name"].startswith("transcribe_")]
         assert [item["name"] for item in transcribe_steps] == ["transcribe_current"]
         assert transcribe_steps[0]["command"][-2:] == ["--repair-profile", "shadow_v2"]
+        assert "--skip-export" in transcribe_steps[0]["command"]
+        export_step = next(item for item in pipeline_steps if item["name"] == "export_asr_audio")
+        assert export_step["command"][1] == "export-audio"
+        assert export_step["enabled"] is True
+        step_names = [item["name"] for item in pipeline_steps]
+        assert step_names.index("echo_suppression_policy") < step_names.index("export_asr_audio")
+        assert step_names.index("export_asr_audio") < step_names.index(
+            "speaker_preserving_neural_echo_v2_prepare"
+        )
+        assert step_names.index("speaker_preserving_neural_echo_v2_prepare") < step_names.index(
+            "transcribe_current"
+        )
         deferred_names = [item["name"] for item in MODULE.steps_for_phase(pipeline_steps, "deferred")]
         assert deferred_names.index("session_operational_readiness_for_audio_review") < deferred_names.index(
             "review_plan_for_audio_review"
