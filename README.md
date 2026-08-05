@@ -125,10 +125,21 @@ applies the macOS background scheduling policy and limits native compute pools t
 Batch ASR uses one track worker, and the live sidecar uses one ASR worker. Durable capture is never
 demoted, so processing an older session cannot weaken a new recording.
 
+For faster post-recording work that still yields CPU to normal applications, use `opportunistic`.
+It keeps `nice=20`, removes the Darwin background clamp and restores bounded parallel mic/remote
+ASR. This mode can consume more power and produce more heat while the machine is otherwise idle;
+`background` remains the safer choice during capture or when charger headroom matters.
+
 The defaults are configurable in `murmurmark.config.json`:
 
 ```json
 "processing": {"resource_profile": "background", "max_compute_threads": 4}
+```
+
+Example for low-priority, work-conserving post-processing:
+
+```json
+"processing": {"resource_profile": "opportunistic", "max_compute_threads": 0}
 ```
 
 Use `murmurmark process "$SESSION" --resource-profile performance` only for an intentional

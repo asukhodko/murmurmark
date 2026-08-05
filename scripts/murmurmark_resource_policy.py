@@ -46,6 +46,17 @@ PROFILE_DEFAULTS: dict[str, ResourcePolicy] = {
         live_asr_threads=3,
         live_asr_parallelism=1,
     ),
+    "opportunistic": ResourcePolicy(
+        profile="opportunistic",
+        nice=20,
+        darwin_background=False,
+        max_compute_threads=0,
+        asr_threads=6,
+        asr_track_workers=2,
+        micro_asr_workers=4,
+        live_asr_threads=4,
+        live_asr_parallelism=2,
+    ),
     "performance": ResourcePolicy(
         profile="performance",
         nice=None,

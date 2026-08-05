@@ -133,6 +133,17 @@ limits for one low-level run with:
 murmurmark process "$SESSION" --resource-profile performance
 ```
 
+For normal-priority applications to stay responsive while MurmurMark consumes otherwise idle CPU,
+use the work-conserving profile:
+
+```bash
+murmurmark process "$SESSION" --resource-profile opportunistic
+```
+
+`opportunistic` keeps `nice=20`, does not apply `taskpolicy -b`, and runs bounded parallel
+mic/remote ASR. It is faster than `background`, but it does not cap heat or power draw while the
+machine is idle. Keep `background` for live capture, battery use, or limited charger power.
+
 Do not make `performance` the normal meeting default: it restores the old parallelism and can
 consume most CPU/GPU and charger headroom. A custom cap can be set with
 `--max-compute-threads N` or `processing.max_compute_threads` in the local config.

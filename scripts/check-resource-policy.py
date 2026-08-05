@@ -39,6 +39,15 @@ def check_defaults() -> None:
     assert background.micro_asr_workers == 1
     assert background.live_asr_parallelism == 1
 
+    opportunistic = POLICY.resolve_resource_policy("opportunistic")
+    assert opportunistic.nice == 20
+    assert opportunistic.darwin_background is False
+    assert opportunistic.max_compute_threads == 0
+    assert opportunistic.asr_threads == 6
+    assert opportunistic.asr_track_workers == 2
+    assert opportunistic.micro_asr_workers == 4
+    assert opportunistic.live_asr_parallelism == 2
+
     performance = POLICY.resolve_resource_policy("performance")
     assert performance.nice is None
     assert performance.max_compute_threads == 0
@@ -88,6 +97,33 @@ print(json.dumps({{"report": report, "child": json.loads(child)}}))
     assert payload["child"] == {"nice": 20, "threads": "2"}
 
 
+def check_opportunistic_subprocess() -> None:
+    code = f"""
+import json, os, sys
+sys.path.insert(0, {str(SCRIPTS)!r})
+import murmurmark_resource_policy as policy
+report = policy.apply_resource_policy(policy.resolve_resource_policy('opportunistic'))
+print(json.dumps(report))
+"""
+    completed = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    report = json.loads(completed.stdout)
+    assert report["profile"] == "opportunistic"
+    assert report["nice_after"] == 20
+    assert report["taskpolicy_status"] == "disabled"
+    assert report["max_compute_threads"] == 0
+    assert report["asr_defaults"] == {
+        "threads": 6,
+        "track_workers": 2,
+        "micro_asr_workers": 4,
+    }
+
+
 def parse_pipeline_args(*extra: str) -> object:
     module = load_pipeline()
     argv = [str(SCRIPTS / "run-session-pipeline.py"), "sessions/example", *extra]
@@ -102,6 +138,13 @@ def check_pipeline_defaults() -> None:
     assert background.asr_threads == 4
     assert background.asr_track_workers == 1
     assert background.micro_asr_workers == 1
+
+    opportunistic = parse_pipeline_args("--resource-profile", "opportunistic")
+    assert opportunistic.resource_profile == "opportunistic"
+    assert opportunistic.max_compute_threads == 0
+    assert opportunistic.asr_threads == 6
+    assert opportunistic.asr_track_workers == 2
+    assert opportunistic.micro_asr_workers == 4
 
     performance = parse_pipeline_args("--resource-profile", "performance")
     assert performance.resource_profile == "performance"
@@ -133,6 +176,7 @@ def main() -> int:
     check_defaults()
     check_environment_caps()
     check_applied_subprocess()
+    check_opportunistic_subprocess()
     check_pipeline_defaults()
     check_integration_points()
     print("resource policy checks passed")

@@ -281,7 +281,7 @@ struct MurmurMark {
           murmurmark process ./session|latest [--model ./model.bin] [--language ru] [--prompt-file ./prompt.txt]
                                 [--full]
                                 [--force-asr] [--reuse-asr-cache] [--plan-only] [--skip-build]
-                                [--resource-profile background|performance] [--max-compute-threads N]
+                                [--resource-profile background|opportunistic|performance] [--max-compute-threads N]
                                 [--asr-track-workers 1|2] [--asr-threads N] [--micro-asr-workers 1|2|4]
                                 [--skip-preprocess] [--skip-transcription] [--skip-audits] [--skip-cleanup]
                                 [--skip-stronger-audio-judge] [--stronger-audio-judge-exhaustive]
@@ -1192,12 +1192,12 @@ enum DoctorChecks {
             let processing = config.effectiveProcessing()
             let profile = (processing["resource_profile"] as? String) ?? "background"
             let maxThreads = (processing["max_compute_threads"] as? NSNumber)?.intValue ?? 4
-            if !["background", "performance"].contains(profile) || maxThreads < 0 {
+            if !["background", "opportunistic", "performance"].contains(profile) || maxThreads < 0 {
                 report.check(
                     .fail,
                     "processing resource profile",
                     "invalid profile=\(profile) max_compute_threads=\(maxThreads)",
-                    hint: "use background|performance and a non-negative max_compute_threads"
+                    hint: "use background|opportunistic|performance and a non-negative max_compute_threads"
                 )
             } else {
                 report.check(
@@ -2102,7 +2102,7 @@ enum PipelineHelp {
         usage: murmurmark process ./session|latest [--model ./model.bin] [--language ru] [--prompt-file ./prompt.txt]
                                 [--full]
                                 [--force-asr] [--reuse-asr-cache] [--plan-only] [--skip-build]
-                                [--resource-profile background|performance] [--max-compute-threads N]
+                                [--resource-profile background|opportunistic|performance] [--max-compute-threads N]
                                 [--asr-track-workers 1|2] [--asr-threads N] [--micro-asr-workers 1|2|4]
                                 [--skip-preprocess] [--skip-transcription] [--skip-audits] [--skip-cleanup]
                                 [--skip-stronger-audio-judge] [--stronger-audio-judge-exhaustive]
@@ -2114,8 +2114,9 @@ enum PipelineHelp {
         Use --full to run both phases in one foreground command.
         Defaults come from murmurmark.config.json when present; explicit CLI flags win.
         The default background resource profile runs derived work at nice=20, applies the macOS
-        background scheduling policy and bounds native/ASR concurrency. Use --resource-profile
-        performance only for an intentional foreground speed run.
+        background scheduling policy and bounds native/ASR concurrency. The opportunistic profile
+        keeps nice=20 but uses otherwise idle CPU without the Darwin background clamp. Use
+        --resource-profile performance only for an intentional foreground speed run.
         The --skip-* flags are for debugging or refreshing only selected derived layers.
         The normal stronger-audio-judge pass audits the residual queue with mic_clean+remote.
         Use --stronger-audio-judge-exhaustive only for deliberate four-source diagnostics.

@@ -166,27 +166,27 @@ def parse_args() -> argparse.Namespace:
         "--max-compute-threads",
         type=int,
         default=None,
-        help="Cap native compute thread pools. Default: 4 for background, unlimited for performance.",
+        help="Cap native compute thread pools. Default: 4 for background, unlimited for opportunistic/performance.",
     )
     parser.add_argument(
         "--asr-threads",
         type=int,
         default=None,
-        help="whisper.cpp compute threads per ASR process. Profile default: 4 background, 6 performance.",
+        help="whisper.cpp compute threads per ASR process. Profile default: 4 background, 6 opportunistic/performance.",
     )
     parser.add_argument(
         "--asr-track-workers",
         type=int,
         choices=(1, 2),
         default=None,
-        help="Bounded independent mic/remote whisper.cpp workers. Profile default: 1 background, 2 performance.",
+        help="Bounded independent mic/remote whisper.cpp workers. Profile default: 1 background, 2 opportunistic/performance.",
     )
     parser.add_argument(
         "--micro-asr-workers",
         type=int,
         choices=(1, 2, 4),
         default=None,
-        help="Bounded independent micro-ASR source/window workers. Profile default: 1 background, 4 performance.",
+        help="Bounded independent micro-ASR source/window workers. Profile default: 1 background, 4 opportunistic/performance.",
     )
     parser.add_argument(
         "--phase",

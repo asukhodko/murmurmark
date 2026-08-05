@@ -179,8 +179,9 @@ Does not own:
 Owns:
 
 - local audio preprocessing;
-- low-impact derived execution: normal-priority durable capture followed by `nice=20`, Darwin
-  background scheduling and bounded numerical/ASR parallelism;
+- low-impact derived execution: normal-priority durable capture followed by either the bounded
+  `background` profile or work-conserving `opportunistic` processing (`nice=20`, no Darwin
+  background clamp); foreground `performance` remains explicit;
 - Echo Guard diagnostics and derived audio selection;
 - window planning for long sessions;
 - ASR and diarization adapters;
