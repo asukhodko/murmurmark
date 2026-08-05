@@ -52,6 +52,7 @@ CRITICAL_PATH = (
     "research-reference-conditioned-target-me-separation-v2",
     "product-evidence-export-v2",
     "product-release-quality-cli",
+    "product-reliable-final-handoff-v1",
     "research-remote-diarization",
 )
 

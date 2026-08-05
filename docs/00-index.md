@@ -52,7 +52,8 @@ Read in this order:
 48. [Target-Me Identifiability Corpus runbook](runbooks/target-me-identifiability-corpus.md)
 49. [Reference-Conditioned Target-Me Separation v2 result](research/2026-08-05-reference-conditioned-target-me-separation-v2.md)
 50. [Reference-Conditioned Target-Me Separation runbook](runbooks/reference-conditioned-target-me-separation.md)
-51. [Planning and development history](history/README.md)
+51. [Reliable Final Handoff v1 baseline](testing/2026-08-05-reliable-final-handoff-baseline.md)
+52. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
@@ -69,8 +70,9 @@ missed three immutable dev quality gates and completed with `DO_NOT_PROMOTE`; ha
 remained unopened. Speaker-Preserving Neural Echo v2 remains production. Evidence Notes And Export
 v2 passes its 110-session integrity and deterministic-replay gate. Release-quality CLI now adds
 deterministic archives, complete integrity metadata, transactional install/upgrade and packaged
-offline acceptance. The current goal is Remote Speaker Evidence Map v1: anonymous, audit-only
-diarization of the authoritative remote track before any speaker naming.
+offline acceptance. The current goal is Reliable Final Handoff v1: bound post-stop convergence,
+reuse unchanged ASR evidence and eliminate blocking review states without an actionable next step.
+Remote Speaker Evidence Map v1 follows it.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

@@ -79,12 +79,13 @@ Current operating point, 2026-08-04:
 - Release-quality CLI packages the proven path with an explicit supported environment,
   deterministic artifact, idempotent transactional install/upgrade and packaged offline
   acceptance;
-- the current goal is Remote Speaker Evidence Map v1: anonymous, audit-only segmentation of the
-  authoritative remote track with provenance and corpus gates;
+- the current goal is Reliable Final Handoff v1: bounded post-stop convergence, sparse cache-aware
+  candidate ASR and an actionable result for every blocking review state;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 
-Remote Speaker Evidence Map v1 is the active critical-path stage after Release-quality CLI.
+Reliable Final Handoff v1 is the active critical-path stage after Release-quality CLI. Remote
+Speaker Evidence Map v1 follows it as the next audit-only semantic stage.
 The personalized Echo selector activates only with compatible local enrollment and promotion
 evidence; every unsupported acoustic mode or regression uses exact `local_fir_role_masked`.
 Any later separator remains isolated until a corpus-wide decision and cannot use exact remix or

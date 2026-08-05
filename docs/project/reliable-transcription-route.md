@@ -195,9 +195,10 @@ audio remained untouched.
 
 Evidence Notes And Export v2 now binds the selected transcript, verdict, review burden,
 evidence-backed notes and export readiness in one fingerprinted product boundary. Its 110-session
-corpus has zero referential-integrity, stale-manifest and deterministic-replay failures. The
-critical path now runs Release-quality CLI: make this proven boundary installable, upgrade-safe and
-verifiable from a packaged release.
+corpus has zero referential-integrity, stale-manifest and deterministic-replay failures.
+Release-quality CLI then made this boundary installable, upgrade-safe and verifiable from a
+packaged release. The remaining reliability gap is post-stop convergence: recent valid sessions
+exposed multi-hour processing and a review blocker without an executable next action.
 The failed live-recovery profile remains diagnostic evidence rather than another user-facing branch.
 
 ## Route To Reliability
@@ -439,11 +440,10 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Release-quality CLI: превратить проверенный локальный pipeline и Evidence Handoff v2 в
-устанавливаемый, документированный и воспроизводимый CLI-релиз; зафиксировать поддерживаемое
-окружение, зависимости, модели и конфигурацию, добавить clean-install и upgrade acceptance,
-собрать release artifact и публичный operational contract, подтвердить end-to-end meeting без
-обязательного UI.
+Reliable Final Handoff v1: сделать путь `murmurmark meeting -> first Ctrl-C -> final result`
+ограниченным по времени, возобновляемым и полностью исполнимым; переиспользовать неизменившиеся
+ASR-окна, не позволять тяжёлым кандидатам держать первый authoritative transcript и исключить
+блокирующий review без машинно-читаемого следующего действия, не ослабляя quality gates.
 ```
 
 ## Consultation Prompt

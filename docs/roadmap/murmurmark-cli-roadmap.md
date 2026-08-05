@@ -53,9 +53,10 @@ remain, while rebuildable media below `derived/` can be removed through
 
 ## Current Goal
 
-**Remote Speaker Evidence Map v1** is current. It assigns stable anonymous IDs to speech intervals
-on the authoritative remote track and publishes only an audit shadow with provenance. It cannot
-invent names, rewrite selected transcript text or affect Evidence Handoff v2 and guarded export.
+**Reliable Final Handoff v1** is current. It makes the path after the first `Ctrl-C` bounded,
+resumable and actionable. Heavy optional candidates cannot hold the first authoritative transcript
+for hours; unchanged ASR windows are reused; every blocking review state must expose an executable
+next action or a bounded human decision item.
 
 Its prerequisites are complete: One-Command Meeting Lifecycle owns the unattended product path;
 Speaker-Preserving Neural Echo v2 remains the guarded pre-ASR profile; Evidence Notes And Export v2
@@ -79,9 +80,10 @@ flowchart LR
     V["Done: DO_NOT_PROMOTE<br/>Reference-Conditioned<br/>Target-Me Separation v2"]
     H["Done<br/>Evidence Notes And Export v2"]
     D["Done<br/>Release-quality CLI"]
-    R["Current<br/>Remote Speaker<br/>Evidence Map v1"]
+    F["Current<br/>Reliable Final<br/>Handoff v1"]
+    R["Next<br/>Remote Speaker<br/>Evidence Map v1"]
 
-    P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D --> R
+    P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D --> F --> R
 ```
 
 ### 0. Evidence-Backed Me Completion v2
@@ -187,9 +189,17 @@ contracts, deterministic assembly and transactional install/upgrade with rollbac
 acceptance covers strict doctor, self-test, Evidence Handoff v2 and guarded export while preserving
 the external workspace and existing fingerprints.
 
-### 13. Remote Speaker Evidence Map v1
+### 13. Reliable Final Handoff v1
 
-Current. Split the authoritative remote track into stable anonymous speaker intervals, publish a
+Current. Bound post-stop convergence, reuse unchanged candidate ASR windows, make configured
+low-priority processing work-conserving after capture, and ensure every blocking state has an
+executable next action. Quality gates, raw CAF and Evidence Handoff v2 remain unchanged. The frozen
+baseline has median post-stop time `1746.216s`, p90 `2982.234s` and two current outliers at `4.545x`
+and `6.383x` capture duration.
+
+### 14. Remote Speaker Evidence Map v1
+
+Next. Split the authoritative remote track into stable anonymous speaker intervals, publish a
 shadow rich transcript with full provenance and make a corpus-wide decision. The stage does not
 invent names, rewrite transcript text or change Evidence Handoff v2 and guarded export.
 
@@ -203,13 +213,14 @@ flowchart LR
     I["Target-Me identifiability corpus"]
     C["Reference-conditioned Target-Me separation v2"]
     R["Release-quality CLI"]
+    F["Reliable Final Handoff v1"]
     D["Remote Speaker Evidence Map v1"]
     S["Speaker map"]
     T["transcript.rich.json"]
     V["Heavy local validators"]
     L["Evidence-guarded LLM"]
 
-    Q --> E --> X --> I --> C --> R --> D
+    Q --> E --> X --> I --> C --> R --> F --> D
     D --> S --> T --> L
     Q -.-> V
 ```
@@ -217,11 +228,11 @@ flowchart LR
 Speaker-Preserving Neural Echo v2 remains production. Both Reference-Conditioned Target-Me
 Separation experiments are complete with `DO_NOT_PROMOTE`; v2 showed that paired enrollment is
 identifiable but the small scratch-trained separator is below the waveform-quality ceiling.
-Evidence Notes And Export v2 and Release-quality CLI are complete. Remote Speaker Evidence Map v1
-is the current product goal.
+Evidence Notes And Export v2 and Release-quality CLI are complete. Reliable Final Handoff v1 is the
+current product goal; Remote Speaker Evidence Map v1 follows it.
 
 Remote diarization works on authoritative `remote` and does not require complete Echo suppression.
-The current stage produces anonymous stable speaker IDs and an audit-only rich transcript. Naming,
+Its next stage produces anonymous stable speaker IDs and an audit-only rich transcript. Naming,
 cross-session speaker mapping and authoritative rich transcript promotion remain later gates.
 
 Heavy local models begin as bounded validators. They do not replace the primary ASR without their

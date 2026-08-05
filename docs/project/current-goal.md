@@ -8,105 +8,99 @@ The stable product path remains `murmurmark meeting -> first Ctrl-C -> final res
 batch output are authoritative. Speaker-Preserving Neural Echo v2 remains the guarded production
 audio profile. Evidence Handoff v2 remains the only input to guarded export.
 
-Release-quality CLI is complete. MurmurMark now has a deterministic versioned archive, complete
-file checksums, compatibility and license contracts, transactional install/upgrade, rollback on
-failure and packaged offline acceptance through Evidence Handoff v2. Runtime files are immutable;
-config, sessions and exports remain in an external workspace.
+Release-quality CLI is complete. The next constraint is operational convergence: a valid recording
+can still spend hours in post-processing, and a blocking review state can remain without an
+executable next action. This violates the product mission before aggregate `Colleagues` becomes the
+most important limitation.
 
 Roadmap status and dependencies live in
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`. `scripts/check-planning-consistency.py` keeps the
 README, roadmap and OpsKarta wording aligned.
 
-## Remote Speaker Evidence Map v1
+## Reliable Final Handoff v1
 
-OpsKarta nearest goal: Remote Speaker Evidence Map v1: разделить authoritative remote-речь на локально вычисленные стабильные анонимные speaker intervals, создать audit-only rich transcript с полной provenance и corpus gates, не присваивая имён и не меняя selected transcript, Evidence Handoff v2 или guarded export до отдельного решения PROMOTE.
+OpsKarta nearest goal: Reliable Final Handoff v1: сделать путь `murmurmark meeting -> first Ctrl-C -> final result` ограниченным по времени, возобновляемым и полностью исполнимым: не позволять тяжёлым улучшателям бесконечно задерживать первый authoritative transcript, переиспользовать ASR для неизменившихся окон и исключить блокирующий review без машинно-читаемого следующего действия, сохранив raw CAF, качество и Evidence Handoff v2.
 
 ## Why This Is Next
 
-The release boundary is now reproducible and usable without a source checkout. The largest visible
-product limitation is semantic: every remote participant is still rendered as aggregate
-`Colleagues`. This is acceptable for a 1x1, but weakens group-meeting chronology, evidence notes and
-later action ownership.
+The frozen lifecycle snapshot contains 34 sessions: 29 ended `ready_with_review`, one `ready`, three
+`failed` and one `interrupted`. Across 29 usable runs, median post-stop time is `1746.216s`, p90 is
+`2982.234s`, and the maximum is `19467.679s`. The two latest long meetings spent `4.545x` and
+`6.383x` their recorded duration after stop.
 
-The authoritative remote track is already cleanly separated from `Me`, so anonymous remote speaker
-segmentation does not require another Echo model. A bounded audit-only map can establish whether
-local diarization is stable enough before names, transcript promotion or synthesis depend on it.
+The latest session eventually produced a usable reviewed transcript, but the original lifecycle
+spent `13274.232s` inside `process`, skipped an independently safe suggested review, and retained a
+stale blocking handoff after later review. Anonymous remote speakers improve semantics; bounded and
+actionable completion is required for the basic product promise.
+
+The reproducible baseline is recorded in
+`docs/testing/2026-08-05-reliable-final-handoff-baseline.md`.
 
 ## Objective
 
-Build a deterministic local evidence layer that assigns each speech interval on the authoritative
-remote track to an anonymous stable ID such as `Remote-1`, `Remote-2` or `unknown`. Publish a shadow
-rich transcript and a corpus decision without changing existing transcript text, timestamps,
-selected profile or export behavior.
-
-## Intended Contract
-
-```text
-authoritative remote audio + selected transcript + frozen corpus
-  -> speech regions and embeddings
-  -> constrained anonymous clustering
-  -> speaker intervals with confidence and provenance
-  -> transcript.rich.shadow_v1.json
-  -> corpus PROMOTE or DO_NOT_PROMOTE
-```
+Make one `murmurmark meeting` invocation converge after the first `Ctrl-C` to a truthful final
+handoff within an explicit budget. Required work may resume from checkpoints. Optional or expensive
+candidates may be deferred, but they cannot silently hold the first usable authoritative transcript.
+Every blocking result must contain either an executable next command or a concrete bounded human
+decision item.
 
 ## Required Work
 
-1. Freeze representative 1x1, group, overlap, short-speaker and noisy-office sessions with input
-   SHA-256 and known structural expectations.
-2. Define versioned schemas for anonymous speaker intervals, per-session evidence and corpus report.
-3. Benchmark local offline speech segmentation and speaker embeddings already available on the
-   machine; record exact model/version fingerprints and fail open when unavailable.
-4. Cluster only authoritative remote speech. Keep `Me`, transcript text and chronology immutable.
-5. Make speaker count conservative: merge uncertain fragments into `unknown` instead of inventing
-   identities; never derive a person's name from transcript text.
-6. Measure single-speaker false splits, multi-speaker merges, speaker-change boundaries,
-   cross-session instability, overlap coverage and deterministic replay.
-7. Create an audit-only `transcript.rich.shadow_v1.json` referencing existing utterance IDs and
-   interval evidence.
-8. Add fixture, negative, missing-model, repeatability, privacy and corpus tests.
-9. Keep Evidence Handoff v2 and guarded export unchanged unless a later explicit promotion goal
-   proves the new schema safe.
-10. Reconcile README, contracts, runbooks, roadmap and OpsKarta with the measured decision.
+1. Add a deterministic corpus report for lifecycle latency, stage timings, completion state and
+   dead-end blockers; freeze its input report hashes.
+2. Separate the first authoritative handoff from optional heavy improvement work in the lifecycle
+   contract. Persist an explicit degraded/deferred reason when a budget is exhausted.
+3. Verify resource-profile propagation after capture. Keep capture undemoted; allow configured
+   low-priority work-conserving processing after raw writers close.
+4. Make Speaker-Preserving Neural Echo candidate ASR sparse and cache-aware: unchanged windows reuse
+   exact baseline evidence; only affected windows may invoke whisper.cpp again.
+5. Re-evaluate suggested review after enrichment using current fingerprints and apply only rows that
+   pass existing safety gates. Refresh lifecycle, selected profile and handoff afterward.
+6. Enforce the actionability invariant: an export or review blocker must map to an allowlisted command
+   or a machine-readable manual item with interval, evidence and allowed decisions.
+7. Show useful stage progress, elapsed time and bounded ETA; interruption must leave one exact resume
+   command and no stale `running` state.
+8. Add fixture, cache, timeout, interruption, stale-evidence, no-actionable-lane and corpus regression
+   tests. Re-run the two latest outlier sessions from valid caches.
+9. Reconcile README, contracts, runbooks, roadmap and OpsKarta with measured results.
 
 ## Safety Boundary
 
-- local and offline only;
-- anonymous IDs only; names require later evidence or review;
-- no rewrite of raw CAF, selected transcript or existing timestamps;
-- no diarization from the microphone track;
-- uncertain speech remains `unknown` or explicit review evidence;
-- a missing model or weak corpus result yields `DO_NOT_PROMOTE`, not a weaker transcript;
-- no LLM, cloud service, UI or external-system write.
+- raw CAF, selected transcript text and evidence IDs remain immutable inputs;
+- no quality gate is weakened to improve latency;
+- timeout or missing optional evidence fails open to a baseline transcript or explicit review;
+- auto-review uses only already allowlisted answers and existing safety checks;
+- no new ASR model, cloud service, diarization, live promotion or UI;
+- Remote Speaker Evidence Map v1 remains the next goal and keeps its previously defined scope.
 
 ## Acceptance Gates
 
-- every output interval points to immutable audio and transcript evidence;
-- one-remote-speaker fixtures do not split into multiple confident identities;
-- multi-speaker fixtures preserve known speaker changes without collapsing all speech into one ID;
-- repeated runs produce byte-identical structured outputs;
-- no concrete participant name is generated automatically;
-- selected transcript, Evidence Handoff v2, notes, export readiness and raw CAF remain byte-exact;
-- missing optional diarization assets fail open with an actionable report;
-- corpus report records a reproducible `PROMOTE_REMOTE_SPEAKER_EVIDENCE_MAP_V1` or
-  `DO_NOT_PROMOTE_REMOTE_SPEAKER_EVIDENCE_MAP_V1` decision.
+- every valid supported capture produces an authoritative transcript or an explicit failed reason;
+- p90 `total_after_stop / capture` is at most `1.0` on the eligible frozen corpus;
+- no compatible session exceeds ratio `2.0` without an explicit budget/degraded reason and resume
+  action;
+- unchanged candidate windows cause zero duplicate ASR work and exact cache replay;
+- `open_review_lanes == 0` cannot coexist with an opaque export-blocking review state;
+- safe suggested closure discovered after enrichment is applied inside the same lifecycle;
+- lifecycle report, selected profile, Evidence Handoff v2 and CLI accessors agree after every action;
+- local recall, chronology, remote-like `Me`, protected content, notes evidence and guarded export do
+  not regress;
+- repeated cached runs are deterministic and raw CAF SHA-256 values remain unchanged.
 
 ## Definition Of Done
 
-- schemas, implementation and audit artifacts exist;
-- frozen fixtures and real-session corpus cover 1x1 and group meetings;
-- local repeatability and no-regression gates pass;
-- the shadow rich transcript is inspectable but cannot become authoritative accidentally;
-- the measured corpus decision and evidence ceiling are documented;
+- implementation, schemas, timing report and machine-readable budget reasons exist;
+- fixture and frozen-corpus gates pass, including the two August 5 latency outliers;
+- a second `Ctrl-C` and a process failure both leave a tested exact resume path;
+- a normal successful lifecycle ends with the final artifact paths and no hidden required command;
+- the corpus decision and remaining runtime ceiling are documented;
 - README, contracts, runbooks, current goal, roadmap and OpsKarta agree;
 - full static, Swift, privacy, open-source, planning and relevant corpus checks pass;
 - changes are committed, pushed to `origin/main`, and the worktree is clean.
 
 ## Outside This Goal
 
-- assigning real names to anonymous speakers;
-- cross-meeting identity tracking;
-- changing `Colleagues` in the selected Markdown transcript;
-- promoting `transcript.rich.json` into Evidence Handoff v2;
-- another Echo or Target-Me separation model;
-- LLM synthesis, cloud APIs, UI or live-result promotion.
+- remote-speaker diarization, naming and `transcript.rich.json`;
+- another Echo or Target-Me model;
+- changing the primary whisper.cpp model;
+- cloud APIs, LLM synthesis, UI or live-result promotion.

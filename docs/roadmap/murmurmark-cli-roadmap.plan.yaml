@@ -33,7 +33,7 @@ nodes:
     title: "MurmurMark CLI"
     kind: summary
     status: current
-    effort: 150
+    effort: 158
     notes: |
       Активная CLI-first, local-first и evidence-backed программа. Batch transcript остаётся
       authoritative. В работе одновременно может быть только одна исполнимая продуктовая цель.
@@ -364,6 +364,19 @@ nodes:
       upgrade сохраняет предыдущую версию. Изолированный offline acceptance проверяет packaged
       doctor, self-test, Evidence Handoff v2 и guarded export; workspace и session inputs внешние.
 
+  product-reliable-final-handoff-v1:
+    title: "Reliable Final Handoff v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [product-release-quality-cli, corpus-regression]
+    status: current
+    effort: 8
+    notes: |
+      Ограничить путь от первого Ctrl-C до truthful final result, переиспользовать unchanged ASR
+      windows, отделить тяжёлые optional candidates от первого authoritative handoff и запретить
+      blocking review без executable next action. Raw CAF, quality gates и Evidence Handoff v2
+      остаются неизменными.
+
   parallel-research:
     title: "Параллельные исследования"
     kind: phase
@@ -378,8 +391,8 @@ nodes:
     title: "Remote Speaker Evidence Map v1"
     kind: task
     parent: murmurmark-cli
-    deps: [quality-operational-rebaseline-v1, corpus-regression, product-release-quality-cli]
-    status: current
+    deps: [quality-operational-rebaseline-v1, corpus-regression, product-reliable-final-handoff-v1]
+    status: next
     effort: 6
     notes: |
       Разделить authoritative remote на стабильные anonymous speaker intervals и audit-only rich
@@ -481,10 +494,10 @@ views:
         nodes: [working-capabilities, corpus-regression]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [research-remote-diarization]
+        nodes: [product-reliable-final-handoff-v1]
       dependent:
-        title: "После anonymous speaker evidence"
-        nodes: [parallel-research, parking-lot]
+        title: "После надёжного final handoff"
+        nodes: [research-remote-diarization, parallel-research, parking-lot]
 
   critical-path:
     title: "Критический CLI-путь"
@@ -509,6 +522,7 @@ views:
           - research-reference-conditioned-target-me-separation-v2
           - product-evidence-export-v2
           - product-release-quality-cli
+          - product-reliable-final-handoff-v1
           - research-remote-diarization
 
   parallel-research-view:
@@ -560,6 +574,7 @@ views:
           - research-reference-conditioned-target-me-separation-v2
           - product-evidence-export-v2
           - product-release-quality-cli
+          - product-reliable-final-handoff-v1
           - research-remote-diarization
           - parallel-research
           - parking-lot
@@ -567,8 +582,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Remote Speaker Evidence Map v1: разделить authoritative remote-речь на локально вычисленные стабильные анонимные speaker intervals, создать audit-only rich transcript с полной provenance и corpus gates, не присваивая имён и не меняя selected transcript, Evidence Handoff v2 или guarded export до отдельного решения PROMOTE."
-      success_by_next_sync: "Frozen 1x1/group corpus детерминированно получает anonymous remote speaker intervals и shadow rich transcript; выбран PROMOTE или воспроизводимый DO_NOT_PROMOTE без изменения authoritative output."
+      nearest_goal: "Reliable Final Handoff v1: сделать путь `murmurmark meeting -> first Ctrl-C -> final result` ограниченным по времени, возобновляемым и полностью исполнимым: не позволять тяжёлым улучшателям бесконечно задерживать первый authoritative transcript, переиспользовать ASR для неизменившихся окон и исключить блокирующий review без машинно-читаемого следующего действия, сохранив raw CAF, качество и Evidence Handoff v2."
+      success_by_next_sync: "Frozen lifecycle corpus воспроизводимо подтверждает bounded post-stop handoff, exact cache reuse и actionable blockers без регрессии transcript, review evidence или guarded export."
     defaults:
       status_progress:
         done: 1.0
@@ -589,13 +604,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle, batch transcript, review, notes/export и Live Shadow уже работают."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Текущая speaker evidence цель"
-        scope_nodes: [research-remote-diarization]
+        title: "Текущая final handoff цель"
+        scope_nodes: [product-reliable-final-handoff-v1]
         kind: main
         mgmt:
-          health: green
-          sync_note: "Release-quality CLI завершён; aggregate Colleagues остаётся крупнейшим явным ограничением групповых встреч."
-          next_sync_goal: "Получить anonymous remote speaker map и corpus decision без изменения selected transcript."
+          health: yellow
+          sync_note: "Release-quality CLI завершён, но свежие valid sessions показали multi-hour post-stop latency и blocking review без executable next action."
+          next_sync_goal: "Получить bounded, resumable и actionable final handoff без ослабления quality gates."
       dependent-path:
         title: "Зависимый путь"
         scope_nodes:
@@ -612,12 +627,13 @@ x:
           - research-reference-conditioned-target-me-separation-v2
           - product-evidence-export-v2
           - product-release-quality-cli
+          - product-reliable-final-handoff-v1
           - research-remote-diarization
         kind: main
         mgmt:
           health: neutral
-          sync_note: "Audio, evidence/export и release decisions закрыты; критический путь дошёл до anonymous remote speaker evidence."
-          next_sync_goal: "Не вводить speaker names или rich transcript promotion до отдельного corpus gate."
+          sync_note: "После final-handoff convergence критический путь переходит к anonymous remote speaker evidence."
+          next_sync_goal: "Не начинать diarization и speaker naming до прохождения runtime/actionability gate."
       research:
         title: "Параллельные исследования"
         scope_nodes: [parallel-research]

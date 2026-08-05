@@ -40,6 +40,11 @@ murmurmark meeting --target-bundle system
 Stop recording with `Ctrl-C`. Keep the terminal open while processing continues. The final block
 prints the selected transcript and whether manual review remains.
 
+Run `meeting` as the foreground command by itself. Do not paste the status/transcript command block
+into that terminal while capture or processing is still active: the shell buffers that input and may
+execute it later against an incomplete or different lifecycle. Wait until `meeting` returns, then run
+read-only accessors if they are still useful.
+
 The setup checks above are repeated after an update or environment change, not before every
 meeting.
 

@@ -192,6 +192,12 @@ The final report contains:
   includes writer/sidecar finalization after `Ctrl-C` and all supervisor actions;
 - warnings, stop reason, resume availability and exact resume command.
 
+Reliable Final Handoff v1 adds a stricter convergence invariant to this existing schema. A blocking
+result must expose either an allowlisted executable next action or a bounded manual decision item.
+Stage budgets and deferred-work reasons must be machine-readable; exceeding a budget cannot be
+reported as silent success or leave a stale `running` action. The measured pre-change baseline is in
+`docs/testing/2026-08-05-reliable-final-handoff-baseline.md`.
+
 ## Locking And Signals
 
 `lifecycle.lock` is held with a non-blocking process lock. A second supervisor for the same session

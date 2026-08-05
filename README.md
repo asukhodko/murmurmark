@@ -297,9 +297,10 @@ failures. Guarded export accepts only `ready` or verified `no_speech`.
 compatibility and license contracts, deterministic assembly, transactional install/upgrade and
 isolated offline acceptance through Evidence Handoff v2 and guarded export.
 
-The current goal is **Remote Speaker Evidence Map v1**: split authoritative `remote` speech into
-stable anonymous speaker intervals in an audit-only rich transcript, with local reproducible
-evidence and no automatic names or changes to the selected transcript.
+The current goal is **Reliable Final Handoff v1**: make the path from the first `Ctrl-C` to a truthful
+final result bounded, resumable and fully actionable. Heavy optional candidates must not hold the
+first authoritative transcript for hours, and a blocking review state must always expose an
+executable next action or a concrete human decision item.
 
 The stable CLI supports durable capture, resumable processing, guarded profiles, evidence-backed
 review, export and retention. Exact experiment metrics live in the research documents and roadmap.
@@ -310,12 +311,13 @@ The dependent critical path is:
 Meeting Lifecycle -> Echo evidence and controlled lab -> Speaker-Preserving Neural Echo v2 (done)
 -> Reference-Conditioned v1 (done) -> Identifiability Corpus (done)
 -> Target-Me Separation v2 (done) -> Evidence Export v2 (done) -> Release-quality CLI (done)
--> Remote Speaker Evidence Map v1 (current)
+-> Reliable Final Handoff v1 (current) -> Remote Speaker Evidence Map v1 (next)
 ```
 
-Speaker naming and `transcript.rich.json` promotion follow the anonymous evidence map. Heavy local
-validators, LLM synthesis and UI remain parallel or parked. Live promotion remains blocked; Live
-Shadow is advisory evidence only.
+Remote Speaker Evidence Map v1 follows final-handoff convergence. Speaker naming and
+`transcript.rich.json` promotion follow the anonymous evidence map. Heavy local validators, LLM
+synthesis and UI remain parallel or parked. Live promotion remains blocked; Live Shadow is advisory
+evidence only.
 
 See the [current goal](docs/project/current-goal.md), [readable roadmap](docs/roadmap/murmurmark-cli-roadmap.md)
 and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
@@ -329,7 +331,7 @@ instructions live in the [Controlled Echo Supervision Lab runbook](docs/runbooks
 ## Scope And Limitations
 
 - Current selected transcripts use `Me` and aggregate `Colleagues`; anonymous remote-speaker
-  evidence is the active shadow-only development goal.
+  evidence is the next shadow-only development goal after bounded final handoff.
 - The personalized pre-ASR profile removes independently supported remote leakage on compatible
   speaker-playback sessions; it does not promise waveform-perfect echo removal on every room/device.
 - Echo Guard records `speaker_playback`, `headphones_or_low_leak` or `uncertain` in
