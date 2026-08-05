@@ -287,10 +287,14 @@ p90 post-stop ratio is `0.059x`; there are no dead-end blockers, stale handoffs 
 overruns, and exact Speaker-Preserving Neural Echo reuse passes `2/2` applicable sessions. This
 proves bounded recovery and handoff convergence, not cold first-pass whisper.cpp speed.
 
-The current goal is **Authoritative Incremental ASR v1**: reduce fresh post-stop recognition delay
-without changing the primary whisper.cpp model or accepting provisional live text. Only chunks with
-matching canonical PCM, window, model, prompt and decode fingerprints may be reused; every mismatch
-falls back to ordinary batch ASR.
+**Authoritative Incremental ASR v1** is complete. Strict v2 chunk identity, integrity checks,
+byte-identical replay and interrupted-batch reuse are promoted. Historical checkpoint evidence shows
+a median process-time reduction of `98.94%`. Live-origin reuse remains `DO_NOT_PROMOTE`: three frozen
+real sessions contain `0/30` required authoritative proofs, so they safely fall back to batch ASR.
+
+The current goal is **Canonical Live ASR Producer v1**. Live Shadow must produce the same complete
+canonical 60s/5s PCM windows and exact model/prompt/decode proof that authoritative batch accepts.
+Raw CAF and batch output remain authoritative; lag, corruption or missing proof only lose the speedup.
 
 The stable CLI supports durable capture, resumable processing, guarded profiles, evidence-backed
 review, export and retention. Exact experiment metrics live in the research documents and roadmap.
@@ -301,11 +305,11 @@ The dependent critical path is:
 Meeting Lifecycle -> Echo evidence and controlled lab -> Speaker-Preserving Neural Echo v2 (done)
 -> Reference-Conditioned v1 (done) -> Identifiability Corpus (done)
 -> Target-Me Separation v2 (done) -> Evidence Export v2 (done) -> Release-quality CLI (done)
--> Reliable Final Handoff v1 (done) -> Authoritative Incremental ASR v1 (current)
--> Remote Speaker Evidence Map v1 (next)
+-> Reliable Final Handoff v1 (done) -> Authoritative Incremental ASR v1 (done)
+-> Canonical Live ASR Producer v1 (current) -> Remote Speaker Evidence Map v1 (next)
 ```
 
-Remote Speaker Evidence Map v1 follows authoritative ASR latency work. Speaker naming and
+Remote Speaker Evidence Map v1 follows the canonical live-ASR producer gate. Speaker naming and
 `transcript.rich.json` promotion follow the anonymous evidence map. Heavy local validators, LLM
 synthesis and UI remain parallel or parked. Live promotion remains blocked; Live Shadow is advisory
 evidence only.

@@ -5125,15 +5125,25 @@ Schema:
 
 ```json
 {
-  "schema": "murmurmark.live_asr_cache_report/v1",
+  "schema": "murmurmark.live_asr_cache_report/v2",
   "status": "not_eligible",
   "materialized": false,
+  "materialized_tracks": [],
+  "fallback_tracks": ["mic", "remote"],
   "reasons": [
-    "window_duration_mismatch:1",
-    "asr_json_missing:remote:1"
+    "mic:authoritative_live_chunk_proofs_missing",
+    "remote:authoritative_live_chunk_proofs_missing"
   ],
+  "track_compatibility": {
+    "mic": {
+      "eligible": false,
+      "decision": "batch_fallback",
+      "reasons": ["authoritative_live_chunk_proofs_missing"]
+    }
+  },
   "parameters": {
     "language": "ru",
+    "threads": 4,
     "asr_mode": "windowed",
     "asr_window_sec": 60,
     "asr_overlap_sec": 5,
@@ -5154,29 +5164,31 @@ derived/transcript-simple/whisper-cpp/raw/chunks/mic/chunk_cache_report.json
 derived/transcript-simple/whisper-cpp/raw/chunks/remote/chunk_cache_report.json
 ```
 
-The generated top-level `.meta.json` uses the same raw cache fields as `transcribe-simple`.
-Materialized live chunks are not claimed to have the same source-audio fingerprint as batch-prepared
-WAV chunks. Instead, each materialized chunk `.meta.json` names `source_audio.kind: live_asr_cache`.
-The safety proof is `raw/chunk_rebuild_check.json`: the pipeline accepts live-ASR cache only when
-the current raw ASR JSON can be rebuilt from the materialized chunk reports. A `not_eligible` report
-is an expected safe fallback, not an error.
+Each reusable live source row must contain `batch_cache_compatibility` with schema
+`murmurmark.authoritative_live_asr_chunk/v1`. The proof embeds the complete canonical chunk identity
+and its SHA-256 plus the completed whisper JSON hash. Post-stop materialization rebuilds the batch
+prepared audio, slices exact sample boundaries and compares identity objects. It never accepts text
+similarity, approximate timing or a different live-preprocessing fingerprint.
 
-Compatibility gates include same whisper.cpp model and language, source-specific audio prep
-(`mic=speech`, `remote=loudnorm`), hard-window duration, clip overlap, matching mic/remote indices
-and usable whisper.cpp JSON for every included live chunk. After materialization,
-`check-asr-chunk-cache.py --require-chunks` is still the hard gate.
+The generated chunk and top-level metadata use the same authoritative schemas as normal batch
+chunks. `raw/chunk_rebuild_check.json` must pass with `--require-authoritative`: every chunk identity
+and output hash must validate and the reconstructed raw JSON must be byte-identical. A
+`not_eligible` report is an expected fail-open batch fallback.
 
 Common `not_eligible` reasons:
 
 - `live_report_missing`;
 - `raw_cache_already_exists`;
-- `segment_count_mismatch`;
-- `asr_json_missing:<source>:<index>`;
-- `audio_prep_mismatch:<source>:<index>`;
-- `window_start_mismatch:<index>`;
-- `window_duration_mismatch:<index>`;
-- `overlap_before_mismatch:<index>`;
-- `overlap_after_mismatch:<index>`.
+- `authoritative_live_chunk_proofs_missing`;
+- `canonical_asr_source_missing`;
+- `chunk_count_mismatch:<actual>!=<expected>`;
+- `canonical_identity_mismatch:<index>`;
+- `live_pcm_mismatch:<index>`;
+- `live_json_hash_mismatch:<index>`;
+- `live_json_invalid:<index>`.
+
+Authoritative Incremental ASR v1 ended with `DO_NOT_PROMOTE_LIVE_ORIGIN`: three frozen real sessions
+contained `0/30` required proofs. Canonical Live ASR Producer v1 owns that producer-side gap.
 
 ### Batch ASR Chunk Cache And Rebuild Check
 
@@ -5191,7 +5203,7 @@ Schema:
 
 ```json
 {
-  "schema": "murmurmark.whisper_cpp_chunk_cache_report/v1",
+  "schema": "murmurmark.whisper_cpp_chunk_cache_report/v2",
   "status": "completed",
   "track": "mic",
   "chunks_total": 3,
@@ -5199,20 +5211,24 @@ Schema:
   "chunks_missing": 0,
   "chunks_reused": 2,
   "chunks_transcribed": 1,
+  "chunks_reused_by_origin": {"batch_resume": 2},
   "completed_hard_sec": 180.0,
   "total_sec": 180.0,
   "remaining_sec": 0.0,
   "reused_sec": 120.0,
+  "reused_sec_by_origin": {"batch_resume": 120.0},
   "transcribed_sec": 60.0
 }
 ```
 
-Each chunk also has a `.meta.json` file with `schema:
-murmurmark.whisper_cpp_chunk_cache/v1`. The metadata includes the raw ASR cache configuration,
-source-audio identity, window index, hard window, clip window and tool version. For normal batch ASR,
-a chunk can be reused only when this metadata matches the current run exactly. For materialized live
-ASR cache, chunk metadata uses `source_audio.kind: live_asr_cache`; those chunks are accepted as a
-cache source only through the rebuild check, not by pretending they are batch-prepared WAV chunks.
+Each chunk `.meta.json` uses `murmurmark.authoritative_asr_chunk_cache/v1`. Its nested
+`murmurmark.authoritative_asr_chunk_identity/v1` binds role, exact hard/clip sample boundaries,
+overlap reconciliation, PCM format and SHA-256, whisper.cpp binary/model, prompt, language and all
+decode options. The entry records production origin (`batch_decode` or `live_origin`), completion,
+execution provenance and the completed JSON hash; reports classify reused batch chunks as
+`batch_resume`. Top-level raw cache metadata uses
+`murmurmark.authoritative_asr_raw_cache/v1` with the same integrity rule. Metadata is committed last;
+an interrupted write has no reusable success marker.
 
 After `transcribe_current`, the pipeline runs:
 
@@ -5233,15 +5249,18 @@ Schema:
       "raw_rows": 120,
       "rebuilt_rows": 120,
       "chunks_completed": 42,
-      "chunks_total": 42
+      "chunks_total": 42,
+      "authoritative_schema": true,
+      "byte_identical": true,
+      "integrity_errors": []
     }
   ]
 }
 ```
 
-`status: failed` is a hard pipeline failure: the current raw ASR JSON is not proven rebuildable from
-cached chunks. `status: not_applicable` is allowed only for non-windowed modes or sessions without
-chunk reports when the caller did not require chunks.
+The normal pipeline invokes `check-asr-chunk-cache.py --require-chunks --require-authoritative`.
+`status: failed` is a hard failure. Legacy v1 reports remain inspectable but cannot satisfy the
+authoritative gate; they are recomputed on a new ASR run.
 
 Corpus aggregation writes:
 
@@ -5262,7 +5281,9 @@ sessions/_reports/asr-chunk-cache/asr_chunk_cache_corpus_report.json
       "completed_sec": 720.0,
       "total_sec": 1200.0,
       "remaining_sec": 480.0,
-      "completed_ratio": 0.6
+      "completed_ratio": 0.6,
+      "chunks_reused_by_origin": {"batch_resume": 8},
+      "reused_sec_by_origin": {"batch_resume": 480.0}
     },
     "asr_remaining_estimate": {
       "remaining_audio_sec": 480.0,

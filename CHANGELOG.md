@@ -11,3 +11,5 @@ public release tag exists; development builds also carry the source commit in th
 - Added transactional clean install and upgrade with integrity verification and rollback.
 - Added packaged offline acceptance for `doctor --strict`, self-test, Evidence Handoff v2 and
   guarded export.
+- Added exact, corruption-safe ASR window resume with byte-identical replay; incompatible live
+  chunks now fall back to ordinary batch recognition instead of entering the authoritative cache.

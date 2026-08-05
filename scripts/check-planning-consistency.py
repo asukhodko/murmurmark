@@ -54,6 +54,7 @@ CRITICAL_PATH = (
     "product-release-quality-cli",
     "product-reliable-final-handoff-v1",
     "product-authoritative-incremental-asr-v1",
+    "product-canonical-live-asr-producer-v1",
     "research-remote-diarization",
 )
 

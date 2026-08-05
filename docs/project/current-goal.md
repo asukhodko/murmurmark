@@ -4,95 +4,98 @@ Status: current
 
 Updated: 2026-08-06
 
-The stable product path remains `murmurmark meeting -> first Ctrl-C -> authoritative result`. Raw
-CAF and batch output are authoritative. Speaker-Preserving Neural Echo v2 remains the guarded
+The supported product path remains `murmurmark meeting -> first Ctrl-C -> authoritative result`.
+Raw CAF and batch output are authoritative. Speaker-Preserving Neural Echo v2 remains the guarded
 production audio profile. Evidence Handoff v2 remains the only input to guarded export.
 
 Roadmap status and dependencies live in
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`. `scripts/check-planning-consistency.py` keeps the
 README, roadmap and OpsKarta wording aligned.
 
-## Authoritative Incremental ASR v1
+## Canonical Live ASR Producer v1
 
-OpsKarta nearest goal: Authoritative Incremental ASR v1: сократить задержку свежего пути `first Ctrl-C -> authoritative transcript` за счёт точного и fail-open переиспользования ASR-окон, вычисленных во время durable capture или предыдущей прерванной обработки; различать cold/cache/live-origin evidence, принимать кэш только при совпадении PCM, окна, модели, prompt и decode options, не менять raw CAF, основной whisper.cpp, selected transcript или quality gates и завершить corpus-wide PROMOTE/DO_NOT_PROMOTE с измеренным пределом.
+OpsKarta nearest goal: Canonical Live ASR Producer v1: снять измеренный blocker Authoritative Incremental ASR v1: научить capture-safe Live Shadow производить полностью завершённые canonical 60s/5s mic и remote chunks с exact PCM/model/prompt/decode identity и `authoritative_live_asr_chunk/v1`, чтобы post-stop batch мог безопасно переиспользовать их; сохранить raw CAF и batch authoritative, fail-open при lag/corruption и добиться не менее 50% сокращения свежего post-stop ASR на трёх реальных сессиях либо завершить воспроизводимым DO_NOT_PROMOTE.
 
 ## Why This Is Next
 
-Reliable Final Handoff v1 closed the lifecycle-control failure. Its frozen three-session
-cache/resume verification has p90 post-stop ratio `0.059041`, zero dead ends, zero stale handoffs,
-zero unexplained overruns and exact Speaker-Preserving Neural Echo reuse on `2/2` applicable
-sessions. A compatible `process --skip-build` now returns through the same handoff checkpoint, and
-`status` reports either completion or bounded human decisions.
+Authoritative Incremental ASR v1 closed the consumer side. Batch-resume now validates PCM samples,
+window geometry, model and whisper.cpp binaries, prompt, language and decode options. It rejects
+partial or corrupt artifacts and proves mixed cache/recompute output byte for byte against a clean
+recompute.
 
-That evidence does not measure a fresh whisper.cpp run. The pre-change corpus still shows p90
-post-stop ratio `1.502`, and the August 5 outliers spent most of their time in baseline ASR. The next
-mission-critical limit is therefore recognition throughput, not richer remote-speaker semantics.
-Remote Speaker Evidence Map v1 remains next after this gate.
+The frozen corpus produced a split decision:
+
+- `PROMOTE` strict interrupted-batch reuse;
+- `DO_NOT_PROMOTE` live-origin reuse;
+- historical checkpoint/cache process reduction: median `0.989398`, p90 `0.990849`;
+- real live evidence: `0/30` required authoritative chunk proofs across three sessions.
+
+The remaining delay is no longer an unsafe cache-reader problem. Live Shadow does not yet produce
+canonical authoritative windows. Fixing that producer is more valuable now than remote diarization:
+it attacks the hours-long post-stop wait while preserving the already reliable transcript path.
 
 ## Objective
 
-Turn already completed, byte-identical ASR work into an authoritative batch cache without treating
-provisional live text as truth. A fresh run, interrupted run and live-origin run must remain
-distinguishable in provenance. If exact compatibility cannot be established, ordinary batch ASR
-runs unchanged.
+Produce exact authoritative ASR work during durable capture without moving ASR into the capture
+callback and without making the live draft authoritative. After stop, the existing strict consumer
+must either accept each completed chunk by identity or decode it normally.
 
 ## Required Work
 
-1. Freeze a cold/cache/live-origin latency matrix with raw, canonical ASR-audio and transcript
-   hashes. Never compare cached timing with cold timing as one population.
-2. Define one canonical chunk identity over role, start/end samples, overlap policy, PCM SHA-256,
-   sample rate/channels, whisper.cpp binary/model, language, prompt and every decode option.
-3. Extend the current chunk cache so each row records origin, identity, completion state and exact
-   replay proof. Partial writes and stale manifests are invalid.
-4. Reuse committed live or interrupted-run chunks only after post-stop canonical audio is
-   materialized and its chunk identity matches exactly. No text-similarity reuse.
-5. Preserve deterministic overlap reconciliation, word timestamps and raw segment provenance. A
-   mixed cache/recompute transcript must equal a clean full recompute byte for byte.
-6. Keep cache production best-effort and bounded. Queue lag, worker failure or missing live evidence
-   must not affect durable capture or delay fallback batch ASR.
-7. Use the configured work-conserving low-priority profile after capture, expose useful progress/ETA
-   and account separately for reused and decoded audio seconds.
-8. Add fixture, corruption, prompt/model mismatch, interrupted-write, overlap-boundary, capture
-   fail-open and frozen-corpus tests. Make a measured `PROMOTE` or `DO_NOT_PROMOTE` decision.
-9. Reconcile README, contracts, runbooks, current goal, roadmap and OpsKarta; commit and push the
-   complete result.
+1. Freeze three or more real live sessions with cold post-stop timing, raw hashes and current live
+   lag/resource evidence.
+2. Derive canonical mic and remote ASR PCM from committed durable audio with the same preparation,
+   sample boundaries, 60s hard windows and 5s overlap as batch.
+3. Emit `murmurmark.authoritative_live_asr_chunk/v1` only after PCM and whisper JSON are complete and
+   atomically committed. Bind the proof to the full v1 identity and output hash.
+4. Keep production live preview independent. A slow canonical producer may lag, shed optional work
+   or stop; it must never block capture, raw finalization or ordinary batch fallback.
+5. Reconcile the final partial window after stop. Never publish a proof for an open, truncated or
+   geometrically different window.
+6. Run whisper.cpp with the configured low-priority work-conserving resources and expose capture,
+   canonicalization, decode, lag, queue and reuse progress separately.
+7. Validate accepted live-origin chunks through the existing strict materializer and
+   `check-asr-chunk-cache.py --require-authoritative`. No text-similarity bridge is allowed.
+8. Prove byte-identical authoritative raw ASR, clean dialogue, selected transcript, notes evidence
+   and guarded export against a clean full recompute.
+9. Run a frozen real corpus and make a `PROMOTE` or `DO_NOT_PROMOTE` decision. Reconcile README,
+   contracts, runbooks, roadmap and OpsKarta, then commit and push.
 
 ## Acceptance Gates
 
-- every reused chunk has an exact canonical identity and immutable provenance;
-- changed PCM, model, prompt, language, decode option or window contract causes recomputation;
-- mixed replay output is byte-identical to a clean full batch recompute;
-- raw CAF hashes, capture health and first-handoff quality gates do not change;
-- failed or lagging sidecars leave no stale success and fall back automatically;
-- on at least three applicable real sessions, authoritative post-stop time improves by at least
-  `50%` versus their own cold baseline, or the goal ends in reproducible `DO_NOT_PROMOTE` with the
-  exact compatibility/runtime ceiling;
-- stable sessions without live evidence regress by no more than `10%` in post-stop runtime;
-- local recall, chronology, remote-like `Me`, protected content, selected profile, notes evidence and
-  guarded export do not regress;
-- repeated frozen runs are deterministic and all required checks pass.
+- every accepted live-origin chunk has exact canonical PCM and immutable proof;
+- mic and remote window indices, sample bounds and overlap policy agree with batch;
+- incomplete, stale, corrupt, mismatched or missing artifacts always fall back to normal decoding;
+- capture callback has no ASR, preprocessing or blocking queue work;
+- raw CAF hashes and capture health remain unchanged under worker lag, crash and backpressure;
+- mixed live-origin/recompute output is byte-identical to clean full recompute;
+- on at least three real sessions, authoritative post-stop ASR time improves by at least `50%`
+  against each session's own cold baseline;
+- stable recording and ordinary batch processing regress by no more than `10%`;
+- selected profile, quality verdict, local recall, chronology, protected `Me`, notes and export do
+  not regress;
+- any unmet hard gate produces a reproducible `DO_NOT_PROMOTE`, never a partial promotion.
 
 ## Safety Boundary
 
-- no raw mutation, second capture process, cloud service or new primary ASR;
+- no second capture process, raw mutation, cloud service or new primary ASR;
 - no live transcript promotion and no semantic/text-similarity cache acceptance;
 - no quality-threshold relaxation to gain speed;
-- no Echo, Target-Me, remote-speaker diarization, naming, LLM synthesis or UI changes;
-- cache failure is a performance loss only, never a transcript-quality shortcut.
+- no Echo, Target-Me, remote diarization, speaker naming, LLM synthesis or UI changes;
+- producer failure is a performance loss only.
 
 ## Definition Of Done
 
-- versioned identity/cache contracts and implementation exist;
-- cold/cache/live-origin reports are frozen and reproducible;
-- corpus decision is explicit, with latency and quality evidence;
-- operator-facing progress, fallback and resume behavior are documented and tested;
-- README, contracts, runbooks, roadmap and OpsKarta agree with the measured result;
-- changes are committed, pushed to `origin/main`, and the worktree is clean.
+- canonical producer, atomic proof contract and strict consumer interoperate end to end;
+- interruption, corruption, lag, final-tail and capture fail-open tests pass;
+- cold/live-origin/recompute timings and SHA-256 evidence are frozen for at least three real sessions;
+- corpus decision and compatibility ceiling are explicit;
+- README, contracts, runbooks, roadmap and OpsKarta agree;
+- all checks pass, changes are committed and pushed, worktree is clean.
 
 ## Completed Predecessor
 
-Reliable Final Handoff v1 completed on 2026-08-06. Its implementation separates optional enrichment
-from the first handoff, enforces machine-readable budgets, applies only fresh safe suggested review,
-emits bounded manual decisions, refreshes stale lifecycle reports, preserves raw identities and
-provides a deterministic lifecycle corpus gate. The exact pre/post evidence is in
-`docs/testing/2026-08-05-reliable-final-handoff-baseline.md`.
+Authoritative Incremental ASR v1 completed on 2026-08-06 with
+`PROMOTE_BATCH_RESUME / DO_NOT_PROMOTE_LIVE_ORIGIN`. Evidence is frozen in
+`docs/testing/2026-08-06-authoritative-incremental-asr-v1.md` and generated through
+`scripts/report-authoritative-incremental-asr.py`.

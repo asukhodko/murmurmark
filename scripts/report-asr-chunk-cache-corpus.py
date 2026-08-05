@@ -11,7 +11,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.asr_chunk_cache_corpus_report/v1"
-SCRIPT_VERSION = "0.3.0"
+SCRIPT_VERSION = "0.4.0"
 
 
 def parse_args() -> argparse.Namespace:
@@ -21,6 +21,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--out-dir", type=Path, default=Path("sessions/_reports/asr-chunk-cache"))
     parser.add_argument("--refresh", action="store_true", help="Run check-asr-chunk-cache.py for each session before reporting.")
     parser.add_argument("--require-chunks", action="store_true", help="Treat missing chunk reports as failures during refresh/check.")
+    parser.add_argument(
+        "--require-authoritative",
+        action="store_true",
+        help="Require v2 exact identity, integrity and byte-identical replay during refresh.",
+    )
     parser.add_argument("--no-fail", action="store_true", help="Always exit 0 after writing the report.")
     return parser.parse_args()
 
@@ -66,11 +71,13 @@ def has_raw_asr(session: Path) -> bool:
     return (raw_dir / "mic.json").exists() and (raw_dir / "remote.json").exists()
 
 
-def run_refresh(session: Path, require_chunks: bool) -> dict[str, Any]:
+def run_refresh(session: Path, require_chunks: bool, require_authoritative: bool) -> dict[str, Any]:
     script = Path(__file__).resolve().parent / "check-asr-chunk-cache.py"
     command = [sys.executable, str(script), str(session)]
     if require_chunks:
         command.append("--require-chunks")
+    if require_authoritative:
+        command.append("--require-authoritative")
     result = subprocess.run(
         command,
         text=True,
@@ -85,7 +92,13 @@ def run_refresh(session: Path, require_chunks: bool) -> dict[str, Any]:
     }
 
 
-def session_row(session: Path, *, refresh: bool, require_chunks: bool) -> dict[str, Any]:
+def session_row(
+    session: Path,
+    *,
+    refresh: bool,
+    require_chunks: bool,
+    require_authoritative: bool,
+) -> dict[str, Any]:
     if not has_raw_asr(session):
         return {
             "session": str(session),
@@ -101,7 +114,7 @@ def session_row(session: Path, *, refresh: bool, require_chunks: bool) -> dict[s
             "tracks": [],
             "refresh": None,
         }
-    refresh_result = run_refresh(session, require_chunks) if refresh else None
+    refresh_result = run_refresh(session, require_chunks, require_authoritative) if refresh else None
     report = read_json(check_path(session))
     if report is None:
         status = "missing"
@@ -134,6 +147,8 @@ def session_row(session: Path, *, refresh: bool, require_chunks: bool) -> dict[s
         "chunks_transcribed": chunks_transcribed,
         "raw_rows": raw_rows,
         "rebuilt_rows": rebuilt_rows,
+        "authoritative_tracks": sum(1 for track in tracks if track.get("authoritative_schema") is True),
+        "byte_identical_tracks": sum(1 for track in tracks if track.get("byte_identical") is True),
         "tracks": tracks,
         "refresh": refresh_result,
     }
@@ -156,6 +171,8 @@ def markdown(payload: dict[str, Any]) -> str:
         f"Chunks completed: `{summary['chunks_completed']}/{summary['chunks_total']}`",
         f"Chunks reused: `{summary['chunks_reused']}`",
         f"Chunks transcribed: `{summary['chunks_transcribed']}`",
+        f"Authoritative tracks: `{summary['authoritative_tracks']}`",
+        f"Byte-identical tracks: `{summary['byte_identical_tracks']}`",
         "",
         "## Interpretation",
         "",
@@ -182,7 +199,12 @@ def main() -> int:
     args = parse_args()
     sessions = [path.expanduser() for path in args.sessions] if args.sessions else discover_sessions(args.sessions_root)
     rows = [
-        session_row(session, refresh=args.refresh, require_chunks=args.require_chunks)
+        session_row(
+            session,
+            refresh=args.refresh,
+            require_chunks=args.require_chunks,
+            require_authoritative=args.require_authoritative,
+        )
         for session in sessions
     ]
     failed = [row for row in rows if row["status"] == "failed" or (row.get("refresh") or {}).get("returncode") not in {None, 0}]
@@ -216,6 +238,8 @@ def main() -> int:
         "chunks_completed": sum(int(row.get("chunks_completed") or 0) for row in rows),
         "chunks_reused": sum(int(row.get("chunks_reused") or 0) for row in rows),
         "chunks_transcribed": sum(int(row.get("chunks_transcribed") or 0) for row in rows),
+        "authoritative_tracks": sum(int(row.get("authoritative_tracks") or 0) for row in rows),
+        "byte_identical_tracks": sum(int(row.get("byte_identical_tracks") or 0) for row in rows),
     }
     payload = {
         "schema": SCHEMA,

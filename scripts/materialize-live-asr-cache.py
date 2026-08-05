@@ -1,28 +1,34 @@
 #!/usr/bin/env python3
+"""Materialize only byte-compatible live whisper.cpp chunks into authoritative batch cache."""
+
 from __future__ import annotations
 
 import argparse
 import copy
-import hashlib
 import json
-import re
 import shutil
+import subprocess
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import authoritative_asr_cache as authoritative_cache
 
-SCHEMA = "murmurmark.live_asr_cache_report/v1"
-SCRIPT_VERSION = "0.3.0"
+
+SCHEMA = "murmurmark.live_asr_cache_report/v2"
+SCRIPT_VERSION = "0.4.0"
+LIVE_PROOF_SCHEMA = "murmurmark.authoritative_live_asr_chunk/v1"
 DEFAULT_MODEL = Path.home() / ".local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Materialize live ASR chunks as batch-compatible whisper.cpp raw cache when safe.")
+    parser = argparse.ArgumentParser(description="Materialize exact live ASR chunks as authoritative whisper.cpp cache.")
     parser.add_argument("session", type=Path)
     parser.add_argument("--model", type=Path, default=DEFAULT_MODEL)
     parser.add_argument("--language", default="ru")
     parser.add_argument("--prompt-file", type=Path)
+    parser.add_argument("--threads", type=int, default=4)
     parser.add_argument("--max-context", type=int, default=0)
     parser.add_argument("--duration-ms", type=int, default=0)
     parser.add_argument("--asr-mode", choices=("windowed", "whole"), default="windowed")
@@ -31,18 +37,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mic-audio-prep", default="speech")
     parser.add_argument("--remote-audio-prep", default="loudnorm")
     parser.add_argument("--whisper-cli", default="whisper-cli")
-    parser.add_argument("--force", action="store_true", help="Overwrite existing raw cache when compatibility gates pass.")
+    parser.add_argument("--force", action="store_true", help="Replace an existing raw cache only after exact gates pass.")
     return parser.parse_args()
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
-    if not path.exists():
-        return None
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    return value if isinstance(value, dict) else None
+    return authoritative_cache.read_json(path)
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -51,9 +51,6 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     with path.open("r", encoding="utf-8") as file:
         for line in file:
-            line = line.strip()
-            if not line:
-                continue
             try:
                 value = json.loads(line)
             except json.JSONDecodeError:
@@ -61,15 +58,6 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
             if isinstance(value, dict):
                 rows.append(value)
     return rows
-
-
-def write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-
-
-def raw_meta_path(output_base: Path) -> Path:
-    return output_base.with_suffix(".meta.json")
 
 
 def rel(path: Path, session: Path) -> str:
@@ -86,71 +74,32 @@ def read_prompt(path: Path | None) -> str | None:
     return text or None
 
 
-def expand_path(path: Path) -> Path:
-    return path.expanduser().resolve()
+def raw_meta_path(output_base: Path) -> Path:
+    return output_base.with_suffix(".meta.json")
 
 
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as file:
-        for chunk in iter(lambda: file.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+def audio_fingerprint(path: Path) -> dict[str, Any]:
+    stat = path.stat()
+    return {"path": str(path), "size": stat.st_size, "sha256": authoritative_cache.sha256_file(path)}
 
 
-def content_sha256(value: dict[str, Any]) -> str:
-    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
-
-
-def whisper_cache_config(
-    *,
-    model: Path,
-    language: str,
-    max_context: int,
-    prompt: str | None,
-    duration_ms: int,
-    asr_mode: str,
-    asr_window_sec: int,
-    asr_overlap_sec: int,
-    audio_prep: str,
-) -> dict[str, Any]:
-    return {
-        "schema": "murmurmark.whisper_cpp_raw_cache/v1",
-        "model": str(model),
-        "language": language,
-        "max_context": max_context,
-        "prompt": prompt,
-        "duration_ms": duration_ms,
-        "asr_mode": asr_mode,
-        "asr_window_sec": asr_window_sec,
-        "asr_overlap_sec": asr_overlap_sec,
-        "audio_prep": audio_prep,
-        "output_json_full": True,
-        "log_score": True,
-        "suppress_nst": True,
-        "suppress_regex": r"^(Редактор субтитров|Продолжение следует|Спасибо за просмотр|Субтитры.*)$",
-    }
-
-
-def timestamp_from_ms(ms: int) -> str:
-    total_ms = max(0, ms)
-    millis = total_ms % 1000
-    total_sec = total_ms // 1000
-    seconds = total_sec % 60
-    minutes = (total_sec // 60) % 60
-    hours = total_sec // 3600
-    return f"{hours:02d}:{minutes:02d}:{seconds:02d},{millis:03d}"
+def timestamp_from_ms(ms: int, *, vtt: bool = False) -> str:
+    value = max(0, ms)
+    millis = value % 1000
+    total_sec = value // 1000
+    separator = "." if vtt else ","
+    return f"{total_sec // 3600:02d}:{(total_sec // 60) % 60:02d}:{total_sec % 60:02d}{separator}{millis:03d}"
 
 
 def shift_offsets(value: dict[str, Any], delta_ms: int) -> None:
     offsets = value.get("offsets")
-    if isinstance(offsets, dict):
-        start = int(offsets.get("from") or 0) + delta_ms
-        end = int(offsets.get("to") or start) + delta_ms
-        offsets["from"] = start
-        offsets["to"] = end
-        value["timestamps"] = {"from": timestamp_from_ms(start), "to": timestamp_from_ms(end)}
+    if not isinstance(offsets, dict):
+        return
+    start = int(offsets.get("from") or 0) + delta_ms
+    end = int(offsets.get("to") or start) + delta_ms
+    offsets["from"] = start
+    offsets["to"] = end
+    value["timestamps"] = {"from": timestamp_from_ms(start), "to": timestamp_from_ms(end)}
 
 
 def shifted_row(row: dict[str, Any], delta_ms: int) -> dict[str, Any]:
@@ -163,209 +112,328 @@ def shifted_row(row: dict[str, Any], delta_ms: int) -> dict[str, Any]:
 
 
 def write_text_sidecars(output_base: Path, rows: list[dict[str, Any]]) -> None:
-    with output_base.with_suffix(".txt").open("w", encoding="utf-8") as file:
-        for row in rows:
-            text = str(row.get("text") or "").strip()
-            if text:
-                file.write(text + "\n")
-    with output_base.with_suffix(".vtt").open("w", encoding="utf-8") as file:
-        file.write("WEBVTT\n\n")
-        for row in rows:
-            text = str(row.get("text") or "").strip()
-            offsets = row.get("offsets") or {}
-            start_ms = int(offsets.get("from") or 0)
-            end_ms = int(offsets.get("to") or start_ms)
-            if text and end_ms > start_ms:
-                file.write(f"{timestamp_from_ms(start_ms)} --> {timestamp_from_ms(end_ms)}\n")
-                file.write(text + "\n\n")
+    txt = "".join(f"{str(row.get('text') or '').strip()}\n" for row in rows if str(row.get("text") or "").strip())
+    lines = ["WEBVTT", ""]
+    for row in rows:
+        text = str(row.get("text") or "").strip()
+        offsets = row.get("offsets") if isinstance(row.get("offsets"), dict) else {}
+        start = int(offsets.get("from") or 0)
+        end = int(offsets.get("to") or start)
+        if text and end > start:
+            lines.extend([f"{timestamp_from_ms(start, vtt=True)} --> {timestamp_from_ms(end, vtt=True)}", text, ""])
+    authoritative_cache.atomic_write_bytes(output_base.with_suffix(".txt"), txt.encode("utf-8"))
+    authoritative_cache.atomic_write_bytes(output_base.with_suffix(".vtt"), ("\n".join(lines) + "\n").encode("utf-8"))
 
 
 def source_json_path(session: Path, source_record: dict[str, Any]) -> Path | None:
     asr = source_record.get("asr")
     if not isinstance(asr, dict) or asr.get("status") != "passed":
         return None
-    raw_path = asr.get("json")
-    if not isinstance(raw_path, str) or not raw_path:
+    raw = asr.get("json")
+    if not isinstance(raw, str) or not raw:
         return None
-    path = Path(raw_path)
+    path = Path(raw)
     if not path.is_absolute():
         path = session / path
     return path if path.exists() else None
 
 
-def check_geometry(chunks: list[dict[str, Any]], window_sec: int, overlap_sec: int) -> list[str]:
-    reasons: list[str] = []
-    if not chunks:
-        reasons.append("live_chunks_missing")
-        return reasons
-    sorted_chunks = sorted(chunks, key=lambda row: int(row.get("index") or 0))
-    for index, row in enumerate(sorted_chunks):
-        chunk_index = int(row.get("index") or index + 1)
-        start = float(row.get("start_sec") or 0.0)
-        duration = float(row.get("duration_sec") or 0.0)
-        expected_start = index * window_sec
-        if abs(start - expected_start) > 1.0:
-            reasons.append(f"window_start_mismatch:{chunk_index}")
-            break
-        is_final = index == len(sorted_chunks) - 1
-        if not is_final and abs(duration - window_sec) > 1.0:
-            reasons.append(f"window_duration_mismatch:{chunk_index}")
-            break
-        clip_start = float(row.get("clip_start_sec") if row.get("clip_start_sec") is not None else start)
-        clip_end = float(row.get("clip_end_sec") if row.get("clip_end_sec") is not None else start + duration)
-        if overlap_sec > 0 and index > 0 and clip_start > start - overlap_sec + 1.0:
-            reasons.append(f"overlap_before_mismatch:{chunk_index}")
-            break
-        if overlap_sec > 0 and not is_final and clip_end < start + duration + overlap_sec - 1.0:
-            reasons.append(f"overlap_after_mismatch:{chunk_index}")
-            break
-    return sorted(set(reasons))
-
-
-def build_combined_json(session: Path, chunks: list[dict[str, Any]], source: str, output_base: Path) -> tuple[int, list[str]]:
-    rows: list[dict[str, Any]] = []
-    templates: list[dict[str, Any]] = []
-    used: list[str] = []
-    for chunk in sorted(chunks, key=lambda row: int(row.get("index") or 0)):
-        source_record = chunk.get(source)
-        if not isinstance(source_record, dict):
-            continue
-        json_path = source_json_path(session, source_record)
-        if json_path is None:
-            continue
-        data = read_json(json_path)
-        if data is None:
-            continue
-        templates.append(data)
-        hard_start_sec = float(source_record.get("hard_start_sec") or chunk.get("start_sec") or 0.0)
-        hard_end_sec = float(source_record.get("hard_end_sec") or chunk.get("end_sec") or hard_start_sec)
-        clip_start_sec = float(source_record.get("clip_start_sec") or chunk.get("clip_start_sec") or hard_start_sec)
-        delta_ms = int(round(clip_start_sec * 1000))
-        for row in data.get("transcription") or []:
-            if isinstance(row, dict):
-                offsets = row.get("offsets") or {}
-                local_start = int(offsets.get("from") or 0)
-                local_end = int(offsets.get("to") or local_start)
-                center_sec = clip_start_sec + ((local_start + local_end) / 2.0) / 1000.0
-                if hard_start_sec <= center_sec < hard_end_sec:
-                    rows.append(shifted_row(row, delta_ms))
-        used.append(rel(json_path, session))
-    template = copy.deepcopy(templates[-1]) if templates else {"params": {}, "transcription": []}
-    template["transcription"] = sorted(
-        rows,
-        key=lambda row: (
-            int((row.get("offsets") or {}).get("from") or 0),
-            int((row.get("offsets") or {}).get("to") or 0),
-        ),
-    )
-    template.setdefault("params", {})
-    if isinstance(template["params"], dict):
-        template["params"]["murmurmark_asr_mode"] = "windowed"
-        template["params"]["murmurmark_source"] = "live_asr_cache"
-    output_base.parent.mkdir(parents=True, exist_ok=True)
-    write_json(output_base.with_suffix(".json"), template)
-    write_text_sidecars(output_base, template["transcription"])
-    return len(rows), used
-
-
-def chunk_record_from_live(session: Path, chunk: dict[str, Any], source: str, chunk_dir: Path) -> dict[str, Any] | None:
-    source_record = chunk.get(source)
-    if not isinstance(source_record, dict):
+def source_wav_path(session: Path, source_record: dict[str, Any]) -> Path | None:
+    raw = source_record.get("asr_wav") or source_record.get("wav")
+    if not isinstance(raw, str) or not raw:
         return None
-    json_path = source_json_path(session, source_record)
-    if json_path is None:
-        return None
-    index = int(chunk.get("index") or 0)
-    hard_start_sec = float(source_record.get("hard_start_sec") or chunk.get("start_sec") or 0.0)
-    hard_end_sec = float(source_record.get("hard_end_sec") or chunk.get("end_sec") or hard_start_sec)
-    clip_start_sec = float(source_record.get("clip_start_sec") or chunk.get("clip_start_sec") or hard_start_sec)
-    clip_end_sec = float(source_record.get("clip_end_sec") or chunk.get("clip_end_sec") or hard_end_sec)
-    hard_start_ms = int(round(hard_start_sec * 1000))
-    hard_end_ms = int(round(hard_end_sec * 1000))
-    seek_ms = int(round(clip_start_sec * 1000))
-    clip_end_ms = int(round(clip_end_sec * 1000))
-    chunk_base = chunk_dir / f"{index:04d}_{hard_start_ms // 1000:06d}s"
-    return {
-        "index": index,
-        "status": "reused",
-        "source": "live_asr_cache",
-        "hard_start_ms": hard_start_ms,
-        "hard_end_ms": hard_end_ms,
-        "seek_ms": seek_ms,
-        "clip_duration_ms": max(1, clip_end_ms - seek_ms),
-        "wav": str(Path(str(source_record.get("wav") or ""))),
-        "json": str(chunk_base.with_suffix(".json")),
-        "meta": str(raw_meta_path(chunk_base)),
-        "live_json": rel(json_path, session),
-        "live_chunk_index": index,
+    path = Path(raw)
+    if not path.is_absolute():
+        path = session / path
+    return path if path.exists() else None
+
+
+def prepare_audio(input_wav: Path, output_wav: Path, mode: str) -> Path:
+    if mode == "none":
+        return input_wav
+    filters = {
+        "speech": "highpass=f=100,lowpass=f=7600,alimiter=limit=0.98",
+        "loudnorm": "highpass=f=80,lowpass=f=7800,loudnorm=I=-20:LRA=9:TP=-2,alimiter=limit=0.98",
     }
+    if mode not in filters:
+        raise ValueError(f"unsupported audio prep: {mode}")
+    output_wav.parent.mkdir(parents=True, exist_ok=True)
+    if output_wav.exists() and output_wav.stat().st_mtime >= input_wav.stat().st_mtime:
+        return output_wav
+    subprocess.run(
+        [
+            shutil.which("ffmpeg") or "ffmpeg",
+            "-nostdin",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-i",
+            str(input_wav),
+            "-af",
+            filters[mode],
+            "-ar",
+            "16000",
+            "-ac",
+            "1",
+            str(output_wav),
+        ],
+        check=True,
+        stdin=subprocess.DEVNULL,
+    )
+    return output_wav
 
 
-def materialize_chunk_cache(
+def build_specs(path: Path, *, duration_ms: int, window_sec: int, overlap_sec: int) -> list[dict[str, int]]:
+    audio = authoritative_cache.wave_format(path)
+    rate = int(audio["sample_rate"])
+    available = int(audio["frames"])
+    total = min(available, int(round(duration_ms * rate / 1000))) if duration_ms > 0 else available
+    window = window_sec * rate
+    overlap = overlap_sec * rate
+    rows: list[dict[str, int]] = []
+    start = 0
+    index = 1
+    while start < total:
+        end = min(total, start + window)
+        seek = max(0, start - overlap)
+        clip_end = min(available, end + overlap)
+        rows.append(
+            {
+                "index": index,
+                "hard_start_sample": start,
+                "hard_end_sample": end,
+                "seek_sample": seek,
+                "clip_end_sample": clip_end,
+                "hard_start_ms": int(round(start * 1000 / rate)),
+                "hard_end_ms": int(round(end * 1000 / rate)),
+                "seek_ms": int(round(seek * 1000 / rate)),
+                "clip_end_ms": int(round(clip_end * 1000 / rate)),
+                "clip_duration_ms": int(round((clip_end - seek) * 1000 / rate)),
+                "sample_rate": rate,
+            }
+        )
+        start += window
+        index += 1
+    return rows
+
+
+def all_v2_proofs_present(chunks: list[dict[str, Any]], track: str) -> bool:
+    if not chunks:
+        return False
+    for chunk in chunks:
+        source = chunk.get(track)
+        proof = source.get("batch_cache_compatibility") if isinstance(source, dict) else None
+        if not isinstance(proof, dict) or proof.get("schema") != LIVE_PROOF_SCHEMA:
+            return False
+    return True
+
+
+def verify_track(
     *,
     session: Path,
     chunks: list[dict[str, Any]],
-    source: str,
-    raw_dir: Path,
-    raw_cache_config: dict[str, Any],
-    source_duration_ms: int,
-    total_ms: int,
+    track: str,
+    role: str,
+    prep: str,
+    prepared_audio: Path,
+    model: Path,
+    whisper_cli: Path,
+    language: str,
+    threads: int,
+    max_context: int,
+    prompt: str | None,
+    duration_ms: int,
     window_sec: int,
     overlap_sec: int,
-) -> tuple[list[dict[str, Any]], str]:
-    chunk_dir = raw_dir / "chunks" / source
+    staging: Path,
+) -> tuple[list[dict[str, Any]], list[str], dict[str, Any]]:
+    specs = build_specs(prepared_audio, duration_ms=duration_ms, window_sec=window_sec, overlap_sec=overlap_sec)
+    sorted_chunks = sorted(chunks, key=lambda row: int(row.get("index") or 0))
+    reasons: list[str] = []
+    verified: list[dict[str, Any]] = []
+    if len(sorted_chunks) != len(specs):
+        reasons.append(f"chunk_count_mismatch:{len(sorted_chunks)}!={len(specs)}")
+        return verified, reasons, {"expected_chunks": len(specs), "live_chunks": len(sorted_chunks)}
+    decode = authoritative_cache.decode_contract(
+        language=language,
+        threads=threads,
+        max_context=max_context,
+        prompt=prompt,
+        duration_ms=0,
+    )
+    for chunk, spec in zip(sorted_chunks, specs, strict=True):
+        index = spec["index"]
+        source = chunk.get(track)
+        if not isinstance(source, dict):
+            reasons.append(f"source_record_missing:{index}")
+            continue
+        proof = source.get("batch_cache_compatibility")
+        if not isinstance(proof, dict) or proof.get("schema") != LIVE_PROOF_SCHEMA:
+            reasons.append(f"authoritative_proof_missing:{index}")
+            continue
+        live_wav = source_wav_path(session, source)
+        live_json = source_json_path(session, source)
+        if live_wav is None:
+            reasons.append(f"live_pcm_missing:{index}")
+            continue
+        if live_json is None:
+            reasons.append(f"live_json_missing:{index}")
+            continue
+        canonical_wav = staging / track / f"{index:04d}_{spec['hard_start_ms'] // 1000:06d}s.wav"
+        authoritative_cache.slice_pcm_wav(
+            prepared_audio,
+            canonical_wav,
+            spec["seek_sample"],
+            spec["clip_end_sample"],
+        )
+        identity = authoritative_cache.build_chunk_identity(
+            track=track,
+            role=role,
+            spec=spec,
+            chunk_wav=canonical_wav,
+            model=model,
+            whisper_cli=whisper_cli,
+            decode=decode,
+            audio_prep=prep,
+        )
+        identity_sha = authoritative_cache.content_sha256(identity)
+        if proof.get("identity_sha256") != identity_sha or proof.get("identity") != identity:
+            reasons.append(f"canonical_identity_mismatch:{index}")
+            continue
+        if authoritative_cache.pcm_fingerprint(live_wav) != identity["pcm"]:
+            reasons.append(f"live_pcm_mismatch:{index}")
+            continue
+        output_proof = proof.get("output_json")
+        if not isinstance(output_proof, dict) or output_proof != authoritative_cache.output_fingerprint(live_json):
+            reasons.append(f"live_json_hash_mismatch:{index}")
+            continue
+        payload = read_json(live_json)
+        if payload is None or not isinstance(payload.get("transcription"), list):
+            reasons.append(f"live_json_invalid:{index}")
+            continue
+        verified.append(
+            {
+                "spec": spec,
+                "identity": identity,
+                "canonical_wav": canonical_wav,
+                "live_wav": live_wav,
+                "live_json": live_json,
+                "payload": payload,
+                "proof": proof,
+            }
+        )
+    return verified, sorted(set(reasons)), {
+        "expected_chunks": len(specs),
+        "verified_chunks": len(verified),
+        "prepared_audio": audio_fingerprint(prepared_audio),
+    }
+
+
+def materialize_track(
+    *,
+    session: Path,
+    raw_dir: Path,
+    track: str,
+    verified: list[dict[str, Any]],
+    raw_config: dict[str, Any],
+    prepared_audio: Path,
+    window_sec: int,
+    overlap_sec: int,
+) -> dict[str, Any]:
+    chunk_dir = raw_dir / "chunks" / track
     chunk_dir.mkdir(parents=True, exist_ok=True)
     records: list[dict[str, Any]] = []
-    for chunk in sorted(chunks, key=lambda row: int(row.get("index") or 0)):
-        record = chunk_record_from_live(session, chunk, source, chunk_dir)
-        if record is None:
-            continue
-        source_record = chunk.get(source)
-        assert isinstance(source_record, dict)
-        json_path = source_json_path(session, source_record)
-        assert json_path is not None
-        data = read_json(json_path)
-        if data is None:
-            continue
-        chunk_base = Path(record["json"]).with_suffix("")
-        write_json(chunk_base.with_suffix(".json"), data)
-        write_text_sidecars(chunk_base, data.get("transcription") if isinstance(data.get("transcription"), list) else [])
-        chunk_meta = {
-            "schema": "murmurmark.whisper_cpp_chunk_cache/v1",
-            "generator": {"name": "materialize-live-asr-cache", "version": SCRIPT_VERSION},
-            "raw_cache": raw_cache_config,
-            "source_audio": {
-                "kind": "live_asr_cache",
-                "live_json": rel(json_path, session),
-                "live_wav": rel(Path(str(source_record.get("wav") or "")), session)
-                if source_record.get("wav")
-                else None,
+    shifted_rows: list[dict[str, Any]] = []
+    template: dict[str, Any] = {"params": {}, "transcription": []}
+    for item in verified:
+        spec = item["spec"]
+        index = int(spec["index"])
+        chunk_base = chunk_dir / f"{index:04d}_{spec['hard_start_ms'] // 1000:06d}s"
+        authoritative_cache.atomic_write_bytes(
+            chunk_base.with_suffix(".wav"),
+            item["canonical_wav"].read_bytes(),
+        )
+        authoritative_cache.atomic_write_json(chunk_base.with_suffix(".json"), item["payload"])
+        write_text_sidecars(chunk_base, item["payload"]["transcription"])
+        entry = authoritative_cache.build_chunk_cache_entry(
+            identity=item["identity"],
+            json_path=chunk_base.with_suffix(".json"),
+            origin="live_origin",
+            created_at=datetime.now(timezone.utc).isoformat(),
+            execution={"mode": "completed_during_capture"},
+            source={
+                "live_wav": rel(item["live_wav"], session),
+                "live_json": rel(item["live_json"], session),
+                "live_proof_sha256": authoritative_cache.content_sha256(item["proof"]),
             },
-            "window": {
-                "index": record["index"],
-                "hard_start_ms": record["hard_start_ms"],
-                "hard_end_ms": record["hard_end_ms"],
-                "seek_ms": record["seek_ms"],
-                "clip_end_ms": record["seek_ms"] + record["clip_duration_ms"],
-                "clip_duration_ms": record["clip_duration_ms"],
-            },
-        }
-        write_json(raw_meta_path(chunk_base), chunk_meta)
-        records.append(record)
-    completed_hard_ms = sum(
-        max(0, int(item.get("hard_end_ms") or 0) - int(item.get("hard_start_ms") or 0))
-        for item in records
+        )
+        authoritative_cache.atomic_write_json(raw_meta_path(chunk_base), entry)
+        for row in item["payload"]["transcription"]:
+            if not isinstance(row, dict):
+                continue
+            offsets = row.get("offsets") if isinstance(row.get("offsets"), dict) else {}
+            local_start = int(offsets.get("from") or 0)
+            local_end = int(offsets.get("to") or local_start)
+            global_start = spec["seek_ms"] + local_start
+            global_end = spec["seek_ms"] + local_end
+            center = (global_start + global_end) / 2.0
+            if spec["hard_start_ms"] <= center < spec["hard_end_ms"]:
+                shifted_rows.append(shifted_row(row, spec["seek_ms"]))
+        template = copy.deepcopy(item["payload"])
+        records.append(
+            {
+                "index": index,
+                "status": "reused",
+                "origin": "live_origin",
+                "reuse_origin": "live_origin",
+                "hard_start_ms": spec["hard_start_ms"],
+                "hard_end_ms": spec["hard_end_ms"],
+                "seek_ms": spec["seek_ms"],
+                "clip_duration_ms": spec["clip_duration_ms"],
+                "hard_start_sample": spec["hard_start_sample"],
+                "hard_end_sample": spec["hard_end_sample"],
+                "seek_sample": spec["seek_sample"],
+                "clip_end_sample": spec["clip_end_sample"],
+                "wav": str(chunk_base.with_suffix(".wav")),
+                "json": str(chunk_base.with_suffix(".json")),
+                "meta": str(raw_meta_path(chunk_base)),
+                "identity_sha256": authoritative_cache.content_sha256(item["identity"]),
+                "cache_validation": "post_stop_canonical_identity_match",
+            }
+        )
+    shifted_rows.sort(
+        key=lambda row: (
+            int((row.get("offsets") or {}).get("from") or 0),
+            int((row.get("offsets") or {}).get("to") or 0),
+        )
     )
-    remaining_ms = max(0, total_ms - completed_hard_ms)
+    template["transcription"] = shifted_rows
+    template.setdefault("params", {})
+    if isinstance(template["params"], dict):
+        template["params"]["murmurmark_asr_mode"] = "windowed"
+        template["params"]["murmurmark_window_sec"] = window_sec
+        template["params"]["murmurmark_overlap_sec"] = overlap_sec
+        template["params"]["murmurmark_source_audio"] = str(prepared_audio)
+    output_base = raw_dir / track
+    authoritative_cache.atomic_write_json(output_base.with_suffix(".json"), template)
+    write_text_sidecars(output_base, shifted_rows)
+    raw_entry = authoritative_cache.build_raw_cache_entry(
+        config=raw_config,
+        json_path=output_base.with_suffix(".json"),
+        created_at=datetime.now(timezone.utc).isoformat(),
+    )
+    authoritative_cache.atomic_write_json(raw_meta_path(output_base), raw_entry)
+    total_ms = sum(max(0, row["hard_end_ms"] - row["hard_start_ms"]) for row in records)
     report = {
-        "schema": "murmurmark.whisper_cpp_chunk_cache_report/v1",
+        "schema": "murmurmark.whisper_cpp_chunk_cache_report/v2",
         "generator": {"name": "materialize-live-asr-cache", "version": SCRIPT_VERSION},
         "updated_at": datetime.now(timezone.utc).isoformat(),
-        "status": "completed" if records else "empty",
-        "track": source,
-        "output_json": str(raw_dir / f"{source}.json"),
-        "source_audio": {"kind": "live_asr_cache", "live_chunks": "derived/live/chunks.jsonl"},
-        "source_duration_ms": source_duration_ms,
+        "status": "completed",
+        "track": track,
+        "output_json": str(output_base.with_suffix(".json")),
+        "source_audio": raw_config["source_audio"],
+        "source_duration_ms": total_ms,
         "limited_duration_ms": total_ms,
         "window_sec": window_sec,
         "overlap_sec": overlap_sec,
@@ -374,296 +442,141 @@ def materialize_chunk_cache(
         "chunks_missing": 0,
         "chunks_reused": len(records),
         "chunks_transcribed": 0,
-        "completed_hard_ms": completed_hard_ms,
-        "completed_hard_sec": round(completed_hard_ms / 1000.0, 3),
+        "chunks_reused_by_origin": {"live_origin": len(records)},
+        "completed_hard_ms": total_ms,
+        "completed_hard_sec": round(total_ms / 1000.0, 3),
         "total_sec": round(total_ms / 1000.0, 3),
-        "remaining_sec": round(remaining_ms / 1000.0, 3),
-        "reused_sec": round(completed_hard_ms / 1000.0, 3),
+        "remaining_sec": 0.0,
+        "reused_sec": round(total_ms / 1000.0, 3),
+        "reused_sec_by_origin": {"live_origin": round(total_ms / 1000.0, 3)},
         "transcribed_sec": 0.0,
-        "completed_ratio": round(completed_hard_ms / total_ms, 6) if total_ms > 0 else None,
+        "completed_ratio": 1.0,
         "chunks": records,
-        "notes": [
-            "These chunks were materialized from live ASR output.",
-            "They are accepted only when check-asr-chunk-cache proves raw JSON rebuild parity.",
-        ],
     }
     report_path = chunk_dir / "chunk_cache_report.json"
-    write_json(report_path, report)
-    return records, rel(report_path, session)
-
-
-def compatibility_settings(
-    *,
-    source: str,
-    model: Path,
-    language: str,
-    max_context: int,
-    prompt: str | None,
-    asr_mode: str,
-    asr_window_sec: int,
-    asr_overlap_sec: int,
-    audio_prep: str,
-) -> dict[str, Any]:
-    return {
-        "schema": "murmurmark.live_batch_asr_compatibility_settings/v1",
-        "track": source,
-        "model": str(model),
-        "language": language,
-        "max_context": max_context,
-        "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest() if prompt else None,
-        "asr_mode": asr_mode,
-        "asr_window_sec": asr_window_sec,
-        "asr_overlap_sec": asr_overlap_sec,
-        "audio_prep": audio_prep,
-        "output_json_full": True,
-        "log_score": True,
-        "suppress_nst": True,
-        "suppress_regex": r"^(Редактор субтитров|Продолжение следует|Спасибо за просмотр|Субтитры.*)$",
-        "timestamp_reconciliation": "hard_window_center_v1",
-    }
-
-
-def source_compatibility_reasons(
-    *,
-    session: Path,
-    chunks: list[dict[str, Any]],
-    source: str,
-    prep: str,
-    global_reasons: list[str],
-    model: Path,
-    whisper_cli: Path | None,
-    language: str,
-    max_context: int,
-    prompt: str | None,
-    asr_mode: str,
-    asr_window_sec: int,
-    asr_overlap_sec: int,
-    force: bool,
-) -> tuple[list[str], dict[str, Any]]:
-    reasons = list(global_reasons)
-    evidence: dict[str, Any] = {
-        "source_audio_identity": "unproven",
-        "model_identity": "unproven",
-        "whisper_cli_identity": "unproven",
-        "settings_identity": "unproven",
-    }
-    if not model.exists():
-        reasons.append("model_file_missing")
-    if whisper_cli is None or not whisper_cli.exists():
-        reasons.append("whisper_cli_missing")
-    if existing_raw_cache(session, source) and not force:
-        reasons.append("raw_cache_already_exists")
-    expected_settings = compatibility_settings(
-        source=source,
-        model=model,
-        language=language,
-        max_context=max_context,
-        prompt=prompt,
-        asr_mode=asr_mode,
-        asr_window_sec=asr_window_sec,
-        asr_overlap_sec=asr_overlap_sec,
-        audio_prep=prep,
-    )
-    expected_settings_sha = content_sha256(expected_settings)
-    model_sha: str | None = None
-    whisper_sha: str | None = None
-    for chunk in chunks:
-        index = int(chunk.get("index") or 0)
-        source_record = chunk.get(source)
-        if not isinstance(source_record, dict):
-            reasons.append(f"live_record_missing:{index}")
-            break
-        if source_record.get("audio_prep") != prep:
-            reasons.append(f"audio_prep_mismatch:{index}")
-            break
-        json_path = source_json_path(session, source_record)
-        if json_path is None:
-            reasons.append(f"asr_json_missing:{index}")
-            break
-        asr_payload = read_json(json_path)
-        if asr_payload is None:
-            reasons.append(f"asr_json_invalid:{index}")
-            break
-        params = asr_payload.get("params") if isinstance(asr_payload.get("params"), dict) else {}
-        if str(params.get("model") or "") != str(model):
-            reasons.append(f"model_path_mismatch:{index}")
-        if str(params.get("language") or "") != language:
-            reasons.append(f"language_mismatch:{index}")
-
-        proof = source_record.get("batch_cache_compatibility")
-        if not isinstance(proof, dict) or proof.get("schema") != "murmurmark.live_batch_asr_compatibility/v1":
-            reasons.extend(
-                [
-                    "source_audio_identity_unproven",
-                    "model_hash_unproven",
-                    "whisper_cli_hash_unproven",
-                    "asr_settings_identity_unproven",
-                ]
-            )
-            break
-        if model_sha is None:
-            model_sha = sha256_file(model) if model.exists() else None
-        if whisper_sha is None:
-            whisper_sha = sha256_file(whisper_cli) if whisper_cli is not None and whisper_cli.exists() else None
-        if proof.get("model_sha256") != model_sha:
-            reasons.append(f"model_hash_mismatch:{index}")
-        else:
-            evidence["model_identity"] = "sha256_match"
-        if proof.get("whisper_cli_sha256") != whisper_sha:
-            reasons.append(f"whisper_cli_hash_mismatch:{index}")
-        else:
-            evidence["whisper_cli_identity"] = "sha256_match"
-        if proof.get("settings_sha256") != expected_settings_sha:
-            reasons.append(f"asr_settings_identity_mismatch:{index}")
-        else:
-            evidence["settings_identity"] = "sha256_match"
-        prepared_sha = proof.get("prepared_audio_sha256")
-        prepared_raw = source_record.get("asr_wav") or source_record.get("wav")
-        prepared_path = Path(str(prepared_raw)) if prepared_raw else None
-        if prepared_path is not None and not prepared_path.is_absolute():
-            prepared_path = session / prepared_path
-        if proof.get("source_kind") != "exact_batch_prepared_window":
-            reasons.append(f"source_audio_contract_mismatch:{index}")
-        elif not isinstance(prepared_sha, str) or not prepared_sha:
-            reasons.append(f"source_audio_identity_unproven:{index}")
-        elif prepared_path is None or not prepared_path.exists():
-            reasons.append(f"prepared_audio_missing:{index}")
-        elif sha256_file(prepared_path) != prepared_sha:
-            reasons.append(f"prepared_audio_hash_mismatch:{index}")
-        else:
-            evidence["source_audio_identity"] = "exact_batch_prepared_window_sha256_match"
-    return sorted(set(reasons)), {
-        **evidence,
-        "settings_sha256": expected_settings_sha,
-        "settings": expected_settings,
-    }
-
-
-def existing_raw_cache(session: Path, source: str | None = None) -> bool:
-    raw_dir = session / "derived/transcript-simple/whisper-cpp/raw"
-    if source is not None:
-        return (raw_dir / f"{source}.json").exists()
-    return (raw_dir / "mic.json").exists() or (raw_dir / "remote.json").exists()
-
-
-def live_duration_ms(chunks: list[dict[str, Any]], source: str) -> tuple[int, int]:
-    max_hard_end = 0
-    max_clip_end = 0
-    for chunk in chunks:
-        source_record = chunk.get(source)
-        if not isinstance(source_record, dict):
-            continue
-        hard_end_sec = float(source_record.get("hard_end_sec") or chunk.get("end_sec") or 0.0)
-        clip_end_sec = float(source_record.get("clip_end_sec") or chunk.get("clip_end_sec") or hard_end_sec)
-        max_hard_end = max(max_hard_end, int(round(hard_end_sec * 1000)))
-        max_clip_end = max(max_clip_end, int(round(clip_end_sec * 1000)))
-    return max_hard_end, max(max_clip_end, max_hard_end)
+    authoritative_cache.atomic_write_json(report_path, report)
+    return {"rows": len(shifted_rows), "chunks": len(records), "report": rel(report_path, session)}
 
 
 def main() -> int:
     args = parse_args()
     session = args.session.expanduser().resolve()
-    model = expand_path(args.model)
+    model = args.model.expanduser().resolve()
+    whisper_raw = shutil.which(args.whisper_cli) or args.whisper_cli
+    whisper_cli = Path(whisper_raw).expanduser().resolve()
+    prompt = read_prompt(args.prompt_file)
     report_path = session / "derived/live/live_asr_cache_report.json"
     live_report = read_json(session / "derived/live/live_pipeline_report.json")
     chunks = read_jsonl(session / "derived/live/chunks.jsonl")
-    prompt = read_prompt(args.prompt_file)
     global_reasons: list[str] = []
     if live_report is None:
         global_reasons.append("live_report_missing")
     elif live_report.get("status") != "completed":
         global_reasons.append("live_pipeline_not_completed")
-    global_reasons.extend(check_geometry(chunks, args.asr_window_sec, args.asr_overlap_sec))
-    global_reasons = sorted(set(global_reasons))
-    whisper_raw = shutil.which(args.whisper_cli) or args.whisper_cli
-    whisper_cli = Path(whisper_raw).expanduser().resolve() if whisper_raw else None
-    expected_prep = {"mic": args.mic_audio_prep, "remote": args.remote_audio_prep}
-    compatibility: dict[str, dict[str, Any]] = {}
-    for source, prep in expected_prep.items():
-        source_reasons, evidence = source_compatibility_reasons(
-            session=session,
-            chunks=chunks,
-            source=source,
-            prep=prep,
-            global_reasons=global_reasons,
-            model=model,
-            whisper_cli=whisper_cli,
-            language=args.language,
-            max_context=args.max_context,
-            prompt=prompt,
-            asr_mode=args.asr_mode,
-            asr_window_sec=args.asr_window_sec,
-            asr_overlap_sec=args.asr_overlap_sec,
-            force=args.force,
-        )
-        compatibility[source] = {
-            "eligible": not source_reasons,
-            "decision": "reuse" if not source_reasons else "batch_fallback",
-            "reasons": source_reasons,
-            "evidence": evidence,
-        }
+    if args.asr_mode != "windowed":
+        global_reasons.append("only_windowed_mode_supported")
+    if not model.exists():
+        global_reasons.append("model_file_missing")
+    if not whisper_cli.exists():
+        global_reasons.append("whisper_cli_missing")
+    if not chunks:
+        global_reasons.append("live_chunks_missing")
     raw_dir = session / "derived/transcript-simple/whisper-cpp/raw"
-    outputs: dict[str, Any] = {}
-    rows_by_source: dict[str, int] = {}
-    used_json_by_source: dict[str, list[str]] = {}
-    chunk_reports_by_source: dict[str, str] = {}
-    chunk_records_by_source: dict[str, dict[str, Any]] = {}
+    tracks = {
+        "mic": {"role": "Me", "prep": args.mic_audio_prep},
+        "remote": {"role": "Colleagues", "prep": args.remote_audio_prep},
+    }
+    compatibility: dict[str, dict[str, Any]] = {}
     materialized_tracks: list[str] = []
-    for source, prep in expected_prep.items():
-        if not compatibility[source]["eligible"]:
-            continue
-        output_base = raw_dir / source
-        row_count, used = build_combined_json(session, chunks, source, output_base)
-        rows_by_source[source] = row_count
-        used_json_by_source[source] = used
-        meta = whisper_cache_config(
-            model=model,
-            language=args.language,
-            max_context=args.max_context,
-            prompt=prompt,
-            duration_ms=args.duration_ms,
-            asr_mode=args.asr_mode,
-            asr_window_sec=args.asr_window_sec,
-            asr_overlap_sec=args.asr_overlap_sec,
-            audio_prep=prep,
-        )
-        write_json(output_base.with_suffix(".meta.json"), meta)
-        hard_duration_ms, source_duration_ms = live_duration_ms(chunks, source)
-        limited_duration_ms = min(hard_duration_ms, args.duration_ms) if args.duration_ms > 0 else hard_duration_ms
-        chunk_records, chunk_report = materialize_chunk_cache(
-            session=session,
-            chunks=chunks,
-            source=source,
-            raw_dir=raw_dir,
-            raw_cache_config=meta,
-            source_duration_ms=source_duration_ms,
-            total_ms=limited_duration_ms,
-            window_sec=args.asr_window_sec,
-            overlap_sec=args.asr_overlap_sec,
-        )
-        chunk_reports_by_source[source] = chunk_report
-        chunk_records_by_source[source] = {
-            "chunks_total": len(chunk_records),
-            "chunks_completed": len(chunk_records),
-        }
-        outputs[source] = rel(output_base.with_suffix(".json"), session)
-        outputs[f"{source}_chunk_report"] = chunk_report
-        materialized_tracks.append(source)
-
-    fallback_tracks = [source for source in expected_prep if source not in materialized_tracks]
-    materialized = bool(materialized_tracks)
-    if len(materialized_tracks) == len(expected_prep):
+    outputs: dict[str, Any] = {}
+    with tempfile.TemporaryDirectory(prefix="murmurmark-authoritative-live-cache-") as temporary:
+        staging = Path(temporary)
+        for track, settings in tracks.items():
+            reasons = list(global_reasons)
+            if (raw_dir / f"{track}.json").exists() and not args.force:
+                reasons.append("raw_cache_already_exists")
+            if not all_v2_proofs_present(chunks, track):
+                reasons.append("authoritative_live_chunk_proofs_missing")
+            verified: list[dict[str, Any]] = []
+            evidence: dict[str, Any] = {"verified_chunks": 0}
+            prepared: Path | None = None
+            raw_config: dict[str, Any] | None = None
+            if not reasons:
+                source = session / f"derived/asr/{track}.wav"
+                if not source.exists():
+                    reasons.append("canonical_asr_source_missing")
+                else:
+                    prepared = prepare_audio(
+                        source,
+                        session
+                        / f"derived/transcript-simple/whisper-cpp/prepared-audio/{track}_{settings['prep']}.wav",
+                        str(settings["prep"]),
+                    )
+                    verified, track_reasons, evidence = verify_track(
+                        session=session,
+                        chunks=chunks,
+                        track=track,
+                        role=str(settings["role"]),
+                        prep=str(settings["prep"]),
+                        prepared_audio=prepared,
+                        model=model,
+                        whisper_cli=whisper_cli,
+                        language=args.language,
+                        threads=args.threads,
+                        max_context=args.max_context,
+                        prompt=prompt,
+                        duration_ms=args.duration_ms,
+                        window_sec=args.asr_window_sec,
+                        overlap_sec=args.asr_overlap_sec,
+                        staging=staging,
+                    )
+                    reasons.extend(track_reasons)
+                    raw_config = authoritative_cache.build_raw_cache_config(
+                        whisper_cli=whisper_cli,
+                        model=model,
+                        language=args.language,
+                        threads=args.threads,
+                        max_context=args.max_context,
+                        prompt=prompt,
+                        duration_ms=args.duration_ms,
+                        asr_mode=args.asr_mode,
+                        asr_window_sec=args.asr_window_sec,
+                        asr_overlap_sec=args.asr_overlap_sec,
+                        audio_prep=str(settings["prep"]),
+                        source_audio=audio_fingerprint(prepared),
+                    )
+            reasons = sorted(set(reasons))
+            eligible = not reasons and prepared is not None and raw_config is not None
+            compatibility[track] = {
+                "eligible": eligible,
+                "decision": "reuse" if eligible else "batch_fallback",
+                "reasons": reasons,
+                "evidence": evidence,
+            }
+            if eligible:
+                assert prepared is not None and raw_config is not None
+                outputs[track] = materialize_track(
+                    session=session,
+                    raw_dir=raw_dir,
+                    track=track,
+                    verified=verified,
+                    raw_config=raw_config,
+                    prepared_audio=prepared,
+                    window_sec=args.asr_window_sec,
+                    overlap_sec=args.asr_overlap_sec,
+                )
+                materialized_tracks.append(track)
+    fallback_tracks = [track for track in tracks if track not in materialized_tracks]
+    if len(materialized_tracks) == len(tracks):
         status = "materialized"
     elif materialized_tracks:
         status = "partially_materialized"
     else:
         status = "not_eligible"
     reasons = sorted(
-        {
-            f"{source}:{reason}"
-            for source, decision in compatibility.items()
-            for reason in decision["reasons"]
-        }
+        f"{track}:{reason}"
+        for track, decision in compatibility.items()
+        for reason in decision["reasons"]
     )
     payload = {
         "schema": SCHEMA,
@@ -671,18 +584,18 @@ def main() -> int:
         "created_at": datetime.now(timezone.utc).isoformat(),
         "session": str(session),
         "status": status,
-        "materialized": materialized,
+        "materialized": bool(materialized_tracks),
         "materialized_tracks": materialized_tracks,
         "fallback_tracks": fallback_tracks,
         "reasons": reasons,
         "track_compatibility": compatibility,
         "parameters": {
             "model": str(model),
-            "model_sha256": sha256_file(model) if model.exists() else None,
-            "whisper_cli": str(whisper_cli) if whisper_cli is not None else None,
-            "whisper_cli_sha256": sha256_file(whisper_cli) if whisper_cli is not None and whisper_cli.exists() else None,
+            "model_sha256": authoritative_cache.sha256_file(model) if model.exists() else None,
+            "whisper_cli": str(whisper_cli),
+            "whisper_cli_sha256": authoritative_cache.sha256_file(whisper_cli) if whisper_cli.exists() else None,
             "language": args.language,
-            "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest() if prompt else None,
+            "threads": args.threads,
             "max_context": args.max_context,
             "duration_ms": args.duration_ms,
             "asr_mode": args.asr_mode,
@@ -697,16 +610,12 @@ def main() -> int:
         },
         "outputs": outputs,
         "notes": [
-            "Raw batch ASR cache is written only when live chunks are batch-compatible.",
-            "A not_eligible report is a safe fallback, not a pipeline failure.",
+            "Live text is never accepted by similarity.",
+            "Each reused chunk must match post-stop canonical PCM and the complete authoritative identity.",
+            "A not_eligible result is fail-open batch fallback.",
         ],
     }
-    if materialized_tracks:
-        payload["rows_by_source"] = rows_by_source
-        payload["used_live_json_by_source"] = used_json_by_source
-        payload["chunk_reports_by_source"] = chunk_reports_by_source
-        payload["chunk_records_by_source"] = chunk_records_by_source
-    write_json(report_path, payload)
+    authoritative_cache.atomic_write_json(report_path, payload)
     print(f"live_asr_cache_report: {report_path}")
     print(f"status: {status}")
     if reasons:

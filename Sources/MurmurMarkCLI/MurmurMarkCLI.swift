@@ -1254,7 +1254,9 @@ enum DoctorChecks {
             "scripts/report-recording-time-causal-me-recovery-runtime-v1.py",
             "scripts/run-live-parity-pilot.sh",
             "scripts/experiment-sidecar-contract.py",
+            "scripts/authoritative_asr_cache.py",
             "scripts/report-asr-chunk-cache-corpus.py",
+            "scripts/report-authoritative-incremental-asr.py",
             "scripts/transcribe-simple-whispercpp.py",
             "scripts/check-asr-chunk-cache.py",
             "scripts/check-capture-regressions.sh",
@@ -14726,11 +14728,18 @@ enum ReadinessPrinter {
         let remainingSec = double(chunks["remaining_sec"]) ?? max(0.0, totalSec - completedSec)
         let reused = int(chunks["chunks_reused"]) ?? 0
         let transcribed = int(chunks["chunks_transcribed"]) ?? 0
+        let reusedByOrigin = chunks["chunks_reused_by_origin"] as? [String: Any] ?? [:]
+        let reusedSecByOrigin = chunks["reused_sec_by_origin"] as? [String: Any] ?? [:]
         print("\(indent)asr_chunks:")
         print("\(indent)  chunks: \(completed)/\(total)")
         print(String(format: "\(indent)  audio: %.1fs/%.1fs", completedSec, totalSec))
         print(String(format: "\(indent)  remaining: %.1fs", remainingSec))
         print("\(indent)  reused: \(reused)")
+        for origin in reusedByOrigin.keys.sorted() {
+            let count = int(reusedByOrigin[origin]) ?? 0
+            let seconds = double(reusedSecByOrigin[origin]) ?? 0.0
+            print(String(format: "\(indent)    %@: %d chunks / %.1fs", origin, count, seconds))
+        }
         print("\(indent)  transcribed: \(transcribed)")
     }
 

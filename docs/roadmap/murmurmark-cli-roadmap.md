@@ -1,6 +1,6 @@
 # MurmurMark CLI Roadmap
 
-Updated: 2026-08-05
+Updated: 2026-08-06
 
 This is the readable view of the active OpsKarta v3 plan:
 
@@ -53,9 +53,9 @@ remain, while rebuildable media below `derived/` can be removed through
 
 ## Current Goal
 
-**Authoritative Incremental ASR v1** is current. It targets the remaining cold first-pass latency
-without changing whisper.cpp or promoting provisional live text. A chunk may enter authoritative
-replay only when canonical PCM, window, model, prompt and decode identities match exactly.
+**Canonical Live ASR Producer v1** is current. The strict authoritative cache consumer is complete;
+the missing piece is a capture-safe producer that emits the same canonical 60s/5s windows and exact
+proof during recording. Failure remains a normal batch fallback.
 
 Its prerequisites are complete: One-Command Meeting Lifecycle owns the unattended product path;
 Speaker-Preserving Neural Echo v2 remains the guarded pre-ASR profile; Evidence Notes And Export v2
@@ -80,10 +80,11 @@ flowchart LR
     H["Done<br/>Evidence Notes And Export v2"]
     D["Done<br/>Release-quality CLI"]
     F["Done<br/>Reliable Final<br/>Handoff v1"]
-    G["Current<br/>Authoritative<br/>Incremental ASR v1"]
+    G["Done: split decision<br/>Authoritative<br/>Incremental ASR v1"]
+    C2["Current<br/>Canonical Live<br/>ASR Producer v1"]
     R["Next<br/>Remote Speaker<br/>Evidence Map v1"]
 
-    P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D --> F --> G --> R
+    P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D --> F --> G --> C2 --> R
 ```
 
 ### 0. Evidence-Backed Me Completion v2
@@ -199,12 +200,19 @@ first-pass ASR remains a separately measured ceiling.
 
 ### 14. Authoritative Incremental ASR v1
 
-Current. Freeze cold/cache/live-origin timing separately, define a complete canonical ASR chunk
-identity and reuse only byte-identical completed chunks from durable capture or interrupted runs.
-Fallback batch output, quality gates and raw CAF remain unchanged. The result must be a measured
-`PROMOTE` or `DO_NOT_PROMOTE`, never an approximate text cache.
+Completed with a split decision. Strict v2 identity, atomic completion, integrity checks and
+byte-identical interrupted-batch replay are `PROMOTE`. Historical checkpoint/cache process reduction
+is median `98.94%`. Live-origin reuse is `DO_NOT_PROMOTE`: three real frozen sessions have `0/30`
+required `authoritative_live_asr_chunk/v1` proofs. Every mismatch falls back to ordinary batch ASR.
 
-### 15. Remote Speaker Evidence Map v1
+### 15. Canonical Live ASR Producer v1
+
+Current. Make capture-safe Live Shadow produce complete canonical mic/remote 60s/5s chunks and exact
+proofs accepted by the strict consumer. The producer remains best-effort and outside the capture
+callback. Three real sessions must show at least `50%` lower fresh post-stop ASR time without output,
+capture or stable-path regression, or the hypothesis closes with `DO_NOT_PROMOTE`.
+
+### 16. Remote Speaker Evidence Map v1
 
 Next. Split the authoritative remote track into stable anonymous speaker intervals, publish a
 shadow rich transcript with full provenance and make a corpus-wide decision. The stage does not
@@ -222,13 +230,14 @@ flowchart LR
     R["Release-quality CLI"]
     F["Reliable Final Handoff v1"]
     A["Authoritative Incremental ASR v1"]
+    P["Canonical Live ASR Producer v1"]
     D["Remote Speaker Evidence Map v1"]
     S["Speaker map"]
     T["transcript.rich.json"]
     V["Heavy local validators"]
     L["Evidence-guarded LLM"]
 
-    Q --> E --> X --> I --> C --> R --> F --> A --> D
+    Q --> E --> X --> I --> C --> R --> F --> A --> P --> D
     D --> S --> T --> L
     Q -.-> V
 ```
@@ -236,8 +245,9 @@ flowchart LR
 Speaker-Preserving Neural Echo v2 remains production. Both Reference-Conditioned Target-Me
 Separation experiments are complete with `DO_NOT_PROMOTE`; v2 showed that paired enrollment is
 identifiable but the small scratch-trained separator is below the waveform-quality ceiling.
-Evidence Notes And Export v2, Release-quality CLI and Reliable Final Handoff v1 are complete.
-Authoritative Incremental ASR v1 is current; Remote Speaker Evidence Map v1 follows it.
+Evidence Notes And Export v2, Release-quality CLI, Reliable Final Handoff v1 and the strict
+Authoritative Incremental ASR consumer are complete. Canonical Live ASR Producer v1 is current;
+Remote Speaker Evidence Map v1 follows its measured gate.
 
 Remote diarization works on authoritative `remote` and does not require complete Echo suppression.
 Its next stage produces anonymous stable speaker IDs and an audit-only rich transcript. Naming,
@@ -279,14 +289,9 @@ record the evidence ceiling and leave the authoritative output unchanged.
 ```bash
 scripts/check-planning-consistency.py
 
-PYTHONPATH=../opskarta .venv/bin/python -m specs.v3.tools.cli \
-  validate docs/roadmap/murmurmark-cli-roadmap.plan.yaml
-
-PYTHONPATH=../opskarta .venv/bin/python -m specs.v3.tools.cli \
-  render tree docs/roadmap/murmurmark-cli-roadmap.plan.yaml
-
-PYTHONPATH=../opskarta .venv/bin/python -m specs.v3.tools.cli \
-  render executive docs/roadmap/murmurmark-cli-roadmap.plan.yaml --view exec-top
+PYTHONPATH=../opskarta .venv/bin/python -m specs.v3.tools.cli validate docs/roadmap/murmurmark-cli-roadmap.plan.yaml
+PYTHONPATH=../opskarta .venv/bin/python -m specs.v3.tools.cli render tree docs/roadmap/murmurmark-cli-roadmap.plan.yaml
+PYTHONPATH=../opskarta .venv/bin/python -m specs.v3.tools.cli render executive docs/roadmap/murmurmark-cli-roadmap.plan.yaml --view exec-top
 ```
 
 Detailed planning and experiment history through 2026-07-19 is archived in

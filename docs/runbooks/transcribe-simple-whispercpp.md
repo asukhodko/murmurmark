@@ -420,9 +420,10 @@ scripts/transcribe-simple-whispercpp.py "$SESSION" \
 ```
 
 Raw Whisper results are cached in `raw/mic.json` and `raw/remote.json`. In default `windowed` mode,
-each ASR window also has its own cache under `raw/chunks/<track>/`. The cache is reused only when
-the model, language, prompt, duration limit, `--max-context`, ASR window settings, audio preparation
-settings, source-audio fingerprint and window boundaries match the current run.
+each ASR window also has its own cache under `raw/chunks/<track>/`. Authoritative v2 reuse requires
+matching track/role, exact sample boundaries, overlap policy, PCM SHA-256 and format, whisper.cpp
+binary/model, language, prompt and every decode option. Metadata is committed only after completed
+PCM and JSON; partial or corrupt writes are recomputed.
 Use `--force` to regenerate raw Whisper output anyway. Changing `--prompt-file` also changes the
 raw cache metadata, so the next non-skipped run will regenerate raw ASR output.
 
@@ -431,34 +432,40 @@ the bridge reuses those chunks and rebuilds the combined raw JSON instead of rer
 for every window. Inspect chunk reuse here:
 
 ```bash
-jq '{track,status,chunks_completed,chunks_total,chunks_reused,chunks_transcribed,completed_hard_sec,total_sec}' \
+jq '{track,status,chunks_completed,chunks_total,chunks_reused,chunks_transcribed,chunks_reused_by_origin,reused_sec_by_origin,completed_hard_sec,total_sec}' \
   "$SESSION/derived/transcript-simple/whisper-cpp/raw/chunks/mic/chunk_cache_report.json"
 
-jq '{track,status,chunks_completed,chunks_total,chunks_reused,chunks_transcribed,completed_hard_sec,total_sec}' \
+jq '{track,status,chunks_completed,chunks_total,chunks_reused,chunks_transcribed,chunks_reused_by_origin,reused_sec_by_origin,completed_hard_sec,total_sec}' \
   "$SESSION/derived/transcript-simple/whisper-cpp/raw/chunks/remote/chunk_cache_report.json"
 ```
 
 The normal `murmurmark process` runner also executes a light rebuild check after `transcribe_current`:
 
 ```bash
-scripts/check-asr-chunk-cache.py "$SESSION" --require-chunks
-jq '.status, [.tracks[] | {track,status,raw_rows,rebuilt_rows,chunks_completed,chunks_total}]' \
+scripts/check-asr-chunk-cache.py "$SESSION" --require-chunks --require-authoritative
+jq '.status, [.tracks[] | {track,status,raw_rows,rebuilt_rows,chunks_completed,chunks_total,authoritative_schema,byte_identical,integrity_errors}]' \
   "$SESSION/derived/transcript-simple/whisper-cpp/raw/chunk_rebuild_check.json"
 ```
 
-This check fails the pipeline if the current `raw/mic.json` or `raw/remote.json` cannot be rebuilt
-from cached chunks. It is the first no-regression gate for chunked ASR reuse.
+This check fails the pipeline unless the current raw JSON is byte-identical to strict chunk replay.
+Legacy v1 caches remain inspectable but are not silently promoted; a new ASR run rebuilds them.
 
 For a corpus-level view:
 
 ```bash
-scripts/report-asr-chunk-cache-corpus.py --refresh --no-fail
+scripts/report-asr-chunk-cache-corpus.py --refresh --require-authoritative --no-fail
 less sessions/_reports/asr-chunk-cache/asr_chunk_cache_corpus_report.md
 scripts/check-corpus-gates.py --no-fail
+
+scripts/report-authoritative-incremental-asr.py
+less sessions/_reports/authoritative-incremental-asr-v1/authoritative_incremental_asr_v1.md
 ```
 
 `check-corpus-gates.py` treats a failed ASR chunk-cache corpus report as a hard gate failure. Missing
 coverage is still a warning while Chunked/Resumable Processing v1 is being rolled out.
+The frozen Authoritative Incremental ASR report deliberately separates historical checkpoint/cache
+timing from live-origin evidence. Its result is `PROMOTE_BATCH_RESUME / DO_NOT_PROMOTE_LIVE_ORIGIN`:
+the strict consumer is active, while old live chunks with no exact proof always fall back to batch.
 It also reads `sessions/_reports/live-pipeline/live_corpus_gates_report.json`: live/near-realtime
 cache promotion must remain blocked. The live comparison records measurable capture-safety, order,
 local-recall, remote-leak, review-burden, notes-readiness and chunk-boundary gates. Boundary
@@ -546,7 +553,8 @@ Neither report changes live drafts or promotion gates.
 Older sessions may have top-level `raw/mic.json` and `raw/remote.json` from pre-chunk runs but no
 `raw/chunks/<track>/chunk_cache_report.json`. In `windowed` mode that legacy raw cache is no longer
 enough for `murmurmark process`: the transcript step rebuilds per-window chunks first, then
-`check-asr-chunk-cache.py --require-chunks` proves that the combined raw ASR can be reconstructed.
+`check-asr-chunk-cache.py --require-chunks --require-authoritative` proves exact identity, integrity
+and byte-identical raw reconstruction.
 
 To test the next repair logic without changing the main transcript, run the shadow profile after the
 normal transcript exists:
@@ -2087,12 +2095,11 @@ derived/
       clips/
 ```
 
-The same `raw/chunks/<track>/` shape can also be materialized from eligible live ASR chunks by
-`scripts/materialize-live-asr-cache.py`. In that case chunk metadata names
-`source_audio.kind: live_asr_cache`; the safety check is not exact source WAV identity, but
-`raw/chunk_rebuild_check.json` proving that top-level raw ASR JSON can be rebuilt from those
-materialized chunks. If the live chunks are not compatible, the bridge writes `not_eligible` and
-normal batch ASR runs.
+The same `raw/chunks/<track>/` shape can be materialized from live ASR only when every source row has
+`murmurmark.authoritative_live_asr_chunk/v1`. Post-stop validation recreates canonical batch PCM and
+requires an exact identity and completed JSON hash match. `raw/chunk_rebuild_check.json` must then
+prove byte-identical reconstruction. Existing live sessions have no such proofs, so the bridge
+writes `not_eligible` and normal batch ASR runs; Canonical Live ASR Producer v1 owns this gap.
 
 Initial role assignment is deliberately simple:
 

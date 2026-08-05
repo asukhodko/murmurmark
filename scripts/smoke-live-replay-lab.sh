@@ -24,7 +24,7 @@ cat >"$live/chunks.jsonl" <<'JSONL'
 JSONL
 cat >"$live/live_asr_cache_report.json" <<'JSON'
 {
-  "schema":"murmurmark.live_asr_cache_report/v1",
+  "schema":"murmurmark.live_asr_cache_report/v2",
   "status":"not_eligible",
   "materialized":false,
   "reasons":["window_duration_mismatch:1"],

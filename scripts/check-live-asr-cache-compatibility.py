@@ -1,34 +1,35 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import hashlib
 import importlib.util
+import hashlib
 import json
+import math
+import shutil
 import subprocess
 import sys
 import tempfile
+import wave
 from pathlib import Path
 from typing import Any
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MATERIALIZER = REPO_ROOT / "scripts/materialize-live-asr-cache.py"
+TRANSCRIBER = REPO_ROOT / "scripts/transcribe-simple-whispercpp.py"
 
 
-def load_materializer() -> Any:
-    spec = importlib.util.spec_from_file_location("murmurmark_live_asr_cache", MATERIALIZER)
+def load_module(path: Path, name: str) -> Any:
+    spec = importlib.util.spec_from_file_location(name, path)
     if spec is None or spec.loader is None:
-        raise RuntimeError("cannot load live ASR cache materializer")
+        raise RuntimeError(f"cannot load {path}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
-MODULE = load_materializer()
-
-
-def sha256_file(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+MODULE = load_module(MATERIALIZER, "murmurmark_live_asr_cache")
+CACHE = load_module(REPO_ROOT / "scripts/authoritative_asr_cache.py", "murmurmark_authoritative_asr_cache")
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -36,24 +37,61 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def write_wav(path: Path, *, seconds: int, frequency: float) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    rate = 16_000
+    frames = bytearray()
+    for index in range(rate * seconds):
+        value = int(6000 * math.sin(2 * math.pi * frequency * index / rate))
+        frames.extend(value.to_bytes(2, "little", signed=True))
+    with wave.open(str(path), "wb") as audio:
+        audio.setnchannels(1)
+        audio.setsampwidth(2)
+        audio.setframerate(rate)
+        audio.writeframes(frames)
+
+
+def make_fake_whisper(path: Path) -> None:
+    path.write_text(
+        """#!/usr/bin/env python3
+from pathlib import Path
+import hashlib
+import json
+import sys
+
+args = sys.argv[1:]
+output = Path(args[args.index('--output-file') + 1])
+source = Path(args[args.index('--file') + 1])
+language = args[args.index('--language') + 1]
+text = hashlib.sha256(source.read_bytes()).hexdigest()[:16]
+payload = {
+    'params': {'model': args[args.index('--model') + 1], 'language': language},
+    'transcription': [{
+        'text': text,
+        'offsets': {'from': 1000, 'to': 2000},
+        'tokens': [{'text': text, 'offsets': {'from': 1000, 'to': 2000}}],
+    }],
+}
+output.with_suffix('.json').write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\\n')
+""",
+        encoding="utf-8",
+    )
+    path.chmod(0o755)
+
+
 def build_session(
     root: Path,
     name: str,
     *,
-    valid_tracks: set[str] = frozenset(("mic", "remote")),
-    geometry_sec: int = 60,
+    invalid_track: str | None = None,
+    invalid_kind: str | None = None,
     prompt: str | None = None,
-    proof_prompt: str | None = None,
-    model_hash_override: str | None = None,
-    remote_prep: str = "loudnorm",
-    corrupt_track: str | None = None,
 ) -> tuple[Path, Path, Path, Path | None]:
     session = root / name
-    model = root / "model.bin"
-    whisper_cli = root / "whisper-cli"
+    model = root / f"{name}.model.bin"
+    whisper_cli = root / f"{name}.whisper-cli"
     model.write_bytes(b"model-v1")
-    whisper_cli.write_bytes(b"#!/bin/sh\nexit 0\n")
-    whisper_cli.chmod(0o755)
+    make_fake_whisper(whisper_cli)
     prompt_path = root / f"{name}.prompt.txt" if prompt is not None else None
     if prompt_path is not None:
         prompt_path.write_text(prompt, encoding="utf-8")
@@ -62,72 +100,105 @@ def build_session(
         session / "derived/live/live_pipeline_report.json",
         {"schema": "murmurmark.live_pipeline_report/v1", "status": "completed"},
     )
-    chunks: list[dict[str, Any]] = []
-    windows = [(1, 0, geometry_sec, 0, geometry_sec + 5), (2, geometry_sec, geometry_sec + 20, geometry_sec - 5, geometry_sec + 20)]
-    for index, start, end, clip_start, clip_end in windows:
-        row: dict[str, Any] = {
-            "schema": "murmurmark.live_chunk/v1",
-            "index": index,
-            "start_sec": start,
-            "end_sec": end,
-            "duration_sec": end - start,
-            "clip_start_sec": clip_start,
-            "clip_end_sec": clip_end,
-        }
-        for track, prep in (("mic", "speech"), ("remote", remote_prep)):
-            chunk_dir = session / f"derived/live/chunks/{index:04d}"
-            wav = chunk_dir / f"{track}.wav"
+    write_json(session / "session.json", {"schema": "murmurmark.session/v1", "session_id": name})
+    chunks_by_index: dict[int, dict[str, Any]] = {}
+    for track, prep, role, frequency in (
+        ("mic", "speech", "Me", 440.0),
+        ("remote", "loudnorm", "Colleagues", 660.0),
+    ):
+        source = session / f"derived/asr/{track}.wav"
+        prepared = session / f"derived/transcript-simple/whisper-cpp/prepared-audio/{track}_{prep}.wav"
+        write_wav(source, seconds=80, frequency=frequency)
+        MODULE.prepare_audio(source, prepared, prep)
+        specs = MODULE.build_specs(prepared, duration_ms=0, window_sec=60, overlap_sec=5)
+        decode = CACHE.decode_contract(language="ru", threads=4, max_context=0, prompt=prompt, duration_ms=0)
+        for spec in specs:
+            index = spec["index"]
+            chunk_dir = session / f"derived/live/chunks/{index:06d}"
+            live_wav = chunk_dir / f"{track}.wav"
+            CACHE.slice_pcm_wav(prepared, live_wav, spec["seek_sample"], spec["clip_end_sample"])
+            identity = CACHE.build_chunk_identity(
+                track=track,
+                role=role,
+                spec=spec,
+                chunk_wav=live_wav,
+                model=model,
+                whisper_cli=whisper_cli,
+                decode=decode,
+                audio_prep=prep,
+            )
             raw_json = chunk_dir / f"{track}.json"
-            wav.parent.mkdir(parents=True, exist_ok=True)
-            wav.write_bytes(f"{name}:{track}:{index}".encode())
+            text = hashlib.sha256(live_wav.read_bytes()).hexdigest()[:16]
             payload = {
                 "params": {"model": str(model.resolve()), "language": "ru"},
                 "transcription": [
                     {
-                        "text": f"{track}-{index}",
+                        "text": text,
                         "offsets": {"from": 1000, "to": 2000},
-                        "tokens": [],
+                        "tokens": [{"text": text, "offsets": {"from": 1000, "to": 2000}}],
                     }
                 ],
             }
-            if corrupt_track == track and index == 1:
-                raw_json.write_text("{broken", encoding="utf-8")
-            else:
-                write_json(raw_json, payload)
-            source: dict[str, Any] = {
-                "wav": str(wav),
-                "audio_prep": prep,
-                "hard_start_sec": start,
-                "hard_end_sec": end,
-                "clip_start_sec": clip_start,
-                "clip_end_sec": clip_end,
-                "asr": {"status": "passed", "json": str(raw_json)},
+            write_json(raw_json, payload)
+            proof: dict[str, Any] = {
+                "schema": MODULE.LIVE_PROOF_SCHEMA,
+                "completed": True,
+                "identity": identity,
+                "identity_sha256": CACHE.content_sha256(identity),
+                "output_json": CACHE.output_fingerprint(raw_json),
             }
-            if track in valid_tracks:
-                settings = MODULE.compatibility_settings(
-                    source=track,
-                    model=model.resolve(),
-                    language="ru",
-                    max_context=0,
-                    prompt=proof_prompt if proof_prompt is not None else prompt,
-                    asr_mode="windowed",
-                    asr_window_sec=60,
-                    asr_overlap_sec=5,
-                    audio_prep="speech" if track == "mic" else "loudnorm",
-                )
-                source["batch_cache_compatibility"] = {
-                    "schema": "murmurmark.live_batch_asr_compatibility/v1",
-                    "source_kind": "exact_batch_prepared_window",
-                    "prepared_audio_sha256": sha256_file(wav),
-                    "model_sha256": model_hash_override or sha256_file(model),
-                    "whisper_cli_sha256": sha256_file(whisper_cli),
-                    "settings_sha256": MODULE.content_sha256(settings),
-                }
-            row[track] = source
-        chunks.append(row)
+            if invalid_track == track and index == 1:
+                if invalid_kind == "proof_missing":
+                    proof = {}
+                elif invalid_kind == "legacy_proof":
+                    proof = {"schema": "murmurmark.live_batch_asr_compatibility/v1"}
+                elif invalid_kind == "model":
+                    proof["identity"] = json.loads(json.dumps(identity))
+                    proof["identity"]["engine"]["model"]["sha256"] = "bad"
+                    proof["identity_sha256"] = CACHE.content_sha256(proof["identity"])
+                elif invalid_kind == "prompt":
+                    proof["identity"] = json.loads(json.dumps(identity))
+                    proof["identity"]["decode"]["prompt_sha256"] = "bad"
+                    proof["identity_sha256"] = CACHE.content_sha256(proof["identity"])
+                elif invalid_kind == "pcm":
+                    with live_wav.open("r+b") as file:
+                        file.seek(44)
+                        original = file.read(1)
+                        file.seek(44)
+                        file.write(bytes([(original[0] if original else 0) ^ 0xFF]))
+                elif invalid_kind == "json":
+                    raw_json.write_text("{broken", encoding="utf-8")
+                elif invalid_kind == "partial":
+                    proof.pop("output_json", None)
+            row = chunks_by_index.setdefault(
+                index,
+                {
+                    "schema": "murmurmark.live_chunk/v1",
+                    "index": index,
+                    "start_sec": spec["hard_start_ms"] / 1000,
+                    "end_sec": spec["hard_end_ms"] / 1000,
+                    "duration_sec": (spec["hard_end_ms"] - spec["hard_start_ms"]) / 1000,
+                    "clip_start_sec": spec["seek_ms"] / 1000,
+                    "clip_end_sec": spec["clip_end_ms"] / 1000,
+                },
+            )
+            row[track] = {
+                "wav": str(live_wav),
+                "asr_wav": str(live_wav),
+                "audio_prep": prep,
+                "hard_start_sec": spec["hard_start_ms"] / 1000,
+                "hard_end_sec": spec["hard_end_ms"] / 1000,
+                "clip_start_sec": spec["seek_ms"] / 1000,
+                "clip_end_sec": spec["clip_end_ms"] / 1000,
+                "asr": {"status": "passed", "json": str(raw_json)},
+                "batch_cache_compatibility": proof,
+            }
     chunks_path = session / "derived/live/chunks.jsonl"
     chunks_path.parent.mkdir(parents=True, exist_ok=True)
-    chunks_path.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in chunks), encoding="utf-8")
+    chunks_path.write_text(
+        "".join(json.dumps(row, ensure_ascii=False) + "\n" for _, row in sorted(chunks_by_index.items())),
+        encoding="utf-8",
+    )
     return session, model, whisper_cli, prompt_path
 
 
@@ -140,10 +211,8 @@ def run_case(session: Path, model: Path, whisper_cli: Path, prompt: Path | None 
         str(model),
         "--whisper-cli",
         str(whisper_cli),
-        "--asr-window-sec",
-        "60",
-        "--asr-overlap-sec",
-        "5",
+        "--threads",
+        "4",
         "--force",
     ]
     if prompt is not None:
@@ -161,41 +230,67 @@ def assert_tracks(report: dict[str, Any], reused: set[str], fallback: set[str]) 
         assert report["track_compatibility"][track]["eligible"] is False, report
 
 
+def raw_hashes(session: Path) -> dict[str, str]:
+    raw = session / "derived/transcript-simple/whisper-cpp/raw"
+    return {track: hashlib.sha256((raw / f"{track}.json").read_bytes()).hexdigest() for track in ("mic", "remote")}
+
+
+def run_clean_batch(session: Path, model: Path, whisper_cli: Path) -> None:
+    raw = session / "derived/transcript-simple/whisper-cpp/raw"
+    shutil.rmtree(raw)
+    subprocess.run(
+        [
+            sys.executable,
+            str(TRANSCRIBER),
+            str(session),
+            "--skip-export",
+            "--model",
+            str(model),
+            "--whisper-cli",
+            str(whisper_cli),
+            "--language",
+            "ru",
+            "--threads",
+            "4",
+            "--track-workers",
+            "1",
+            "--repair-profile",
+            "current",
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
 def main() -> int:
     with tempfile.TemporaryDirectory(prefix="murmurmark-live-asr-compat-") as raw_root:
         root = Path(raw_root)
-
         report = run_case(*build_session(root, "both"))
+        assert report["schema"] == MODULE.SCHEMA
         assert report["status"] == "materialized"
         assert_tracks(report, {"mic", "remote"}, set())
+        check = subprocess.run(
+            [
+                sys.executable,
+                str(REPO_ROOT / "scripts/check-asr-chunk-cache.py"),
+                str(root / "both"),
+                "--require-chunks",
+                "--require-authoritative",
+            ],
+            check=False,
+            stdout=subprocess.DEVNULL,
+        )
+        assert check.returncode == 0
+        materialized_hashes = raw_hashes(root / "both")
+        run_clean_batch(root / "both", root / "both.model.bin", root / "both.whisper-cli")
+        assert raw_hashes(root / "both") == materialized_hashes
 
-        report = run_case(*build_session(root, "mic-only", valid_tracks={"mic"}))
-        assert report["status"] == "partially_materialized"
-        assert_tracks(report, {"mic"}, {"remote"})
-
-        report = run_case(*build_session(root, "remote-only", valid_tracks={"remote"}))
-        assert report["status"] == "partially_materialized"
-        assert_tracks(report, {"remote"}, {"mic"})
-
-        report = run_case(*build_session(root, "geometry", geometry_sec=30))
-        assert_tracks(report, set(), {"mic", "remote"})
-        assert any("window_duration_mismatch" in reason for reason in report["reasons"])
-
-        report = run_case(*build_session(root, "model", model_hash_override="bad"))
-        assert_tracks(report, set(), {"mic", "remote"})
-        assert any("model_hash_mismatch" in reason for reason in report["reasons"])
-
-        report = run_case(*build_session(root, "prompt", prompt="actual", proof_prompt="different"))
-        assert_tracks(report, set(), {"mic", "remote"})
-        assert any("asr_settings_identity_mismatch" in reason for reason in report["reasons"])
-
-        report = run_case(*build_session(root, "prep", remote_prep="raw"))
-        assert_tracks(report, {"mic"}, {"remote"})
-        assert any("remote:audio_prep_mismatch" in reason for reason in report["reasons"])
-
-        report = run_case(*build_session(root, "corrupt", corrupt_track="mic"))
-        assert_tracks(report, {"remote"}, {"mic"})
-        assert any("mic:asr_json_invalid" in reason for reason in report["reasons"])
+        for kind in ("proof_missing", "legacy_proof", "model", "prompt", "pcm", "json", "partial"):
+            args = build_session(root, f"bad-{kind}", invalid_track="mic", invalid_kind=kind, prompt="actual")
+            report = run_case(*args)
+            assert_tracks(report, {"remote"}, {"mic"})
+            assert any(reason.startswith("mic:") for reason in report["reasons"]), report
 
     print("live ASR cache compatibility checks passed")
     return 0

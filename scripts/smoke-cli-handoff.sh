@@ -825,20 +825,15 @@ PY
   --asr-window-sec 60 \
   --asr-overlap-sec 5 \
   --force >/dev/null
-"$eval_python" "$repo_root/scripts/check-asr-chunk-cache.py" \
-  "$live_cache_session" \
-  --require-chunks >/dev/null
 jq -e '
-  .status == "materialized"
-  and .materialized == true
-  and .chunk_records_by_source.mic.chunks_completed == 2
-  and .chunk_records_by_source.remote.chunks_completed == 2
+  .schema == "murmurmark.live_asr_cache_report/v2"
+  and .status == "not_eligible"
+  and .materialized == false
+  and .fallback_tracks == ["mic", "remote"]
+  and any(.reasons[]; contains("authoritative_live_chunk_proofs_missing"))
 ' "$live_cache_session/derived/live/live_asr_cache_report.json" >/dev/null
-jq -e '
-  .status == "passed"
-  and ([.tracks[] | select(.status == "pass")] | length == 2)
-  and ([.tracks[] | select(.chunks_completed == 2 and .chunks_total == 2)] | length == 2)
-' "$live_cache_session/derived/transcript-simple/whisper-cpp/raw/chunk_rebuild_check.json" >/dev/null
+[[ ! -e "$live_cache_session/derived/transcript-simple/whisper-cpp/raw/mic.json" ]]
+[[ ! -e "$live_cache_session/derived/transcript-simple/whisper-cpp/raw/remote.json" ]]
 
 chunk_resume_session="$workdir/sessions/chunk-resume-smoke"
 mkdir -p "$chunk_resume_session/derived/asr" "$chunk_resume_session/bin"

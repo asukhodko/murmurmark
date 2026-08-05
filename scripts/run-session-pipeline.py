@@ -743,6 +743,8 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
         str(args.model),
         "--language",
         args.language,
+        "--threads",
+        str(args.asr_threads),
     ]
     live_cache_materialize = add_prompt(live_cache_materialize, prompt)
 
@@ -807,7 +809,13 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
         step("transcribe_current", current_transcribe, enabled=not args.skip_transcription, reason="--skip-transcription"),
         step(
             "check_asr_chunk_cache",
-            [py, str(repo_root / "scripts/check-asr-chunk-cache.py"), str(session), "--require-chunks"],
+            [
+                py,
+                str(repo_root / "scripts/check-asr-chunk-cache.py"),
+                str(session),
+                "--require-chunks",
+                "--require-authoritative",
+            ],
             enabled=not args.skip_transcription,
             reason="--skip-transcription",
         ),
@@ -1119,6 +1127,8 @@ def transcribe_chunk_progress(session: Path) -> dict[str, Any] | None:
     completed_sec = 0.0
     reused_sec = 0.0
     transcribed_sec = 0.0
+    reused_chunks_by_origin: dict[str, int] = {}
+    reused_sec_by_origin: dict[str, float] = {}
     for path in reports:
         report = read_json(path)
         if not isinstance(report, dict):
@@ -1131,6 +1141,8 @@ def transcribe_chunk_progress(session: Path) -> dict[str, Any] | None:
         track_completed_sec = float(report.get("completed_hard_sec") or 0.0)
         track_reused_sec = 0.0
         track_transcribed_sec = 0.0
+        track_reused_chunks_by_origin: dict[str, int] = {}
+        track_reused_sec_by_origin: dict[str, float] = {}
         for chunk in report.get("chunks") or []:
             if not isinstance(chunk, dict):
                 continue
@@ -1140,6 +1152,9 @@ def transcribe_chunk_progress(session: Path) -> dict[str, Any] | None:
             )
             if chunk.get("status") == "reused":
                 track_reused_sec += hard_sec
+                origin = str(chunk.get("reuse_origin") or chunk.get("origin") or "unknown")
+                track_reused_chunks_by_origin[origin] = track_reused_chunks_by_origin.get(origin, 0) + 1
+                track_reused_sec_by_origin[origin] = track_reused_sec_by_origin.get(origin, 0.0) + hard_sec
             elif chunk.get("status") == "transcribed":
                 track_transcribed_sec += hard_sec
         total_chunks += chunks_total
@@ -1150,6 +1165,10 @@ def transcribe_chunk_progress(session: Path) -> dict[str, Any] | None:
         completed_sec += track_completed_sec
         reused_sec += track_reused_sec
         transcribed_sec += track_transcribed_sec
+        for origin, count in track_reused_chunks_by_origin.items():
+            reused_chunks_by_origin[origin] = reused_chunks_by_origin.get(origin, 0) + count
+        for origin, seconds in track_reused_sec_by_origin.items():
+            reused_sec_by_origin[origin] = reused_sec_by_origin.get(origin, 0.0) + seconds
         tracks.append(
             {
                 "track": str(report.get("track") or path.parent.name),
@@ -1159,10 +1178,14 @@ def transcribe_chunk_progress(session: Path) -> dict[str, Any] | None:
                 "chunks_missing": max(0, chunks_total - chunks_completed),
                 "chunks_reused": chunks_reused,
                 "chunks_transcribed": chunks_transcribed,
+                "chunks_reused_by_origin": track_reused_chunks_by_origin,
                 "completed_sec": track_completed_sec,
                 "total_sec": track_total_sec,
                 "remaining_sec": max(0.0, round(track_total_sec - track_completed_sec, 3)),
                 "reused_sec": round(track_reused_sec, 3),
+                "reused_sec_by_origin": {
+                    key: round(value, 3) for key, value in sorted(track_reused_sec_by_origin.items())
+                },
                 "transcribed_sec": round(track_transcribed_sec, 3),
                 "report": rel(path, session),
             }
@@ -1176,10 +1199,12 @@ def transcribe_chunk_progress(session: Path) -> dict[str, Any] | None:
         "chunks_missing": max(0, total_chunks - completed_chunks),
         "chunks_reused": reused_chunks,
         "chunks_transcribed": transcribed_chunks,
+        "chunks_reused_by_origin": reused_chunks_by_origin,
         "completed_sec": completed_sec,
         "total_sec": total_sec,
         "remaining_sec": max(0.0, round(total_sec - completed_sec, 3)),
         "reused_sec": round(reused_sec, 3),
+        "reused_sec_by_origin": {key: round(value, 3) for key, value in sorted(reused_sec_by_origin.items())},
         "transcribed_sec": round(transcribed_sec, 3),
         "completed_ratio": round(completed_sec / total_sec, 6) if total_sec > 0 else None,
     }
@@ -1325,7 +1350,9 @@ def asr_provenance(session: Path) -> dict[str, Any]:
             "chunks_total": int(row.get("chunks_total") or 0),
             "chunks_reused": reused,
             "chunks_transcribed": transcribed,
+            "chunks_reused_by_origin": row.get("chunks_reused_by_origin", {}),
             "reused_sec": float(row.get("reused_sec") or 0.0),
+            "reused_sec_by_origin": row.get("reused_sec_by_origin", {}),
             "transcribed_sec": float(row.get("transcribed_sec") or 0.0),
             "remaining_sec": float(row.get("remaining_sec") or 0.0),
             "report": row.get("report"),
