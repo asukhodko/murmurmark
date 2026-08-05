@@ -14955,17 +14955,21 @@ enum ReadinessPrinter {
             remainingRows = current.rows
             remainingSeconds = current.seconds
         }
+        let closureWasApplied = suggestedClosureAlreadyPartiallyApplied(session)
         print("  suggested_closure:")
-        print("    status: \(string(closure["status"]) ?? "unknown")")
-        let closureLabel = suggestedClosureAlreadyPartiallyApplied(session) ? "safe_rows_applied" : "auto_closable"
+        print("    status: \(closureWasApplied ? "applied" : string(closure["status"]) ?? "unknown")")
+        let closureLabel = closureWasApplied ? "safe_rows_applied" : "auto_closable"
         print(String(format: "    \(closureLabel): %d rows / %.2f min", closedRows, (double(closed["seconds"]) ?? 0.0) / 60.0))
         print(String(format: "    manual_remaining: %d rows / %.2f min", remainingRows, remainingSeconds / 60.0))
         if let beforeState = string(projection["before_state"]),
            let afterState = string(projection["after_state"]) {
             print("    readiness_projection: \(beforeState) -> \(afterState)")
         }
-        if suggestedClosureAlreadyPartiallyApplied(session) {
-            print("    status_detail: applied_safe_rows; continue with manual review progress")
+        if closureWasApplied {
+            let detail = remainingRows > 0
+                ? "applied_safe_rows; continue with manual review progress"
+                : "applied_safe_rows; no manual review rows remain"
+            print("    status_detail: \(detail)")
         } else if closedRows > 0 {
             print("    apply: murmurmark review suggested apply \(PathDisplay.display(session))")
         } else if remainingRows > 0 {
@@ -14974,10 +14978,16 @@ enum ReadinessPrinter {
     }
 
     private static func suggestedClosureAlreadyPartiallyApplied(_ session: URL) -> Bool {
-        guard let current = currentReviewRemaining(session) else {
+        let reportURL = session.appendingPathComponent("derived/readiness/review-plan/review_workspace_apply_report.json")
+        guard let payload = try? JSONFiles.object(reportURL),
+              string(payload["answers_source"]) == "suggested",
+              bool(payload["dry_run"]) == false,
+              let closure = payload["suggested_closure"] as? [String: Any],
+              let closed = closure["closed_by_suggestions"] as? [String: Any]
+        else {
             return false
         }
-        return current.rows > 0
+        return (int(closed["rows"]) ?? 0) > 0
     }
 
     private static func currentReviewRemaining(_ session: URL) -> (rows: Int, seconds: Double)? {
@@ -15455,14 +15465,14 @@ enum ReadinessPrinter {
         if gate.hasPrefix("pipeline_incomplete") || exportBlockers.contains("pipeline_incomplete") {
             return "incomplete"
         }
+        if !nonActionable.isEmpty {
+            return "non_actionable_review_blocker"
+        }
         if gate == "ready_for_notes" && exportBlockers.isEmpty {
             return "exportable"
         }
         if gate == "ready_for_notes" && !exportBlockers.isEmpty && reviewBlockers.isEmpty {
             return "notes_ready_export_blocked"
-        }
-        if !nonActionable.isEmpty {
-            return "non_actionable_review_blocker"
         }
         if gate == "review_first" || !reviewBlockers.isEmpty {
             return "review_required"

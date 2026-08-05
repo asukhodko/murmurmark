@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.5.4"
+SCRIPT_VERSION = "0.5.5"
 SCHEMA = "murmurmark.session_quality_report/v1"
 READINESS_SCHEMA = "murmurmark.session_readiness/v1"
 CLEANUP_PROFILES = {
@@ -3084,7 +3084,10 @@ def readiness_recommendation(gate: str) -> str:
 def non_actionable_review_blockers(row: dict[str, Any]) -> list[dict[str, Any]]:
     gate = str(row.get("use_gate") or "")
     review_blockers = [str(item) for item in (row.get("review_blockers") or []) if str(item)]
-    if gate != "review_first" and not review_blockers:
+    export_blockers = [str(item) for item in (row.get("export_blockers") or []) if str(item)]
+    has_review_risk = gate == "review_first" or bool(review_blockers)
+    has_export_only_risk = gate == "ready_for_notes" and bool(export_blockers) and not review_blockers
+    if not has_review_risk and not has_export_only_risk:
         return []
     if row.get("pipeline_status") != "complete":
         return []
@@ -3094,7 +3097,7 @@ def non_actionable_review_blockers(row: dict[str, Any]) -> list[dict[str, Any]]:
     remaining = safe_float(row.get("review_scope_remaining_seconds")) or 0.0
     if not scope_complete or remaining > 0.001:
         return []
-    blockers = review_blockers or [gate]
+    blockers = review_blockers or export_blockers or [gate]
     return [
         {
             "id": "review_queue_exhausted",
@@ -3136,6 +3139,25 @@ def readiness_next_commands(session: Path, row: dict[str, Any]) -> list[dict[str
                 "label": "Run or refresh the full post-recording pipeline.",
                 "command": f"murmurmark process {session_arg}",
             }
+        ]
+
+    if non_actionable:
+        return [
+            {
+                "id": "status_session",
+                "label": "Inspect the documented non-actionable review blocker.",
+                "command": f"murmurmark status {session_arg}",
+            },
+            {
+                "id": "report_session",
+                "label": "Refresh and read the session readiness report.",
+                "command": f"murmurmark report {session_arg}",
+            },
+            {
+                "id": "open_readiness",
+                "label": "Read detailed readiness and blocker reasons.",
+                "command": f"less {command_path(session / 'derived/readiness/session_readiness.md')}",
+            },
         ]
 
     if gate == "ready_for_notes" and export_blockers and not review_blockers:

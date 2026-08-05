@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 
-GENERATOR_VERSION = "0.3.7"
+GENERATOR_VERSION = "0.3.8"
 TOKEN_RE = re.compile(r"[0-9A-Za-zА-Яа-яЁё_./+-]+")
 
 DEFAULT_RULES: dict[str, Any] = {
@@ -1764,6 +1764,29 @@ def load_inputs(selected_profile: str, paths: dict[str, Path]) -> tuple[dict[str
     if not isinstance(overlap_rows, list):
         overlap_rows = []
 
+    if cleanup_report is None and isinstance(quality, dict):
+        audit_cleanup = quality.get("audit_cleanup")
+        human_review = quality.get("human_review")
+        inherited_profile = (
+            audit_cleanup.get("profile")
+            if isinstance(audit_cleanup, dict)
+            else None
+        ) or (
+            human_review.get("input_profile")
+            if isinstance(human_review, dict)
+            else None
+        )
+        if isinstance(inherited_profile, str) and re.fullmatch(
+            r"audit_cleanup_v\d+", inherited_profile
+        ):
+            inherited_path = (
+                paths["audit_cleanup_report"].parent
+                / f"audit_cleanup_report.{inherited_profile}.json"
+            )
+            inherited_candidate, inherited_error = read_json(inherited_path)
+            if inherited_error is None and isinstance(inherited_candidate, dict):
+                cleanup_report = inherited_candidate
+
     for index, row in enumerate(utterances):
         if isinstance(row, dict):
             row.setdefault("id", utterance_id(row, index))
@@ -2042,21 +2065,45 @@ def verdict_from_metrics(
         local_recall_explained = bool(metrics.get("local_recall_low_score_explained"))
         harmful_ratio = harmful / duration
         review_ratio = review / duration
-        if (local_recall < 0.70 and not local_recall_explained) or harmful > max(180.0, duration * 0.06) or review > max(900.0, duration * 0.35):
+        hard_failures: list[str] = []
+        if local_recall < 0.70 and not local_recall_explained:
+            hard_failures.append(f"local_only_island_recall={local_recall:.3f}<0.700")
+        harmful_hard_limit = max(180.0, duration * 0.06)
+        if harmful > harmful_hard_limit:
+            hard_failures.append(f"audit_harmful_seconds={harmful:.3f}>{harmful_hard_limit:.3f}")
+        review_hard_limit = max(900.0, duration * 0.35)
+        if review > review_hard_limit:
+            hard_failures.append(f"audit_review_seconds={review:.3f}>{review_hard_limit:.3f}")
+        if hard_failures:
             items.append(
                 {
                     "type": "audit_cleanup_group_quality",
                     "severity": "fatal",
-                    "reason": "audit-informed overlap metrics failed hard thresholds",
+                    "reason": "audit-informed quality failed hard thresholds: " + ", ".join(hard_failures),
+                    "failed_thresholds": hard_failures,
                 }
             )
             return "failed", items
-        if (local_recall < 0.80 and not local_recall_explained) or harmful > max(90.0, duration * 0.03) or review > max(300.0, duration * 0.12):
+        usable_failures: list[str] = []
+        if local_recall < 0.80 and not local_recall_explained:
+            usable_failures.append(f"local_only_island_recall={local_recall:.3f}<0.800")
+        harmful_usable_limit = max(90.0, duration * 0.03)
+        if harmful > harmful_usable_limit:
+            usable_failures.append(
+                f"audit_harmful_seconds={harmful:.3f}>{harmful_usable_limit:.3f}"
+            )
+        review_usable_limit = max(300.0, duration * 0.12)
+        if review > review_usable_limit:
+            usable_failures.append(
+                f"audit_review_seconds={review:.3f}>{review_usable_limit:.3f}"
+            )
+        if usable_failures:
             items.append(
                 {
                     "type": "audit_cleanup_group_quality",
                     "severity": "high",
-                    "reason": "audit-informed harmful/review overlap metrics exceed usable thresholds",
+                    "reason": "audit-informed quality exceeds usable thresholds: " + ", ".join(usable_failures),
+                    "failed_thresholds": usable_failures,
                 }
             )
             return "risky", items

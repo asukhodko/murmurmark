@@ -252,6 +252,68 @@ def main() -> int:
         assert step_names.index("speaker_preserving_neural_echo_v2_prepare") < step_names.index(
             "transcribe_current"
         )
+        assert step_names.index("transcribe_current") < step_names.index(
+            "synthesize_neural_echo_baseline"
+        )
+        assert step_names.index("synthesize_neural_echo_baseline") < step_names.index(
+            "speaker_preserving_neural_echo_v2"
+        )
+        neural_baseline = next(
+            item for item in pipeline_steps if item["name"] == "synthesize_neural_echo_baseline"
+        )
+        assert neural_baseline["command"][-2:] == ["--transcript-profile", "shadow_v2"]
+        assert neural_baseline["enabled"] is True
+
+        synthesis_session = Path(raw_root) / "sessions/synthesis-fixture"
+        synthesis_resolved = (
+            synthesis_session / "derived/transcript-simple/whisper-cpp/resolved"
+        )
+        synthesis_paths = SYNTHESIS_MODULE.source_profile_paths(
+            synthesis_resolved, "reviewed_v1"
+        )
+        write_json(
+            synthesis_paths["clean_dialogue"],
+            {
+                "schema": "murmurmark.clean_dialogue/v1",
+                "utterances": [
+                    {"id": "utt_000001", "role": "me", "start": 0.0, "end": 1.0, "text": "Проверка"}
+                ],
+            },
+        )
+        write_json(
+            synthesis_paths["quality_report"],
+            {
+                "utterances": 1,
+                "needs_review_count": 0,
+                "cross_role_overlap_gt2_count": 0,
+                "local_only_island_recall": 0.74,
+                "audit_harmful_seconds_after": 0.0,
+                "audit_review_seconds": 0.0,
+                "audit_cleanup": {"profile": "audit_cleanup_v2"},
+                "human_review": {"input_profile": "audit_cleanup_v2"},
+            },
+        )
+        write_json(synthesis_paths["overlaps"], {"overlaps": []})
+        write_json(
+            synthesis_paths["audit_cleanup_report"].parent
+            / "audit_cleanup_report.audit_cleanup_v2.json",
+            {
+                "gates": {
+                    "passed": True,
+                    "local_recall_explanation": "local_recall_risk_explained:test",
+                }
+            },
+        )
+        quality, utterances, overlaps = SYNTHESIS_MODULE.load_inputs(
+            "reviewed_v1", synthesis_paths
+        )
+        assert quality["local_recall_low_score_explained"] is True
+        assert quality["local_recall_explanation"] == "local_recall_risk_explained:test"
+        metrics = SYNTHESIS_MODULE.metrics_from_quality(quality, utterances, overlaps)
+        verdict, risk_items = SYNTHESIS_MODULE.verdict_from_metrics(
+            "reviewed_v1", metrics, [], None
+        )
+        assert verdict == "good", (verdict, risk_items)
         deferred_names = [item["name"] for item in MODULE.steps_for_phase(pipeline_steps, "deferred")]
         assert deferred_names.index("session_operational_readiness_for_audio_review") < deferred_names.index(
             "review_plan_for_audio_review"

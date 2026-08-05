@@ -28,7 +28,7 @@ from murmurmark_resource_policy import (
     resolve_resource_policy,
 )
 
-SCRIPT_VERSION = "0.2.2"
+SCRIPT_VERSION = "0.2.3"
 SCHEMA = "murmurmark.session_pipeline_run/v1"
 RUN_STATE_SCHEMA = "murmurmark.pipeline_run_state/v1"
 HANDOFF_SCHEMA = "murmurmark.authoritative_handoff/v1"
@@ -81,6 +81,10 @@ STEP_COST_HINTS: dict[str, dict[str, str]] = {
     "check_asr_chunk_cache": {
         "cost": "light",
         "reason": "verifies that raw ASR JSON can be rebuilt from cached chunks",
+    },
+    "synthesize_neural_echo_baseline": {
+        "cost": "light",
+        "reason": "materializes the shadow_v2 baseline verdict required by the pre-ASR echo selector",
     },
     "materialize_live_asr_cache": {
         "cost": "light",
@@ -806,6 +810,18 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
             [py, str(repo_root / "scripts/check-asr-chunk-cache.py"), str(session), "--require-chunks"],
             enabled=not args.skip_transcription,
             reason="--skip-transcription",
+        ),
+        step(
+            "synthesize_neural_echo_baseline",
+            [
+                py,
+                str(repo_root / "scripts/synthesize-simple-extractive.py"),
+                str(session),
+                "--transcript-profile",
+                "shadow_v2",
+            ],
+            enabled=not args.skip_transcription and not args.skip_preprocess,
+            reason="--skip-transcription/--skip-preprocess",
         ),
         step(
             "speaker_preserving_neural_echo_v2",

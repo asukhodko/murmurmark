@@ -2304,8 +2304,10 @@ scripts/transcribe-simple-whispercpp.py "$SESSION" \
 ## Guarded Pre-ASR Echo Selection
 
 The normal `murmurmark process` path automatically runs Speaker-Preserving Neural Echo v2 after
-building and transcribing the exact `local_fir_role_masked` baseline. Do not copy candidate WAVs or
-profile-specific transcripts by hand.
+building and transcribing the exact `local_fir_role_masked` baseline. Before selection it also
+materializes the profile-matched `shadow_v2` quality verdict required by the full-shadow gates, so
+an otherwise valid candidate cannot fall back merely because deferred synthesis has not started
+yet. Do not copy candidate WAVs or profile-specific transcripts by hand.
 
 ```bash
 SESSION="sessions/<session-id>"

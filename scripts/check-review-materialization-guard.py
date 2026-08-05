@@ -25,6 +25,7 @@ def load_module(filename: str, name: str):
 def main() -> int:
     lane = load_module("build-review-lane-pack.py", "murmurmark_review_lane_materialization")
     apply = load_module("apply-review-decisions.py", "murmurmark_apply_review_materialization")
+    outcome = load_module("evaluate-outcome.py", "murmurmark_evaluate_outcome_materialization")
 
     raw = {
         "source": "local_recall",
@@ -224,6 +225,46 @@ def main() -> int:
         assert reconciled["local_recall_repair_open_items"] == 0, reconciled
         assert reconciled["local_recall_repair_closed_items"] == 1, reconciled
         assert reconciled["local_recall_meaningful_review_seconds"] == 0.6, reconciled
+
+        export_only_row = {
+            "use_gate": "ready_for_notes",
+            "review_blockers": [],
+            "export_blockers": ["full_transcript_review_required"],
+            "pipeline_status": "complete",
+            "review_scope_complete": True,
+            "review_scope_remaining_seconds": 0.0,
+            "local_recall_repair_open_items": 0,
+        }
+        non_actionable = quality.non_actionable_review_blockers(export_only_row)
+        assert len(non_actionable) == 1, non_actionable
+        assert non_actionable[0]["blockers"] == ["full_transcript_review_required"], non_actionable
+        next_commands = quality.readiness_next_commands(session, export_only_row)
+        assert [item["id"] for item in next_commands] == [
+            "status_session",
+            "report_session",
+            "open_readiness",
+        ], next_commands
+        assert not any("review workspace" in item["command"] for item in next_commands), next_commands
+
+        explained_readiness = {
+            **export_only_row,
+            "verdict": "usable_with_review",
+            "selected_profile": "reviewed_v1",
+            "risk_flags": [],
+            "outputs": {},
+            "non_actionable_blockers": non_actionable,
+            "metrics": {
+                "local_only_island_recall": 0.74,
+                "local_recall_recommended_next_step": "local_recall_risk_explained",
+            },
+        }
+        gates = outcome.evaluate_gates(session, explained_readiness, {"status": "passed"})
+        recall_gate = next(item for item in gates if item["id"] == "local_recall")
+        assert recall_gate["status"] == "pass", recall_gate
+        assert recall_gate["audit_explained"] is True, recall_gate
+        outcome_plan = outcome.build_review_plan(session, explained_readiness, "ready_for_notes")
+        assert outcome_plan["lanes"] == [], outcome_plan
+        assert outcome_plan["summary"]["reason"] == "actionable_review_scope_exhausted", outcome_plan
 
     print("review materialization guard checks ok")
     return 0

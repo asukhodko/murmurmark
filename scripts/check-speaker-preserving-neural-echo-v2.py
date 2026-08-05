@@ -1369,12 +1369,28 @@ def production_pipeline_order_checks() -> None:
         "export_asr_audio",
         "speaker_preserving_neural_echo_v2_prepare",
         "transcribe_current",
+        "synthesize_neural_echo_baseline",
         "speaker_preserving_neural_echo_v2",
     )
     positions = {name: step_names.index(name) for name in required}
     require(
         list(positions.values()) == sorted(positions.values()),
-        "production pipeline does not preserve export -> baseline -> primary ASR -> selection order",
+        "production pipeline does not preserve export -> baseline -> primary ASR -> verdict -> selection order",
+    )
+    synthesis_start = source.index(
+        'step(\n            "synthesize_neural_echo_baseline"'
+    )
+    synthesis_end = source.index(
+        'step(\n            "speaker_preserving_neural_echo_v2"', synthesis_start
+    )
+    synthesis_block = source[synthesis_start:synthesis_end]
+    require(
+        '"--transcript-profile",\n                "shadow_v2"' in synthesis_block,
+        "neural echo selection must compare against a profile-matched shadow_v2 verdict",
+    )
+    require(
+        "enabled=not args.skip_transcription and not args.skip_preprocess" in synthesis_block,
+        "neural echo baseline synthesis must share the selector enablement contract",
     )
     prepare_start = source.index(
         'step(\n            "speaker_preserving_neural_echo_v2_prepare"'

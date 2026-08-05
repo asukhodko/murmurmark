@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.2"
+SCRIPT_VERSION = "0.1.3"
 OUTCOME_SCHEMA = "murmurmark.outcome/v1"
 REVIEW_PLAN_SCHEMA = "murmurmark.outcome_review_plan/v1"
 RUN_SCHEMA = "murmurmark.pipeline_run/v1"
@@ -370,14 +370,25 @@ def evaluate_gates(
     )
 
     local_recall = safe_float(metrics.get("local_only_island_recall"))
+    local_recall_explained = str(metrics.get("local_recall_recommended_next_step") or "") in {
+        "local_recall_risk_explained",
+        "local_recall_reviewed_clear",
+        "local_recall_repaired_clear",
+    }
+    local_recall_passed = local_recall is not None and (local_recall >= 0.9 or local_recall_explained)
     gates.append(
         {
             "id": "local_recall",
-            "status": "unknown" if local_recall is None else "pass" if local_recall >= 0.9 else "review",
-            "severity": "review" if local_recall is not None and local_recall < 0.9 else "info",
-            "message": "local-only speech recall should stay high",
+            "status": "unknown" if local_recall is None else "pass" if local_recall_passed else "review",
+            "severity": "info" if local_recall is None or local_recall_passed else "review",
+            "message": (
+                "local-only speech recall risk is explained by the local-recall audit"
+                if local_recall_explained
+                else "local-only speech recall should stay high"
+            ),
             "value": local_recall,
             "threshold": 0.9,
+            "audit_explained": local_recall_explained,
         }
     )
 
@@ -476,6 +487,22 @@ def build_review_plan(session: Path, readiness: dict[str, Any] | None, outcome: 
             }
         ]
     else:
+        non_actionable = readiness.get("non_actionable_blockers")
+        if isinstance(non_actionable, list) and non_actionable:
+            return {
+                "schema": REVIEW_PLAN_SCHEMA,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "generator": {"name": "evaluate-outcome", "version": SCRIPT_VERSION},
+                "session": str(session),
+                "outcome": outcome,
+                "lanes": [],
+                "summary": {
+                    "open_lanes": 0,
+                    "estimated_seconds": 0.0,
+                    "auto_close_seconds": 0.0,
+                    "reason": "actionable_review_scope_exhausted",
+                },
+            }
         metrics = merged_metrics(readiness, session)
         lanes = []
         suggested_auto_seconds = safe_float(metrics.get("suggested_closure_auto_seconds")) or 0.0
