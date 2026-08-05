@@ -2,16 +2,13 @@
 
 Local-first meeting transcription for sensitive work.
 
-MurmurMark records separate microphone and remote tracks, then locally produces a transcript,
-quality verdict, evidence-backed notes, review plan, export bundle and retention plan.
+MurmurMark records separate microphone and remote tracks, then locally produces a transcript, quality verdict, evidence-backed notes, review plan, export bundle and retention plan.
 
-The product is CLI-first. Batch processing is authoritative. Live preview is an optional shadow
-that cannot replace or weaken the durable recording.
+The product is CLI-first. Batch processing is authoritative. Live preview is an optional shadow that cannot replace or weaken the durable recording.
 
 ## Mission
 
-MurmurMark turns sensitive working conversations into reliable local transcripts and
-evidence-backed meeting memory without sending raw meeting audio to a cloud recorder.
+MurmurMark turns sensitive working conversations into reliable local transcripts and evidence-backed meeting memory without sending raw meeting audio to a cloud recorder.
 
 The user should be able to start and stop a meeting recording once and receive an honest result
 without launching or supervising internal stages. Uncertain regions remain explicit review items.
@@ -225,6 +222,7 @@ sessions/<session-id>/
     transcript-simple/whisper-cpp/
     synthesis-simple/extractive/
       no_speech_evidence.json  # only for an empty selected dialogue
+    handoff-v2/
     readiness/
     audit/
     retention/
@@ -265,8 +263,11 @@ paired enrollment controls with exact replay `2470/2470`. Separation v2 then pro
 absent-query dev gates. It therefore completed with reproducible `DO_NOT_PROMOTE`; hard and sealed
 data remained unopened and Speaker-Preserving Neural Echo v2 remains production.
 
-The current goal is **Evidence Notes And Export v2**: turn transcript, verdict, review burden and
-evidence-backed notes into one versioned handoff with guarded Markdown/Obsidian export.
+**Evidence Notes And Export v2** is complete: its deterministic handoff binds transcript, verdict,
+review burden and evidence notes; 110 corpus sessions have zero integrity, stale-manifest or replay
+failures. Guarded export accepts only `ready` or verified `no_speech`.
+The current goal is **Release-quality CLI**: a versioned, installable and upgrade-safe release with
+an explicit environment, dependency/model manifest, packaged acceptance and public contract.
 
 The stable CLI supports durable capture, resumable processing, guarded profiles, evidence-backed
 review, export and retention. Exact experiment metrics live in the research documents and roadmap.
@@ -276,7 +277,7 @@ The dependent critical path is:
 ```text
 Meeting Lifecycle -> Echo evidence and controlled lab -> Speaker-Preserving Neural Echo v2 (done)
 -> Reference-Conditioned v1 (done) -> Identifiability Corpus (done)
--> Target-Me Separation v2 (done) -> Evidence Export v2 (current) -> Release-quality CLI
+-> Target-Me Separation v2 (done) -> Evidence Export v2 (done) -> Release-quality CLI (current)
 ```
 
 Remote diarization, heavy local validators, LLM synthesis and UI are parallel or parked work. Live

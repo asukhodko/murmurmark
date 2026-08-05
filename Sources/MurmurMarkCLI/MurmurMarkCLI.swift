@@ -1077,6 +1077,9 @@ enum DoctorChecks {
             "scripts/check-asr-chunk-cache.py",
             "scripts/check-capture-regressions.sh",
             "scripts/synthesize-simple-extractive.py",
+            "scripts/evidence_handoff_v2.py",
+            "scripts/export-session-bundle.py",
+            "scripts/report-evidence-handoff-corpus.py",
             "scripts/audit-local-recall.py",
             "scripts/audit-transcript-order.py",
             "scripts/audit-group-overlaps.py",
@@ -2176,6 +2179,12 @@ enum SessionListPrinter {
         guard status == "exported" || status == "exported_with_warnings" else { return nil }
         let blockers = payload["blockers"] as? [Any] ?? []
         guard blockers.isEmpty else { return nil }
+        guard let handoff = EvidenceHandoffState.payload(session),
+              string(payload["handoff_fingerprint"]) == string(handoff["semantic_fingerprint"]),
+              EvidenceHandoffState.exportAllowed(session)
+        else {
+            return nil
+        }
         if let nextCommands = payload["next_commands"] as? [[String: Any]],
            let command = ReadinessPrinter.preferredNextCommand(nextCommands) {
             return (command, manifestURL)
@@ -4991,6 +5000,123 @@ enum AuthoritativeHandoffState {
     }
 }
 
+enum EvidenceHandoffState {
+    static let schema = "murmurmark.handoff_manifest/v2"
+    static let validStates = Set(["ready", "review_required", "blocked", "no_speech"])
+
+    static func payload(_ session: URL) -> [String: Any]? {
+        let url = session.appendingPathComponent("derived/handoff-v2/handoff_manifest.json")
+        guard FileManager.default.fileExists(atPath: url.path),
+              let payload = try? JSONFiles.object(url),
+              payload["schema"] as? String == schema,
+              let state = payload["state"] as? String,
+              validStates.contains(state),
+              profileMatchesReadiness(payload, session: session),
+              bundleMatches(payload, session: session),
+              inputsMatch(payload, session: session)
+        else {
+            return nil
+        }
+        return payload
+    }
+
+    static func selectedProfile(_ session: URL) -> String? {
+        payload(session)?["selected_profile"] as? String
+    }
+
+    static func artifact(_ key: String, session: URL) -> URL? {
+        guard let bundle = payload(session)?["bundle"] as? [String: Any],
+              let files = bundle["files"] as? [String: Any],
+              let row = files[key] as? [String: Any],
+              let raw = row["path"] as? String
+        else {
+            return nil
+        }
+        return safeSessionPath(raw, session: session)
+    }
+
+    static func state(_ session: URL) -> String? {
+        payload(session)?["state"] as? String
+    }
+
+    static func exportAllowed(_ session: URL) -> Bool {
+        guard let state = state(session) else { return false }
+        return state == "ready" || state == "no_speech"
+    }
+
+    private static func profileMatchesReadiness(_ payload: [String: Any], session: URL) -> Bool {
+        guard let profile = payload["selected_profile"] as? String, !profile.isEmpty,
+              let readiness = try? JSONFiles.object(
+                session.appendingPathComponent("derived/readiness/session_readiness.json")
+              )
+        else {
+            return false
+        }
+        return readiness["selected_profile"] as? String == profile
+    }
+
+    private static func bundleMatches(_ payload: [String: Any], session: URL) -> Bool {
+        guard let fingerprint = payload["semantic_fingerprint"] as? String,
+              !fingerprint.isEmpty,
+              let bundle = payload["bundle"] as? [String: Any],
+              let bundleRaw = bundle["path"] as? String,
+              let bundleURL = safeSessionPath(bundleRaw, session: session),
+              bundleURL.lastPathComponent == fingerprint,
+              let files = bundle["files"] as? [String: Any],
+              !files.isEmpty
+        else {
+            return false
+        }
+        return files.allSatisfy { _, value in
+            guard let row = value as? [String: Any] else { return false }
+            return identityMatches(row, session: session)
+        }
+    }
+
+    private static func inputsMatch(_ payload: [String: Any], session: URL) -> Bool {
+        guard let inputs = payload["inputs"] as? [String: Any], !inputs.isEmpty else {
+            return false
+        }
+        return inputs.allSatisfy { _, value in
+            guard let row = value as? [String: Any] else { return false }
+            return identityMatches(row, session: session)
+        }
+    }
+
+    private static func identityMatches(_ row: [String: Any], session: URL) -> Bool {
+        guard let raw = row["path"] as? String,
+              let expectedSHA = row["sha256"] as? String,
+              let url = safeSessionPath(raw, session: session),
+              let data = try? Data(contentsOf: url)
+        else {
+            return false
+        }
+        if let expectedBytes = integer(row["bytes"]), expectedBytes != data.count {
+            return false
+        }
+        let actualSHA = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        return actualSHA == expectedSHA
+    }
+
+    private static func safeSessionPath(_ raw: String, session: URL) -> URL? {
+        guard !raw.hasPrefix("/") else { return nil }
+        let components = raw.split(separator: "/")
+        guard !components.contains("..") else { return nil }
+        let root = session.standardizedFileURL.path + "/"
+        let url = session.appendingPathComponent(raw).standardizedFileURL
+        guard url.path.hasPrefix(root), FileManager.default.fileExists(atPath: url.path) else {
+            return nil
+        }
+        return url
+    }
+
+    private static func integer(_ value: Any?) -> Int? {
+        if let value = value as? Int { return value }
+        if let value = value as? NSNumber { return value.intValue }
+        return nil
+    }
+}
+
 enum NotesCommands {
     static func notes(_ args: [String]) throws {
         if args.isEmpty || ArgumentEditing.hasHelpFlag(args) {
@@ -5013,11 +5139,16 @@ enum NotesCommands {
         let resolvedProfile = try selectedProfile(profile, session: session)
         var paths = artifactPaths(session: session, profile: resolvedProfile)
         if profile == "auto" {
-            if let notes = AuthoritativeHandoffState.artifact("notes", session: session) {
+            if let notes = EvidenceHandoffState.artifact("notes", session: session)
+                ?? AuthoritativeHandoffState.artifact("notes", session: session) {
                 paths["notes"] = notes
             }
-            if let verdict = AuthoritativeHandoffState.artifact("verdict", session: session) {
+            if let verdict = EvidenceHandoffState.artifact("quality_verdict", session: session)
+                ?? AuthoritativeHandoffState.artifact("verdict", session: session) {
                 paths["verdict"] = verdict
+            }
+            if let evidence = EvidenceHandoffState.artifact("handoff_evidence", session: session) {
+                paths["evidence"] = evidence
             }
         }
         guard let url = paths[kind] else {
@@ -5064,6 +5195,9 @@ enum NotesCommands {
     private static func selectedProfile(_ requested: String, session: URL) throws -> String {
         if requested != "auto" {
             return requested
+        }
+        if let profile = EvidenceHandoffState.selectedProfile(session), !profile.isEmpty {
+            return profile
         }
         if let profile = AuthoritativeHandoffState.selectedProfile(session), !profile.isEmpty {
             return profile
@@ -5265,7 +5399,9 @@ enum TranscriptCommands {
         let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
         let profile = try selectedProfile(requestedProfile, session: session)
         let url = requestedProfile == "auto"
-            ? (AuthoritativeHandoffState.artifact("transcript", session: session) ?? transcriptURL(profile: profile, session: session))
+            ? (EvidenceHandoffState.artifact("transcript", session: session)
+                ?? AuthoritativeHandoffState.artifact("transcript", session: session)
+                ?? transcriptURL(profile: profile, session: session))
             : transcriptURL(profile: profile, session: session)
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw CLIError("transcript not found: \(PathDisplay.display(url)); run `murmurmark process \(PathDisplay.display(session))`")
@@ -5303,6 +5439,9 @@ enum TranscriptCommands {
     private static func selectedProfile(_ requested: String, session: URL) throws -> String {
         if requested != "auto" {
             return requested
+        }
+        if let profile = EvidenceHandoffState.selectedProfile(session), !profile.isEmpty {
+            return profile
         }
         if let profile = AuthoritativeHandoffState.selectedProfile(session), !profile.isEmpty {
             return profile
@@ -7126,7 +7265,9 @@ enum ExportCommands {
         let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
         print("SESSION=\"\(PathDisplay.display(session))\"")
         fflush(stdout)
-        try refreshOutcome(session)
+        if EvidenceHandoffState.payload(session) == nil {
+            try refreshOutcome(session)
+        }
         let effectiveArgs = config.exportDefaults(unless: forwarded) + forwarded
         let outDir = exportOutDir(from: effectiveArgs)
         let status = try Tooling.runPathQuietAllowingExitCodes(try PythonRuntime.resolve(), [
@@ -7136,7 +7277,7 @@ enum ExportCommands {
         if status == 2 {
             try ExportPrinter.printBlocked(session: session, outDir: outDir)
             fflush(stdout)
-            throw CLIError("export blocked; follow the printed next steps or pass --force for debugging")
+            throw CLIError("export blocked by Evidence Handoff v2; follow the printed next step")
         }
         try ExportPrinter.printManifest(session: session, outDir: outDir)
     }
@@ -7181,8 +7322,8 @@ enum ExportCommands {
                                [--out-dir exports/private] [--include-json] [--force]
                                [--sessions-root ./sessions]
 
-        Creates a local user-facing Markdown or Obsidian bundle. By default export refuses sessions
-        with readiness export blockers; pass --force only after consciously accepting that risk.
+        Creates a local user-facing Markdown or Obsidian bundle from a verified Evidence Handoff v2.
+        --force is retained for compatibility and cannot bypass handoff review or integrity gates.
         """)
     }
 }
@@ -7239,7 +7380,8 @@ enum FinishCommands {
         fflush(stdout)
 
         let handoffProfile = requestedProfile == "auto"
-            ? AuthoritativeHandoffState.selectedProfile(session)
+            ? (EvidenceHandoffState.selectedProfile(session)
+                ?? AuthoritativeHandoffState.selectedProfile(session))
             : nil
         if handoffProfile == nil {
             try refreshReadiness(session)
@@ -13762,7 +13904,10 @@ enum ReadinessPrinter {
         let outcome = compatibleOutcomePayload(session, readinessProfile: profile)
         let outcomeSummary = outcome?["summary"] as? [String: Any]
         let outcomeCommand = outcome.flatMap { string($0["next_command"]) }
-        let handoffCommand = AuthoritativeHandoffState.payload(session).flatMap {
+        let evidenceHandoffCommand = EvidenceHandoffState.payload(session).flatMap {
+            string($0["recommended_next"])
+        }
+        let handoffCommand = evidenceHandoffCommand ?? AuthoritativeHandoffState.payload(session).flatMap {
             string($0["recommended_next"])
         }
         let command = exportHandoff?.command ?? handoffCommand ?? outcomeCommand ?? readinessCommand
@@ -13770,7 +13915,7 @@ enum ReadinessPrinter {
         if exportHandoff != nil {
             source = "export_manifest"
         } else if handoffCommand != nil {
-            source = "authoritative_handoff"
+            source = evidenceHandoffCommand != nil ? "evidence_handoff_v2" : "authoritative_handoff"
         } else if outcomeCommand != nil {
             source = "outcome"
         } else {
@@ -13867,6 +14012,12 @@ enum ReadinessPrinter {
         guard status == "exported" || status == "exported_with_warnings" else { return nil }
         let blockers = payload["blockers"] as? [Any] ?? []
         guard blockers.isEmpty else { return nil }
+        guard let handoff = EvidenceHandoffState.payload(session),
+              string(payload["handoff_fingerprint"]) == string(handoff["semantic_fingerprint"]),
+              EvidenceHandoffState.exportAllowed(session)
+        else {
+            return nil
+        }
         if let nextCommands = payload["next_commands"] as? [[String: Any]],
            let command = preferredNextCommand(nextCommands) {
             return (command, manifestURL)
@@ -13969,6 +14120,7 @@ enum ReadinessPrinter {
         if let classification = string(payload["session_classification"]), classification != "conversation" {
             print("  session_classification: \(classification)")
         }
+        printEvidenceHandoffSummary(session)
         printAuthoritativeHandoffSummary(session)
         print(String(format: "  notes_review_burden: %.2f min / %.2f%%", reviewSeconds / 60, reviewRatio))
         if abs(transcriptReviewSeconds - reviewSeconds) > 0.05 {
@@ -14050,7 +14202,8 @@ enum ReadinessPrinter {
             return nil
         }
         if string(payload["phase"]) == "deferred_enrichment",
-           AuthoritativeHandoffState.payload(session) != nil {
+           EvidenceHandoffState.payload(session) != nil
+            || AuthoritativeHandoffState.payload(session) != nil {
             return nil
         }
         let reportURL = session.appendingPathComponent("derived/pipeline-run/pipeline_run_report.json")
@@ -14081,6 +14234,23 @@ enum ReadinessPrinter {
             print("    transcript_sha256: \(String(sha.prefix(16)))")
         }
         print("    report: \(PathDisplay.display(session.appendingPathComponent("derived/pipeline-run/authoritative_handoff.json")))")
+    }
+
+    private static func printEvidenceHandoffSummary(_ session: URL) {
+        guard let payload = EvidenceHandoffState.payload(session) else {
+            return
+        }
+        let review = payload["review"] as? [String: Any] ?? [:]
+        let fingerprint = string(payload["semantic_fingerprint"]) ?? ""
+        print("  evidence_handoff_v2:")
+        print("    state: \(string(payload["state"]) ?? "unknown")")
+        print("    export_allowed: \(EvidenceHandoffState.exportAllowed(session))")
+        print("    mandatory_review_items: \(int(review["mandatory_count"]) ?? 0)")
+        print(String(format: "    mandatory_review_seconds: %.2f", double(review["mandatory_seconds"]) ?? 0))
+        if !fingerprint.isEmpty {
+            print("    fingerprint: \(String(fingerprint.prefix(16)))")
+        }
+        print("    manifest: \(PathDisplay.display(session.appendingPathComponent("derived/handoff-v2/handoff_manifest.json")))")
     }
 
     private static func modificationDate(_ url: URL) -> Date? {
@@ -15568,7 +15738,11 @@ enum ExportPrinter {
         print("  open:")
         if openCommands.isEmpty {
             for key in ["index", "obsidian_note", "quality_verdict_md", "notes_md", "transcript_md"] {
-                if let path = exportedPath(key, files: files) {
+                if let path = exportedPath(
+                    key,
+                    files: files,
+                    relativeTo: manifestURL.deletingLastPathComponent()
+                ) {
                     print("    \(key): \(PathDisplay.display(path))")
                 }
             }
@@ -15633,13 +15807,14 @@ enum ExportPrinter {
         return nil
     }
 
-    private static func exportedPath(_ key: String, files: [String: Any]) -> URL? {
+    private static func exportedPath(_ key: String, files: [String: Any], relativeTo base: URL) -> URL? {
         guard let item = files[key] as? [String: Any],
               let path = item["path"] as? String
         else {
             return nil
         }
-        return PathURLs.fileURL(path)
+        let url = PathURLs.fileURL(path)
+        return url.path.hasPrefix("/") ? url : base.appendingPathComponent(path)
     }
 
     private static func string(_ value: Any?) -> String? {

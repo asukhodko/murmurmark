@@ -166,11 +166,16 @@ MurmurMark Synthesis
 
 Current CLI status:
 
-- Markdown bundle export is available through `murmurmark export SESSION --format markdown`.
-- Obsidian-style single-note export is available through `murmurmark export SESSION --format obsidian`.
-- Export writes only local files under `exports/private/` by default and blocks sessions with
-  `session_readiness.json.export_blockers` unless `--force` is passed. Blocked export prints
-  structured next commands instead of a long one-line hint.
+- Evidence Handoff v2 transactionally publishes one immutable bundle under
+  `derived/handoff-v2/bundles/<semantic-fingerprint>/` and updates the current manifest only after
+  all payloads and hashes validate.
+- Markdown and Obsidian export are available through `murmurmark export SESSION --format ...` and
+  consume only a current `ready` or verified `no_speech` handoff.
+- Export writes only local files under `exports/private/`. Missing IDs, stale input hashes,
+  incompatible schemas and mandatory review fail closed. `--force` is retained for compatibility
+  and cannot bypass handoff integrity or review gates.
+- The full evidence candidate audit remains structured JSON; user-facing Markdown contains only
+  selected items with resolvable utterance/evidence IDs.
 - Docs/Jira patch proposals and direct vault handoff remain future layers.
 
 ## Evidence Guard

@@ -2135,10 +2135,76 @@ not look stuck while Whisper is still working. Stage subprocesses run with stdin
 terminal. This prevents `ffmpeg`, `whisper-cli` or nested scripts from being stopped by terminal
 job-control when they attempt to read from stdin.
 
-## Export Bundle
+## Evidence Handoff v2 And Export Bundle
 
-`murmurmark export SESSION` creates a local handoff bundle outside the session directory, under
-`exports/private/<session-dir-name>/` by default. Raw audio is never copied.
+Evidence Handoff v2 is the product boundary between processing and publication. The builder reads
+the selected profile from current readiness, validates all schemas and binds every input by
+session-relative path, byte size and SHA-256. It writes:
+
+```text
+derived/handoff-v2/
+  handoff_manifest.json
+  bundles/<semantic-fingerprint>/
+    handoff_manifest.json
+    handoff_evidence.json
+    meeting.md
+    transcript.md
+    notes.md
+    quality_verdict.md
+```
+
+The schemas are `murmurmark.handoff_manifest/v2` and
+`murmurmark.handoff_evidence/v2`. A manifest has exactly one state:
+
+- `ready`: all evidence and quality gates pass, with no mandatory review;
+- `review_required`: inputs are valid but mandatory review remains;
+- `blocked`: required input, schema, profile agreement, hash or evidence reference is invalid;
+- `no_speech`: the verified session outcome contains no publishable conversation.
+
+Every selected outline, decision, action, risk, open question and review row must resolve to an
+utterance/evidence ID in the selected `clean_dialogue` and `evidence_notes` inputs. Unknown IDs,
+profile disagreement, changed bytes or unsupported schemas produce `blocked`; there is no fallback
+to unrelated Markdown files.
+
+Publication is transactional. Payloads are written to a staging directory, hashed, moved to the
+immutable fingerprint directory, and only then does `handoff_manifest.json` become the current
+pointer. An interruption leaves the previous valid pointer intact. Repeated builds over unchanged
+inputs produce byte-identical payloads and the same semantic fingerprint.
+
+The direct maintenance commands are:
+
+```bash
+.venv/bin/python scripts/evidence_handoff_v2.py "$SESSION"
+.venv/bin/python scripts/evidence_handoff_v2.py "$SESSION" --verify-only
+```
+
+`murmurmark status`, `next`, `notes`, `transcript`, `finish` and `export` prefer the current valid
+v2 handoff. Older authoritative-handoff/profile artifacts remain recovery and audit inputs.
+
+`murmurmark export SESSION` creates a local bundle outside the session directory under
+`exports/private/<session-dir-name>/` by default. It revalidates current inputs and all immutable
+bundle hashes immediately before export. Only `ready` and verified `no_speech` states are
+exportable. Raw audio and private debug payloads are never copied; exported text and manifests use
+session-relative paths only.
+
+Markdown export contains the handoff `meeting.md`, `quality_verdict.md`, `notes.md`,
+`transcript.md` and compatibility `export_manifest.json`. `--include-json` adds only the bounded
+handoff manifest and evidence JSON. Obsidian export uses `meeting.md` as the main note and writes the
+same sibling evidence artifacts.
+
+`export_manifest.json` retains schema `murmurmark.export_manifest/v1` for retention compatibility,
+but records `bundle_quality: handoff_v2`, `handoff_state`, `handoff_fingerprint`, selected profile
+and SHA-256/size for every copied file. It is deterministic and contains no timestamps or absolute
+local paths.
+
+`--force` is retained for command compatibility and cannot bypass stale, integrity or
+mandatory-review gates. A blocked attempt writes the compatibility
+`<session>.export_blocked.json` with blockers and the exact safe next command.
+
+### Legacy Export Bundle v1
+
+The following format description is retained for consumers of pre-v2 exports. New exports use the
+v2 handoff contract above. Raw audio is never copied.
 
 Markdown format:
 
@@ -2166,9 +2232,8 @@ debugging artifacts:
 - `export_manifest.json` stays the machine-readable source for selected profile, files, warnings,
   blockers and next commands.
 
-If `clean_dialogue*.json` or `evidence_notes*.json` is missing, export falls back to the existing
-Markdown artifacts, but the manifest still records which source files were missing. Raw audio is
-never copied.
+Pre-v2 exports could fall back to existing Markdown when structured inputs were absent. Handoff v2
+forbids that fallback because it cannot prove evidence integrity.
 
 With `--include-json`, the bundle also includes evidence/source JSON such as
 `evidence_notes.<profile>.json`, `clean_dialogue.<profile>.json`, `quality_report.<profile>.json`
@@ -2227,10 +2292,9 @@ private paths or raw audio references.
 }
 ```
 
-Default export blocks sessions whose `session_readiness.json` contains `export_blockers`, including
-review-required sessions, incomplete pipeline and hard quality failures. `--force` may create an
-export for debugging, but the manifest still records blockers, warnings and the readiness payload
-used.
+Current export blocks sessions whose handoff is not `ready` or verified `no_speech`, including
+review-required sessions, incomplete pipelines and hard quality failures. `--force` does not bypass
+these gates.
 
 Blocked export writes `<session>.export_blocked.json` with the same schema, `status: "blocked"`,
 the blockers, the readiness payload, legacy text `next`, structured `next_commands`, and
@@ -2258,14 +2322,13 @@ the blockers, the readiness payload, legacy text `next`, structured `next_comman
 
 The Swift CLI reads successful `export_manifest.json` files and blocked `*.export_blocked.json`
 files, then prints a short handoff summary with output files, retention commands, or structured next
-commands. When an export was forced while blockers remain, `recommended_next` follows readiness back
-to `murmurmark process` or `murmurmark review next`; retention commands are printed only under
-`debug_retention`.
+commands. A successful export is current only while its `handoff_fingerprint` matches the current
+valid Evidence Handoff v2.
 
 Successful manifests are self-contained handoff artifacts. `next_commands` is the executable
 post-export chain, usually retention planning and provider-payload inventory. `open_commands` is the
-read-only bundle inspection chain. Forced exports with blockers keep the retention commands under
-`debug_retention_commands` and keep readiness repair/review commands in `next_commands`.
+read-only bundle inspection chain. Blocked attempts retain readiness repair/review commands and do
+not advertise retention as if publication had succeeded.
 
 ## Finish Handoff
 
@@ -2275,10 +2338,12 @@ a new data schema and does not change capture, Echo Guard, ASR, transcript repai
 The command:
 
 1. refreshes `SESSION/derived/readiness/session_readiness.json`;
-2. attempts `murmurmark export` semantics through `export-session-bundle.py`;
-3. includes JSON evidence by default unless `--no-json` is passed;
-4. writes `retention_plan.json` and `provider_payload_manifest.json` after a successful export;
-5. prints one final `next: ...` line, usually a read-only `less ...` command for the exported bundle.
+2. builds or verifies the current Evidence Handoff v2 transaction;
+3. attempts `murmurmark export` semantics through `export-session-bundle.py` only for an exportable
+   handoff;
+4. includes bounded handoff JSON evidence by default unless `--no-json` is passed;
+5. writes `retention_plan.json` and `provider_payload_manifest.json` after a successful export;
+6. prints one final `next: ...` line, usually a read-only `less ...` command for the exported bundle.
 
 If export is blocked, `finish` writes the same `<session>.export_blocked.json` artifact as the export
 command and points back to the review or processing command from readiness. It never deletes raw
@@ -2303,9 +2368,9 @@ exists yet, the summary's `recommended_next` follows readiness back to `murmurma
 `murmurmark review next` rather than pointing at a blocked export.
 The summary also prints a derived `status`: `waiting_for_export`,
 `waiting_for_successful_export`, `ready_no_raw_deletion`, `ready_to_apply`, `applied` or an invalid
-manifest blocker. When a manifest file exists but was produced by forced export with blockers, the
-summary prints `export_successful: false`, the manifest status/reason and keeps the next command on
-the earlier safe step.
+manifest blocker. Legacy manifests produced by forced pre-v2 exports with blockers are never
+treated as current successful Evidence Handoff v2 exports; the next command remains on the earlier
+safe step.
 
 `murmurmark retention payload SESSION` writes
 `SESSION/derived/retention/provider_payload_manifest.json` using
@@ -2527,9 +2592,9 @@ for their terminal summary: after a successful default export they print status 
 `command`, status, gate, selected profile, verdict and the first read-only `open_commands` item. With
 `--refresh`, it regenerates session readiness through `report-session-quality.py` before reading the
 command. If the session is exportable and a successful `export_manifest.json` exists, `next` follows
-the manifest's post-export `next_commands` instead, usually retention planning. Forced exports or
-manifests with blockers do not override readiness. `--export-manifest` points `next` at a non-default
-export bundle.
+the manifest's post-export `next_commands` instead, usually retention planning. A manifest whose
+`handoff_fingerprint` differs from the current v2 handoff does not override readiness.
+`--export-manifest` points `next` at a non-default export bundle.
 `murmurmark sessions` uses the same default export manifest check for queue status: exported
 sessions move from `exportable` to `exported`, and their `next` field points to retention instead of
 repeating export.

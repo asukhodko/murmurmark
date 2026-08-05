@@ -53,11 +53,13 @@ remain, while rebuildable media below `derived/` can be removed through
 
 ## Current Goal
 
-**Evidence Notes And Export v2** is the current goal. It must bind the selected transcript profile,
-quality verdict, unresolved review burden, evidence-backed notes and export readiness into one
-versioned, byte-stable handoff. Every visible claim must resolve to existing evidence IDs; stale or
-blocked input fails closed. `meeting` and `finish` should publish one coherent Markdown/Obsidian
-bundle or one precise blocker and next command.
+**Release-quality CLI** is the current goal: turn the proven pipeline and Evidence Handoff v2 into
+an installable, upgrade-safe release with an explicit environment, dependency/model/config
+contract, packaged end-to-end acceptance and public operational documentation. UI is not required.
+
+**Evidence Notes And Export v2** is complete. Across 110 sessions, all handoff manifests validate;
+referential-integrity, stale-manifest and deterministic-replay failures are zero. Ten sessions are
+directly exportable and all others fail closed as `review_required` or `blocked`.
 
 The prerequisite **Target-Me Identifiability Corpus v1** is complete with
 `READY_FOR_TARGET_CONDITIONED_TRAINING`, fingerprint
@@ -110,8 +112,8 @@ flowchart LR
     X["Done: DO_NOT_PROMOTE<br/>Reference-Conditioned<br/>Target-Me Separation v1"]
     I["Done: READY<br/>Target-Me Identifiability<br/>Corpus v1"]
     V["Done: DO_NOT_PROMOTE<br/>Reference-Conditioned<br/>Target-Me Separation v2"]
-    H["Current<br/>Evidence Notes And Export v2"]
-    D["Next<br/>Release-quality CLI"]
+    H["Done<br/>Evidence Notes And Export v2"]
+    D["Current<br/>Release-quality CLI"]
 
     P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D
 ```
@@ -206,15 +208,18 @@ targets remained unopened, and production audio stayed byte-exact.
 
 ### 11. Evidence Notes And Export v2
 
-Current. Define one versioned, byte-stable handoff contract over the selected transcript profile,
-quality verdict, evidence notes, unresolved review burden and export readiness. Every visible claim
-must cite valid evidence IDs; stale or blocked input must fail closed. The normal lifecycle should
-publish one coherent Markdown/Obsidian bundle or one precise blocker and next command.
+Completed. `murmurmark.handoff_manifest/v2` and `murmurmark.handoff_evidence/v2` bind input schemas,
+paths, SHA-256 values, selected profile, verdict, review burden and evidence IDs. Publication is
+transactional and deterministic. Export consumes only a current `ready` or verified `no_speech`
+handoff; `--force` cannot bypass review or integrity gates. The 110-session corpus passes with
+`110/110` valid manifests and zero referential-integrity, stale or replay failures.
 
 ### 12. Release-quality CLI
 
-Finalize the supported environment, installation, model/config handling, acceptance, release notes
-and public operational contract. UI is not required.
+Current. Finalize supported environment, idempotent installation and upgrade, versioned
+dependency/model/config handling, packaged offline acceptance, release artifact/checksum, release
+notes and the public operational contract. Existing session and handoff fingerprints must survive
+upgrade. UI is not required.
 
 ## Dependent And Parallel Research
 
@@ -239,7 +244,7 @@ flowchart LR
 Speaker-Preserving Neural Echo v2 remains production. Both Reference-Conditioned Target-Me
 Separation experiments are complete with `DO_NOT_PROMOTE`; v2 showed that paired enrollment is
 identifiable but the small scratch-trained separator is below the waveform-quality ceiling.
-Evidence Notes And Export v2 is now the current product goal.
+Evidence Notes And Export v2 is complete; Release-quality CLI is now the current product goal.
 
 Remote diarization works on authoritative `remote` and does not require complete Echo suppression.
 It starts after base quality closure, first produces anonymous stable speaker IDs, then an

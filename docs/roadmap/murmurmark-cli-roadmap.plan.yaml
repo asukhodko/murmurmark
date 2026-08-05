@@ -342,25 +342,27 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [research-reference-conditioned-target-me-separation-v2]
-    status: current
+    status: done
     effort: 7
     notes: |
-      Собрать один versioned deterministic handoff bundle поверх выбранного transcript profile,
-      quality verdict, evidence notes, unresolved review burden и export readiness. Каждая видимая
-      запись обязана ссылаться на существующие evidence IDs; stale или blocked input fail closed.
-      Встроить transactional build/resume в meeting/finish, сделать Markdown/Obsidian export
-      прямым результатом lifecycle и подтвердить corpus-wide referential integrity.
+      Завершено. Versioned deterministic Evidence Handoff v2 связывает выбранный transcript
+      profile, quality verdict, evidence notes, unresolved review burden и export readiness.
+      Guarded Markdown/Obsidian export читает только ready или verified no_speech handoff; `--force`
+      не обходит integrity/review gates. На 110 сессиях валидны 110/110 манифестов, stale,
+      referential-integrity и deterministic-replay failures равны нулю; corpus gate PASS.
 
   product-release-quality-cli:
     title: "Release-quality CLI"
     kind: task
     parent: murmurmark-cli
     deps: [product-evidence-export-v2]
-    status: next
+    status: current
     effort: 7
     notes: |
-      Зафиксировать supported environment, installation, model/config handling, end-to-end acceptance,
-      release notes и публичный operational contract без обязательного UI.
+      Превратить проверенный локальный pipeline и Evidence Handoff v2 в устанавливаемый,
+      документированный и воспроизводимый CLI-релиз. Зафиксировать supported environment,
+      dependency/model/config compatibility, idempotent install/upgrade, packaged end-to-end
+      acceptance, release artifact/checksum, release notes и публичный operational contract без UI.
 
   parallel-research:
     title: "Параллельные исследования"
@@ -476,12 +478,10 @@ views:
         nodes: [working-capabilities, corpus-regression]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [research-reference-conditioned-target-me-separation-v2]
+        nodes: [product-release-quality-cli]
       dependent:
-        title: "Следующие зависимые этапы"
-        nodes:
-          - product-evidence-export-v2
-          - product-release-quality-cli
+        title: "Только после CLI-релиза"
+        nodes: [parallel-research, parking-lot]
 
   critical-path:
     title: "Критический CLI-путь"
@@ -562,8 +562,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Evidence Notes And Export v2: собрать один versioned deterministic handoff bundle из выбранного transcript profile, quality verdict, unresolved review burden и evidence-backed notes; сделать guarded Markdown/Obsidian export прямым результатом lifecycle, запретить stale evidence и unsupported claims, завершить документацией, corpus regression и release-ready CLI contract."
-      success_by_next_sync: "Для каждой завершённой сессии существует один fingerprinted handoff со согласованными transcript, verdict, review burden и evidence IDs; finish и guarded export используют его транзакционно и fail closed на stale или unresolved inputs."
+      nearest_goal: "Release-quality CLI: превратить проверенный локальный pipeline и Evidence Handoff v2 в устанавливаемый, документированный и воспроизводимый CLI-релиз; зафиксировать поддерживаемое окружение, зависимости, модели и конфигурацию, добавить clean-install и upgrade acceptance, собрать release artifact и публичный operational contract, подтвердить end-to-end meeting без обязательного UI."
+      success_by_next_sync: "Версионированный release artifact устанавливается и обновляется идемпотентно, проходит doctor/self-test/packaged acceptance офлайн, сохраняет существующие config/session/handoff fingerprints и имеет явный supported-environment и dependency/model contract."
     defaults:
       status_progress:
         done: 1.0
@@ -584,13 +584,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle, batch transcript, review, notes/export и Live Shadow уже работают."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Текущий product handoff"
-        scope_nodes: [product-evidence-export-v2]
+        title: "Текущий release-контракт"
+        scope_nodes: [product-release-quality-cli]
         kind: main
         mgmt:
           health: green
-          sync_note: "Reference-Conditioned v2 завершён DO_NOT_PROMOTE без открытия hard; production audio остаётся Speaker-Preserving Neural Echo v2."
-          next_sync_goal: "Собрать один deterministic evidence-backed handoff и сделать его единственным входом guarded export."
+          sync_note: "Evidence Handoff v2 прошёл 110-session integrity/replay gate; production audio остаётся Speaker-Preserving Neural Echo v2."
+          next_sync_goal: "Проверить install, upgrade и end-to-end flow на packaged CLI artifact, а не только из checkout."
       dependent-path:
         title: "Зависимый путь"
         scope_nodes:
@@ -610,8 +610,8 @@ x:
         kind: main
         mgmt:
           health: neutral
-          sync_note: "Audio decision закрыт; критический путь вернулся к evidence/export handoff и release-quality CLI."
-          next_sync_goal: "Не добавлять новые profile-specific user steps; meeting/finish должны сходиться к одному handoff."
+          sync_note: "Audio и evidence/export decisions закрыты; критический путь дошёл до release-quality CLI."
+          next_sync_goal: "Не добавлять новые profile-specific user steps; packaged meeting/finish должны сохранять Evidence Handoff v2."
       research:
         title: "Параллельные исследования"
         scope_nodes: [parallel-research]

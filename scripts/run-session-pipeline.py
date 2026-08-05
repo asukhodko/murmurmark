@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import evidence_handoff_v2
 from murmurmark_resource_policy import (
     PROFILE_DEFAULTS,
     apply_resource_policy,
@@ -1472,6 +1473,29 @@ def print_authoritative_handoff(payload: dict[str, Any], session: Path, repo_roo
     print(f"next: {payload.get('recommended_next')}", flush=True)
 
 
+def build_evidence_handoff(
+    *, session: Path, repo_root: Path, quiet: bool = False
+) -> dict[str, Any] | None:
+    try:
+        payload = evidence_handoff_v2.build_handoff(session)
+    except evidence_handoff_v2.HandoffError as error:
+        print(f"warning: evidence handoff v2 failed closed: {error}", file=sys.stderr, flush=True)
+        return None
+    if not quiet:
+        print("", flush=True)
+        print("evidence handoff v2", flush=True)
+        print(f"state: {payload.get('state')}", flush=True)
+        print(f"profile: {payload.get('selected_profile')}", flush=True)
+        print(f"fingerprint: {payload.get('semantic_fingerprint')}", flush=True)
+        print(
+            "manifest: "
+            f"{rel(session / 'derived/handoff-v2/handoff_manifest.json', repo_root)}",
+            flush=True,
+        )
+        print(f"next: {payload.get('recommended_next')}", flush=True)
+    return payload
+
+
 def default_handoff_reuse_allowed(args: argparse.Namespace) -> bool:
     return not any(
         (
@@ -2142,6 +2166,7 @@ def main() -> int:
             args=args,
         )
         print_authoritative_handoff(existing_handoff, session, repo_root)
+        build_evidence_handoff(session=session, repo_root=repo_root)
         return 0
     if requested_phase == "deferred" and not handoff_fingerprint_matches(existing_handoff, session):
         print("deferred enrichment blocked: authoritative handoff is missing or stale", file=sys.stderr)
@@ -2367,6 +2392,7 @@ def main() -> int:
                     args=args,
                 )
                 print_authoritative_handoff(checkpoint, session, repo_root)
+                build_evidence_handoff(session=session, repo_root=repo_root)
             else:
                 final_status = "failed"
                 break
@@ -2444,6 +2470,7 @@ def main() -> int:
         "outputs": {
             "quality_verdict": rel(quality_path, session) if quality_path.exists() else None,
             "session_readiness": rel(readiness_path, session) if readiness_path.exists() else None,
+            "evidence_handoff_v2": "derived/handoff-v2/handoff_manifest.json",
             "remote_leak_segment_repair_plan": rel(remote_leak_plan_path, session) if remote_leak_plan_path.exists() else None,
             "asr_chunk_rebuild_check": rel(asr_chunk_check_path, session) if asr_chunk_check_path.exists() else None,
             "live_asr_cache_report": rel(live_asr_cache_path, session) if live_asr_cache_path.exists() else None,
@@ -2519,6 +2546,7 @@ def main() -> int:
     )
     if not args.plan_only:
         write_outcome_artifacts(session, report_path, repo_root)
+        build_evidence_handoff(session=session, repo_root=repo_root, quiet=True)
     print_pipeline_summary(report, report_path, repo_root)
     return 0 if report["status"] in {"passed", "planned"} else 2
 

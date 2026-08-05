@@ -73,12 +73,15 @@ Current operating point, 2026-08-04:
   paired-query candidate learned a `4.991 dB` correct-vs-wrong margin with `0%` collapse, but missed
   Target-Me, non-target and absent-query dev gates; hard and sealed data remained unopened and
   production v2 stayed byte-exact;
-- the current goal is Evidence Notes And Export v2: publish one versioned handoff over selected
-  transcript, verdict, unresolved review burden, evidence notes and guarded export readiness;
+- Evidence Notes And Export v2 publishes one versioned handoff over selected transcript, verdict,
+  unresolved review burden, evidence notes and guarded export readiness; its 110-session corpus
+  has zero integrity, stale-manifest and deterministic-replay failures;
+- the current goal is Release-quality CLI: package the proven path with an explicit supported
+  environment, idempotent install/upgrade and release-artifact acceptance;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 
-Release-quality CLI follows Evidence Notes And Export v2.
+Release-quality CLI is the active critical-path stage after Evidence Notes And Export v2.
 The personalized Echo selector activates only with compatible local enrollment and promotion
 evidence; every unsupported acoustic mode or regression uses exact `local_fir_role_masked`.
 Any later separator remains isolated until a corpus-wide decision and cannot use exact remix or

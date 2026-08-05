@@ -326,13 +326,14 @@ jq -n '{
 
 jq -n '{
   schema: "murmurmark.evidence_notes/v2",
-  source: {selected_transcript_profile: "current"},
+  source: {transcript_profile: "current"},
   selected: {},
   review: {items: []},
   metrics: {review_item_count: 0}
 }' >"$session/derived/synthesis-simple/extractive/evidence_notes.json"
-cp "$session/derived/synthesis-simple/extractive/evidence_notes.json" \
-  "$session/derived/synthesis-simple/extractive/evidence_notes.audit_cleanup_v1.json"
+jq '.source.transcript_profile = "audit_cleanup_v1"' \
+  "$session/derived/synthesis-simple/extractive/evidence_notes.json" \
+  >"$session/derived/synthesis-simple/extractive/evidence_notes.audit_cleanup_v1.json"
 : >"$session/derived/synthesis-simple/extractive/review_items.jsonl"
 : >"$session/derived/synthesis-simple/extractive/review_items.audit_cleanup_v1.jsonl"
 
@@ -647,19 +648,25 @@ tail -1 <<<"$open_output" | grep -q '^next: less '
 notes_command="$("$bin" open "$session" --kind notes --command-only)"
 [[ "$notes_command" == less*notes.md ]]
 
-export_output="$("$bin" export "$session" --format markdown --include-json --out-dir "$workdir/exports/private")"
+if ! export_output="$("$bin" export "$session" --format markdown --include-json --out-dir "$workdir/exports/private")"; then
+  printf '%s\n' "$export_output" >&2
+  exit 1
+fi
 echo "$export_output" | grep -q '^export:$'
 echo "$export_output" | grep -q '^  status: exported'
 tail -1 <<<"$export_output" | grep -q '^next: murmurmark retention plan '
 
 manifest="$workdir/exports/private/cli-handoff/export_manifest.json"
 [[ -s "$manifest" ]]
-jq -e '.bundle_quality == "v1"' "$manifest" >/dev/null
-jq -e '.outcome.outcome == "ready_for_notes" and .outcome.export_status == "allowed" and (.files.outcome_json.path | length > 0)' "$manifest" >/dev/null
-grep -Fq '## Can I Use This?' "$workdir/exports/private/cli-handoff/index.md"
-grep -q '^## Retention And Privacy$' "$workdir/exports/private/cli-handoff/index.md"
-grep -q '`utt_cli_001`' "$workdir/exports/private/cli-handoff/transcript.md"
-grep -q '^## Review Queue$' "$workdir/exports/private/cli-handoff/notes.md"
+jq -e '
+  .bundle_quality == "handoff_v2"
+  and .handoff_state == "ready"
+  and (.handoff_fingerprint | length == 64)
+  and .blockers == []
+' "$manifest" >/dev/null
+grep -Fq '## Evidence Summary' "$workdir/exports/private/cli-handoff/index.md"
+grep -q '\[utt_cli_001\]' "$workdir/exports/private/cli-handoff/transcript.md"
+grep -q '^## Potential Actions$' "$workdir/exports/private/cli-handoff/notes.md"
 
 retention_output="$("$bin" retention plan "$session" --export-manifest "$manifest")"
 echo "$retention_output" | grep -q '^retention:$'
@@ -685,7 +692,7 @@ echo "$finish_output" | grep -q '^finish:$'
 echo "$finish_output" | grep -q '^  status: ready$'
 tail -1 <<<"$finish_output" | grep -q '^next: less '
 [[ -s "$workdir/finish/private/cli-handoff/export_manifest.json" ]]
-grep -Fq '## Can I Use This?' "$workdir/finish/private/cli-handoff/index.md"
+grep -Fq '## Evidence Summary' "$workdir/finish/private/cli-handoff/index.md"
 [[ -s "$session/derived/retention/retention_plan.json" ]]
 [[ -s "$session/derived/retention/provider_payload_manifest.json" ]]
 

@@ -193,9 +193,11 @@ zero collapse), but the bounded spectral candidate reached only `4.852 dB` Targe
 `4.107 dB` non-target SNR. It failed dev before hard access, so the sealed meetings and production
 audio remained untouched.
 
-The critical path now runs Evidence Notes And Export v2. One fingerprinted handoff must bind the
-selected transcript, verdict, review burden, evidence-backed notes and export readiness. That
-bundle, rather than profile-specific file discovery, becomes the stable product boundary.
+Evidence Notes And Export v2 now binds the selected transcript, verdict, review burden,
+evidence-backed notes and export readiness in one fingerprinted product boundary. Its 110-session
+corpus has zero referential-integrity, stale-manifest and deterministic-replay failures. The
+critical path now runs Release-quality CLI: make this proven boundary installable, upgrade-safe and
+verifiable from a packaged release.
 The failed live-recovery profile remains diagnostic evidence rather than another user-facing branch.
 
 ## Route To Reliability
@@ -437,10 +439,11 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Evidence Notes And Export v2: собрать один versioned deterministic handoff bundle из выбранного
-transcript profile, quality verdict, unresolved review burden и evidence-backed notes; сделать
-guarded Markdown/Obsidian export прямым результатом lifecycle, запретить stale evidence и
-unsupported claims, завершить документацией, corpus regression и release-ready CLI contract.
+Release-quality CLI: превратить проверенный локальный pipeline и Evidence Handoff v2 в
+устанавливаемый, документированный и воспроизводимый CLI-релиз; зафиксировать поддерживаемое
+окружение, зависимости, модели и конфигурацию, добавить clean-install и upgrade acceptance,
+собрать release artifact и публичный operational contract, подтвердить end-to-end meeting без
+обязательного UI.
 ```
 
 ## Consultation Prompt

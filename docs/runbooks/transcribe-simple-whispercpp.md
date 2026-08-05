@@ -87,6 +87,26 @@ The report requires a sequential `1/1` baseline, a bounded `2/2` cold run and a 
 run for every session. It compares transcript SHA-256, selected profile and quality metrics in
 addition to elapsed time.
 
+Every successful authoritative run also builds Evidence Handoff v2. Inspect or revalidate it with:
+
+```bash
+.venv/bin/python scripts/evidence_handoff_v2.py "$SESSION"
+.venv/bin/python scripts/evidence_handoff_v2.py "$SESSION" --verify-only
+```
+
+The current pointer is `derived/handoff-v2/handoff_manifest.json`; immutable payloads live below
+`derived/handoff-v2/bundles/<semantic-fingerprint>/`. States are `ready`, `review_required`,
+`blocked` and `no_speech`. Only `ready` and verified `no_speech` are exportable. To reproduce the
+corpus gate:
+
+```bash
+scripts/report-evidence-handoff-corpus.py --refresh --strict \
+  --out-dir sessions/_reports/evidence-handoff-v2
+```
+
+The measured 110-session report has `110/110` valid manifests, zero referential-integrity,
+stale-manifest and deterministic-replay failures, and a passing gate.
+
 If synthesis or readiness still reports review risk, the CLI handoff points to
 `murmurmark review next "$SESSION"` before export. Export is advertised from synthesis only after a
 good verdict with no review items.
@@ -1300,19 +1320,18 @@ local-recall blockers, possible lost-`Me` seconds and protected remote-leak queu
 The baseline file lives under ignored generated reports and must not be committed when it is built
 from real meetings.
 
-`murmurmark export` is the user-facing handoff. It reads the selected transcript profile from
-per-session readiness, copies the Markdown verdict, notes and transcript into `exports/private/`,
-and writes `export_manifest.json`. It blocks sessions with readiness `export_blockers` by default;
-blocked export prints structured next commands from readiness plus rerun/debug export commands. Use
-`murmurmark review next SESSION` first when review is required, or pass `--force` only for debugging.
-Forced exports with blockers keep retention commands under `debug_retention` and keep the primary
-handoff on the unfinished `process` or `review` work.
+`murmurmark export` is the publication command over Evidence Handoff v2. It revalidates current
+input hashes, schemas, selected profile, evidence references and immutable bundle payloads before
+copying Markdown to `exports/private/`. Missing or stale evidence and mandatory review fail closed.
+Use `murmurmark review next SESSION` first when review is required. `--force` is retained for
+compatibility and cannot bypass handoff integrity or review gates.
 After a successful export, the CLI prints the manifest path, key output files and the retention
 commands that should use the same manifest, then repeats the primary handoff as a final copyable
 `next: ...` line. The manifest itself is also a continuation artifact:
 `next_commands` stores retention commands, `open_commands` stores read-only inspection commands, and
-`export_commands` stores the safe rerun/debug-force commands. Forced exports keep readiness repair
-or review in `next_commands` and put retention under `debug_retention_commands`.
+`export_commands` stores the safe rerun command. Compatibility `export_manifest/v1` now records
+`bundle_quality: handoff_v2`, the handoff fingerprint and SHA-256/size for copied files. An older or
+mismatched export manifest is not treated as the current session result.
 
 The script reads `derived/audit/audio-review-pack/audio_review_audit.jsonl`, balances examples by
 label, and copies existing review clips under `sessions/_reports/regression-corpus/clips/`. It is

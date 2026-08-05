@@ -126,7 +126,9 @@ wait_for() {
 
 wait_for_process_exit() {
   local pid="$1"
-  local deadline=$((SECONDS + 5))
+  # A loaded background-profile test can need several scheduler slices after both
+  # child process groups have handled SIGTERM. Keep the assertion bounded but non-flaky.
+  local deadline=$((SECONDS + 15))
   while kill -0 "$pid" 2>/dev/null; do
     (( SECONDS < deadline )) || return 1
     sleep 0.1

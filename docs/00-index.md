@@ -65,8 +65,9 @@ completed with `READY_FOR_TARGET_CONDITIONED_TRAINING`: `4/2/2` split-disjoint n
 `1200/300/300s` full mixtures, `980` paired query controls, zero contamination and replay
 `2470/2470`. Reference-Conditioned Target-Me Separation v2 then learned speaker-query adherence but
 missed three immutable dev quality gates and completed with `DO_NOT_PROMOTE`; hard and sealed data
-remained unopened. Speaker-Preserving Neural Echo v2 remains production. The current goal is
-Evidence Notes And Export v2.
+remained unopened. Speaker-Preserving Neural Echo v2 remains production. Evidence Notes And Export
+v2 now passes its 110-session integrity and deterministic-replay gate. The current goal is
+Release-quality CLI.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

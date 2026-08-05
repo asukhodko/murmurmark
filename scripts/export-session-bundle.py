@@ -2,16 +2,21 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
 import shlex
 import shutil
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import evidence_handoff_v2 as handoff_v2
 
-SCRIPT_VERSION = "0.3.0"
+
+SCRIPT_VERSION = "0.4.0"
 SCHEMA_MANIFEST = "murmurmark.export_manifest/v1"
 EXPORT_BUNDLE_QUALITY = "v1"
 
@@ -22,7 +27,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--format", choices=["markdown", "obsidian"], default="markdown")
     parser.add_argument("--profile", default="auto", help="auto, current, or an explicit transcript profile.")
     parser.add_argument("--out-dir", type=Path, default=Path("exports/private"))
-    parser.add_argument("--force", action="store_true", help="Export even when readiness has export blockers.")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Compatibility flag; never bypasses Evidence Handoff v2 gates.",
+    )
     parser.add_argument("--include-json", action="store_true", help="Copy evidence JSON files into the export bundle.")
     return parser.parse_args()
 
@@ -61,6 +70,39 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
 def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.tmp.{os.getpid()}")
+    temporary.write_bytes(handoff_v2.canonical_json_bytes(payload))
+    temporary.replace(path)
+
+
+def file_identity(path: Path) -> dict[str, Any]:
+    data = path.read_bytes()
+    return {
+        "path": path.name,
+        "bytes": len(data),
+        "sha256": hashlib.sha256(data).hexdigest(),
+    }
+
+
+def publish_directory(staging: Path, destination: Path) -> None:
+    backup = destination.with_name(f".{destination.name}.backup.{os.getpid()}")
+    if backup.exists():
+        shutil.rmtree(backup)
+    try:
+        if destination.exists():
+            destination.replace(backup)
+        staging.replace(destination)
+    except BaseException:
+        if not destination.exists() and backup.exists():
+            backup.replace(destination)
+        raise
+    else:
+        if backup.exists():
+            shutil.rmtree(backup)
 
 
 def suffix(profile: str) -> str:
@@ -383,6 +425,13 @@ def print_success_export_handoff(manifest: dict[str, Any], manifest_path: Path) 
         for item in open_items:
             if isinstance(item, dict) and item.get("command"):
                 print(f"  {item['command']}")
+    else:
+        files = manifest.get("files") if isinstance(manifest.get("files"), dict) else {}
+        print("open:")
+        for key in ("index", "obsidian_note", "quality_verdict_md", "notes_md", "transcript_md"):
+            item = files.get(key)
+            if isinstance(item, dict) and isinstance(item.get("path"), str):
+                print(f"  less {manifest_path.parent / item['path']}")
     next_items = manifest.get("next_commands") if isinstance(manifest.get("next_commands"), list) else []
     if next_items:
         print("next:")
@@ -963,185 +1012,143 @@ def write_obsidian_note(
 
 
 def export_session(args: argparse.Namespace) -> dict[str, Any]:
-    session = args.session.expanduser()
+    session = args.session.expanduser().resolve()
     if not (session / "session.json").exists():
         raise SystemExit(f"session.json not found under {session}")
     sid = session_id(session)
-    profile, quality, verdict = resolve_profile(session, args.profile)
-    paths = source_paths(session, profile)
-    readiness = read_json(paths["session_readiness_json"])
-    outcome = read_json(paths["outcome_json"])
-    evidence = read_json(paths["evidence_notes_json"])
-    clean_dialogue = read_json(paths["clean_dialogue_json"])
-    review_items = read_jsonl(paths["review_items_jsonl"])
-    blockers, warnings = readiness_blockers(paths, quality, verdict, readiness, outcome)
-    if blockers and not args.force:
-        next_commands = blocked_export_next_commands(session, readiness, outcome, blockers)
-        blocked_export_commands = export_commands(args, session)
+    args.out_dir = args.out_dir.expanduser()
+    warnings: list[str] = []
+    blockers: list[str] = []
+    try:
+        handoff_v2.build_handoff(session)
+        handoff, validation_reasons = handoff_v2.load_valid_handoff(session)
+    except handoff_v2.HandoffError as error:
+        handoff = None
+        validation_reasons = [f"handoff_build_failed:{error}"]
+    if handoff is None:
+        blockers.extend(validation_reasons)
+        selected_profile = None
+        state = "blocked"
+        fingerprint = None
+    else:
+        selected_profile = handoff.get("selected_profile")
+        state = str(handoff.get("state") or "blocked")
+        fingerprint = handoff.get("semantic_fingerprint")
+        blockers.extend(str(item) for item in handoff.get("blockers") or [])
+        if state not in handoff_v2.EXPORTABLE_STATES:
+            blockers.append(f"handoff_state:{state}")
+        if not bool((handoff.get("export") or {}).get("allowed")):
+            blockers.append("handoff_export_not_allowed")
+    if args.profile != "auto" and args.profile != selected_profile:
+        blockers.append("requested_profile_mismatch")
+    if args.force:
+        warnings.append("force_cannot_bypass_handoff_v2")
+    blockers = sorted(set(blockers))
+    warnings = sorted(set(warnings))
+
+    args.out_dir.mkdir(parents=True, exist_ok=True)
+    blocked_path = args.out_dir / f"{session.name}.export_blocked.json"
+    if blockers or handoff is None:
+        next_command = (
+            str(handoff.get("recommended_next"))
+            if handoff is not None
+            else f'murmurmark process "sessions/{session.name}"'
+        )
         manifest = {
             "schema": SCHEMA_MANIFEST,
             "generator": {"name": "export-session-bundle", "version": SCRIPT_VERSION},
-            "bundle_quality": EXPORT_BUNDLE_QUALITY,
+            "bundle_quality": "handoff_v2",
             "status": "blocked",
             "session_id": sid,
             "requested_profile": args.profile,
-            "selected_profile": profile,
+            "selected_profile": selected_profile,
             "format": args.format,
+            "handoff_state": state,
+            "handoff_fingerprint": fingerprint,
             "blockers": blockers,
             "warnings": warnings,
-            "readiness": readiness,
-            "outcome": outcome,
-            "next": blocked_export_next(next_commands),
-            "next_commands": next_commands,
-            "export_commands": blocked_export_commands,
+            "next": next_command,
+            "next_commands": [{"id": "resolve_handoff", "command": next_command}],
         }
-        args.out_dir.mkdir(parents=True, exist_ok=True)
-        blocked_path = args.out_dir / f"{session.name}.export_blocked.json"
-        write_json(blocked_path, manifest)
+        atomic_write_json(blocked_path, manifest)
         print_blocked_export_handoff(manifest, blocked_path)
         raise SystemExit(2)
 
-    out_dir = args.out_dir / session.name
-    out_dir.mkdir(parents=True, exist_ok=True)
+    assert handoff is not None
+    destination = args.out_dir / session.name
+    staging = Path(
+        tempfile.mkdtemp(prefix=f".{session.name}.staging.", dir=args.out_dir)
+    )
     files: dict[str, Any] = {}
-    next_commands_for_index = ready_export_next_commands(session, out_dir / "export_manifest.json") if not blockers else blocked_export_next_commands(session, readiness, outcome, blockers)
-    quality_text = render_quality_verdict_markdown(
-        sid=sid,
-        profile=profile,
-        verdict=verdict,
-        quality=quality,
-        evidence=evidence,
-        review_items=review_items,
-        blockers=blockers,
-        warnings=warnings,
-        paths=paths,
-    )
-    notes_text = render_notes_markdown(
-        sid=sid,
-        profile=profile,
-        verdict=verdict,
-        evidence=evidence,
-        review_items=review_items,
-        fallback_notes=read_text(paths["notes_md"]),
-    )
-    transcript_text = render_transcript_markdown(
-        sid=sid,
-        profile=profile,
-        clean_dialogue=clean_dialogue,
-        fallback_transcript=read_text(paths["transcript_md"]),
-    )
-    if args.format == "markdown":
-        index = out_dir / "index.md"
-        write_markdown_index(
-            index,
-            sid=sid,
-            profile=profile,
-            verdict=verdict,
-            quality=quality,
-            evidence=evidence,
-            review_items=review_items,
-            blockers=blockers,
-            warnings=warnings,
-            include_json=args.include_json,
-            next_commands=next_commands_for_index,
-        )
-        files["index"] = {"path": str(index), "bytes": index.stat().st_size}
-        quality_out = out_dir / "quality_verdict.md"
-        quality_out.write_text(quality_text, encoding="utf-8")
-        files["quality_verdict_md"] = {
-            "source": str(paths["quality_verdict_json"]),
-            "path": str(quality_out),
-            "bytes": quality_out.stat().st_size,
-            "rendered": True,
+    try:
+        source_map = {
+            "transcript_md": ("transcript", "transcript.md"),
+            "notes_md": ("notes", "notes.md"),
+            "quality_verdict_md": ("quality_verdict", "quality_verdict.md"),
         }
-        notes_out = out_dir / "notes.md"
-        notes_out.write_text(notes_text, encoding="utf-8")
-        files["notes_md"] = {
-            "source": str(paths["evidence_notes_json"]),
-            "path": str(notes_out),
-            "bytes": notes_out.stat().st_size,
-            "rendered": True,
-        }
-        transcript_out = out_dir / "transcript.md"
-        transcript_out.write_text(transcript_text, encoding="utf-8")
-        files["transcript_md"] = {
-            "source": str(paths["clean_dialogue_json"]),
-            "path": str(transcript_out),
-            "bytes": transcript_out.stat().st_size,
-            "rendered": True,
-        }
-    else:
-        obsidian = out_dir / f"{sid}.md"
-        write_obsidian_note(
-            obsidian,
-            sid=sid,
-            profile=profile,
-            verdict=verdict,
-            quality=quality,
-            evidence=evidence,
-            review_items=review_items,
-            blockers=blockers,
-            warnings=warnings,
-            notes=notes_text,
-            transcript=transcript_text,
-            quality_text=quality_text,
-        )
-        files["obsidian_note"] = {"path": str(obsidian), "bytes": obsidian.stat().st_size}
+        if args.format == "markdown":
+            source_map["index"] = ("meeting", "index.md")
+        else:
+            source_map["obsidian_note"] = ("meeting", f"{sid}.md")
+        for key, (artifact, filename) in source_map.items():
+            source = handoff_v2.artifact_path(handoff, session, artifact)
+            if source is None or not source.is_file():
+                raise handoff_v2.HandoffError(f"handoff artifact missing: {artifact}")
+            target = staging / filename
+            shutil.copyfile(source, target)
+            files[key] = {
+                **file_identity(target),
+                "source_handoff_artifact": artifact,
+            }
 
-    if args.include_json:
-        for key in (
-            "quality_verdict_json",
-            "evidence_notes_json",
-            "transcript_json",
-            "clean_dialogue_json",
-            "quality_report_json",
-            "review_items_jsonl",
-            "session_readiness_json",
-            "session_quality_json",
-            "outcome_json",
-            "outcome_md",
-            "outcome_review_plan_json",
-            "outcome_next_command_txt",
-            "run_manifest_json",
-        ):
-            if paths[key].exists():
-                files[key] = copy_file(paths[key], out_dir / paths[key].name)
+        if args.include_json:
+            for key, artifact, filename in (
+                ("handoff_manifest_json", None, "handoff_manifest.json"),
+                ("handoff_evidence_json", "handoff_evidence", "handoff_evidence.json"),
+            ):
+                source = (
+                    session / "derived/handoff-v2/handoff_manifest.json"
+                    if artifact is None
+                    else handoff_v2.artifact_path(handoff, session, artifact)
+                )
+                if source is None or not source.is_file():
+                    raise handoff_v2.HandoffError(f"handoff JSON missing: {key}")
+                target = staging / filename
+                shutil.copyfile(source, target)
+                files[key] = {
+                    **file_identity(target),
+                    "source_handoff_artifact": artifact or "manifest",
+                }
 
-    manifest_path = out_dir / "export_manifest.json"
-    if blockers:
-        next_commands = blocked_export_next_commands(session, readiness, outcome, blockers)
-        debug_retention_commands = ready_export_next_commands(session, manifest_path)
-        next_text = first_next(next_commands, blocked_export_next(next_commands))
-    else:
-        next_commands = ready_export_next_commands(session, manifest_path)
-        debug_retention_commands = []
-        next_text = first_next(next_commands, "inspect exported files")
-    export_command_map = export_commands(args, session)
-    manifest = {
-        "schema": SCHEMA_MANIFEST,
-        "generator": {"name": "export-session-bundle", "version": SCRIPT_VERSION},
-        "bundle_quality": EXPORT_BUNDLE_QUALITY,
-        "status": "exported_forced_with_blockers" if blockers else ("exported_with_warnings" if warnings else "exported"),
-        "session_id": sid,
-        "session": str(session),
-        "requested_profile": args.profile,
-        "selected_profile": profile,
-        "format": args.format,
-        "verdict": (verdict or {}).get("verdict"),
-        "use_gate": (quality or {}).get("use_gate"),
-        "blockers": blockers,
-        "warnings": warnings,
-        "readiness": readiness,
-        "outcome": outcome,
-        "files": files,
-        "next": next_text,
-        "next_commands": next_commands,
-        "open_commands": open_commands(files, manifest_path),
-        "export_commands": export_command_map,
-        "debug_retention_commands": debug_retention_commands,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    }
-    write_json(manifest_path, manifest)
+        next_command = f'murmurmark retention plan "sessions/{session.name}"'
+        manifest = {
+            "schema": SCHEMA_MANIFEST,
+            "generator": {"name": "export-session-bundle", "version": SCRIPT_VERSION},
+            "bundle_quality": "handoff_v2",
+            "status": "exported",
+            "session_id": sid,
+            "requested_profile": args.profile,
+            "selected_profile": selected_profile,
+            "format": args.format,
+            "verdict": handoff.get("verdict"),
+            "use_gate": handoff.get("use_gate"),
+            "handoff_state": state,
+            "handoff_fingerprint": fingerprint,
+            "blockers": [],
+            "warnings": warnings,
+            "files": files,
+            "next": next_command,
+            "next_commands": [{"id": "retention_plan", "command": next_command}],
+            "open_commands": [],
+        }
+        atomic_write_json(staging / "export_manifest.json", manifest)
+        publish_directory(staging, destination)
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging)
+    if blocked_path.exists():
+        blocked_path.unlink()
+    manifest_path = destination / "export_manifest.json"
     print_success_export_handoff(manifest, manifest_path)
     return manifest
 

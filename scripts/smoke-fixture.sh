@@ -648,14 +648,14 @@ if blocked_export_output="$("$bin" export "$session" --out-dir "$workdir/blocked
 fi
 assert_no_helper_prefix "$blocked_export_output"
 echo "$blocked_export_output" | grep -q '^export_blocked:$'
-echo "$blocked_export_output" | grep -q 'outcome:partial'
+echo "$blocked_export_output" | grep -q 'handoff_state:review_required'
 blocked_manifest="$workdir/blocked-export/session.export_blocked.json"
 [[ -s "$blocked_manifest" ]]
 jq -e '
-  (.blockers | index("outcome:partial"))
-  and (.blockers | index("outcome_export:blocked_until_review"))
-  and .outcome.outcome == "partial"
-  and (.next_commands[0].command | startswith("murmurmark process "))
+  (.blockers | index("handoff_export_not_allowed"))
+  and (.blockers | index("handoff_state:review_required"))
+  and .handoff_state == "review_required"
+  and (.next_commands[0].command | contains("murmurmark review workspace"))
 ' "$blocked_manifest" >/dev/null
 open_output="$("$bin" open "$session")"
 assert_no_helper_prefix "$open_output"
@@ -1327,15 +1327,19 @@ if "$repo_root/scripts/export-session-bundle.py" "$session" --out-dir "$export_b
   echo "expected export to block incomplete session" >&2
   exit 1
 fi
-grep -q '^next:$' "$export_block_stdout"
-grep -q '^  murmurmark process' "$export_block_stdout"
-grep -q '^  rerun_export: murmurmark export' "$export_block_stdout"
-grep -q '^  debug_force: murmurmark export .* --force' "$export_block_stdout"
+grep -q '^export blocked:' "$export_block_stdout"
+grep -q 'handoff_state:review_required' "$export_block_stdout"
+grep -q 'murmurmark review workspace' "$export_block_stdout"
 [[ -s "$export_block_dir/$(basename "$session").export_blocked.json" ]]
-jq -e '.status == "blocked" and (.blockers | index("pipeline_incomplete")) and (.readiness.export_blockers | index("pipeline_incomplete"))' \
+jq -e '
+  .status == "blocked"
+  and .handoff_state == "review_required"
+  and (.blockers | index("handoff_export_not_allowed"))
+  and (.blockers | index("handoff_state:review_required"))
+' \
   "$export_block_dir/$(basename "$session").export_blocked.json" >/dev/null
-jq -e '.next | contains("murmurmark process")' "$export_block_dir/$(basename "$session").export_blocked.json" >/dev/null
-jq -e '(.next_commands | map(.command | startswith("murmurmark process ")) | any) and (.export_commands.debug_force | contains("--force"))' \
+jq -e '.next | contains("murmurmark review workspace")' "$export_block_dir/$(basename "$session").export_blocked.json" >/dev/null
+jq -e '(.next_commands | map(.command | contains("murmurmark review workspace")) | any)' \
   "$export_block_dir/$(basename "$session").export_blocked.json" >/dev/null
 cli_export_block_dir="$workdir/export-blocked-cli"
 cli_export_block_stdout="$workdir/export_blocked_cli_stdout.txt"
@@ -1344,14 +1348,12 @@ if "$bin" export "$session" --out-dir "$cli_export_block_dir" >"$cli_export_bloc
   exit 1
 fi
 grep -q '^export_blocked:$' "$cli_export_block_stdout"
-grep -q '^  blockers: .*pipeline_incomplete' "$cli_export_block_stdout"
-grep -q '^  recommended_next: murmurmark process ' "$cli_export_block_stdout"
+grep -q '^  blockers: .*handoff_state:review_required' "$cli_export_block_stdout"
+grep -q '^  recommended_next: murmurmark review workspace ' "$cli_export_block_stdout"
 grep -q '^  next:$' "$cli_export_block_stdout"
 grep -q '^    commands:$' "$cli_export_block_stdout"
-grep -q '^      murmurmark process' "$cli_export_block_stdout"
-grep -q '^    rerun_export:$' "$cli_export_block_stdout"
-grep -q '^    debug_force:$' "$cli_export_block_stdout"
-grep -q 'error: export blocked; follow the printed next steps or pass --force for debugging' "$cli_export_block_stdout"
+grep -q '^      murmurmark review workspace' "$cli_export_block_stdout"
+grep -q 'error: export blocked by Evidence Handoff v2' "$cli_export_block_stdout"
 if grep -q '^export blocked:' "$cli_export_block_stdout"; then
   echo "Swift export leaked raw helper output" >&2
   exit 1
@@ -1362,30 +1364,17 @@ if grep -q 'python exited with 2' "$cli_export_block_stdout"; then
 fi
 export_force_dir="$workdir/export-forced"
 export_stdout="$workdir/export_forced_stdout.txt"
-"$bin" export "$session" --force --out-dir "$export_force_dir" --include-json >"$export_stdout"
-[[ -s "$export_force_dir/$(basename "$session")/export_manifest.json" ]]
-rg -n '^export:|manifest:|debug_retention:|retention plan|retention payload' "$export_stdout" >/dev/null
-grep -q '^  recommended_next: murmurmark process ' "$export_stdout"
-grep -q '^  debug_retention:$' "$export_stdout"
-tail -1 "$export_stdout" | grep -q '^next: murmurmark process '
-jq -e '.schema == "murmurmark.export_manifest/v1" and (.status | startswith("exported")) and (.files.transcript_md.path | type == "string")' \
-  "$export_force_dir/$(basename "$session")/export_manifest.json" >/dev/null
-jq -e '.bundle_quality == "v1"' "$export_force_dir/$(basename "$session")/export_manifest.json" >/dev/null
-grep -Fq '## Can I Use This?' "$export_force_dir/$(basename "$session")/index.md"
-grep -q '^## Retention And Privacy$' "$export_force_dir/$(basename "$session")/index.md"
-jq -e '(.next | startswith("murmurmark process ")) and (.next_commands | map(.command | startswith("murmurmark process ")) | any) and (.open_commands | map(.command | startswith("less ")) | any) and (.debug_retention_commands | map(.command | contains("murmurmark retention plan ")) | any) and (.export_commands.rerun | startswith("murmurmark export "))' \
-  "$export_force_dir/$(basename "$session")/export_manifest.json" >/dev/null
-retention_forced_output="$("$bin" retention plan "$session" --export-manifest "$export_force_dir/$(basename "$session")/export_manifest.json")"
-assert_no_helper_prefix "$retention_forced_output"
-echo "$retention_forced_output" | grep -q '^  status: waiting_for_successful_export$'
-echo "$retention_forced_output" | grep -q '^  export_successful: false$'
-echo "$retention_forced_output" | grep -q '^  export_status: exported_forced'
-echo "$retention_forced_output" | grep -q '^  export_reason: export_not_successful$'
-echo "$retention_forced_output" | grep -q '^  recommended_next: murmurmark process '
-echo "$retention_forced_output" | grep -q '^  open:$'
-echo "$retention_forced_output" | grep -q '^    less .*retention_plan.json$'
-echo "$retention_forced_output" | grep -q '^    less .*export_manifest.json$'
-tail -1 <<<"$retention_forced_output" | grep -q '^next: murmurmark process '
+if "$bin" export "$session" --force --out-dir "$export_force_dir" --include-json >"$export_stdout" 2>&1; then
+  echo "expected --force to remain blocked by Evidence Handoff v2" >&2
+  exit 1
+fi
+forced_blocked="$export_force_dir/$(basename "$session").export_blocked.json"
+[[ -s "$forced_blocked" ]]
+jq -e '
+  .status == "blocked"
+  and (.warnings | index("force_cannot_bypass_handoff_v2"))
+  and (.blockers | index("handoff_export_not_allowed"))
+' "$forced_blocked" >/dev/null
 
 ready_export_session="$workdir/export-ready-session"
 mkdir -p \
@@ -1401,6 +1390,21 @@ cat >"$ready_export_session/derived/transcript-simple/whisper-cpp/resolved/trans
 
 Готово.
 EOF
+jq -n '{
+  schema: "murmurmark.clean_dialogue/v1",
+  session: "export-ready-session",
+  utterances: [
+    {
+      id: "utt_ready_001",
+      start: 0.0,
+      end: 1.0,
+      role: "mic",
+      speaker_label: "Me",
+      text: "Готово.",
+      quality: {needs_review: false}
+    }
+  ]
+}' >"$ready_export_session/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.json"
 cat >"$ready_export_session/derived/synthesis-simple/extractive/notes.md" <<'EOF'
 # Extractive Notes
 
@@ -1413,6 +1417,30 @@ Verdict: good.
 EOF
 jq -n '{schema: "murmurmark.quality_verdict/v1", verdict: "good", selected_transcript_profile: "current"}' \
   >"$ready_export_session/derived/synthesis-simple/extractive/quality_verdict.json"
+jq -n '{
+  schema: "murmurmark.evidence_notes/v2",
+  source: {transcript_profile: "current"},
+  selected: {
+    outline_blocks: [
+      {
+        id: "topic_0001",
+        start: 0.0,
+        end: 1.0,
+        keywords: ["готово"],
+        representative_utterance_ids: ["utt_ready_001"],
+        representatives: [
+          {utterance_id: "utt_ready_001", role: "Me", start: 0.0, end: 1.0, text: "Готово."}
+        ]
+      }
+    ],
+    decisions: [],
+    actions: [],
+    risks: [],
+    open_questions: []
+  },
+  review: {items: [], summary: {}}
+}' >"$ready_export_session/derived/synthesis-simple/extractive/evidence_notes.json"
+: >"$ready_export_session/derived/synthesis-simple/extractive/review_items.jsonl"
 cat >"$ready_export_session/derived/readiness/session_readiness.md" <<'EOF'
 # Session Readiness
 
@@ -1420,10 +1448,27 @@ ready_for_notes
 EOF
 jq -n '{
   schema: "murmurmark.session_readiness/v1",
+  selected_profile: "current",
+  verdict: "good",
   use_gate: "ready_for_notes",
+  session_classification: "conversation",
   export_blockers: [],
   review_blockers: [],
   warnings: [],
+  metrics: {
+    review_burden_sec: 0,
+    transcript_review_burden_sec: 0,
+    review_scope_required_rows: 0,
+    review_scope_closed_rows: 0
+  },
+  outputs: {
+    transcript: {path: "derived/transcript-simple/whisper-cpp/resolved/transcript.md", exists: true},
+    clean_dialogue: {path: "derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.json", exists: true},
+    notes: {path: "derived/synthesis-simple/extractive/notes.md", exists: true},
+    quality_verdict: {path: "derived/synthesis-simple/extractive/quality_verdict.md", exists: true},
+    evidence_notes: {path: "derived/synthesis-simple/extractive/evidence_notes.json", exists: true},
+    review_items: {path: "derived/synthesis-simple/extractive/review_items.jsonl", exists: true}
+  },
   next_commands: [
     {id: "finish", label: "Create final handoff.", command: "murmurmark finish SESSION"}
   ]
@@ -1464,13 +1509,19 @@ ready_export_dir="$workdir/export-ready"
 "$repo_root/scripts/export-session-bundle.py" "$ready_export_session" --out-dir "$ready_export_dir" >"$workdir/export_ready_stdout.txt"
 [[ -s "$ready_export_dir/$(basename "$ready_export_session")/export_manifest.json" ]]
 grep -q '^recommended_next: murmurmark retention plan ' "$workdir/export_ready_stdout.txt"
-jq -e '.status == "exported" and (.blockers | length == 0) and (.next | startswith("murmurmark retention plan ")) and (.next_commands | map(.id) == ["retention_plan", "retention_payload"]) and (.open_commands | map(.id) | index("open_manifest")) and (.debug_retention_commands | length == 0)' \
-  "$ready_export_dir/$(basename "$ready_export_session")/export_manifest.json" >/dev/null
-jq -e '.bundle_quality == "v1"' "$ready_export_dir/$(basename "$ready_export_session")/export_manifest.json" >/dev/null
-grep -Fq '## Can I Use This?' "$ready_export_dir/$(basename "$ready_export_session")/index.md"
-grep -q '^## Retention And Privacy$' "$ready_export_dir/$(basename "$ready_export_session")/index.md"
+grep -Eq '^  less .*/export-ready/export-ready-session/index\.md$' "$workdir/export_ready_stdout.txt"
+jq -e '
+  .status == "exported"
+  and (.blockers | length == 0)
+  and (.next | startswith("murmurmark retention plan "))
+  and (.next_commands | map(.id) == ["retention_plan"])
+  and (.open_commands | length == 0)
+  and .bundle_quality == "handoff_v2"
+  and .handoff_state == "ready"
+' "$ready_export_dir/$(basename "$ready_export_session")/export_manifest.json" >/dev/null
+grep -Fq '## Evidence Summary' "$ready_export_dir/$(basename "$ready_export_session")/index.md"
 grep -q '^# Quality Verdict$' "$ready_export_dir/$(basename "$ready_export_session")/quality_verdict.md"
-grep -q '^# Meeting Notes$' "$ready_export_dir/$(basename "$ready_export_session")/notes.md"
+grep -q '^# Evidence Notes$' "$ready_export_dir/$(basename "$ready_export_session")/notes.md"
 grep -q '^# Transcript$' "$ready_export_dir/$(basename "$ready_export_session")/transcript.md"
 ready_next_output="$("$bin" next "$ready_export_session" --export-manifest "$ready_export_dir/$(basename "$ready_export_session")/export_manifest.json")"
 assert_no_helper_prefix "$ready_next_output"
