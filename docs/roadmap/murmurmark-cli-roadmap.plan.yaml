@@ -33,7 +33,7 @@ nodes:
     title: "MurmurMark CLI"
     kind: summary
     status: current
-    effort: 158
+    effort: 166
     notes: |
       Активная CLI-first, local-first и evidence-backed программа. Batch transcript остаётся
       authoritative. В работе одновременно может быть только одна исполнимая продуктовая цель.
@@ -369,13 +369,26 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [product-release-quality-cli, corpus-regression]
+    status: done
+    effort: 8
+    notes: |
+      Завершено. Optional heavy candidates отделены от первого handoff, enrichment ограничен
+      явным бюджетом, resume и safe suggested review проверяются по свежим fingerprints, а
+      terminal review публикуется как bounded manual decisions. Frozen cache/resume corpus проходит
+      3/3 с p90 ratio 0.059041, без dead ends/stale handoffs; SPNE exact reuse проходит 2/2.
+
+  product-authoritative-incremental-asr-v1:
+    title: "Authoritative Incremental ASR v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [product-reliable-final-handoff-v1, corpus-regression]
     status: current
     effort: 8
     notes: |
-      Ограничить путь от первого Ctrl-C до truthful final result, переиспользовать unchanged ASR
-      windows, отделить тяжёлые optional candidates от первого authoritative handoff и запретить
-      blocking review без executable next action. Raw CAF, quality gates и Evidence Handoff v2
-      остаются неизменными.
+      Сократить cold first-pass post-stop latency через exact fail-open reuse completed ASR chunks.
+      Принимать cache только при совпадении canonical PCM, window, model, prompt, language и decode
+      fingerprints; различать cold/cache/live-origin evidence. Provisional live text, raw CAF,
+      primary whisper.cpp, selected transcript и quality gates не меняются.
 
   parallel-research:
     title: "Параллельные исследования"
@@ -391,7 +404,7 @@ nodes:
     title: "Remote Speaker Evidence Map v1"
     kind: task
     parent: murmurmark-cli
-    deps: [quality-operational-rebaseline-v1, corpus-regression, product-reliable-final-handoff-v1]
+    deps: [quality-operational-rebaseline-v1, corpus-regression, product-authoritative-incremental-asr-v1]
     status: next
     effort: 6
     notes: |
@@ -494,9 +507,9 @@ views:
         nodes: [working-capabilities, corpus-regression]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [product-reliable-final-handoff-v1]
+        nodes: [product-authoritative-incremental-asr-v1]
       dependent:
-        title: "После надёжного final handoff"
+        title: "После authoritative ASR latency gate"
         nodes: [research-remote-diarization, parallel-research, parking-lot]
 
   critical-path:
@@ -523,6 +536,7 @@ views:
           - product-evidence-export-v2
           - product-release-quality-cli
           - product-reliable-final-handoff-v1
+          - product-authoritative-incremental-asr-v1
           - research-remote-diarization
 
   parallel-research-view:
@@ -575,6 +589,7 @@ views:
           - product-evidence-export-v2
           - product-release-quality-cli
           - product-reliable-final-handoff-v1
+          - product-authoritative-incremental-asr-v1
           - research-remote-diarization
           - parallel-research
           - parking-lot
@@ -582,8 +597,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Reliable Final Handoff v1: сделать путь `murmurmark meeting -> first Ctrl-C -> final result` ограниченным по времени, возобновляемым и полностью исполнимым: не позволять тяжёлым улучшателям бесконечно задерживать первый authoritative transcript, переиспользовать ASR для неизменившихся окон и исключить блокирующий review без машинно-читаемого следующего действия, сохранив raw CAF, качество и Evidence Handoff v2."
-      success_by_next_sync: "Frozen lifecycle corpus воспроизводимо подтверждает bounded post-stop handoff, exact cache reuse и actionable blockers без регрессии transcript, review evidence или guarded export."
+      nearest_goal: "Authoritative Incremental ASR v1: сократить задержку свежего пути `first Ctrl-C -> authoritative transcript` за счёт точного и fail-open переиспользования ASR-окон, вычисленных во время durable capture или предыдущей прерванной обработки; различать cold/cache/live-origin evidence, принимать кэш только при совпадении PCM, окна, модели, prompt и decode options, не менять raw CAF, основной whisper.cpp, selected transcript или quality gates и завершить corpus-wide PROMOTE/DO_NOT_PROMOTE с измеренным пределом."
+      success_by_next_sync: "Frozen cold/cache/live-origin matrix доказывает exact chunk identity, byte-identical replay, capture-safe fallback и измеренное решение PROMOTE/DO_NOT_PROMOTE."
     defaults:
       status_progress:
         done: 1.0
@@ -597,20 +612,20 @@ x:
     blocks:
       working-now:
         title: "Работает сейчас"
-        scope_nodes: [working-capabilities, corpus-regression, product-one-command-meeting-lifecycle-v1]
+        scope_nodes: [working-capabilities, corpus-regression, product-one-command-meeting-lifecycle-v1, product-reliable-final-handoff-v1]
         kind: main
         mgmt:
           health: green
           sync_note: "Durable capture, one-command lifecycle, batch transcript, review, notes/export и Live Shadow уже работают."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Текущая final handoff цель"
-        scope_nodes: [product-reliable-final-handoff-v1]
+        title: "Текущая authoritative ASR цель"
+        scope_nodes: [product-authoritative-incremental-asr-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Release-quality CLI завершён, но свежие valid sessions показали multi-hour post-stop latency и blocking review без executable next action."
-          next_sync_goal: "Получить bounded, resumable и actionable final handoff без ослабления quality gates."
+          sync_note: "Final handoff теперь bounded и actionable на cache/resume corpus; недоказанный остаток — cold first-pass whisper.cpp latency."
+          next_sync_goal: "Получить exact authoritative chunk reuse и измеренный corpus decision без live-text promotion."
       dependent-path:
         title: "Зависимый путь"
         scope_nodes:
@@ -628,12 +643,13 @@ x:
           - product-evidence-export-v2
           - product-release-quality-cli
           - product-reliable-final-handoff-v1
+          - product-authoritative-incremental-asr-v1
           - research-remote-diarization
         kind: main
         mgmt:
           health: neutral
-          sync_note: "После final-handoff convergence критический путь переходит к anonymous remote speaker evidence."
-          next_sync_goal: "Не начинать diarization и speaker naming до прохождения runtime/actionability gate."
+          sync_note: "После authoritative ASR latency gate критический путь переходит к anonymous remote speaker evidence."
+          next_sync_goal: "Не начинать diarization и speaker naming до решения exact ASR reuse hypothesis."
       research:
         title: "Параллельные исследования"
         scope_nodes: [parallel-research]

@@ -56,11 +56,12 @@ absent-speaker gates. Both experiments stopped before hard-test and left product
 
 Evidence Notes And Export v2 now binds the selected transcript, verdict, review evidence, notes and
 export into one verifiable handoff without depending on profile-specific filenames. Release-quality
-CLI packages that boundary into a supported, deterministic and upgrade-safe local release. The
-current product step is Reliable Final Handoff v1: make post-stop completion bounded, resumable and
-actionable before adding richer remote-speaker semantics.
+CLI packages that boundary into a supported, deterministic and upgrade-safe local release. Reliable
+Final Handoff v1 now makes cached/resumed completion bounded and actionable. The current product
+step is Authoritative Incremental ASR v1: reduce fresh post-stop recognition delay through exact,
+fail-open chunk replay before adding richer remote-speaker semantics.
 
-Remote-speaker diarization follows this reliability gate. It starts with anonymous speaker
+Remote-speaker diarization follows this latency gate. It starts with anonymous speaker
 intervals, then an evidence-backed speaker map and `transcript.rich.json`. It does not wait for
 complete Echo suppression. Names and cross-meeting identity remain later reviewed capabilities.
 

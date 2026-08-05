@@ -81,6 +81,11 @@ authoritative processing continues automatically. A second `Ctrl-C` checkpoints 
 prints an exact `murmurmark meeting --resume SESSION` command. The final summary names the
 transcript, notes, verdict, unresolved review burden, export status and raw preservation result.
 
+The first authoritative handoff no longer waits for optional Neural Echo evaluation. Deferred
+enrichment has an explicit time budget and a machine-readable reason when postponed. `status`
+finishes with `complete`, an executable recovery command, or `human_decision_required` with a
+bounded item count and duration; it must not send the user back into a `status` loop.
+
 Capture runs in a short-lived child process. It exits and releases ScreenCaptureKit/ReplayKit before
 batch processing begins. A new meeting may therefore start while an earlier meeting is still being
 processed in another terminal. Run only one active capture at a time; the recording lock rejects a
@@ -116,7 +121,8 @@ murmurmark finish "$SESSION"
 
 Plain `process` is the authoritative path. `process --full` is a blocking compatibility mode and is
 not used by `meeting`. `--force-asr` and `--allow-partial` are diagnostics only and are never added
-by the meeting supervisor.
+by the meeting supervisor. A repeated `process --skip-build` may reuse a compatible authoritative
+handoff; the flag changes build work, not ASR compatibility.
 
 ## Resource Use
 
@@ -271,36 +277,20 @@ automated regression coverage, fresh permission-capable capture soak and strict 
 all pass. The normal user path is now one command plus `Ctrl-C`; the older commands remain available
 for diagnostics and recovery.
 
-Earlier classical, pretrained DEC and passive-corpus experiments ended safely in `DO_NOT_PROMOTE`
-or `DO_NOT_TRAIN`; their counterexamples established the local-word gates. Controlled Echo
-Supervision Lab v1 then supplied reproducible train/dev/hard evidence with replay `1465/1465`.
+Speaker-Preserving Neural Echo v2 is the guarded production echo profile. Target-Me separation
+experiments that missed locked gates remain isolated. Evidence Handoff v2, guarded export and the
+release-quality CLI are complete; detailed decisions and metrics live in the roadmap and research
+documents.
 
-**Speaker-Preserving Neural Echo v2** is complete with guarded
-`PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2`. Its personalized hybrid selected candidate audio in
-`5/12` sealed corpus sessions, removed `41.940s` and `90` remote-supported tokens, and retained all
-candidate local tokens. The selected clean mic is transcribed directly; post-ASR cleanup received
-zero promotion credit. The remaining `7/12` sessions used exact fallback, including headphones and
-every unsafe or inapplicable case.
+**Reliable Final Handoff v1** is complete. On the frozen three-session cache/resume verification,
+p90 post-stop ratio is `0.059x`; there are no dead-end blockers, stale handoffs or unexplained
+overruns, and exact Speaker-Preserving Neural Echo reuse passes `2/2` applicable sessions. This
+proves bounded recovery and handoff convergence, not cold first-pass whisper.cpp speed.
 
-Reference-Conditioned Target-Me Separation v1 exposed an unidentifiable training set. The following
-Target-Me Identifiability Corpus v1 added `4/2/2` split-disjoint non-target speakers and `980`
-paired enrollment controls with exact replay `2470/2470`. Separation v2 then proved query adherence
-(`4.991 dB` correct-vs-wrong, `0%` collapse), but missed the locked Target-Me, non-target and
-absent-query dev gates. It therefore completed with reproducible `DO_NOT_PROMOTE`; hard and sealed
-data remained unopened and Speaker-Preserving Neural Echo v2 remains production.
-
-**Evidence Notes And Export v2** is complete: its deterministic handoff binds transcript, verdict,
-review burden and evidence notes; 110 corpus sessions have zero integrity, stale-manifest or replay
-failures. Guarded export accepts only `ready` or verified `no_speech`.
-
-**Release-quality CLI** is complete: the versioned archive has a complete SHA-256 inventory,
-compatibility and license contracts, deterministic assembly, transactional install/upgrade and
-isolated offline acceptance through Evidence Handoff v2 and guarded export.
-
-The current goal is **Reliable Final Handoff v1**: make the path from the first `Ctrl-C` to a truthful
-final result bounded, resumable and fully actionable. Heavy optional candidates must not hold the
-first authoritative transcript for hours, and a blocking review state must always expose an
-executable next action or a concrete human decision item.
+The current goal is **Authoritative Incremental ASR v1**: reduce fresh post-stop recognition delay
+without changing the primary whisper.cpp model or accepting provisional live text. Only chunks with
+matching canonical PCM, window, model, prompt and decode fingerprints may be reused; every mismatch
+falls back to ordinary batch ASR.
 
 The stable CLI supports durable capture, resumable processing, guarded profiles, evidence-backed
 review, export and retention. Exact experiment metrics live in the research documents and roadmap.
@@ -311,10 +301,11 @@ The dependent critical path is:
 Meeting Lifecycle -> Echo evidence and controlled lab -> Speaker-Preserving Neural Echo v2 (done)
 -> Reference-Conditioned v1 (done) -> Identifiability Corpus (done)
 -> Target-Me Separation v2 (done) -> Evidence Export v2 (done) -> Release-quality CLI (done)
--> Reliable Final Handoff v1 (current) -> Remote Speaker Evidence Map v1 (next)
+-> Reliable Final Handoff v1 (done) -> Authoritative Incremental ASR v1 (current)
+-> Remote Speaker Evidence Map v1 (next)
 ```
 
-Remote Speaker Evidence Map v1 follows final-handoff convergence. Speaker naming and
+Remote Speaker Evidence Map v1 follows authoritative ASR latency work. Speaker naming and
 `transcript.rich.json` promotion follow the anonymous evidence map. Heavy local validators, LLM
 synthesis and UI remain parallel or parked. Live promotion remains blocked; Live Shadow is advisory
 evidence only.
@@ -322,16 +313,10 @@ evidence only.
 See the [current goal](docs/project/current-goal.md), [readable roadmap](docs/roadmap/murmurmark-cli-roadmap.md)
 and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 
-## Controlled Echo Supervision Lab
-
-The completed private lab remains the frozen enrollment and evaluation source for the personalized
-Echo profile. Ordinary users without it keep the exact safe fallback. Capture, replay and privacy
-instructions live in the [Controlled Echo Supervision Lab runbook](docs/runbooks/controlled-echo-supervision-lab.md).
-
 ## Scope And Limitations
 
 - Current selected transcripts use `Me` and aggregate `Colleagues`; anonymous remote-speaker
-  evidence is the next shadow-only development goal after bounded final handoff.
+  evidence follows the current authoritative ASR latency goal.
 - The personalized pre-ASR profile removes independently supported remote leakage on compatible
   speaker-playback sessions; it does not promise waveform-perfect echo removal on every room/device.
 - Echo Guard records `speaker_playback`, `headphones_or_low_leak` or `uncertain` in
@@ -385,6 +370,8 @@ swift build
 scripts/check-planning-consistency.py
 scripts/check-open-source-readiness.sh
 scripts/check.sh
+
+murmurmark corpus lifecycle all --require-frozen-inputs --require-passing-gates
 ```
 
 The active roadmap uses OpsKarta v3. Validate and render it with the adjacent OpsKarta repository:

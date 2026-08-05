@@ -43,6 +43,7 @@ def session_from(args):
 
 def artifacts(session, ready, auto_rows):
     transcript = session / "derived/transcript-simple/whisper-cpp/resolved/transcript.fixture.md"
+    dialogue = session / "derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.fixture.json"
     notes = session / "derived/synthesis-simple/extractive/notes.fixture.md"
     verdict = session / "derived/synthesis-simple/extractive/quality_verdict.fixture.md"
     transcript.parent.mkdir(parents=True, exist_ok=True)
@@ -50,6 +51,28 @@ def artifacts(session, ready, auto_rows):
     transcript.write_text("# Transcript\n", encoding="utf-8")
     notes.write_text("# Notes\n", encoding="utf-8")
     verdict.write_text("# Verdict\n", encoding="utf-8")
+    write(dialogue, {
+        "schema": "murmurmark.clean_dialogue/v1",
+        "session": str(session),
+        "utterances": [] if ready else [
+            {
+                "id": "utt_fixture_1",
+                "role": "me",
+                "start": 0.25,
+                "end": 1.25,
+                "text": "fixture text must not enter lifecycle events",
+                "quality": {"needs_review": True, "decision_reason": "fixture_review"},
+            },
+            {
+                "id": "utt_fixture_2",
+                "role": "me",
+                "start": 1.25,
+                "end": 2.0,
+                "text": "second private fixture",
+                "quality": {"needs_review": True, "decision_reason": "fixture_review"},
+            },
+        ],
+    })
     metrics = {
         "review_scope_remaining_rows": 0 if ready else 2,
         "transcript_review_burden_sec": 0.0 if ready else 4.5,
@@ -79,6 +102,7 @@ def artifacts(session, ready, auto_rows):
         "metrics": metrics,
         "outputs": {
             "transcript": {"path": str(transcript.relative_to(session)), "exists": True},
+            "clean_dialogue": {"path": str(dialogue.relative_to(session)), "exists": True},
             "notes": {"path": str(notes.relative_to(session)), "exists": True},
             "quality_verdict": {"path": str(verdict.relative_to(session)), "exists": True},
         },
@@ -137,6 +161,9 @@ if command == "process":
 if command == "enrich":
     if scenario == "enrich_failed":
         raise SystemExit(7)
+    if scenario == "enrich_slow":
+        signal.signal(signal.SIGINT, lambda signum, _frame: sys.exit(128 + signum))
+        time.sleep(30)
     if scenario == "mutate_raw":
         with (session / "audio/mic/000001.caf").open("ab") as handle:
             handle.write(b"changed")
@@ -167,11 +194,32 @@ if command == "outcome":
     artifacts(session, ready=applied, auto_rows=auto_rows)
     raise SystemExit(0)
 if command == "review" and "preview" in args:
-    artifacts(session, ready=False, auto_rows=1 if scenario in {"ready", "stale_finish"} else 0)
+    auto_rows = 1 if scenario in {"ready", "stale_finish"} else 0
+    artifacts(session, ready=False, auto_rows=auto_rows)
+    write(
+        session / "derived/readiness/review-plan/review_workspace_apply_report.json",
+        {
+            "schema": "murmurmark.review_workspace_apply_report/v1",
+            "generated_at": str(time.time_ns()),
+            "dry_run": True,
+            "answers_source": "suggested",
+            "suggested_closure": {"closed_by_suggestions": {"rows": auto_rows}},
+        },
+    )
     raise SystemExit(0)
 if command == "review" and "apply" in args:
     (session / "fixture-applied").write_text("yes\n", encoding="utf-8")
     artifacts(session, ready=True, auto_rows=0)
+    write(
+        session / "derived/readiness/review-plan/review_workspace_apply_report.json",
+        {
+            "schema": "murmurmark.review_workspace_apply_report/v1",
+            "generated_at": str(time.time_ns()),
+            "dry_run": False,
+            "answers_source": "suggested",
+            "suggested_closure": {"closed_by_suggestions": {"rows": 1}},
+        },
+    )
     raise SystemExit(0)
 if command == "finish":
     manifest = Path.cwd() / "exports/private" / session.name / "export_manifest.json"
@@ -269,6 +317,7 @@ def write_json(path: Path, payload: dict) -> None:
 
 def seed_processed_artifacts(session: Path, *, deferred_complete: bool = False) -> None:
     transcript = session / "derived/transcript-simple/whisper-cpp/resolved/transcript.fixture.md"
+    dialogue = session / "derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.fixture.json"
     notes = session / "derived/synthesis-simple/extractive/notes.fixture.md"
     verdict = session / "derived/synthesis-simple/extractive/quality_verdict.fixture.md"
     transcript.parent.mkdir(parents=True, exist_ok=True)
@@ -276,6 +325,29 @@ def seed_processed_artifacts(session: Path, *, deferred_complete: bool = False) 
     transcript.write_text("# Transcript\n", encoding="utf-8")
     notes.write_text("# Notes\n", encoding="utf-8")
     verdict.write_text("# Verdict\n", encoding="utf-8")
+    write_json(
+        dialogue,
+        {
+            "schema": "murmurmark.clean_dialogue/v1",
+            "session": str(session),
+            "utterances": [
+                {
+                    "id": "utt_fixture_1",
+                    "role": "me",
+                    "start": 0.25,
+                    "end": 1.25,
+                    "quality": {"needs_review": True, "decision_reason": "fixture_review"},
+                },
+                {
+                    "id": "utt_fixture_2",
+                    "role": "me",
+                    "start": 1.25,
+                    "end": 2.0,
+                    "quality": {"needs_review": True, "decision_reason": "fixture_review"},
+                },
+            ],
+        },
+    )
     metrics = {
         "review_scope_remaining_rows": 2,
         "transcript_review_burden_sec": 4.5,
@@ -307,6 +379,7 @@ def seed_processed_artifacts(session: Path, *, deferred_complete: bool = False) 
             "metrics": metrics,
             "outputs": {
                 "transcript": {"path": str(transcript.relative_to(session)), "exists": True},
+                "clean_dialogue": {"path": str(dialogue.relative_to(session)), "exists": True},
                 "notes": {"path": str(notes.relative_to(session)), "exists": True},
                 "quality_verdict": {"path": str(verdict.relative_to(session)), "exists": True},
             },
@@ -402,6 +475,8 @@ def main() -> None:
         assert ready_state["transition_count"] <= 16
         assert ready_next["schema"] == "murmurmark.meeting_next_action/v1"
         assert ready_next["decision"] == "terminal" and ready_next["action"] == "complete"
+        assert ready_report["next"]["status"] == "complete"
+        assert ready_report["manual_decisions"]["total"] == 0
         assert all(row["schema"] == "murmurmark.meeting_lifecycle_event/v1" for row in ready_events)
         assert {row["event"] for row in ready_events} >= {
             "lifecycle_started",
@@ -411,6 +486,9 @@ def main() -> None:
             "raw_inputs_verified",
             "lifecycle_completed",
         }
+        assert "fixture text must not enter lifecycle events" not in (
+            ready_session / "derived/meeting-lifecycle/events.jsonl"
+        ).read_text(encoding="utf-8")
         for action_state in ready_report["actions"].values():
             command = action_state.get("command")
             if not isinstance(command, list):
@@ -492,6 +570,46 @@ def main() -> None:
         assert review_report["reason"] == "structured_review_gate_remains"
         assert review_report["actions"]["review_suggested_apply"]["status"] == "skipped"
         assert review_report["actions"]["finish"]["status"] == "skipped"
+        assert review_report["manual_decisions"]["total"] == 2
+        assert review_report["next"]["status"] == "human_decision_required"
+        review_next = json.loads(
+            (review_session / "derived/meeting-lifecycle/next_action.json").read_text(encoding="utf-8")
+        )
+        assert review_next["decision"] == "human" and review_next["command"] is None
+        assert all("text" not in item for item in review_report["manual_decisions"]["items"])
+        if cli_value:
+            cli_bin = Path(cli_value).resolve()
+            cli_env = os.environ.copy()
+            cli_env["MURMURMARK_HOME"] = str(ROOT)
+            cli_env["MURMURMARK_PYTHON"] = sys.executable
+            cli_status = subprocess.run(
+                [str(cli_bin), "status", str(review_session)],
+                cwd=root,
+                env=cli_env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+            assert cli_status.returncode == 0, (cli_status.stdout, cli_status.stderr)
+            assert "status: human_decision_required" in cli_status.stdout
+            assert "manual_decisions: 2 items / 4.50s" in cli_status.stdout
+            assert "next: human_decision_required" in cli_status.stdout
+            assert f"next: murmurmark status {review_session}" not in cli_status.stdout
+            cli_next = subprocess.run(
+                [str(cli_bin), "next", str(review_session)],
+                cwd=root,
+                env=cli_env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+            assert cli_next.returncode == 0, (cli_next.stdout, cli_next.stderr)
+            assert "status: human_decision_required" in cli_next.stdout
+            assert "source: meeting_lifecycle" in cli_next.stdout
+            assert "manual_decisions: 2 items / 4.50s" in cli_next.stdout
+            assert "non_actionable_review_blocker" not in cli_next.stdout
 
         warning_session = write_session(root, "warning", warning=True)
         warning_run = run_supervisor(root, warning_session, fake, "review")
@@ -550,6 +668,49 @@ def main() -> None:
         assert optional_report["actions"]["enrich"]["status"] == "failed_soft"
         assert any(item.startswith("enrich:") for item in optional_report["warnings"])
 
+        budget_skip_session = write_session(root, "budget-skip")
+        budget_skip_run = run_supervisor(
+            root,
+            budget_skip_session,
+            fake,
+            "review",
+            "--post-stop-budget-ratio",
+            "0",
+        )
+        assert budget_skip_run.returncode == 0, (
+            budget_skip_run.stdout,
+            budget_skip_run.stderr,
+        )
+        budget_skip_report = report(budget_skip_session)
+        assert budget_skip_report["actions"]["enrich"]["status"] == "deferred_budget_exhausted"
+        assert budget_skip_report["deferred_work"]["status"] == "deferred_budget_exhausted"
+        assert budget_skip_report["deferred_work"]["blocking"] is False
+        assert budget_skip_report["budgets"]["status"] == "enrichment_deferred_budget_exhausted"
+        assert budget_skip_report["raw"]["preserved"] is True
+        assert " enrich " not in f" {(budget_skip_session / 'fake-cli.log').read_text(encoding='utf-8')} "
+
+        budget_timeout_session = write_session(root, "budget-timeout")
+        budget_timeout_run = run_supervisor(
+            root,
+            budget_timeout_session,
+            fake,
+            "enrich_slow",
+            "--post-stop-budget-ratio",
+            "100",
+            "--max-enrichment-budget-sec",
+            "0.2",
+        )
+        assert budget_timeout_run.returncode == 0, (
+            budget_timeout_run.stdout,
+            budget_timeout_run.stderr,
+        )
+        budget_timeout_report = report(budget_timeout_session)
+        assert budget_timeout_report["actions"]["enrich"]["status"] == "deferred_budget_exhausted"
+        assert budget_timeout_report["deferred_work"]["status"] == "deferred_budget_exhausted"
+        assert budget_timeout_report["budgets"]["enrichment_budget_sec"] <= 0.2
+        assert budget_timeout_report["raw"]["preserved"] is True
+        assert "Traceback" not in budget_timeout_run.stderr
+
         stale_finish_session = write_session(root, "stale-finish")
         stale_manifest = root / "exports/private" / stale_finish_session.name / "export_manifest.json"
         write_json(
@@ -576,6 +737,8 @@ def main() -> None:
         assert stale_finish_report["export"]["status"] == "failed"
         assert stale_finish_report["export"]["manifest"] is None
         assert "stale export manifest" in stale_finish_report["actions"]["finish"]["error"]
+        assert stale_finish_report["next"]["status"] == "action_required"
+        assert stale_finish_report["next"]["command"].startswith("murmurmark finish ")
 
         stale_refresh_session = write_session(root, "stale-refresh")
         stale_refresh_run = run_supervisor(root, stale_refresh_session, fake, "stale_refresh")
@@ -630,6 +793,7 @@ def main() -> None:
         assert signal_count.read_text(encoding="utf-8").splitlines() == [str(signal.SIGINT)]
         assert report(interrupted_session)["result"] == "interrupted"
         assert report(interrupted_session)["resume_available"] is True
+        assert report(interrupted_session)["next"]["action"] == "resume"
 
         implicit_resume = run_supervisor(root, interrupted_session, fake, "review")
         assert implicit_resume.returncode == 2
@@ -676,6 +840,66 @@ def main() -> None:
         assert stale_repeat.returncode == 2
         assert report(stale_session)["reason"] == "raw_capture_changed_after_completion"
         assert (stale_session / "fake-cli.log").read_text(encoding="utf-8") == stale_log
+
+        refreshed_session = write_session(root, "refresh-terminal-handoff")
+        refreshed_ready = run_supervisor(root, refreshed_session, fake, "ready")
+        assert refreshed_ready.returncode == 0
+        refreshed_log = (refreshed_session / "fake-cli.log").read_text(encoding="utf-8")
+        artifacts_root = refreshed_session / "derived/transcript-simple/whisper-cpp/resolved"
+        transcript_v2 = artifacts_root / "transcript.fixture_v2.md"
+        dialogue_v2 = artifacts_root / "clean_dialogue.fixture_v2.json"
+        transcript_v2.write_text("# Refreshed transcript\n", encoding="utf-8")
+        write_json(
+            dialogue_v2,
+            {
+                "schema": "murmurmark.clean_dialogue/v1",
+                "session": str(refreshed_session),
+                "utterances": [
+                    {
+                        "id": "utt_late_review",
+                        "role": "me",
+                        "start": 1.0,
+                        "end": 1.5,
+                        "text": "must remain outside lifecycle events",
+                        "quality": {
+                            "needs_review": True,
+                            "decision_reason": "late_review_residual",
+                        },
+                    }
+                ],
+            },
+        )
+        outcome_path = refreshed_session / "derived/outcome/outcome.json"
+        outcome_payload = json.loads(outcome_path.read_text(encoding="utf-8"))
+        outcome_payload["selected_profile"] = "fixture_v2"
+        outcome_payload["summary"]["can_export"] = False
+        outcome_payload["outputs"]["transcript"] = {
+            "path": str(transcript_v2.relative_to(refreshed_session)),
+            "exists": True,
+        }
+        outcome_payload["outputs"]["clean_dialogue"] = {
+            "path": str(dialogue_v2.relative_to(refreshed_session)),
+            "exists": True,
+        }
+        write_json(outcome_path, outcome_payload)
+        readiness_path = refreshed_session / "derived/readiness/session_readiness.json"
+        readiness_payload = json.loads(readiness_path.read_text(encoding="utf-8"))
+        readiness_payload["selected_profile"] = "fixture_v2"
+        readiness_payload["metrics"]["needs_review_count"] = 1
+        readiness_payload["metrics"]["transcript_review_burden_sec"] = 0.5
+        readiness_payload["export_blockers"] = ["full_transcript_review_required"]
+        write_json(readiness_path, readiness_payload)
+        refreshed_repeat = run_supervisor(root, refreshed_session, fake, "ready")
+        assert refreshed_repeat.returncode == 0, (refreshed_repeat.stdout, refreshed_repeat.stderr)
+        refreshed_report = report(refreshed_session)
+        assert refreshed_report["selected_profile"] == "fixture_v2"
+        assert refreshed_report["transcript"].endswith("transcript.fixture_v2.md")
+        assert refreshed_report["manual_decisions"]["total"] == 1
+        assert refreshed_report["next"]["status"] == "human_decision_required"
+        assert (refreshed_session / "fake-cli.log").read_text(encoding="utf-8") == refreshed_log
+        assert "must remain outside lifecycle events" not in (
+            refreshed_session / "derived/meeting-lifecycle/events.jsonl"
+        ).read_text(encoding="utf-8")
 
     print("meeting lifecycle checks passed")
 

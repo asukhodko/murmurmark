@@ -7,6 +7,7 @@ import argparse
 import fcntl
 import hashlib
 import json
+import math
 import os
 import shlex
 import signal
@@ -24,6 +25,8 @@ NEXT_SCHEMA = "murmurmark.meeting_next_action/v1"
 EVENT_SCHEMA = "murmurmark.meeting_lifecycle_event/v1"
 REPORT_SCHEMA = "murmurmark.meeting_lifecycle_report/v1"
 GENERATOR = {"name": "run-meeting-lifecycle", "version": "0.1.0"}
+DEFAULT_POST_STOP_BUDGET_RATIO = 1.0
+DEFAULT_MAX_ENRICHMENT_BUDGET_SEC = 1800.0
 ACTION_ORDER = (
     "capture_validate",
     "inspect",
@@ -35,8 +38,23 @@ ACTION_ORDER = (
     "refresh_after_review",
     "finish",
 )
-TERMINAL_ACTION_STATUSES = {"passed", "skipped", "failed_soft"}
+TERMINAL_ACTION_STATUSES = {
+    "passed",
+    "skipped",
+    "failed_soft",
+    "deferred_budget_exhausted",
+}
 MAX_ACTION_ATTEMPTS = 3
+MAX_MANUAL_DECISION_ITEMS = 100
+REVIEW_APPLY_REPORT_SCHEMA = "murmurmark.review_workspace_apply_report/v1"
+REMEDIATION_PREFIXES = (
+    "murmurmark review ",
+    "murmurmark meeting --resume ",
+    "murmurmark process ",
+    "murmurmark finish ",
+    "murmurmark repair ",
+    "murmurmark cleanup ",
+)
 
 
 class LifecycleError(RuntimeError):
@@ -89,11 +107,7 @@ def append_jsonl(path: Path, payload: dict[str, Any]) -> None:
 
 
 def display_path(path: Path) -> str:
-    absolute = path.resolve()
-    try:
-        return str(absolute.relative_to(Path.cwd().resolve()))
-    except ValueError:
-        return str(absolute)
+    return str(path.resolve())
 
 
 def session_file(session: Path, value: Any) -> Path | None:
@@ -152,6 +166,8 @@ def new_state(
     session: Path,
     record_elapsed_sec: float | None,
     keep_debug_artifacts: bool,
+    post_stop_budget_ratio: float,
+    max_enrichment_budget_sec: float,
 ) -> dict[str, Any]:
     return {
         "schema": STATE_SCHEMA,
@@ -164,6 +180,10 @@ def new_state(
         "capture_elapsed_sec": 0.0,
         "capture_finalize_elapsed_sec": 0.0,
         "keep_debug_artifacts": keep_debug_artifacts,
+        "budget_policy": {
+            "post_stop_budget_ratio": post_stop_budget_ratio,
+            "max_enrichment_budget_sec": max_enrichment_budget_sec,
+        },
         "current_action": None,
         "next_action": "capture_validate",
         "transition_count": 0,
@@ -196,6 +216,13 @@ def ensure_state_shape(state: dict[str, Any], session: Path) -> dict[str, Any]:
     state.setdefault("transition_count", 0)
     state.setdefault("record_command_elapsed_sec", state.get("capture_elapsed_sec", 0.0))
     state.setdefault("capture_finalize_elapsed_sec", 0.0)
+    state.setdefault(
+        "budget_policy",
+        {
+            "post_stop_budget_ratio": DEFAULT_POST_STOP_BUDGET_RATIO,
+            "max_enrichment_budget_sec": DEFAULT_MAX_ENRICHMENT_BUDGET_SEC,
+        },
+    )
     return state
 
 
@@ -271,6 +298,8 @@ class MeetingLifecycle:
         record_elapsed_sec: float | None,
         resume: bool,
         keep_debug_artifacts: bool,
+        post_stop_budget_ratio: float,
+        max_enrichment_budget_sec: float,
     ) -> None:
         self.session = session.resolve()
         self.murmurmark_bin = murmurmark_bin.resolve()
@@ -278,6 +307,9 @@ class MeetingLifecycle:
         self.record_elapsed_sec = record_elapsed_sec
         self.resume = resume
         self.keep_debug_artifacts = keep_debug_artifacts
+        self.post_stop_budget_ratio = post_stop_budget_ratio
+        self.max_enrichment_budget_sec = max_enrichment_budget_sec
+        self.project_home = Path(os.environ.get("MURMURMARK_HOME") or Path.cwd()).resolve()
         self.root = self.session / "derived" / "meeting-lifecycle"
         self.state_path = self.root / "state.json"
         self.next_path = self.root / "next_action.json"
@@ -302,10 +334,17 @@ class MeetingLifecycle:
                     self.session,
                     self.record_elapsed_sec,
                     self.keep_debug_artifacts,
+                    self.post_stop_budget_ratio,
+                    self.max_enrichment_budget_sec,
                 )
+                self.state["project_home"] = str(self.project_home)
                 self.event("lifecycle_started", resume=False)
             else:
+                stored_home = existing.get("project_home")
+                if isinstance(stored_home, str) and stored_home:
+                    self.project_home = Path(stored_home).resolve()
                 self.state = ensure_state_shape(existing, self.session)
+                self.state["project_home"] = str(self.project_home)
                 if self.keep_debug_artifacts:
                     self.state["keep_debug_artifacts"] = True
                     self.state["resume_command"] = resume_command(self.session, True)
@@ -315,6 +354,20 @@ class MeetingLifecycle:
                         raw_preserved, _ = self.verify_raw_preserved(emit_event=False)
                         if not raw_preserved:
                             return self.finish_failed("raw_capture_changed_after_completion")
+                        refreshed = self.build_report(emit_raw_event=False)
+                        if report_freshness_key(refreshed) != report_freshness_key(report):
+                            self.state["status"] = refreshed["result"]
+                            self.state["next_action"] = refreshed["next"]["action"]
+                            self.state["finished_at"] = now_iso()
+                            self.save_state()
+                            self.write_report(refreshed)
+                            self.write_final_next_action(refreshed)
+                            self.event(
+                                "lifecycle_report_refreshed",
+                                result=refreshed["result"],
+                                selected_profile=refreshed.get("selected_profile"),
+                            )
+                            report = refreshed
                         print_summary(report)
                         return 0
                 if self.resume:
@@ -362,6 +415,8 @@ class MeetingLifecycle:
 
             if action == "enrich" and self.deferred_is_complete():
                 return f"skip:{action}", "structured checkpoint proves deferred enrichment is complete"
+            if action == "enrich" and self.enrichment_budget_remaining_sec() <= 0:
+                return f"skip:{action}", "post-stop enrichment budget is exhausted"
             if action == "review_suggested_preview":
                 if self.state["actions"]["refresh_after_enrich"].get("status") != "passed":
                     return f"skip:{action}", "structured refresh after enrichment did not pass"
@@ -418,9 +473,17 @@ class MeetingLifecycle:
         action_state["started_at"] = now_iso()
         action_state["reason"] = reason
         action_state["error"] = None
+        if action == "enrich":
+            action_state["budget_remaining_before_sec"] = rounded(
+                self.enrichment_budget_remaining_sec()
+            )
         if action == "process":
             action_state["pipeline_report_before"] = self.file_identity(self.pipeline_report_path())
             action_state["handoff_runs_before"] = self.file_identity(self.authoritative_handoff_runs_path())
+        elif action in {"review_suggested_preview", "review_suggested_apply"}:
+            action_state["review_apply_report_before"] = self.file_identity(
+                self.review_apply_report_path()
+            )
         elif action in {"refresh_after_enrich", "refresh_after_review"}:
             action_state["outcome_before"] = self.file_identity(self.outcome_path())
             action_state["readiness_before"] = self.file_identity(self.readiness_path())
@@ -442,7 +505,12 @@ class MeetingLifecycle:
                 command = self.command_for(action)
                 if command is None:
                     raise LifecycleError(f"action has no allowlisted command: {action}")
-                return_code, interrupted = self.run_command(command)
+                timeout_sec = (
+                    self.enrichment_budget_remaining_sec() if action == "enrich" else None
+                )
+                return_code, interrupted, timed_out = self.run_command(
+                    command, timeout_sec=timeout_sec
+                )
                 if interrupted:
                     action_state["status"] = "interrupted"
                     action_state["finished_at"] = now_iso()
@@ -450,6 +518,22 @@ class MeetingLifecycle:
                     self.save_state()
                     self.event("action_interrupted", action=action, returncode=return_code)
                     return "interrupted"
+                if timed_out:
+                    duration = rounded(time.monotonic() - started)
+                    action_state["status"] = "deferred_budget_exhausted"
+                    action_state["finished_at"] = now_iso()
+                    action_state["duration_sec"] = duration
+                    action_state["returncode"] = return_code
+                    action_state["error"] = None
+                    action_state["reason"] = "post-stop enrichment budget exhausted during execution"
+                    self.state["current_action"] = None
+                    self.save_state()
+                    self.event(
+                        "action_deferred_budget_exhausted",
+                        action=action,
+                        duration_sec=duration,
+                    )
+                    return "deferred_budget_exhausted"
                 if return_code != 0:
                     raise LifecycleError(f"command exited with {return_code}")
                 self.validate_postcondition(action)
@@ -483,31 +567,65 @@ class MeetingLifecycle:
         self.event("action_passed", action=action, duration_sec=duration)
         return "passed"
 
-    def run_command(self, command: list[str]) -> tuple[int, bool]:
+    def run_command(
+        self, command: list[str], *, timeout_sec: float | None = None
+    ) -> tuple[int, bool, bool]:
         self.state["actions"][self.state["current_action"]]["command"] = command
         self.save_state()
         # Isolate each allowlisted action from the terminal's foreground process group.
         # The supervisor receives Ctrl-C and forwards it exactly once to the action.
         process = subprocess.Popen(command, stdin=subprocess.DEVNULL, start_new_session=True)
         self.interrupts.child = process
+        process_start = time.monotonic()
         interrupted_at: float | None = None
+        timed_out_at: float | None = None
+        graceful_timeout_sent = False
         terminate_sent = False
         kill_sent = False
+        timed_out = False
         try:
             while process.poll() is None:
+                now = time.monotonic()
+                if (
+                    timeout_sec is not None
+                    and timeout_sec > 0
+                    and timed_out_at is None
+                    and now - process_start >= timeout_sec
+                ):
+                    timed_out = True
+                    timed_out_at = now
                 if self.interrupts.requested:
-                    interrupted_at = interrupted_at or time.monotonic()
-                    elapsed = time.monotonic() - interrupted_at
+                    interrupted_at = interrupted_at or now
+                    elapsed = now - interrupted_at
                     if elapsed > 15 and not kill_sent:
-                        process.kill()
+                        self.signal_process_group(process, signal.SIGKILL)
                         kill_sent = True
                     elif elapsed > 10 and not terminate_sent:
-                        process.terminate()
+                        self.signal_process_group(process, signal.SIGTERM)
                         terminate_sent = True
+                elif timed_out_at is not None:
+                    elapsed = now - timed_out_at
+                    if not graceful_timeout_sent:
+                        # SIGINT lets run-session-pipeline persist an interrupted checkpoint.
+                        self.signal_process_group(process, signal.SIGINT)
+                        graceful_timeout_sent = True
+                    elif elapsed > 10 and not terminate_sent:
+                        self.signal_process_group(process, signal.SIGTERM)
+                        terminate_sent = True
+                    elif elapsed > 15 and not kill_sent:
+                        self.signal_process_group(process, signal.SIGKILL)
+                        kill_sent = True
                 time.sleep(0.1)
-            return int(process.returncode or 0), self.interrupts.requested
+            return int(process.returncode or 0), self.interrupts.requested, timed_out
         finally:
             self.interrupts.child = None
+
+    @staticmethod
+    def signal_process_group(process: subprocess.Popen[Any], signum: int) -> None:
+        try:
+            os.killpg(process.pid, signum)
+        except ProcessLookupError:
+            pass
 
     def validate_capture(self) -> None:
         manifest_path = self.session / "session.json"
@@ -584,6 +702,31 @@ class MeetingLifecycle:
         elif action == "enrich":
             if not self.deferred_is_complete():
                 raise LifecycleError("deferred enrichment did not reach a completed checkpoint")
+        elif action in {"review_suggested_preview", "review_suggested_apply"}:
+            report = read_json(self.review_apply_report_path())
+            expected_dry_run = action == "review_suggested_preview"
+            if report is None or report.get("schema") != REVIEW_APPLY_REPORT_SCHEMA:
+                raise LifecycleError("suggested review did not produce a compatible apply report")
+            if report.get("answers_source") != "suggested":
+                raise LifecycleError("suggested review apply report has the wrong answers source")
+            if report.get("dry_run") is not expected_dry_run:
+                raise LifecycleError("suggested review apply report has the wrong dry-run state")
+            action_state = self.state["actions"][action]
+            if not self.file_changed(
+                action_state.get("review_apply_report_before"), self.review_apply_report_path()
+            ):
+                raise LifecycleError("suggested review left a stale apply report unchanged")
+            closure = report.get("suggested_closure")
+            if not isinstance(closure, dict):
+                raise LifecycleError("suggested review apply report has no closure evidence")
+            if action == "review_suggested_apply":
+                closed = (
+                    closure.get("closed_by_suggestions")
+                    if isinstance(closure.get("closed_by_suggestions"), dict)
+                    else {}
+                )
+                if int(closed.get("rows") or 0) <= 0:
+                    raise LifecycleError("suggested review apply closed no safe rows")
         elif action in {"refresh_after_enrich", "refresh_after_review"}:
             outcome = read_json(self.outcome_path())
             readiness = read_json(self.readiness_path())
@@ -664,12 +807,106 @@ class MeetingLifecycle:
 
     def skip_action(self, action: str, reason: str) -> None:
         action_state = self.state["actions"][action]
-        action_state["status"] = "skipped"
+        budget_exhausted = action == "enrich" and "budget" in reason
+        action_state["status"] = (
+            "deferred_budget_exhausted" if budget_exhausted else "skipped"
+        )
         action_state["reason"] = reason
         action_state["finished_at"] = now_iso()
         self.state["transition_count"] = int(self.state.get("transition_count") or 0) + 1
         self.save_state()
-        self.event("action_skipped", action=action, reason=reason)
+        self.event(
+            "action_deferred_budget_exhausted" if budget_exhausted else "action_skipped",
+            action=action,
+            reason=reason,
+        )
+
+    def budget_policy(self) -> tuple[float, float]:
+        policy = self.state.get("budget_policy")
+        if not isinstance(policy, dict):
+            policy = {}
+        ratio = max(
+            0.0,
+            float(policy.get("post_stop_budget_ratio") or 0.0),
+        )
+        maximum = max(
+            0.0,
+            float(policy.get("max_enrichment_budget_sec") or 0.0),
+        )
+        return ratio, maximum
+
+    def required_elapsed_before_enrichment_sec(self) -> float:
+        actions = self.state.get("actions") if isinstance(self.state.get("actions"), dict) else {}
+        elapsed = float(self.state.get("capture_finalize_elapsed_sec") or 0.0)
+        for action in ACTION_ORDER:
+            if action == "enrich":
+                break
+            action_state = actions.get(action) if isinstance(actions.get(action), dict) else {}
+            elapsed += float(action_state.get("duration_sec") or 0.0)
+        return max(0.0, elapsed)
+
+    def enrichment_budget_remaining_sec(self) -> float:
+        ratio, maximum = self.budget_policy()
+        capture = max(0.0, float(self.state.get("capture_elapsed_sec") or 0.0))
+        total_budget = capture * ratio
+        remaining = max(0.0, total_budget - self.required_elapsed_before_enrichment_sec())
+        return min(remaining, maximum)
+
+    def budget_report(self, total_after_stop_sec: float) -> dict[str, Any]:
+        ratio, maximum = self.budget_policy()
+        capture = max(0.0, float(self.state.get("capture_elapsed_sec") or 0.0))
+        total_budget = capture * ratio
+        actions = self.state.get("actions") if isinstance(self.state.get("actions"), dict) else {}
+        enrich = actions.get("enrich") if isinstance(actions.get("enrich"), dict) else {}
+        enrich_status = str(enrich.get("status") or "pending")
+        reason: str | None = None
+        status = "within_budget"
+        if enrich_status == "deferred_budget_exhausted":
+            status = "enrichment_deferred_budget_exhausted"
+            reason = str(enrich.get("reason") or "post-stop enrichment budget exhausted")
+        elif total_budget > 0 and total_after_stop_sec > total_budget:
+            status = "required_work_exceeded_budget"
+            reason = "required authoritative or bounded follow-up work exceeded the post-stop budget"
+        return {
+            "post_stop_budget_ratio": ratio,
+            "post_stop_budget_sec": rounded(total_budget),
+            "max_enrichment_budget_sec": rounded(maximum),
+            "required_before_enrichment_sec": rounded(
+                self.required_elapsed_before_enrichment_sec()
+            ),
+            "enrichment_budget_sec": rounded(
+                float(enrich.get("budget_remaining_before_sec") or 0.0)
+            ),
+            "consumed_after_stop_sec": rounded(total_after_stop_sec),
+            "remaining_after_stop_sec": rounded(max(0.0, total_budget - total_after_stop_sec)),
+            "status": status,
+            "reason": reason,
+        }
+
+    def deferred_work_report(self) -> dict[str, Any]:
+        actions = self.state.get("actions") if isinstance(self.state.get("actions"), dict) else {}
+        enrich = actions.get("enrich") if isinstance(actions.get("enrich"), dict) else {}
+        action_status = str(enrich.get("status") or "pending")
+        reason = str(enrich.get("reason") or "") or None
+        if self.deferred_is_complete() or action_status == "passed":
+            status = "completed"
+            reason = reason or "deferred enrichment completed"
+        elif action_status == "deferred_budget_exhausted":
+            status = "deferred_budget_exhausted"
+            reason = reason or "post-stop enrichment budget exhausted"
+        elif action_status == "failed_soft":
+            status = "failed_soft"
+            reason = str(enrich.get("error") or reason or "optional enrichment failed")
+        elif action_status == "skipped":
+            status = "completed" if "complete" in str(reason or "") else "skipped"
+        else:
+            status = action_status
+        return {
+            "status": status,
+            "reason": reason,
+            "blocking": False,
+            "command": f"murmurmark enrich {shlex.quote(display_path(self.session))}",
+        }
 
     def deferred_is_complete(self) -> bool:
         report = read_json(self.pipeline_report_path())
@@ -693,8 +930,26 @@ class MeetingLifecycle:
     def review_is_required(self) -> bool:
         readiness = read_json(self.readiness_path()) or {}
         gate = str(readiness.get("use_gate") or "")
-        blockers = readiness.get("review_blockers")
-        return gate == "review_first" or gate.endswith("_review_first") or bool(blockers)
+        metrics = readiness.get("metrics") if isinstance(readiness.get("metrics"), dict) else {}
+        blockers = string_list(readiness.get("review_blockers"))
+        export_blockers = string_list(readiness.get("export_blockers"))
+        review_metric_keys = (
+            "needs_review_count",
+            "review_scope_remaining_rows",
+            "transcript_review_burden_sec",
+            "review_scope_remaining_seconds",
+            "suggested_closure_generated_rows",
+            "suggested_closure_actionable_rows",
+            "suggested_closure_auto_rows",
+            "suggested_closure_manual_remaining_rows",
+        )
+        return bool(
+            gate == "review_first"
+            or gate.endswith("_review_first")
+            or blockers
+            or any("review" in blocker for blocker in export_blockers)
+            or any(float(metrics.get(key) or 0.0) > 0 for key in review_metric_keys)
+        )
 
     def safe_suggested_rows(self) -> int:
         readiness = read_json(self.readiness_path()) or {}
@@ -727,8 +982,11 @@ class MeetingLifecycle:
     def outcome_path(self) -> Path:
         return self.session / "derived" / "outcome" / "outcome.json"
 
+    def review_apply_report_path(self) -> Path:
+        return self.session / "derived" / "readiness" / "review-plan" / "review_workspace_apply_report.json"
+
     def export_manifest_path(self) -> Path:
-        return Path.cwd() / "exports" / "private" / self.session.name / "export_manifest.json"
+        return self.project_home / "exports" / "private" / self.session.name / "export_manifest.json"
 
     def output_path(self, outcome: dict[str, Any], key: str) -> Path | None:
         outputs = outcome.get("outputs") if isinstance(outcome.get("outputs"), dict) else {}
@@ -779,6 +1037,7 @@ class MeetingLifecycle:
         self.event("lifecycle_interrupted", signal=self.interrupts.signal_number)
         report = self.build_report(forced_result="interrupted", reason="processing_interrupted")
         self.write_report(report)
+        self.write_final_next_action(report)
         print_summary(report)
         return 130
 
@@ -790,6 +1049,7 @@ class MeetingLifecycle:
         self.event("lifecycle_failed", reason=reason)
         report = self.build_report(forced_result="failed", reason=reason)
         self.write_report(report)
+        self.write_final_next_action(report)
         print_summary(report)
         return 2
 
@@ -797,15 +1057,22 @@ class MeetingLifecycle:
         report = self.build_report()
         self.state["status"] = report["result"]
         self.state["current_action"] = None
-        self.state["next_action"] = "complete"
+        self.state["next_action"] = report["next"]["action"]
         self.state["finished_at"] = now_iso()
         self.save_state()
         self.event("lifecycle_completed", result=report["result"])
         self.write_report(report)
+        self.write_final_next_action(report)
         print_summary(report)
         return 0 if report["result"] in {"ready", "ready_with_review"} else 2
 
-    def build_report(self, forced_result: str | None = None, reason: str | None = None) -> dict[str, Any]:
+    def build_report(
+        self,
+        forced_result: str | None = None,
+        reason: str | None = None,
+        *,
+        emit_raw_event: bool = True,
+    ) -> dict[str, Any]:
         outcome = read_json(self.outcome_path()) or {}
         readiness = read_json(self.readiness_path()) or {}
         metrics = readiness.get("metrics") if isinstance(readiness.get("metrics"), dict) else {}
@@ -813,7 +1080,7 @@ class MeetingLifecycle:
         transcript = self.output_path(outcome, "transcript")
         notes = self.output_path(outcome, "notes")
         verdict_path = self.output_path(outcome, "quality_verdict")
-        raw_preserved, raw_after = self.verify_raw_preserved()
+        raw_preserved, raw_after = self.verify_raw_preserved(emit_event=emit_raw_event)
         export_manifest = read_json(self.export_manifest_path())
         compaction_path = self.session / "derived/retention/derived_compaction.json"
         compaction_manifest = read_json(compaction_path) or {}
@@ -829,10 +1096,15 @@ class MeetingLifecycle:
         )
         actions = self.state.get("actions") if isinstance(self.state.get("actions"), dict) else {}
         finish_state = actions.get("finish") if isinstance(actions.get("finish"), dict) else {}
+        current_profile = str(outcome.get("selected_profile") or readiness.get("selected_profile") or "")
         export_succeeded = bool(
             export_manifest
             and finish_state.get("status") == "passed"
             and export_manifest.get("status") in {"exported", "exported_with_warnings"}
+            and (
+                not current_profile
+                or str(export_manifest.get("selected_profile") or "") == current_profile
+            )
         )
 
         result = forced_result
@@ -861,19 +1133,21 @@ class MeetingLifecycle:
                 else "review_or_export_follow_up_remains"
             )
 
-        unresolved_count = first_number(
+        manual_decisions = self.manual_decision_items(outcome)
+        unresolved_count = max_number(
             metrics,
             "review_scope_remaining_rows",
             "suggested_closure_manual_remaining_rows",
             "needs_review_count",
         )
-        unresolved_seconds = first_number(
+        unresolved_seconds = max_number(
             metrics,
             "transcript_review_burden_sec",
             "review_scope_remaining_seconds",
             "suggested_closure_manual_remaining_seconds",
             "review_burden_sec",
         )
+        unresolved_count = max(int(unresolved_count or 0), int(manual_decisions["total"]))
         action_times = {
             action: rounded(float(value.get("duration_sec") or 0.0))
             for action, value in actions.items()
@@ -883,6 +1157,8 @@ class MeetingLifecycle:
         capture_elapsed = rounded(float(self.state.get("capture_elapsed_sec") or 0.0))
         capture_finalize_elapsed = rounded(float(self.state.get("capture_finalize_elapsed_sec") or 0.0))
         postprocess_elapsed = rounded(capture_finalize_elapsed + supervisor_elapsed)
+        budgets = self.budget_report(postprocess_elapsed)
+        deferred_work = self.deferred_work_report()
         resumable = result == "interrupted" or any(
             action != "capture_validate"
             and isinstance(value, dict)
@@ -893,6 +1169,15 @@ class MeetingLifecycle:
         warnings = list(dict.fromkeys(str(item) for item in self.state.get("warnings", []) if str(item)))
         if not raw_preserved:
             warnings.append("raw capture SHA-256 identities changed")
+
+        next_step = self.final_next_step(
+            result=result,
+            reason=reason,
+            outcome=outcome,
+            readiness=readiness,
+            resume_available=resumable,
+            manual_decisions=manual_decisions,
+        )
 
         return {
             "schema": REPORT_SCHEMA,
@@ -912,6 +1197,10 @@ class MeetingLifecycle:
                 "seconds": rounded(float(unresolved_seconds or 0.0)),
                 "blockers": review_blockers,
             },
+            "manual_decisions": manual_decisions,
+            "budgets": budgets,
+            "deferred_work": deferred_work,
+            "next": next_step,
             "export": {
                 "status": (
                     export_manifest.get("status")
@@ -972,6 +1261,131 @@ class MeetingLifecycle:
             "resume_available": resumable,
         }
 
+    def manual_decision_items(self, outcome: dict[str, Any]) -> dict[str, Any]:
+        clean_dialogue = self.output_path(outcome, "clean_dialogue")
+        payload = read_json(clean_dialogue) if clean_dialogue is not None else None
+        utterances = payload.get("utterances") if isinstance(payload, dict) else []
+        rows: list[dict[str, Any]] = []
+        if isinstance(utterances, list):
+            for utterance in utterances:
+                if not isinstance(utterance, dict):
+                    continue
+                quality = utterance.get("quality") if isinstance(utterance.get("quality"), dict) else {}
+                if quality.get("needs_review") is not True:
+                    continue
+                role = str(utterance.get("role") or "unknown").lower()
+                rows.append(
+                    {
+                        "utterance_id": str(utterance.get("id") or "unknown"),
+                        "role": role,
+                        "start": rounded(float(utterance.get("start") or 0.0)),
+                        "end": rounded(float(utterance.get("end") or utterance.get("start") or 0.0)),
+                        "reason": str(quality.get("decision_reason") or "needs_review"),
+                        "allowed_decisions": (
+                            ["keep_me", "drop_me", "needs_review"]
+                            if role == "me"
+                            else ["keep", "needs_review"]
+                        ),
+                    }
+                )
+        rows.sort(key=lambda row: (row["start"], row["end"], row["utterance_id"]))
+        total = len(rows)
+        return {
+            "schema": "murmurmark.meeting_manual_decisions/v1",
+            "source": display_path(clean_dialogue) if clean_dialogue and clean_dialogue.is_file() else None,
+            "total": total,
+            "listed": min(total, MAX_MANUAL_DECISION_ITEMS),
+            "truncated": total > MAX_MANUAL_DECISION_ITEMS,
+            "items": rows[:MAX_MANUAL_DECISION_ITEMS],
+        }
+
+    def final_next_step(
+        self,
+        *,
+        result: str,
+        reason: str | None,
+        outcome: dict[str, Any],
+        readiness: dict[str, Any],
+        resume_available: bool,
+        manual_decisions: dict[str, Any],
+    ) -> dict[str, Any]:
+        if result == "interrupted" and resume_available:
+            command = resume_command(self.session, bool(self.state.get("keep_debug_artifacts")))
+            return {"status": "action_required", "action": "resume", "command": command, "reason": reason}
+        if result == "failed":
+            command = (
+                resume_command(self.session, bool(self.state.get("keep_debug_artifacts")))
+                if resume_available
+                else None
+            )
+            return {
+                "status": "action_required" if command else "terminal_failure",
+                "action": "resume" if command else "failed",
+                "command": command,
+                "reason": reason,
+            }
+        commands = remediation_commands(readiness, outcome)
+        if commands:
+            return {
+                "status": "action_required",
+                "action": "follow_up",
+                "command": commands[0],
+                "alternatives": commands[1:],
+                "reason": "structured remediation remains",
+            }
+        if int(manual_decisions.get("total") or 0) > 0:
+            return {
+                "status": "human_decision_required",
+                "action": "human_decision",
+                "command": None,
+                "reason": "bounded transcript decisions remain",
+            }
+        summary = outcome.get("summary") if isinstance(outcome.get("summary"), dict) else {}
+        if result == "ready_with_review" and summary.get("can_export") is True:
+            return {
+                "status": "action_required",
+                "action": "finish",
+                "command": f"murmurmark finish {shlex.quote(display_path(self.session))}",
+                "reason": "guarded export remains",
+            }
+        if result == "ready_with_review":
+            return {
+                "status": "blocked_unactionable",
+                "action": "blocked",
+                "command": None,
+                "reason": reason or "blocking follow-up has no executable remediation",
+            }
+        return {
+            "status": "complete",
+            "action": "complete",
+            "command": None,
+            "reason": reason or "no blocking follow-up remains",
+        }
+
+    def write_final_next_action(self, report: dict[str, Any]) -> None:
+        next_step = report.get("next") if isinstance(report.get("next"), dict) else {}
+        command_text = next_step.get("command")
+        command = shlex.split(command_text) if isinstance(command_text, str) and command_text else None
+        decision = {
+            "complete": "terminal",
+            "terminal_failure": "terminal",
+            "human_decision_required": "human",
+        }.get(str(next_step.get("status")), "run")
+        payload = {
+            "schema": NEXT_SCHEMA,
+            "generator": GENERATOR,
+            "generated_at": now_iso(),
+            "session": display_path(self.session),
+            "action": str(next_step.get("action") or "complete"),
+            "decision": decision,
+            "reason": str(next_step.get("reason") or "final lifecycle state"),
+            "allowlisted": True,
+            "command": command,
+        }
+        write_json(self.next_path, payload)
+        self.state["next_action"] = payload["action"]
+        self.save_state()
+
     def verify_raw_preserved(self, *, emit_event: bool = True) -> tuple[bool, list[dict[str, Any]]]:
         manifest = read_json(self.session / "session.json")
         before = self.state.get("raw_inputs")
@@ -989,6 +1403,10 @@ class MeetingLifecycle:
     def write_report(self, report: dict[str, Any]) -> None:
         write_json(self.report_path, report)
         unresolved = report["unresolved_review"]
+        manual = report.get("manual_decisions") if isinstance(report.get("manual_decisions"), dict) else {}
+        budgets = report.get("budgets") if isinstance(report.get("budgets"), dict) else {}
+        deferred = report.get("deferred_work") if isinstance(report.get("deferred_work"), dict) else {}
+        next_step = report.get("next") if isinstance(report.get("next"), dict) else {}
         elapsed = report["elapsed_sec"]
         compaction = report["derived_compaction"]
         lines = [
@@ -1000,6 +1418,11 @@ class MeetingLifecycle:
             f"- Notes: `{report.get('notes') or 'not available'}`",
             f"- Verdict: `{report.get('verdict') or 'unknown'}`",
             f"- Unresolved review: `{unresolved['count']}` items / `{unresolved['seconds']:.3f}s`",
+            f"- Explicit manual decisions: `{int(manual.get('total') or 0)}`",
+            f"- Post-stop budget: `{budgets.get('status') or 'unknown'}` / "
+            f"`{float(budgets.get('post_stop_budget_sec') or 0.0):.3f}s`",
+            f"- Deferred enrichment: `{deferred.get('status') or 'unknown'}`",
+            f"- Next: `{next_step.get('status') or 'unknown'}`",
             f"- Export: `{report['export']['status']}`",
             f"- Derived compaction: `{compaction['status']}` / `{compaction['deleted_bytes']}` bytes",
             f"- Raw preserved: `{str(report['raw']['preserved']).lower()}`",
@@ -1011,27 +1434,88 @@ class MeetingLifecycle:
         ]
         if report.get("reason"):
             lines.append(f"- Reason: `{report['reason']}`")
+        if budgets.get("reason"):
+            lines.append(f"- Budget reason: `{budgets['reason']}`")
+        if deferred.get("reason"):
+            lines.append(f"- Deferred reason: `{deferred['reason']}`")
         if unresolved.get("blockers"):
             lines.append(f"- Review blockers: `{', '.join(unresolved['blockers'])}`")
         if report["export"].get("blockers"):
             lines.append(f"- Export blockers: `{', '.join(report['export']['blockers'])}`")
+        if next_step.get("command"):
+            lines += ["", "Next:", "", f"```bash\n{next_step['command']}\n```"]
+        elif int(manual.get("total") or 0) > 0:
+            lines += ["", "## Manual Decisions", ""]
+            for item in manual.get("items", []):
+                lines.append(
+                    f"- `{item['utterance_id']}` `{item['role']}` "
+                    f"`{item['start']:.3f}..{item['end']:.3f}s`: `{item['reason']}`"
+                )
+            if manual.get("truncated"):
+                lines.append(f"- ... `{int(manual['total']) - int(manual['listed'])}` more in source JSON")
         if report.get("resume_available"):
             lines += ["", "Resume:", "", f"```bash\n{report['resume_command']}\n```"]
         self.report_md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def first_number(payload: dict[str, Any], *keys: str) -> float | int | None:
-    for key in keys:
-        value = payload.get(key)
-        if isinstance(value, (int, float)):
-            return value
-    return None
+def max_number(payload: dict[str, Any], *keys: str) -> float | int | None:
+    values = [payload.get(key) for key in keys]
+    numbers = [value for value in values if isinstance(value, (int, float))]
+    return max(numbers) if numbers else None
 
 
 def string_list(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
     return list(dict.fromkeys(item.strip() for item in value if isinstance(item, str) and item.strip()))
+
+
+def normalized_command_items(payload: dict[str, Any]) -> list[str]:
+    rows: list[str] = []
+    raw = payload.get("next_commands")
+    if isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, str) and item.strip():
+                rows.append(item.strip())
+            elif isinstance(item, dict) and isinstance(item.get("command"), str):
+                command = item["command"].strip()
+                if command:
+                    rows.append(command)
+    recommended = payload.get("recommended_next")
+    if isinstance(recommended, str) and recommended.strip():
+        rows.append(recommended.strip())
+    return rows
+
+
+def remediation_commands(*payloads: dict[str, Any]) -> list[str]:
+    commands: list[str] = []
+    for payload in payloads:
+        for command in normalized_command_items(payload):
+            normalized = " ".join(command.split())
+            if normalized.startswith(REMEDIATION_PREFIXES) and normalized not in commands:
+                commands.append(normalized)
+    return commands
+
+
+def report_freshness_key(report: dict[str, Any]) -> dict[str, Any]:
+    raw = report.get("raw") if isinstance(report.get("raw"), dict) else {}
+    return {
+        "result": report.get("result"),
+        "reason": report.get("reason"),
+        "transcript": report.get("transcript"),
+        "notes": report.get("notes"),
+        "verdict": report.get("verdict"),
+        "verdict_path": report.get("verdict_path"),
+        "selected_profile": report.get("selected_profile"),
+        "unresolved_review": report.get("unresolved_review"),
+        "manual_decisions": report.get("manual_decisions"),
+        "budgets": report.get("budgets"),
+        "deferred_work": report.get("deferred_work"),
+        "next": report.get("next"),
+        "export": report.get("export"),
+        "derived_compaction": report.get("derived_compaction"),
+        "raw_preserved": raw.get("preserved"),
+    }
 
 
 def print_summary(report: dict[str, Any]) -> None:
@@ -1044,6 +1528,8 @@ def print_summary(report: dict[str, Any]) -> None:
         if isinstance(report.get("derived_compaction"), dict)
         else {}
     )
+    budgets = report.get("budgets") if isinstance(report.get("budgets"), dict) else {}
+    deferred = report.get("deferred_work") if isinstance(report.get("deferred_work"), dict) else {}
     print("")
     print(f"SESSION=\"{report.get('session')}\"")
     print("meeting:")
@@ -1052,6 +1538,17 @@ def print_summary(report: dict[str, Any]) -> None:
     print(f"  notes: {report.get('notes') or 'not_available'}")
     print(f"  verdict: {report.get('verdict') or 'unknown'}")
     print(f"  unresolved: {int(unresolved.get('count') or 0)} items / {float(unresolved.get('seconds') or 0.0):.3f}s")
+    manual = report.get("manual_decisions") if isinstance(report.get("manual_decisions"), dict) else {}
+    next_step = report.get("next") if isinstance(report.get("next"), dict) else {}
+    print(f"  manual_decisions: {int(manual.get('total') or 0)}")
+    print(
+        "  post_stop_budget: "
+        f"{budgets.get('status') or 'unknown'} "
+        f"({float(budgets.get('consumed_after_stop_sec') or 0.0):.1f}/"
+        f"{float(budgets.get('post_stop_budget_sec') or 0.0):.1f}s)"
+    )
+    print(f"  deferred_enrichment: {deferred.get('status') or 'unknown'}")
+    print(f"  next: {next_step.get('status') or 'unknown'}")
     print(f"  export: {export.get('status') or 'not_attempted'}")
     print(
         "  derived_compaction: "
@@ -1075,6 +1572,8 @@ def print_summary(report: dict[str, Any]) -> None:
     export_blockers = string_list(export.get("blockers"))
     if export_blockers:
         print(f"  export_blockers: {', '.join(export_blockers)}")
+    if next_step.get("command"):
+        print(f"  next_command: {next_step['command']}")
     if report.get("resume_available"):
         print(f"  resume: {report.get('resume_command')}")
 
@@ -1085,6 +1584,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--murmurmark-bin", type=Path, required=True)
     parser.add_argument("--record-elapsed-sec", "--capture-elapsed-sec", dest="record_elapsed_sec", type=float)
     parser.add_argument("--max-transitions", type=int, default=16)
+    parser.add_argument(
+        "--post-stop-budget-ratio",
+        type=float,
+        default=DEFAULT_POST_STOP_BUDGET_RATIO,
+    )
+    parser.add_argument(
+        "--max-enrichment-budget-sec",
+        type=float,
+        default=DEFAULT_MAX_ENRICHMENT_BUDGET_SEC,
+    )
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--keep-debug-artifacts", action="store_true")
     return parser.parse_args()
@@ -1095,6 +1604,10 @@ def main() -> int:
     try:
         if args.max_transitions < len(ACTION_ORDER):
             raise LifecycleError(f"--max-transitions must be at least {len(ACTION_ORDER)}")
+        if not math.isfinite(args.post_stop_budget_ratio) or args.post_stop_budget_ratio < 0:
+            raise LifecycleError("--post-stop-budget-ratio must be a finite non-negative number")
+        if not math.isfinite(args.max_enrichment_budget_sec) or args.max_enrichment_budget_sec < 0:
+            raise LifecycleError("--max-enrichment-budget-sec must be a finite non-negative number")
         lifecycle = MeetingLifecycle(
             session=args.session,
             murmurmark_bin=args.murmurmark_bin,
@@ -1102,6 +1615,8 @@ def main() -> int:
             record_elapsed_sec=args.record_elapsed_sec,
             resume=args.resume,
             keep_debug_artifacts=args.keep_debug_artifacts,
+            post_stop_budget_ratio=args.post_stop_budget_ratio,
+            max_enrichment_budget_sec=args.max_enrichment_budget_sec,
         )
         return lifecycle.run()
     except LockBusyError as error:

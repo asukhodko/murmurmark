@@ -53,6 +53,7 @@ CRITICAL_PATH = (
     "product-evidence-export-v2",
     "product-release-quality-cli",
     "product-reliable-final-handoff-v1",
+    "product-authoritative-incremental-asr-v1",
     "research-remote-diarization",
 )
 

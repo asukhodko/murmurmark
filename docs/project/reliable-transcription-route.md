@@ -197,8 +197,9 @@ Evidence Notes And Export v2 now binds the selected transcript, verdict, review 
 evidence-backed notes and export readiness in one fingerprinted product boundary. Its 110-session
 corpus has zero referential-integrity, stale-manifest and deterministic-replay failures.
 Release-quality CLI then made this boundary installable, upgrade-safe and verifiable from a
-packaged release. The remaining reliability gap is post-stop convergence: recent valid sessions
-exposed multi-hour processing and a review blocker without an executable next action.
+packaged release. Reliable Final Handoff v1 separated optional work, added bounded resume and made
+terminal review actionable. The remaining reliability gap is cold first-pass ASR latency; cache
+replay is fast, but recent fresh runs spent most post-stop time in baseline whisper.cpp.
 The failed live-recovery profile remains diagnostic evidence rather than another user-facing branch.
 
 ## Route To Reliability
@@ -440,10 +441,10 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Reliable Final Handoff v1: сделать путь `murmurmark meeting -> first Ctrl-C -> final result`
-ограниченным по времени, возобновляемым и полностью исполнимым; переиспользовать неизменившиеся
-ASR-окна, не позволять тяжёлым кандидатам держать первый authoritative transcript и исключить
-блокирующий review без машинно-читаемого следующего действия, не ослабляя quality gates.
+Authoritative Incremental ASR v1: сократить задержку свежего пути
+`first Ctrl-C -> authoritative transcript` через точное fail-open переиспользование завершённых
+ASR-окон. Cache принимается только при совпадении canonical PCM, window, model, prompt, language и
+decode fingerprints; provisional live text не становится authoritative.
 ```
 
 ## Consultation Prompt

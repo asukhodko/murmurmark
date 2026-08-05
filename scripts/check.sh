@@ -67,6 +67,7 @@ MURMURMARK_BIN="$repo_root/.build/debug/murmurmark" \
   "$python_bin" scripts/check-derived-compaction.py
 MURMURMARK_BIN="$repo_root/.build/debug/murmurmark" \
   "$python_bin" scripts/check-meeting-lifecycle.py
+"$python_bin" scripts/check-meeting-lifecycle-corpus.py
 scripts/check-open-source-readiness.sh
 scripts/check-capture-regressions.sh
 scripts/smoke-experimental-sidecar-contract.sh

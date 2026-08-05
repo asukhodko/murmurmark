@@ -1,8 +1,8 @@
 # Meeting Lifecycle Contract
 
-Status: experimental v1
+Status: stable v1
 
-Updated: 2026-07-23
+Updated: 2026-08-06
 
 ## Purpose
 
@@ -96,6 +96,7 @@ output.
 capture_validate
   -> inspect
   -> process
+  -> authoritative handoff
   -> enrich
   -> refresh_after_enrich
   -> review_suggested_preview
@@ -107,8 +108,10 @@ capture_validate
 
 Conditional actions are chosen from structured JSON:
 
+- `process` stops at the first authoritative handoff. Neural Echo synthesis and
+  Speaker-Preserving Neural Echo candidate evaluation belong to deferred enrichment;
 - `enrich` is skipped when the full pipeline report or the authoritative deferred checkpoint proves
-  that the work is complete;
+  that the work is complete, or when the post-stop budget is exhausted;
 - suggested preview is used only for a review gate;
 - suggested apply is used only when `suggested_closure_auto_rows > 0`;
 - `finish` is used only when the outcome explicitly allows export.
@@ -130,6 +133,16 @@ successful manifest therefore cannot hide a newly blocked export.
 Each action runs at most once per invocation. The total transition count is bounded. A failed hard
 action ends the run; optional evidence and guarded export failures preserve the authoritative
 transcript and become warnings or `ready_with_review`.
+
+The default post-stop budget is one recorded-session duration, capped to `1800s` for enrichment.
+It is recorded in lifecycle state and may be changed by the diagnostic supervisor options
+`--post-stop-budget-ratio` and `--max-enrichment-budget-sec`. Budget expiry sends the child a
+graceful interrupt before bounded termination escalation. It never changes or deletes raw capture.
+
+Speaker-Preserving Neural Echo direct ASR is sparse: every unchanged window must be reported as
+`bit_exact_baseline_reuse`, and the set of decoded windows must exactly equal the candidate's changed
+window set. Any mismatch fails the corpus reuse gate. A compatible authoritative handoff is also
+reused when `process --skip-build` is used; skipping the Swift build is not an ASR-cache mismatch.
 
 ## Artifacts
 
@@ -191,12 +204,34 @@ The final report contains:
   elapsed time; `capture` is the recorded duration from `session.json`, while `total-after-stop`
   includes writer/sidecar finalization after `Ctrl-C` and all supervisor actions;
 - warnings, stop reason, resume availability and exact resume command.
+- `budgets`: configured ratio/cap, consumed and remaining time, and a structured terminal status;
+- `deferred_work`: non-blocking command, status and reason for optional work left outside the first
+  handoff;
+- `manual_decisions`: at most 100 bounded items with interval, role, reason and allowed decisions,
+  without transcript text;
+- `next`: `complete`, an allowlisted command, `human_decision_required`, or a hard failure reason.
 
 Reliable Final Handoff v1 adds a stricter convergence invariant to this existing schema. A blocking
 result must expose either an allowlisted executable next action or a bounded manual decision item.
 Stage budgets and deferred-work reasons must be machine-readable; exceeding a budget cannot be
 reported as silent success or leave a stale `running` action. The measured pre-change baseline is in
 `docs/testing/2026-08-05-reliable-final-handoff-baseline.md`.
+
+`murmurmark status SESSION` accepts a lifecycle result only when the report schema is current, raw is
+preserved, the selected profile matches readiness, the selected transcript exists and the report is
+not older than readiness/outcome. A compatible report replaces an opaque status loop with either
+`complete` or `human_decision_required` plus exact item count and seconds.
+
+Corpus evidence is produced with:
+
+```bash
+murmurmark corpus lifecycle all --freeze-inputs
+murmurmark corpus lifecycle all --require-frozen-inputs --require-passing-gates
+```
+
+The report freezes SHA-256 identities for lifecycle, readiness, outcome, review progress,
+authoritative handoff provenance and candidate chunk-reuse evidence. It rejects dead-end blockers,
+stale selected profiles, unexplained overruns and duplicate ASR of unchanged candidate windows.
 
 ## Locking And Signals
 
@@ -226,7 +261,7 @@ coexist, while two concurrent captures remain forbidden.
 
 - `ready`: authoritative transcript exists and guarded export completed.
 - `ready_with_review`: authoritative transcript exists but explicit review or export follow-up
-  remains.
+  remains. It must include an allowlisted remediation command or bounded `manual_decisions`.
 - `failed`: capture is invalid, authoritative processing failed, required outputs are missing or raw
   identities changed.
 - `interrupted`: processing stopped by signal and can be resumed.

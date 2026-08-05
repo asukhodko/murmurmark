@@ -57,7 +57,7 @@ Read in this order:
 
 ## Current Planning Entry Points
 
-Planning snapshot: 2026-08-05. Speaker-Preserving Neural Echo v2 completed with guarded
+Planning snapshot: 2026-08-06. Speaker-Preserving Neural Echo v2 completed with guarded
 `PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2`: the sealed corpus selected candidate audio in `5/12`
 sessions, exact fallback in `7/12`, removed `41.940s` and `90` remote-supported tokens, and retained
 all candidate local tokens. Reference-Conditioned Target-Me Separation v1 then completed with
@@ -70,9 +70,9 @@ missed three immutable dev quality gates and completed with `DO_NOT_PROMOTE`; ha
 remained unopened. Speaker-Preserving Neural Echo v2 remains production. Evidence Notes And Export
 v2 passes its 110-session integrity and deterministic-replay gate. Release-quality CLI now adds
 deterministic archives, complete integrity metadata, transactional install/upgrade and packaged
-offline acceptance. The current goal is Reliable Final Handoff v1: bound post-stop convergence,
-reuse unchanged ASR evidence and eliminate blocking review states without an actionable next step.
-Remote Speaker Evidence Map v1 follows it.
+offline acceptance. Reliable Final Handoff v1 now passes its frozen cache/resume and actionability
+gate. The current goal is Authoritative Incremental ASR v1: reduce cold first-pass latency through
+exact chunk identities and fail-open replay. Remote Speaker Evidence Map v1 follows it.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

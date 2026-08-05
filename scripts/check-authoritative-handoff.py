@@ -140,6 +140,19 @@ def main() -> int:
         assert history[0]["schema"] == MODULE.HANDOFF_RUN_SCHEMA
         assert history[0]["mode"] == "computed"
         assert history[0]["runtime"]["asr_track_workers"] == 2
+        reuse_args = SimpleNamespace(
+            force_asr=False,
+            reuse_asr_cache=False,
+            skip_build=True,
+            skip_preprocess=False,
+            skip_transcription=False,
+            skip_audits=False,
+            skip_stronger_audio_judge=False,
+            skip_cleanup=False,
+            allow_partial=False,
+            plan_only=False,
+        )
+        assert MODULE.default_handoff_reuse_allowed(reuse_args) is True
         assert history[0]["runtime"]["asr_threads"] == 6
 
         before = checkpoint["transcript_fingerprint"]["sha256"]
@@ -261,8 +274,18 @@ def main() -> int:
         neural_baseline = next(
             item for item in pipeline_steps if item["name"] == "synthesize_neural_echo_baseline"
         )
+        neural_selector = next(
+            item for item in pipeline_steps if item["name"] == "speaker_preserving_neural_echo_v2"
+        )
         assert neural_baseline["command"][-2:] == ["--transcript-profile", "shadow_v2"]
         assert neural_baseline["enabled"] is True
+        assert neural_baseline["phase"] == MODULE.DEFERRED_PHASE
+        assert neural_selector["phase"] == MODULE.DEFERRED_PHASE
+        handoff_names = [item["name"] for item in MODULE.steps_for_phase(pipeline_steps, "handoff")]
+        deferred_names = [item["name"] for item in MODULE.steps_for_phase(pipeline_steps, "deferred")]
+        assert "transcribe_current" in handoff_names
+        assert "speaker_preserving_neural_echo_v2" not in handoff_names
+        assert "speaker_preserving_neural_echo_v2" in deferred_names
 
         synthesis_session = Path(raw_root) / "sessions/synthesis-fixture"
         synthesis_resolved = (

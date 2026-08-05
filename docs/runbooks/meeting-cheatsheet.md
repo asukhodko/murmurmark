@@ -1,6 +1,6 @@
 # Meeting Cheat Sheet
 
-Updated: 2026-08-05
+Updated: 2026-08-06
 
 ## Update A Packaged Release
 
@@ -39,6 +39,11 @@ murmurmark meeting --target-bundle system
 
 Stop recording with `Ctrl-C`. Keep the terminal open while processing continues. The final block
 prints the selected transcript and whether manual review remains.
+
+The first authoritative result does not wait for optional Neural Echo enrichment. If its budget is
+exhausted, the summary records `deferred_work` and still returns the baseline result. A terminal
+`human_decision_required` line includes the exact bounded item count and seconds; inspect
+`derived/meeting-lifecycle/report.md` rather than rerunning `status` in a loop.
 
 Run `meeting` as the foreground command by itself. Do not paste the status/transcript command block
 into that terminal while capture or processing is still active: the shell buffers that input and may
@@ -106,3 +111,9 @@ murmurmark finish "$SESSION"
 ```
 
 Do not add `--force-asr`, `--allow-partial` or `--full` to the ordinary path.
+
+For corpus-level lifecycle diagnostics:
+
+```bash
+murmurmark corpus lifecycle all --require-frozen-inputs --require-passing-gates
+```

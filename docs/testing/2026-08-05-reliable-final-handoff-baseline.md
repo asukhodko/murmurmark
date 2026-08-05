@@ -47,3 +47,40 @@ actionability and stale-handoff regression case.
 The implementation must publish a versioned corpus report that reproduces these aggregates from
 frozen report SHA-256 values. Missing or incompatible reports are counted separately, never silently
 dropped. Comparisons must distinguish cold ASR, valid cache replay and changed candidate windows.
+
+## Post-Change Verification
+
+Reliable Final Handoff v1 was verified on the two August 5 outliers plus
+`2026-08-04_15-01-39`. The frozen input fingerprint is
+`16dc6cdfef820c3be70a97cf892c1cd31af3c3bba9c466d6b5b62654afaf2a55`.
+
+| Metric | Value |
+|---|---:|
+| eligible sessions | 3/3 |
+| p50 post-stop time | 143.268s |
+| p90 post-stop time | 163.190s |
+| p90 post-stop/capture ratio | 0.059041 |
+| maximum ratio | 0.060017 |
+| dead-end blockers | 0 |
+| stale handoffs | 0 |
+| unexplained overruns | 0 |
+| applicable exact SPNE reuse | 2/2 passed |
+
+These runs intentionally used valid ASR/processing caches and a zero enrichment budget. They prove
+deterministic resume, first-handoff separation, exact candidate-window reuse, explicit deferred work
+and bounded human-decision output. They do **not** prove cold first-pass ASR latency. That remaining
+ceiling is the input to Authoritative Incremental ASR v1; it must not be hidden by mixing cached and
+cold measurements.
+
+Reproduce the frozen decision:
+
+```bash
+murmurmark corpus lifecycle \
+  sessions/2026-08-04_15-01-39 \
+  sessions/2026-08-05_14-16-08 \
+  sessions/2026-08-05_17-00-29 \
+  --out-dir sessions/_reports/reliable-final-handoff-v1/verification \
+  --require-frozen-inputs \
+  --min-eligible-sessions 3 \
+  --require-passing-gates
+```

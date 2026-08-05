@@ -79,13 +79,15 @@ Current operating point, 2026-08-04:
 - Release-quality CLI packages the proven path with an explicit supported environment,
   deterministic artifact, idempotent transactional install/upgrade and packaged offline
   acceptance;
-- the current goal is Reliable Final Handoff v1: bounded post-stop convergence, sparse cache-aware
-  candidate ASR and an actionable result for every blocking review state;
+- Reliable Final Handoff v1 completes bounded cache/resume convergence, sparse candidate ASR reuse
+  and actionable terminal review;
+- the current goal is Authoritative Incremental ASR v1: exact fail-open reuse of completed chunks
+  to reduce cold first-pass latency without changing whisper.cpp or accepting provisional text;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 
-Reliable Final Handoff v1 is the active critical-path stage after Release-quality CLI. Remote
-Speaker Evidence Map v1 follows it as the next audit-only semantic stage.
+Authoritative Incremental ASR v1 is the active critical-path stage after Reliable Final Handoff v1.
+Remote Speaker Evidence Map v1 follows it as the next audit-only semantic stage.
 The personalized Echo selector activates only with compatible local enrollment and promotion
 evidence; every unsupported acoustic mode or regression uses exact `local_fir_role_masked`.
 Any later separator remains isolated until a corpus-wide decision and cannot use exact remix or

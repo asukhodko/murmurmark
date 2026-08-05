@@ -822,6 +822,7 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
             ],
             enabled=not args.skip_transcription and not args.skip_preprocess,
             reason="--skip-transcription/--skip-preprocess",
+            phase=DEFERRED_PHASE,
         ),
         step(
             "speaker_preserving_neural_echo_v2",
@@ -834,6 +835,7 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
             ],
             enabled=not args.skip_transcription and not args.skip_preprocess,
             reason="--skip-transcription/--skip-preprocess",
+            phase=DEFERRED_PHASE,
         ),
         step(
             "audit_local_recall",
@@ -1531,7 +1533,6 @@ def default_handoff_reuse_allowed(args: argparse.Namespace) -> bool:
         (
             args.force_asr,
             args.reuse_asr_cache,
-            args.skip_build,
             args.skip_preprocess,
             args.skip_transcription,
             args.skip_audits,

@@ -53,10 +53,9 @@ remain, while rebuildable media below `derived/` can be removed through
 
 ## Current Goal
 
-**Reliable Final Handoff v1** is current. It makes the path after the first `Ctrl-C` bounded,
-resumable and actionable. Heavy optional candidates cannot hold the first authoritative transcript
-for hours; unchanged ASR windows are reused; every blocking review state must expose an executable
-next action or a bounded human decision item.
+**Authoritative Incremental ASR v1** is current. It targets the remaining cold first-pass latency
+without changing whisper.cpp or promoting provisional live text. A chunk may enter authoritative
+replay only when canonical PCM, window, model, prompt and decode identities match exactly.
 
 Its prerequisites are complete: One-Command Meeting Lifecycle owns the unattended product path;
 Speaker-Preserving Neural Echo v2 remains the guarded pre-ASR profile; Evidence Notes And Export v2
@@ -80,10 +79,11 @@ flowchart LR
     V["Done: DO_NOT_PROMOTE<br/>Reference-Conditioned<br/>Target-Me Separation v2"]
     H["Done<br/>Evidence Notes And Export v2"]
     D["Done<br/>Release-quality CLI"]
-    F["Current<br/>Reliable Final<br/>Handoff v1"]
+    F["Done<br/>Reliable Final<br/>Handoff v1"]
+    G["Current<br/>Authoritative<br/>Incremental ASR v1"]
     R["Next<br/>Remote Speaker<br/>Evidence Map v1"]
 
-    P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D --> F --> R
+    P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D --> F --> G --> R
 ```
 
 ### 0. Evidence-Backed Me Completion v2
@@ -191,13 +191,20 @@ the external workspace and existing fingerprints.
 
 ### 13. Reliable Final Handoff v1
 
-Current. Bound post-stop convergence, reuse unchanged candidate ASR windows, make configured
-low-priority processing work-conserving after capture, and ensure every blocking state has an
-executable next action. Quality gates, raw CAF and Evidence Handoff v2 remain unchanged. The frozen
-baseline has median post-stop time `1746.216s`, p90 `2982.234s` and two current outliers at `4.545x`
-and `6.383x` capture duration.
+Completed. The first handoff excludes optional heavy candidates, enrichment has a recorded budget,
+safe review uses fresh evidence, interruption has exact resume, and terminal review is a bounded
+decision list. The frozen cache/resume verification passes `3/3` with p90 ratio `0.059041`, no dead
+ends or stale handoffs, and exact candidate-window ASR reuse on `2/2` applicable sessions. Cold
+first-pass ASR remains a separately measured ceiling.
 
-### 14. Remote Speaker Evidence Map v1
+### 14. Authoritative Incremental ASR v1
+
+Current. Freeze cold/cache/live-origin timing separately, define a complete canonical ASR chunk
+identity and reuse only byte-identical completed chunks from durable capture or interrupted runs.
+Fallback batch output, quality gates and raw CAF remain unchanged. The result must be a measured
+`PROMOTE` or `DO_NOT_PROMOTE`, never an approximate text cache.
+
+### 15. Remote Speaker Evidence Map v1
 
 Next. Split the authoritative remote track into stable anonymous speaker intervals, publish a
 shadow rich transcript with full provenance and make a corpus-wide decision. The stage does not
@@ -214,13 +221,14 @@ flowchart LR
     C["Reference-conditioned Target-Me separation v2"]
     R["Release-quality CLI"]
     F["Reliable Final Handoff v1"]
+    A["Authoritative Incremental ASR v1"]
     D["Remote Speaker Evidence Map v1"]
     S["Speaker map"]
     T["transcript.rich.json"]
     V["Heavy local validators"]
     L["Evidence-guarded LLM"]
 
-    Q --> E --> X --> I --> C --> R --> F --> D
+    Q --> E --> X --> I --> C --> R --> F --> A --> D
     D --> S --> T --> L
     Q -.-> V
 ```
@@ -228,8 +236,8 @@ flowchart LR
 Speaker-Preserving Neural Echo v2 remains production. Both Reference-Conditioned Target-Me
 Separation experiments are complete with `DO_NOT_PROMOTE`; v2 showed that paired enrollment is
 identifiable but the small scratch-trained separator is below the waveform-quality ceiling.
-Evidence Notes And Export v2 and Release-quality CLI are complete. Reliable Final Handoff v1 is the
-current product goal; Remote Speaker Evidence Map v1 follows it.
+Evidence Notes And Export v2, Release-quality CLI and Reliable Final Handoff v1 are complete.
+Authoritative Incremental ASR v1 is current; Remote Speaker Evidence Map v1 follows it.
 
 Remote diarization works on authoritative `remote` and does not require complete Echo suppression.
 Its next stage produces anonymous stable speaker IDs and an audit-only rich transcript. Naming,

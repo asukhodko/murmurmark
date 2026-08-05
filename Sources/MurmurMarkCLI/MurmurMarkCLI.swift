@@ -344,6 +344,8 @@ struct MurmurMark {
           murmurmark corpus remote-leak [all|latest|./session...] [--plan] [--sessions-root ./sessions]
           murmurmark corpus echo-supervision build|replay|status [--sessions-root ./sessions]
           murmurmark corpus live [all|latest|./session...] [--refresh] [--target-live-sessions 3] [--sessions-root ./sessions]
+          murmurmark corpus lifecycle [all|latest|./session...] [--freeze-inputs] [--require-passing-gates]
+                                      [--sessions-root ./sessions]
           murmurmark live status [all|latest|./session...] [--refresh] [--sessions-root ./sessions]
           murmurmark live watch SESSION|latest [--poll-sec SEC] [--diagnostic-draft] [--sessions-root ./sessions]
           murmurmark live evidence SESSION|latest [--refresh] [--strict] [--require-causal-recovery]
@@ -1232,6 +1234,7 @@ enum DoctorChecks {
             "scripts/run-session-pipeline.py",
             "scripts/murmurmark_resource_policy.py",
             "scripts/run-meeting-lifecycle.py",
+            "scripts/report-meeting-lifecycle-corpus.py",
             "scripts/evaluate-outcome.py",
             "scripts/live-pipeline-shadow.py",
             "scripts/watch-live-draft.py",
@@ -6704,7 +6707,7 @@ enum CorpusCommands {
             throw CLIError(
                 "corpus requires process, build, evaluate, train-audio-judge, taxonomy, gate, order, " +
                 "local-recall, local-recall-repair, boundary, remote-leak, echo-candidate, " +
-                    "echo-supervision, or report"
+                    "echo-supervision, lifecycle, or report"
             )
         }
         var forwarded = Array(args.dropFirst())
@@ -6924,6 +6927,13 @@ enum CorpusCommands {
                     "--allow-missing-scope",
                 ]
             )
+        case "lifecycle":
+            try Tooling.runPath(
+                try PythonRuntime.resolve(),
+                [try script("report-meeting-lifecycle-corpus.py").path]
+                    + forwarded
+                    + ["--sessions-root", sessionsRoot.path]
+            )
         case "report":
             guard forwarded.isEmpty else { throw CLIError("corpus report does not support extra arguments") }
             try CorpusPrinter.printSessionQuality()
@@ -7060,6 +7070,9 @@ enum CorpusHelp {
                                              [--sessions-root ./sessions]
           murmurmark corpus echo-supervision build|replay|status [--sessions-root ./sessions]
           murmurmark corpus live [all|latest|./session...] [--refresh] [--target-live-sessions 3] [--sessions-root ./sessions]
+          murmurmark corpus lifecycle [all|latest|./session...] [--freeze-inputs]
+                                      [--require-frozen-inputs] [--require-passing-gates]
+                                      [--sessions-root ./sessions]
           murmurmark corpus report
 
         Corpus commands operate on a local regression set and write reports under sessions/_reports/.
@@ -14224,6 +14237,34 @@ enum ReadinessPrinter {
             : nil
         let outcome = compatibleOutcomePayload(session, readinessProfile: profile)
         let outcomeSummary = outcome?["summary"] as? [String: Any]
+        if exportHandoff == nil,
+           let lifecycle = compatibleMeetingLifecyclePayload(session, readinessProfile: profile),
+           let lifecycleNext = lifecycle["next"] as? [String: Any] {
+            let lifecycleStatus = string(lifecycleNext["status"]) ?? "unknown"
+            if lifecycleStatus == "human_decision_required" || lifecycleStatus == "complete" {
+                print("")
+                print("next:")
+                print("  status: \(lifecycleStatus)")
+                print("  source: meeting_lifecycle")
+                print("  gate: \(gate)")
+                print("  selected_profile: \(profile)")
+                print("  verdict: \(verdict)")
+                if lifecycleStatus == "human_decision_required" {
+                    let manual = lifecycle["manual_decisions"] as? [String: Any] ?? [:]
+                    let unresolved = lifecycle["unresolved_review"] as? [String: Any] ?? [:]
+                    let total = int(manual["total"]) ?? 0
+                    let seconds = double(unresolved["seconds"]) ?? 0
+                    print(String(format: "  manual_decisions: %d items / %.2fs", total, seconds))
+                }
+                print(
+                    "  report: "
+                        + PathDisplay.display(
+                            session.appendingPathComponent("derived/meeting-lifecycle/report.md")
+                        )
+                )
+                return
+            }
+        }
         let outcomeCommand = outcome.flatMap { string($0["next_command"]) }
         let evidenceHandoffCommand = EvidenceHandoffState.payload(session).flatMap {
             string($0["recommended_next"])
@@ -14392,11 +14433,32 @@ enum ReadinessPrinter {
         let reviewBlockers = strings(payload["review_blockers"])
         let exportHandoff = successfulExportHandoff(session: session, explicitManifest: nil)
         let outcome = compatibleOutcomePayload(session, readinessProfile: profile)
-        let status = exportHandoff == nil
+        let lifecycle = compatibleMeetingLifecyclePayload(session, readinessProfile: profile)
+        var status = exportHandoff == nil
             ? effectiveStatus(readinessStatus: readinessStatus(gate: gate, payload: payload), outcome: outcome)
             : "exported"
+        let lifecycleNext = lifecycle?["next"] as? [String: Any]
+        let lifecycleNextStatus = string(lifecycleNext?["status"])
+        if exportHandoff == nil {
+            if lifecycleNextStatus == "human_decision_required" {
+                status = "human_decision_required"
+            } else if lifecycleNextStatus == "complete" {
+                status = "ready"
+            }
+        }
         let outcomeCommand = outcome.flatMap { string($0["next_command"]) }
-        let recommendedNext = exportHandoff?.command ?? outcomeCommand ?? string(payload["recommended_next"]) ?? preferredNextCommand(nextCommands)
+        let lifecycleCommand = string(lifecycleNext?["command"])
+        let recommendedNext: String?
+        if let exportHandoff {
+            recommendedNext = exportHandoff.command
+        } else if lifecycleNextStatus == "human_decision_required" {
+            recommendedNext = nil
+        } else {
+            recommendedNext = lifecycleCommand
+                ?? outcomeCommand
+                ?? string(payload["recommended_next"])
+                ?? preferredNextCommand(nextCommands)
+        }
         let reviewSeconds = double(metrics["review_burden_sec"]) ?? 0
         let reviewRatio = (double(metrics["review_burden_ratio"]) ?? 0) * 100
         let transcriptReviewSeconds = double(metrics["transcript_review_burden_sec"]) ?? reviewSeconds
@@ -14455,6 +14517,7 @@ enum ReadinessPrinter {
         printStrongerAudioJudgeSummary(session)
         printSuggestedClosureSummary(session)
         printOutcomeSummary(session, readinessProfile: profile)
+        printMeetingLifecycleSummary(session, payload: lifecycle)
         let canReadOutputs = (outcome?["summary"] as? [String: Any]).flatMap { bool($0["can_read_notes"]) }
             ?? canReadOutputsForStatus(status)
         print("  open:")
@@ -14485,7 +14548,17 @@ enum ReadinessPrinter {
             }
         }
         print("  next:")
-        if displayedNextCommands.isEmpty {
+        if lifecycleNextStatus == "human_decision_required" {
+            let manual = lifecycle?["manual_decisions"] as? [String: Any] ?? [:]
+            let unresolved = lifecycle?["unresolved_review"] as? [String: Any] ?? [:]
+            let total = int(manual["total"]) ?? 0
+            let seconds = double(unresolved["seconds"]) ?? 0
+            print(String(format: "    human_decision_required — %d bounded items / %.2fs", total, seconds))
+            let report = session.appendingPathComponent("derived/meeting-lifecycle/report.md")
+            print("    less \(PathDisplay.display(report)) — Inspect the bounded decision list.")
+        } else if lifecycleNextStatus == "complete" {
+            print("    complete")
+        } else if displayedNextCommands.isEmpty {
             print("    none")
         } else {
             for item in displayedNextCommands {
@@ -15156,6 +15229,31 @@ enum ReadinessPrinter {
                 ?? "murmurmark inspect \(sessionPath)"
         } else if let exportHandoff = successfulExportHandoff(session: session, explicitManifest: nil) {
             command = exportHandoff.command
+        } else if let lifecycle = compatibleMeetingLifecyclePayload(session),
+                  let next = lifecycle["next"] as? [String: Any] {
+            let status = string(next["status"]) ?? "unknown"
+            if status == "human_decision_required" {
+                let manual = lifecycle["manual_decisions"] as? [String: Any] ?? [:]
+                let unresolved = lifecycle["unresolved_review"] as? [String: Any] ?? [:]
+                let total = int(manual["total"]) ?? 0
+                let seconds = double(unresolved["seconds"]) ?? 0
+                print("")
+                print("next: human_decision_required")
+                print(String(format: "  manual_decisions: %d items / %.2fs", total, seconds))
+                print(
+                    "  report: "
+                        + PathDisplay.display(
+                            session.appendingPathComponent("derived/meeting-lifecycle/report.md")
+                        )
+                )
+                return
+            }
+            if status == "complete" {
+                print("")
+                print("next: complete")
+                return
+            }
+            command = string(next["command"]) ?? "murmurmark status \(sessionPath)"
         } else if FileManager.default.fileExists(atPath: url.path) {
             let payload = try JSONFiles.object(url)
             let gate = string(payload["use_gate"]) ?? "unknown"
@@ -15177,6 +15275,87 @@ enum ReadinessPrinter {
         }
         print("")
         print("next: \(command)")
+    }
+
+    private static func compatibleMeetingLifecyclePayload(
+        _ session: URL,
+        readinessProfile explicitReadinessProfile: String? = nil
+    ) -> [String: Any]? {
+        let fileManager = FileManager.default
+        let reportURL = session.appendingPathComponent("derived/meeting-lifecycle/report.json")
+        let readinessURL = session.appendingPathComponent("derived/readiness/session_readiness.json")
+        guard fileManager.fileExists(atPath: reportURL.path),
+              let payload = try? JSONFiles.object(reportURL),
+              string(payload["schema"]) == "murmurmark.meeting_lifecycle_report/v1",
+              let raw = payload["raw"] as? [String: Any],
+              bool(raw["preserved"]) == true
+        else {
+            return nil
+        }
+        let result = string(payload["result"]) ?? ""
+        guard result == "ready" || result == "ready_with_review" else { return nil }
+
+        let readinessProfile: String
+        if let explicitReadinessProfile {
+            readinessProfile = explicitReadinessProfile
+        } else if let readiness = try? JSONFiles.object(readinessURL) {
+            readinessProfile = string(readiness["selected_profile"]) ?? ""
+        } else {
+            readinessProfile = ""
+        }
+        let lifecycleProfile = string(payload["selected_profile"]) ?? ""
+        if !readinessProfile.isEmpty,
+           readinessProfile != "unknown",
+           !lifecycleProfile.isEmpty,
+           readinessProfile != lifecycleProfile {
+            return nil
+        }
+
+        guard let transcriptPath = string(payload["transcript"]), !transcriptPath.isEmpty else {
+            return nil
+        }
+        let transcriptURL = transcriptPath.hasPrefix("/")
+            ? URL(fileURLWithPath: transcriptPath)
+            : session.appendingPathComponent(transcriptPath)
+        guard fileManager.fileExists(atPath: transcriptURL.path) else { return nil }
+
+        let reportDate = modificationDate(reportURL)
+        for dependency in [readinessURL, session.appendingPathComponent("derived/outcome/outcome.json")] {
+            if let reportDate,
+               let dependencyDate = modificationDate(dependency),
+               reportDate < dependencyDate {
+                return nil
+            }
+        }
+        return payload
+    }
+
+    private static func printMeetingLifecycleSummary(
+        _ session: URL,
+        payload: [String: Any]?
+    ) {
+        guard let payload else { return }
+        let next = payload["next"] as? [String: Any] ?? [:]
+        let manual = payload["manual_decisions"] as? [String: Any] ?? [:]
+        let unresolved = payload["unresolved_review"] as? [String: Any] ?? [:]
+        let budgets = payload["budgets"] as? [String: Any] ?? [:]
+        let deferred = payload["deferred_work"] as? [String: Any] ?? [:]
+        print("  meeting_lifecycle:")
+        print("    result: \(string(payload["result"]) ?? "unknown")")
+        print("    next: \(string(next["status"]) ?? "unknown")")
+        let total = int(manual["total"]) ?? 0
+        let seconds = double(unresolved["seconds"]) ?? 0
+        print(String(format: "    manual_decisions: %d items / %.2fs", total, seconds))
+        if let budgetStatus = string(budgets["status"]), !budgetStatus.isEmpty {
+            print("    budget: \(budgetStatus)")
+        }
+        if let deferredStatus = string(deferred["status"]), !deferredStatus.isEmpty {
+            print("    deferred_work: \(deferredStatus)")
+        }
+        print(
+            "    report: "
+                + PathDisplay.display(session.appendingPathComponent("derived/meeting-lifecycle/report.md"))
+        )
     }
 
     static func printOutcome(_ session: URL) throws {

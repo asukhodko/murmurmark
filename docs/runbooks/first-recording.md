@@ -118,6 +118,12 @@ batch pipeline, bounded local enrichment, safe suggested review and guarded fini
 murmurmark meeting --resume sessions/<id>
 ```
 
+The first authoritative handoff excludes optional Neural Echo candidate evaluation. Enrichment is
+bounded by a recorded lifecycle budget and may be deferred without hiding the transcript. Final
+`status` is `complete`, an executable recovery action, or `human_decision_required` with a bounded
+item count and duration. The machine-readable details are in
+`derived/meeting-lifecycle/report.json`; `report.md` is the readable view.
+
 Post-capture work uses the `background` resource profile by default:
 
 - the capture child keeps normal scheduling until both raw tracks are finalized;

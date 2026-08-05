@@ -108,10 +108,11 @@ or resumed independently. `murmurmark process SESSION --full` runs both for comp
 read commands accept the handoff only while its transcript SHA-256, selected profile and readiness
 path still match; a stale or edited result falls back to normal readiness/resume handling.
 
-The current implementation can still run a promoted audio candidate and its ASR before that first
-handoff. Reliable Final Handoff v1 makes this boundary explicit: unchanged windows reuse baseline
-ASR, expensive work has a machine-readable budget/deferred reason, and every blocking result has an
-executable next action or a bounded manual decision item.
+Reliable Final Handoff v1 makes the phase boundary explicit: unchanged candidate windows reuse
+baseline ASR, expensive work has a machine-readable budget/deferred reason, and every terminal
+blocker has an executable next action or a bounded manual decision item. Authoritative Incremental
+ASR v1 extends exact-identity replay to completed baseline chunks from durable-capture or
+interrupted-run provenance; approximate text reuse remains forbidden.
 
 Target full-product path:
 
