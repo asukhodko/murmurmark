@@ -1,0 +1,99 @@
+{
+  "schema": "murmurmark.release_compatibility/v1",
+  "contract_version": 1,
+  "release_version": "0.1.0",
+  "platform": {
+    "os": "macOS",
+    "minimum_version": "15.0",
+    "artifact_architectures": [
+      "arm64"
+    ],
+    "build_toolchain": {
+      "swift": ">=6.0",
+      "swift_tools_version": "6.0"
+    }
+  },
+  "runtime": {
+    "python": {
+      "version": ">=3.12,<3.14",
+      "required_modules": {
+        "numpy": ">=2.0,<3",
+        "scipy": ">=1.13,<2",
+        "soundfile": ">=0.12,<1",
+        "librosa": ">=0.10,<1",
+        "sklearn": ">=1.5,<2"
+      }
+    },
+    "executables": {
+      "ffmpeg": {
+        "required": true,
+        "compatibility": "ffmpeg 7 or newer with PCM WAV/CAF support"
+      },
+      "ffprobe": {
+        "required": true,
+        "compatibility": "same release family as ffmpeg"
+      },
+      "whisper-cli": {
+        "required": true,
+        "compatibility": "whisper.cpp 1.7 or newer with --output-json-full and token timestamps"
+      },
+      "jq": {
+        "required": false,
+        "compatibility": "1.7 or newer; used by operator-facing diagnostics"
+      },
+      "swiftlint": {
+        "required": false,
+        "compatibility": "development checks only"
+      }
+    }
+  },
+  "models": {
+    "whisper_cpp": {
+      "required": true,
+      "default_path": "~/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin",
+      "format": "whisper.cpp ggml multilingual",
+      "tested_name": "ggml-large-v3-q5_0.bin",
+      "tested_size_bytes": 1081140203,
+      "tested_sha256": "d75795ecff3f83b5faa89d1900604ad8c780abd5739fae406de19f23ecd98ad1"
+    },
+    "faster_whisper_large_v3": {
+      "required": false,
+      "default_path": "~/.local/share/murmurmark/models/faster-whisper/large-v3",
+      "fallback": "stronger audio judge is skipped"
+    },
+    "wavlm_base_plus_sv": {
+      "required": false,
+      "default_path": "~/.local/share/murmurmark/models/target-me/wavlm-base-plus-sv",
+      "fallback": "speaker-preserving echo profile uses the exact local FIR fallback"
+    }
+  },
+  "schemas": {
+    "config": {
+      "current": "murmurmark.config/v1",
+      "accepted": [
+        "murmurmark.config/v1"
+      ],
+      "migration": "none"
+    },
+    "session": {
+      "current": "murmurmark.session/v1",
+      "accepted": [
+        "murmurmark.session/v1"
+      ],
+      "migration": "read in place; never rewrite raw capture during install or upgrade"
+    },
+    "evidence_handoff": {
+      "current": "murmurmark.evidence_handoff/v2",
+      "accepted": [
+        "murmurmark.evidence_handoff/v2"
+      ],
+      "migration": "regenerate derived handoff only through the normal pipeline"
+    }
+  },
+  "privacy": {
+    "network_required_for_runtime": false,
+    "models_bundled": false,
+    "user_config_bundled": false,
+    "session_data_bundled": false
+  }
+}

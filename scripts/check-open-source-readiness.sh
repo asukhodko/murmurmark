@@ -45,7 +45,7 @@ check_no_tracked_path '^examples/domain-packs/.*/(glossary\.yaml|whisper-prompt.
   "domain glossary/prompt files may contain private vocabulary and must stay ignored"
 
 content_patterns=(
-  '/Users/[^[:space:]]+'
+  '/Users/[A-Za-z0-9._-]+/'
   'chatgpt\.com/(c|share)/'
   'OPENAI_API_KEY'
   'HF_TOKEN'

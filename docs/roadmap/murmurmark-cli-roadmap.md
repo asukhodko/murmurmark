@@ -53,49 +53,14 @@ remain, while rebuildable media below `derived/` can be removed through
 
 ## Current Goal
 
-**Release-quality CLI** is the current goal: turn the proven pipeline and Evidence Handoff v2 into
-an installable, upgrade-safe release with an explicit environment, dependency/model/config
-contract, packaged end-to-end acceptance and public operational documentation. UI is not required.
+**Remote Speaker Evidence Map v1** is current. It assigns stable anonymous IDs to speech intervals
+on the authoritative remote track and publishes only an audit shadow with provenance. It cannot
+invent names, rewrite selected transcript text or affect Evidence Handoff v2 and guarded export.
 
-**Evidence Notes And Export v2** is complete. Across 110 sessions, all handoff manifests validate;
-referential-integrity, stale-manifest and deterministic-replay failures are zero. Ten sessions are
-directly exportable and all others fail closed as `review_required` or `blocked`.
-
-The prerequisite **Target-Me Identifiability Corpus v1** is complete with
-`READY_FOR_TARGET_CONDITIONED_TRAINING`, fingerprint
-`530cb0fd23503884d438bc24be10fff45610da1fb8fe710aad1b6b6cd992b2ce`. It contains `4/2/2`
-split-disjoint non-target speakers, `1200/300/300s` full mixtures, `490` items, `980` paired
-queries and `11` split-local enrollments. Identity, source, enrollment and render-seed contamination
-are zero; exact replay is `2470/2470` and publication verification is `2504/2504`.
-
-The preceding **Speaker-Preserving Neural Echo v2** goal is complete with
-`PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2`. The sealed twelve-session corpus selected personalized
-candidate audio in `5/12` sessions and exact fallback in `7/12`; it removed `41.940s` and `90`
-remote-supported tokens with candidate local retention `1.0`. Headphones and unsafe or inapplicable
-speaker sessions remain byte-exact `local_fir_role_masked` fallback. Post-ASR cleanup received zero
-promotion credit.
-
-The intervening **Reference-Conditioned Target-Me Separation v1** completed with reproducible
-`DO_NOT_PROMOTE`. Oracle and overfit gates passed, but the best of two deterministic dev attempts
-reached `11.470/12 dB` Target-Me and `7.788/8 dB` echo SNR. The frozen train split also had one
-fixed enrollment and zero independently labelled non-target local-speech rows. Hard-test and sealed
-corpus access remained denied; no production profile changed.
-
-**Reference-Conditioned Target-Me Separation v2** also completed with reproducible
-`DO_NOT_PROMOTE`. The paired-query model proved that the new corpus carries speaker identity:
-correct enrollment beat wrong enrollment by `4.991 dB` with `0%` query collapse. The small
-scratch-trained separator still reached only `4.852/12 dB` Target-Me SNR, `4.107/12 dB` non-target
-SNR and `8.293/15 dB` absent-query attenuation. The immutable dev lock therefore denied hard and
-sealed access; Speaker-Preserving Neural Echo v2 remains production.
-
-**One-Command Meeting Lifecycle v1** is complete. `murmurmark meeting` owns durable capture,
-authoritative processing, evidence enrichment, conservative review and guarded export. It uses
-machine-readable readiness, checkpoints every action and gives a precise resume command after
-interruption. Capture now runs in a short-lived child: ScreenCaptureKit/ReplayKit is gone before
-post-processing, so the next meeting can start while an older one is still being recognized.
-Startup and shutdown are bounded, and a failed startup releases the recording lock. Automated
-checks, real-artifact interrupt/resume, a fresh permission-capable capture soak and strict lifecycle
-acceptance all pass.
+Its prerequisites are complete: One-Command Meeting Lifecycle owns the unattended product path;
+Speaker-Preserving Neural Echo v2 remains the guarded pre-ASR profile; Evidence Notes And Export v2
+passes the 110-session integrity/replay gate; Release-quality CLI provides deterministic archives,
+transactional install/upgrade and packaged offline acceptance.
 
 ## Critical Path
 
@@ -113,9 +78,10 @@ flowchart LR
     I["Done: READY<br/>Target-Me Identifiability<br/>Corpus v1"]
     V["Done: DO_NOT_PROMOTE<br/>Reference-Conditioned<br/>Target-Me Separation v2"]
     H["Done<br/>Evidence Notes And Export v2"]
-    D["Current<br/>Release-quality CLI"]
+    D["Done<br/>Release-quality CLI"]
+    R["Current<br/>Remote Speaker<br/>Evidence Map v1"]
 
-    P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D
+    P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D --> R
 ```
 
 ### 0. Evidence-Backed Me Completion v2
@@ -216,10 +182,16 @@ handoff; `--force` cannot bypass review or integrity gates. The 110-session corp
 
 ### 12. Release-quality CLI
 
-Current. Finalize supported environment, idempotent installation and upgrade, versioned
-dependency/model/config handling, packaged offline acceptance, release artifact/checksum, release
-notes and the public operational contract. Existing session and handoff fingerprints must survive
-upgrade. UI is not required.
+Completed. The versioned archive has a complete SHA-256 inventory, compatibility and license
+contracts, deterministic assembly and transactional install/upgrade with rollback. Packaged offline
+acceptance covers strict doctor, self-test, Evidence Handoff v2 and guarded export while preserving
+the external workspace and existing fingerprints.
+
+### 13. Remote Speaker Evidence Map v1
+
+Current. Split the authoritative remote track into stable anonymous speaker intervals, publish a
+shadow rich transcript with full provenance and make a corpus-wide decision. The stage does not
+invent names, rewrite transcript text or change Evidence Handoff v2 and guarded export.
 
 ## Dependent And Parallel Research
 
@@ -230,25 +202,27 @@ flowchart LR
     X["Reference-conditioned Target-Me separation v1"]
     I["Target-Me identifiability corpus"]
     C["Reference-conditioned Target-Me separation v2"]
-    D["Remote diarization"]
+    R["Release-quality CLI"]
+    D["Remote Speaker Evidence Map v1"]
     S["Speaker map"]
     T["transcript.rich.json"]
     V["Heavy local validators"]
     L["Evidence-guarded LLM"]
 
-    Q --> E --> X --> I --> C
-    Q -.-> D --> S --> T --> L
+    Q --> E --> X --> I --> C --> R --> D
+    D --> S --> T --> L
     Q -.-> V
 ```
 
 Speaker-Preserving Neural Echo v2 remains production. Both Reference-Conditioned Target-Me
 Separation experiments are complete with `DO_NOT_PROMOTE`; v2 showed that paired enrollment is
 identifiable but the small scratch-trained separator is below the waveform-quality ceiling.
-Evidence Notes And Export v2 is complete; Release-quality CLI is now the current product goal.
+Evidence Notes And Export v2 and Release-quality CLI are complete. Remote Speaker Evidence Map v1
+is the current product goal.
 
 Remote diarization works on authoritative `remote` and does not require complete Echo suppression.
-It starts after base quality closure, first produces anonymous stable speaker IDs, then an
-evidence-backed speaker map and rich transcript.
+The current stage produces anonymous stable speaker IDs and an audit-only rich transcript. Naming,
+cross-session speaker mapping and authoritative rich transcript promotion remain later gates.
 
 Heavy local models begin as bounded validators. They do not replace the primary ASR without their
 own corpus gates.

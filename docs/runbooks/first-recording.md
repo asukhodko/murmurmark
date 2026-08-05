@@ -6,7 +6,7 @@ Use this runbook to prove that a fresh machine can record a minimal MurmurMark s
 
 - Xcode command line tools are installed.
 - `ffmpeg`, `ffprobe`, `jq`, `swiftlint` are available in `PATH`.
-- The repository builds with `scripts/check.sh`.
+- A verified release is installed, or the repository builds with `scripts/check.sh` for development.
 - Before changing capture code, run `MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh`.
 
 ## Permission Check
@@ -23,13 +23,21 @@ murmurmark acceptance --skip-release
 murmurmark config print
 ```
 
-To verify the release layout instead of the working checkout:
+To build, install and verify the release layout instead of the working checkout:
 
 ```bash
-scripts/build-release-bundle.sh --verify
+scripts/build-release-bundle.sh --verify --python .venv/bin/python
 BUNDLE="$(find dist/release-bundles -maxdepth 1 -type d -name 'murmurmark-*' | sort | tail -1)"
-MURMURMARK_PYTHON="$PWD/.venv/bin/python" "$BUNDLE/bin/murmurmark" doctor --strict
+"$BUNDLE/install.sh" --python "$PWD/.venv/bin/python"
+
+cd /path/to/murmurmark-workspace
+export MURMURMARK_PYTHON=/absolute/path/to/python3
+murmurmark doctor --strict
+murmurmark self-test
 ```
+
+See [Install And Upgrade](install-and-upgrade.md) for the archive checksum, external workspace and
+transactional upgrade contract.
 
 Expected before permissions are granted:
 

@@ -356,13 +356,13 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [product-evidence-export-v2]
-    status: current
+    status: done
     effort: 7
     notes: |
-      Превратить проверенный локальный pipeline и Evidence Handoff v2 в устанавливаемый,
-      документированный и воспроизводимый CLI-релиз. Зафиксировать supported environment,
-      dependency/model/config compatibility, idempotent install/upgrade, packaged end-to-end
-      acceptance, release artifact/checksum, release notes и публичный operational contract без UI.
+      Завершено. Детерминированный versioned archive содержит полный SHA-256 inventory,
+      compatibility и license contracts. Install/upgrade идемпотентен и транзакционен, failed
+      upgrade сохраняет предыдущую версию. Изолированный offline acceptance проверяет packaged
+      doctor, self-test, Evidence Handoff v2 и guarded export; workspace и session inputs внешние.
 
   parallel-research:
     title: "Параллельные исследования"
@@ -375,13 +375,16 @@ nodes:
       меняют production defaults без собственных corpus gates.
 
   research-remote-diarization:
-    title: "Remote speaker diarization"
+    title: "Remote Speaker Evidence Map v1"
     kind: task
-    parent: parallel-research
-    deps: [quality-operational-rebaseline-v1, corpus-regression]
-    status: idea
+    parent: murmurmark-cli
+    deps: [quality-operational-rebaseline-v1, corpus-regression, product-release-quality-cli]
+    status: current
     effort: 6
-    notes: "Разделить authoritative remote на стабильные anonymous Speaker 1/2/3 intervals."
+    notes: |
+      Разделить authoritative remote на стабильные anonymous speaker intervals и audit-only rich
+      transcript с полной provenance. Не присваивать имена, не менять selected transcript,
+      Evidence Handoff v2 и export до отдельного corpus-wide PROMOTE.
 
   research-speaker-map:
     title: "Speaker map"
@@ -478,9 +481,9 @@ views:
         nodes: [working-capabilities, corpus-regression]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [product-release-quality-cli]
+        nodes: [research-remote-diarization]
       dependent:
-        title: "Только после CLI-релиза"
+        title: "После anonymous speaker evidence"
         nodes: [parallel-research, parking-lot]
 
   critical-path:
@@ -506,6 +509,7 @@ views:
           - research-reference-conditioned-target-me-separation-v2
           - product-evidence-export-v2
           - product-release-quality-cli
+          - research-remote-diarization
 
   parallel-research-view:
     title: "Параллельные исследования"
@@ -556,14 +560,15 @@ views:
           - research-reference-conditioned-target-me-separation-v2
           - product-evidence-export-v2
           - product-release-quality-cli
+          - research-remote-diarization
           - parallel-research
           - parking-lot
 
 x:
   exec:
     program:
-      nearest_goal: "Release-quality CLI: превратить проверенный локальный pipeline и Evidence Handoff v2 в устанавливаемый, документированный и воспроизводимый CLI-релиз; зафиксировать поддерживаемое окружение, зависимости, модели и конфигурацию, добавить clean-install и upgrade acceptance, собрать release artifact и публичный operational contract, подтвердить end-to-end meeting без обязательного UI."
-      success_by_next_sync: "Версионированный release artifact устанавливается и обновляется идемпотентно, проходит doctor/self-test/packaged acceptance офлайн, сохраняет существующие config/session/handoff fingerprints и имеет явный supported-environment и dependency/model contract."
+      nearest_goal: "Remote Speaker Evidence Map v1: разделить authoritative remote-речь на локально вычисленные стабильные анонимные speaker intervals, создать audit-only rich transcript с полной provenance и corpus gates, не присваивая имён и не меняя selected transcript, Evidence Handoff v2 или guarded export до отдельного решения PROMOTE."
+      success_by_next_sync: "Frozen 1x1/group corpus детерминированно получает anonymous remote speaker intervals и shadow rich transcript; выбран PROMOTE или воспроизводимый DO_NOT_PROMOTE без изменения authoritative output."
     defaults:
       status_progress:
         done: 1.0
@@ -584,13 +589,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle, batch transcript, review, notes/export и Live Shadow уже работают."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Текущий release-контракт"
-        scope_nodes: [product-release-quality-cli]
+        title: "Текущая speaker evidence цель"
+        scope_nodes: [research-remote-diarization]
         kind: main
         mgmt:
           health: green
-          sync_note: "Evidence Handoff v2 прошёл 110-session integrity/replay gate; production audio остаётся Speaker-Preserving Neural Echo v2."
-          next_sync_goal: "Проверить install, upgrade и end-to-end flow на packaged CLI artifact, а не только из checkout."
+          sync_note: "Release-quality CLI завершён; aggregate Colleagues остаётся крупнейшим явным ограничением групповых встреч."
+          next_sync_goal: "Получить anonymous remote speaker map и corpus decision без изменения selected transcript."
       dependent-path:
         title: "Зависимый путь"
         scope_nodes:
@@ -607,19 +612,20 @@ x:
           - research-reference-conditioned-target-me-separation-v2
           - product-evidence-export-v2
           - product-release-quality-cli
+          - research-remote-diarization
         kind: main
         mgmt:
           health: neutral
-          sync_note: "Audio и evidence/export decisions закрыты; критический путь дошёл до release-quality CLI."
-          next_sync_goal: "Не добавлять новые profile-specific user steps; packaged meeting/finish должны сохранять Evidence Handoff v2."
+          sync_note: "Audio, evidence/export и release decisions закрыты; критический путь дошёл до anonymous remote speaker evidence."
+          next_sync_goal: "Не вводить speaker names или rich transcript promotion до отдельного corpus gate."
       research:
         title: "Параллельные исследования"
         scope_nodes: [parallel-research]
         kind: context
         mgmt:
           health: neutral
-          sync_note: "Diarization и validators могут собирать isolated evidence, не меняя production."
-          next_sync_goal: "Не смешивать remote diarization с текущим Target-Me supervision corpus."
+          sync_note: "Speaker naming, validators и synthesis остаются зависимыми или параллельными исследованиями."
+          next_sync_goal: "Не смешивать anonymous remote diarization с Target-Me supervision corpus."
       parked:
         title: "Parking lot"
         scope_nodes: [parking-lot]

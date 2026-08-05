@@ -398,8 +398,17 @@ if [[ ! -f "$repo_root/Sources/MurmurMarkCLI/MurmurMarkCLI.swift" ]]; then
   trap 'rm -rf "$workdir"' EXIT
   config_path="$workdir/murmurmark.config.json"
   murmurmark_bin="${MURMURMARK_BIN:-murmurmark}"
+  bundle_python="${verify_python:-$(command -v python3 || true)}"
+  [[ -n "$bundle_python" && -x "$bundle_python" ]] || {
+    echo "error: Python 3 is required to verify the release bundle" >&2
+    exit 1
+  }
 
   echo "acceptance_cli_mvp:"
+  "$bundle_python" "$repo_root/scripts/release-bundle.py" verify "$repo_root" >/dev/null
+  echo "  release_integrity: ok"
+  checks+=("release_integrity:passed")
+
   "$murmurmark_bin" doctor --strict >/dev/null
   echo "  doctor: ok"
   checks+=("doctor:passed")
@@ -469,12 +478,12 @@ echo "  open_source_readiness: ok"
 checks+=("open_source_readiness:passed")
 
 if [[ "$release_verify" == "1" ]]; then
-  release_args=(--verify)
+  release_args=(--no-build --report "$workdir/release-quality-acceptance.json")
   if [[ -n "$verify_python" ]]; then
     release_args+=(--python "$verify_python")
   fi
-  "$repo_root/scripts/build-release-bundle.sh" "${release_args[@]}" >/dev/null
-  echo "  release_bundle: ok"
+  "$repo_root/scripts/acceptance-release-quality.sh" "${release_args[@]}" >/dev/null
+  echo "  release_bundle: verified_install_upgrade"
   checks+=("release_bundle:passed")
 else
   echo "  release_bundle: skipped"

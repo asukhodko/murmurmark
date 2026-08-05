@@ -50,17 +50,24 @@ fi
 
 bin_dir="$prefix/bin"
 wrapper="$bin_dir/murmurmark"
+wrapper_next="$bin_dir/.murmurmark-next-$$"
 mkdir -p "$bin_dir"
 printf -v quoted_repo_root '%q' "$repo_root"
 
-cat > "$wrapper" <<EOF
+cleanup() {
+  rm -f "$wrapper_next"
+}
+trap cleanup EXIT
+
+cat > "$wrapper_next" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
 export MURMURMARK_HOME=$quoted_repo_root
 exec "\$MURMURMARK_HOME/.build/release/murmurmark" "\$@"
 EOF
 
-chmod +x "$wrapper"
+chmod +x "$wrapper_next"
+mv -f "$wrapper_next" "$wrapper"
 
 echo "installed: $wrapper"
 echo "home: $repo_root"

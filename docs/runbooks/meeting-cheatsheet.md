@@ -1,8 +1,23 @@
 # Meeting Cheat Sheet
 
-Updated: 2026-07-23
+Updated: 2026-08-05
 
-## Update
+## Update A Packaged Release
+
+```bash
+shasum -a 256 -c murmurmark-<version>-<commit>.tar.gz.sha256
+tar -xzf murmurmark-<version>-<commit>.tar.gz
+cd murmurmark-<version>-<commit>
+./install.sh --python /absolute/path/to/python3
+export PATH="$HOME/.local/bin:$PATH"
+
+cd "$HOME/murmurmark-workspace"
+export MURMURMARK_PYTHON=/absolute/path/to/python3
+murmurmark doctor --strict
+murmurmark self-test
+```
+
+## Update A Developer Checkout
 
 ```bash
 cd murmurmark

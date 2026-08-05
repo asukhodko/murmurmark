@@ -61,6 +61,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-mixed-utterance-separation.py
 "$python_bin" scripts/check-experiment-compare-timeout.py
 "$python_bin" scripts/check-planning-consistency.py
+"$python_bin" scripts/check-release-quality.py
 MURMURMARK_BIN="$repo_root/.build/debug/murmurmark" \
   "$python_bin" scripts/check-derived-compaction.py
 MURMURMARK_BIN="$repo_root/.build/debug/murmurmark" \
@@ -106,11 +107,17 @@ else
     and any(.manual_gates[]; .name == "live_recording" and .status == "manual")
   ' "$acceptance_report" >/dev/null
 
-  mkdir -p "$release_acceptance_root/scripts"
-  cp scripts/acceptance-cli-mvp.sh "$release_acceptance_root/scripts/acceptance-cli-mvp.sh"
+  release_bundle_out="$release_acceptance_root/bundles"
+  scripts/build-release-bundle.sh \
+    --out-dir "$release_bundle_out" \
+    --no-archive \
+    --python "$python_bin" >/dev/null
+  release_bundle_root="$(find "$release_bundle_out" -mindepth 1 -maxdepth 1 -type d -name 'murmurmark-*' -print -quit)"
+  [[ -n "$release_bundle_root" ]]
   release_acceptance_output="$(
-    MURMURMARK_BIN="$repo_root/.build/debug/murmurmark" \
-      "$release_acceptance_root/scripts/acceptance-cli-mvp.sh" \
+    MURMURMARK_BIN="$release_bundle_root/bin/murmurmark" \
+    MURMURMARK_PYTHON="$python_bin" \
+      "$release_bundle_root/scripts/acceptance-cli-mvp.sh" \
       --skip-release \
       --report "$release_acceptance_report"
   )"

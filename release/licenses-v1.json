@@ -1,0 +1,82 @@
+{
+  "schema": "murmurmark.release_license_inventory/v1",
+  "redistributed": [
+    {
+      "name": "MurmurMark",
+      "license": "MIT",
+      "license_file": "LICENSE"
+    }
+  ],
+  "external_runtime": [
+    {
+      "name": "FFmpeg",
+      "license": "LGPL-2.1-or-later or GPL, depending on the installed build",
+      "bundled": false,
+      "source": "https://ffmpeg.org/legal.html"
+    },
+    {
+      "name": "whisper.cpp",
+      "license": "MIT",
+      "bundled": false,
+      "source": "https://github.com/ggml-org/whisper.cpp"
+    },
+    {
+      "name": "NumPy",
+      "license": "BSD-3-Clause",
+      "bundled": false,
+      "source": "https://numpy.org"
+    },
+    {
+      "name": "SciPy",
+      "license": "BSD-3-Clause",
+      "bundled": false,
+      "source": "https://scipy.org"
+    },
+    {
+      "name": "SoundFile",
+      "license": "BSD-3-Clause",
+      "bundled": false,
+      "source": "https://github.com/bastibe/python-soundfile"
+    },
+    {
+      "name": "librosa",
+      "license": "ISC",
+      "bundled": false,
+      "source": "https://librosa.org"
+    },
+    {
+      "name": "scikit-learn",
+      "license": "BSD-3-Clause",
+      "bundled": false,
+      "source": "https://scikit-learn.org"
+    }
+  ],
+  "optional_external_runtime": [
+    {
+      "name": "faster-whisper",
+      "license": "MIT",
+      "bundled": false
+    },
+    {
+      "name": "CTranslate2",
+      "license": "MIT",
+      "bundled": false
+    },
+    {
+      "name": "Resemblyzer",
+      "license": "Apache-2.0",
+      "bundled": false
+    },
+    {
+      "name": "PyTorch",
+      "license": "BSD-3-Clause",
+      "bundled": false
+    },
+    {
+      "name": "Transformers",
+      "license": "Apache-2.0",
+      "bundled": false
+    }
+  ],
+  "note": "External tools, Python packages and model weights are not redistributed in the release archive. Their installed builds and model licenses remain the operator's responsibility."
+}

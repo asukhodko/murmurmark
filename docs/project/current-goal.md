@@ -6,111 +6,107 @@ Updated: 2026-08-05
 
 The stable product path remains `murmurmark meeting -> first Ctrl-C -> final result`. Raw CAF and
 batch output are authoritative. Speaker-Preserving Neural Echo v2 remains the guarded production
-audio profile. Evidence Notes And Export v2 is complete and now provides the stable product
-handoff between processing, inspection, export and retention.
+audio profile. Evidence Handoff v2 remains the only input to guarded export.
+
+Release-quality CLI is complete. MurmurMark now has a deterministic versioned archive, complete
+file checksums, compatibility and license contracts, transactional install/upgrade, rollback on
+failure and packaged offline acceptance through Evidence Handoff v2. Runtime files are immutable;
+config, sessions and exports remain in an external workspace.
 
 Roadmap status and dependencies live in
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`. `scripts/check-planning-consistency.py` keeps the
 README, roadmap and OpsKarta wording aligned.
 
-## Release-quality CLI
+## Remote Speaker Evidence Map v1
 
-OpsKarta nearest goal: Release-quality CLI: превратить проверенный локальный pipeline и Evidence Handoff v2 в устанавливаемый, документированный и воспроизводимый CLI-релиз; зафиксировать поддерживаемое окружение, зависимости, модели и конфигурацию, добавить clean-install и upgrade acceptance, собрать release artifact и публичный operational contract, подтвердить end-to-end meeting без обязательного UI.
+OpsKarta nearest goal: Remote Speaker Evidence Map v1: разделить authoritative remote-речь на локально вычисленные стабильные анонимные speaker intervals, создать audit-only rich transcript с полной provenance и corpus gates, не присваивая имён и не меняя selected transcript, Evidence Handoff v2 или guarded export до отдельного решения PROMOTE.
 
 ## Why This Is Next
 
-The product path is already useful, local and evidence-backed. Evidence Handoff v2 now binds the
-selected transcript, verdict, review burden and notes into one immutable fingerprint. On the
-current 110-session corpus all manifests are valid, referential-integrity and deterministic-replay
-failures are zero, and the strict corpus gate passes. Ten sessions are directly exportable; the
-remaining sessions fail closed as `review_required` or `blocked` instead of publishing uncertain
-material.
+The release boundary is now reproducible and usable without a source checkout. The largest visible
+product limitation is semantic: every remote participant is still rendered as aggregate
+`Colleagues`. This is acceptable for a 1x1, but weakens group-meeting chronology, evidence notes and
+later action ownership.
 
-The largest remaining product risk is distribution rather than another processing profile. A new
-user still needs repository knowledge, local build steps, model placement and several environment
-assumptions. The supported platform and upgrade behavior are not yet expressed as one release
-contract.
+The authoritative remote track is already cleanly separated from `Me`, so anonymous remote speaker
+segmentation does not require another Echo model. A bounded audit-only map can establish whether
+local diarization is stable enough before names, transcript promotion or synthesis depend on it.
 
 ## Objective
 
-Produce a versioned MurmurMark CLI release that can be installed, diagnosed, upgraded and used for
-an end-to-end meeting through documented commands. The release must preserve current session data,
-the fail-closed handoff contract and local-first privacy defaults.
+Build a deterministic local evidence layer that assigns each speech interval on the authoritative
+remote track to an anonymous stable ID such as `Remote-1`, `Remote-2` or `unknown`. Publish a shadow
+rich transcript and a corpus decision without changing existing transcript text, timestamps,
+selected profile or export behavior.
 
 ## Intended Contract
 
 ```text
-release artifact + dependency/model manifest + supported macOS contract
-  -> install or upgrade
-  -> doctor --strict + self-test + acceptance
-  -> murmurmark meeting
-  -> Evidence Handoff v2
-  -> guarded export or one explicit blocker
+authoritative remote audio + selected transcript + frozen corpus
+  -> speech regions and embeddings
+  -> constrained anonymous clustering
+  -> speaker intervals with confidence and provenance
+  -> transcript.rich.shadow_v1.json
+  -> corpus PROMOTE or DO_NOT_PROMOTE
 ```
 
 ## Required Work
 
-1. Define the supported macOS, Swift, Python, whisper.cpp and optional local-model matrix.
-2. Make installation idempotent and verify the installed executable, project home and script
-   runtime without relying on the developer shell.
-3. Add a versioned dependency/model manifest with paths, checksums or explicit compatibility
-   checks and actionable `doctor` diagnostics.
-4. Define configuration schema/versioning and prove upgrade compatibility for existing config and
-   session packages.
-5. Build a reproducible release artifact with version, checksum, license inventory and release
-   notes.
-6. Add isolated clean-install, upgrade, offline, no-optional-model and end-to-end acceptance tests.
-7. Make failures leave durable diagnostics and one recovery command; never corrupt an existing
-   session or successful Evidence Handoff v2.
-8. Reconcile README, installation guide, runbooks, contracts, security/privacy text, changelog,
-   roadmap and OpsKarta with the measured release behavior.
-9. Exercise the release artifact, not only the repository build, in the final acceptance path.
+1. Freeze representative 1x1, group, overlap, short-speaker and noisy-office sessions with input
+   SHA-256 and known structural expectations.
+2. Define versioned schemas for anonymous speaker intervals, per-session evidence and corpus report.
+3. Benchmark local offline speech segmentation and speaker embeddings already available on the
+   machine; record exact model/version fingerprints and fail open when unavailable.
+4. Cluster only authoritative remote speech. Keep `Me`, transcript text and chronology immutable.
+5. Make speaker count conservative: merge uncertain fragments into `unknown` instead of inventing
+   identities; never derive a person's name from transcript text.
+6. Measure single-speaker false splits, multi-speaker merges, speaker-change boundaries,
+   cross-session instability, overlap coverage and deterministic replay.
+7. Create an audit-only `transcript.rich.shadow_v1.json` referencing existing utterance IDs and
+   interval evidence.
+8. Add fixture, negative, missing-model, repeatability, privacy and corpus tests.
+9. Keep Evidence Handoff v2 and guarded export unchanged unless a later explicit promotion goal
+   proves the new schema safe.
+10. Reconcile README, contracts, runbooks, roadmap and OpsKarta with the measured decision.
 
 ## Safety Boundary
 
-- no cloud dependency or automatic upload;
-- no destructive migration of raw CAF, configs or existing session artifacts;
-- no bypass of Evidence Handoff v2 review and integrity gates;
-- optional heavy models may improve diagnostics but cannot be required for basic installation;
-- installation and upgrade are transactional or fail without replacing the last working binary;
-- UI, signing and notarization are not required to prove the CLI release contract.
+- local and offline only;
+- anonymous IDs only; names require later evidence or review;
+- no rewrite of raw CAF, selected transcript or existing timestamps;
+- no diarization from the microphone track;
+- uncertain speech remains `unknown` or explicit review evidence;
+- a missing model or weak corpus result yields `DO_NOT_PROMOTE`, not a weaker transcript;
+- no LLM, cloud service, UI or external-system write.
 
 ## Acceptance Gates
 
-- a clean isolated environment installs the documented release artifact and passes `doctor
-  --strict`, `self-test` and non-live acceptance;
-- an existing installation upgrades without changing config semantics or session fingerprints;
-- the installed binary can process a fixture through Evidence Handoff v2 and guarded export fully
-  offline;
-- missing required dependencies produce actionable failures; missing optional models produce
-  bounded warnings and preserve the core path;
-- release artifact bytes, checksum, version and dependency manifest agree;
-- repository and packaged acceptance exercise the same user-facing commands;
-- privacy, absolute-path, secret, license, open-source and documentation checks pass;
-- current capture, processing, handoff, review, export and retention regressions remain green.
+- every output interval points to immutable audio and transcript evidence;
+- one-remote-speaker fixtures do not split into multiple confident identities;
+- multi-speaker fixtures preserve known speaker changes without collapsing all speech into one ID;
+- repeated runs produce byte-identical structured outputs;
+- no concrete participant name is generated automatically;
+- selected transcript, Evidence Handoff v2, notes, export readiness and raw CAF remain byte-exact;
+- missing optional diarization assets fail open with an actionable report;
+- corpus report records a reproducible `PROMOTE_REMOTE_SPEAKER_EVIDENCE_MAP_V1` or
+  `DO_NOT_PROMOTE_REMOTE_SPEAKER_EVIDENCE_MAP_V1` decision.
 
 ## Definition Of Done
 
-- the supported environment and compatibility policy are explicit;
-- installation, upgrade, diagnostics and release assembly are implemented and tested;
-- one versioned release artifact is reproducibly built and verified;
-- a fresh end-to-end fixture run succeeds from the packaged CLI without repository-only shortcuts;
-- README, contracts, runbooks, current goal, roadmap and OpsKarta describe measured behavior;
-- full static, Swift, privacy, open-source, planning and acceptance checks pass;
+- schemas, implementation and audit artifacts exist;
+- frozen fixtures and real-session corpus cover 1x1 and group meetings;
+- local repeatability and no-regression gates pass;
+- the shadow rich transcript is inspectable but cannot become authoritative accidentally;
+- the measured corpus decision and evidence ceiling are documented;
+- README, contracts, runbooks, current goal, roadmap and OpsKarta agree;
+- full static, Swift, privacy, open-source, planning and relevant corpus checks pass;
 - changes are committed, pushed to `origin/main`, and the worktree is clean.
 
 ## Outside This Goal
 
-- another echo model or target-speaker separator;
-- remote diarization inside `Colleagues`;
-- cloud or local generative LLM synthesis;
-- direct Jira/docs mutation;
-- UI or menu-bar application;
-- promotion of Live Shadow to authoritative output;
-- mandatory signing, notarization or an installer application.
-
-## Deferred Audio Research
-
-A future Target-Me attempt requires a pretrained target-speaker extraction representation or a
-larger multilingual speaker-query corpus. Reference-Conditioned v2 rules out repeating the same
-small spectral mask on the current corpus.
+- assigning real names to anonymous speakers;
+- cross-meeting identity tracking;
+- changing `Colleagues` in the selected Markdown transcript;
+- promoting `transcript.rich.json` into Evidence Handoff v2;
+- another Echo or Target-Me separation model;
+- LLM synthesis, cloud APIs, UI or live-result promotion.

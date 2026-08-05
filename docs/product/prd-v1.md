@@ -76,20 +76,23 @@ Current operating point, 2026-08-04:
 - Evidence Notes And Export v2 publishes one versioned handoff over selected transcript, verdict,
   unresolved review burden, evidence notes and guarded export readiness; its 110-session corpus
   has zero integrity, stale-manifest and deterministic-replay failures;
-- the current goal is Release-quality CLI: package the proven path with an explicit supported
-  environment, idempotent install/upgrade and release-artifact acceptance;
+- Release-quality CLI packages the proven path with an explicit supported environment,
+  deterministic artifact, idempotent transactional install/upgrade and packaged offline
+  acceptance;
+- the current goal is Remote Speaker Evidence Map v1: anonymous, audit-only segmentation of the
+  authoritative remote track with provenance and corpus gates;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 
-Release-quality CLI is the active critical-path stage after Evidence Notes And Export v2.
+Remote Speaker Evidence Map v1 is the active critical-path stage after Release-quality CLI.
 The personalized Echo selector activates only with compatible local enrollment and promotion
 evidence; every unsupported acoustic mode or regression uses exact `local_fir_role_masked`.
 Any later separator remains isolated until a corpus-wide decision and cannot use exact remix or
 audio quality alone as evidence of correct word attribution. Post-ASR duplicate cleanup receives no
 promotion credit. Remote diarization, speaker mapping and
 `transcript.rich.json` form a parallel future branch after base quality closure. Heavy validators,
-LLM synthesis, reviewed external integrations and UI remain research or optional work outside the
-critical path.
+Speaker naming, LLM synthesis, reviewed external integrations and UI remain research or optional
+work outside the current stage.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.
 

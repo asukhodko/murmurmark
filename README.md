@@ -27,25 +27,40 @@ profiles are isolated and selected only after no-regression gates pass.
 
 ## Install
 
-Prerequisites:
+Supported release environment:
 
-- macOS with Screen and System Audio Recording and microphone permissions;
-- Swift toolchain;
-- `ffmpeg`, `whisper-cpp` and `jq`;
-- project Python virtual environment and local whisper.cpp model.
+- macOS 15 or newer on Apple Silicon with Screen and System Audio Recording and microphone
+  permissions;
+- Python 3.12 or 3.13 with the required modules;
+- `ffmpeg`, `ffprobe`, `whisper-cli` and the tested local whisper.cpp model.
+
+Install a release archive transactionally:
 
 ```bash
-cd murmurmark
-source .venv/bin/activate
-scripts/install-local.sh
+shasum -a 256 -c murmurmark-<version>-<commit>.tar.gz.sha256
+tar -xzf murmurmark-<version>-<commit>.tar.gz
+cd murmurmark-<version>-<commit>
+python3 scripts/release-bundle.py verify .
+./install.sh --python /absolute/path/to/python3
 export PATH="$HOME/.local/bin:$PATH"
+
+mkdir -p "$HOME/murmurmark-workspace"
+cd "$HOME/murmurmark-workspace"
+export MURMURMARK_PYTHON=/absolute/path/to/python3
 murmurmark config init
 murmurmark doctor --strict
 murmurmark self-test
 ```
 
-`scripts/install-local.sh` builds the release CLI and installs its wrapper into
-`$HOME/.local/bin`. During development, `swift build` also provides `.build/debug/murmurmark`.
+The runtime is immutable under `$HOME/.local/share/murmurmark/releases/`; config, sessions and
+exports stay in the external workspace. Reinstall and upgrade verify and self-test a staged release
+before atomically switching the active version. A failed upgrade leaves the previous release
+working.
+
+From a developer checkout, use `source .venv/bin/activate && scripts/install-local.sh` instead.
+The exact compatibility matrix, model fingerprint and optional dependencies live in
+[`release/compatibility-v1.json`](release/compatibility-v1.json); see the
+[installation runbook](docs/runbooks/install-and-upgrade.md).
 
 The optional stronger audio judge uses a local faster-whisper model. Its absence must not block the
 normal pipeline; `murmurmark doctor` reports it as an optional warning.
@@ -266,8 +281,14 @@ data remained unopened and Speaker-Preserving Neural Echo v2 remains production.
 **Evidence Notes And Export v2** is complete: its deterministic handoff binds transcript, verdict,
 review burden and evidence notes; 110 corpus sessions have zero integrity, stale-manifest or replay
 failures. Guarded export accepts only `ready` or verified `no_speech`.
-The current goal is **Release-quality CLI**: a versioned, installable and upgrade-safe release with
-an explicit environment, dependency/model manifest, packaged acceptance and public contract.
+
+**Release-quality CLI** is complete: the versioned archive has a complete SHA-256 inventory,
+compatibility and license contracts, deterministic assembly, transactional install/upgrade and
+isolated offline acceptance through Evidence Handoff v2 and guarded export.
+
+The current goal is **Remote Speaker Evidence Map v1**: split authoritative `remote` speech into
+stable anonymous speaker intervals in an audit-only rich transcript, with local reproducible
+evidence and no automatic names or changes to the selected transcript.
 
 The stable CLI supports durable capture, resumable processing, guarded profiles, evidence-backed
 review, export and retention. Exact experiment metrics live in the research documents and roadmap.
@@ -277,63 +298,27 @@ The dependent critical path is:
 ```text
 Meeting Lifecycle -> Echo evidence and controlled lab -> Speaker-Preserving Neural Echo v2 (done)
 -> Reference-Conditioned v1 (done) -> Identifiability Corpus (done)
--> Target-Me Separation v2 (done) -> Evidence Export v2 (done) -> Release-quality CLI (current)
+-> Target-Me Separation v2 (done) -> Evidence Export v2 (done) -> Release-quality CLI (done)
+-> Remote Speaker Evidence Map v1 (current)
 ```
 
-Remote diarization, heavy local validators, LLM synthesis and UI are parallel or parked work. Live
-promotion remains blocked; Live Shadow is maintained as advisory evidence only.
+Speaker naming and `transcript.rich.json` promotion follow the anonymous evidence map. Heavy local
+validators, LLM synthesis and UI remain parallel or parked. Live promotion remains blocked; Live
+Shadow is advisory evidence only.
 
 See the [current goal](docs/project/current-goal.md), [readable roadmap](docs/roadmap/murmurmark-cli-roadmap.md)
 and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 
 ## Controlled Echo Supervision Lab
 
-This completed private lab is the frozen enrollment and evaluation source for the personalized
-speaker-preserving Echo profile. It remains private and immutable; ordinary users without it keep
-the exact `local_fir_role_masked` fallback.
-
-Prepare generic Russian TTS once:
-
-```bash
-murmurmark echo-lab prepare
-```
-
-Each capture uses the ordinary durable raw writer, built-in speakers and no Live Shadow:
-
-```bash
-SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)-echo-train-quiet"
-echo "SESSION=\"$SESSION\""
-
-murmurmark echo-lab capture \
-  --out "$SESSION" \
-  --scenario speaker_train_quiet
-
-murmurmark echo-lab inspect "$SESSION"
-```
-
-Before recording, enter `ГОТОВ`; spoken prompts use your voice and generated voice is remote only.
-During the keyboard phase, type outside the capture terminal. Volume drift aborts capture early.
-Double-talk uses a temporary local-FIR clean and only prompt-specific words absent from remote.
-Sparse opening level uses ASR-confirmed speech, so pauses cannot dilute it. Raw remains unchanged.
-
-Repeat with the six frozen scenarios shown in the
-[Controlled Echo Supervision Lab runbook](docs/runbooks/controlled-echo-supervision-lab.md).
-Then build and replay the private corpus:
-
-```bash
-murmurmark corpus echo-supervision build
-murmurmark corpus echo-supervision replay
-murmurmark corpus echo-supervision status
-```
-
-The only valid decisions are `READY_FOR_ADAPTATION` and `DO_NOT_TRAIN`. Missing local models,
-contaminated phases, changed hashes or insufficient coverage fail closed. Raw CAF, generated WAV,
-spoken prompt evidence and corpus examples stay under ignored `sessions/`.
+The completed private lab remains the frozen enrollment and evaluation source for the personalized
+Echo profile. Ordinary users without it keep the exact safe fallback. Capture, replay and privacy
+instructions live in the [Controlled Echo Supervision Lab runbook](docs/runbooks/controlled-echo-supervision-lab.md).
 
 ## Scope And Limitations
 
-- Current roles are `Me` and aggregate `Colleagues`; individual remote-speaker diarization is future
-  work.
+- Current selected transcripts use `Me` and aggregate `Colleagues`; anonymous remote-speaker
+  evidence is the active shadow-only development goal.
 - The personalized pre-ASR profile removes independently supported remote leakage on compatible
   speaker-playback sessions; it does not promise waveform-perfect echo removal on every room/device.
 - Echo Guard records `speaker_playback`, `headphones_or_low_leak` or `uncertain` in

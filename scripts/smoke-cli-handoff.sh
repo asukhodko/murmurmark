@@ -18,7 +18,8 @@ if [[ ! -x "$bin" ]]; then
   (cd "$repo_root" && swift build >/dev/null)
 fi
 
-export MURMURMARK_HOME="$repo_root"
+unset MURMURMARK_HOME
+export MURMURMARK_RUNTIME_HOME="$repo_root"
 
 meeting_option_output="$(mktemp "${TMPDIR:-/tmp}/murmurmark-meeting-unsafe-option.XXXXXX")"
 "$bin" meeting -h | grep -q '^usage: murmurmark meeting'

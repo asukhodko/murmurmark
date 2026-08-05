@@ -22,36 +22,37 @@ Read in this order:
 18. [Experimental sidecar contract](contracts/experimental-sidecar.md)
 19. [Transcript and evidence contracts](contracts/transcript-and-evidence.md)
 20. [Release bundle contract](contracts/release-bundle.md)
-21. [Retention policy contract](contracts/retention-policy.md)
-22. [Privacy and threat model](security/privacy-and-threat-model.md)
-23. [First recording runbook](runbooks/first-recording.md)
-24. [Meeting cheat sheet](runbooks/meeting-cheatsheet.md)
-25. [Echo Guard delay lab](runbooks/echo-guard-lab.md)
-26. [Controlled Echo Supervision Lab](runbooks/controlled-echo-supervision-lab.md)
-27. [Simple whisper.cpp transcription](runbooks/transcribe-simple-whispercpp.md)
-28. [Causal recovery generalization runbook](runbooks/causal-recovery-generalization.md)
-29. [Tradeoffs](decisions/tradeoffs.md)
-30. [RFC-0001](rfc/0001-v1-scope.md)
-31. [ADR directory](adr/)
-32. [ADR-0008](adr/0008-use-screencapturekit-for-first-cli-smoke.md)
-33. [ADR-0009](adr/0009-derived-echo-suppression-only.md)
-34. [ADR-0010](adr/0010-use-preserve-local-fir-for-current-echo-guard.md)
-35. [Talk validation log](testing/2026-06-22-talk-validation.md)
-36. [Echo Guard Local FIR validation log](testing/2026-06-23-echo-guard-local-fir.md)
-37. [Mic remote bleed reduction](backlog/mic-remote-bleed-reduction.md)
-38. [Complete echo removal research](research/2026-06-30-complete-echo-removal.md)
-39. [Echo Suppression Promotion v1 result](research/2026-07-23-echo-suppression-promotion-v1.md)
-40. [Neural Residual Echo Suppression v1 result](research/2026-07-23-neural-residual-echo-v1.md)
-41. [Speaker-Preserving Echo Adaptation Corpus v1 result](research/2026-07-23-speaker-preserving-echo-adaptation-corpus-v1.md)
-42. [Speaker-Preserving Neural Echo v2 result](research/2026-08-04-speaker-preserving-neural-echo-v2.md)
-43. [Reference-Conditioned Target-Me Separation v1](research/2026-08-04-reference-conditioned-target-me-separation-v1.md)
-44. [Reference-Conditioned Target-Me Separation contract](contracts/reference-conditioned-target-me-separation.md)
-45. [Target-Me Identifiability Corpus v1 result](research/2026-08-04-target-me-identifiability-corpus-v1.md)
-46. [Target-Me Identifiability Corpus contract](contracts/target-me-identifiability-corpus.md)
-47. [Target-Me Identifiability Corpus runbook](runbooks/target-me-identifiability-corpus.md)
-48. [Reference-Conditioned Target-Me Separation v2 result](research/2026-08-05-reference-conditioned-target-me-separation-v2.md)
-49. [Reference-Conditioned Target-Me Separation runbook](runbooks/reference-conditioned-target-me-separation.md)
-50. [Planning and development history](history/README.md)
+21. [Install and upgrade runbook](runbooks/install-and-upgrade.md)
+22. [Retention policy contract](contracts/retention-policy.md)
+23. [Privacy and threat model](security/privacy-and-threat-model.md)
+24. [First recording runbook](runbooks/first-recording.md)
+25. [Meeting cheat sheet](runbooks/meeting-cheatsheet.md)
+26. [Echo Guard delay lab](runbooks/echo-guard-lab.md)
+27. [Controlled Echo Supervision Lab](runbooks/controlled-echo-supervision-lab.md)
+28. [Simple whisper.cpp transcription](runbooks/transcribe-simple-whispercpp.md)
+29. [Causal recovery generalization runbook](runbooks/causal-recovery-generalization.md)
+30. [Tradeoffs](decisions/tradeoffs.md)
+31. [RFC-0001](rfc/0001-v1-scope.md)
+32. [ADR directory](adr/)
+33. [ADR-0008](adr/0008-use-screencapturekit-for-first-cli-smoke.md)
+34. [ADR-0009](adr/0009-derived-echo-suppression-only.md)
+35. [ADR-0010](adr/0010-use-preserve-local-fir-for-current-echo-guard.md)
+36. [Talk validation log](testing/2026-06-22-talk-validation.md)
+37. [Echo Guard Local FIR validation log](testing/2026-06-23-echo-guard-local-fir.md)
+38. [Mic remote bleed reduction](backlog/mic-remote-bleed-reduction.md)
+39. [Complete echo removal research](research/2026-06-30-complete-echo-removal.md)
+40. [Echo Suppression Promotion v1 result](research/2026-07-23-echo-suppression-promotion-v1.md)
+41. [Neural Residual Echo Suppression v1 result](research/2026-07-23-neural-residual-echo-v1.md)
+42. [Speaker-Preserving Echo Adaptation Corpus v1 result](research/2026-07-23-speaker-preserving-echo-adaptation-corpus-v1.md)
+43. [Speaker-Preserving Neural Echo v2 result](research/2026-08-04-speaker-preserving-neural-echo-v2.md)
+44. [Reference-Conditioned Target-Me Separation v1](research/2026-08-04-reference-conditioned-target-me-separation-v1.md)
+45. [Reference-Conditioned Target-Me Separation contract](contracts/reference-conditioned-target-me-separation.md)
+46. [Target-Me Identifiability Corpus v1 result](research/2026-08-04-target-me-identifiability-corpus-v1.md)
+47. [Target-Me Identifiability Corpus contract](contracts/target-me-identifiability-corpus.md)
+48. [Target-Me Identifiability Corpus runbook](runbooks/target-me-identifiability-corpus.md)
+49. [Reference-Conditioned Target-Me Separation v2 result](research/2026-08-05-reference-conditioned-target-me-separation-v2.md)
+50. [Reference-Conditioned Target-Me Separation runbook](runbooks/reference-conditioned-target-me-separation.md)
+51. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
@@ -66,8 +67,10 @@ completed with `READY_FOR_TARGET_CONDITIONED_TRAINING`: `4/2/2` split-disjoint n
 `2470/2470`. Reference-Conditioned Target-Me Separation v2 then learned speaker-query adherence but
 missed three immutable dev quality gates and completed with `DO_NOT_PROMOTE`; hard and sealed data
 remained unopened. Speaker-Preserving Neural Echo v2 remains production. Evidence Notes And Export
-v2 now passes its 110-session integrity and deterministic-replay gate. The current goal is
-Release-quality CLI.
+v2 passes its 110-session integrity and deterministic-replay gate. Release-quality CLI now adds
+deterministic archives, complete integrity metadata, transactional install/upgrade and packaged
+offline acceptance. The current goal is Remote Speaker Evidence Map v1: anonymous, audit-only
+diarization of the authoritative remote track before any speaker naming.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

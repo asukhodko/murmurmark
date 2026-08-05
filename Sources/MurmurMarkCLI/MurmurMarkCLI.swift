@@ -230,7 +230,7 @@ struct MurmurMark {
             case "export-audio":
                 try Commands.exportAudio(args)
             case "version", "--version", "-v":
-                print("murmurmark \(MurmurMark.version)")
+                try Commands.version(args)
             case "help", "--help", "-h":
                 printHelp()
             default:
@@ -357,6 +357,7 @@ struct MurmurMark {
           murmurmark corpus report
 
         Setup and diagnostics:
+          murmurmark version [--json]
           murmurmark self-test
           murmurmark list-apps
           murmurmark list-audio-devices
@@ -420,18 +421,23 @@ enum Commands {
         var report = DoctorReport()
         print("murmurmark: \(MurmurMark.version)")
         print("home: \(FileManager.default.currentDirectoryPath)")
+        if let runtimeHome = ProcessInfo.processInfo.environment["MURMURMARK_RUNTIME_HOME"], !runtimeHome.isEmpty {
+            print("MURMURMARK_RUNTIME_HOME: \(runtimeHome)")
+        }
         if let runtimeHome = ProcessInfo.processInfo.environment["MURMURMARK_HOME"], !runtimeHome.isEmpty {
             print("MURMURMARK_HOME: \(runtimeHome)")
         }
         print("executable: \(ExecutablePath.current())")
         print("macOS: \(ProcessInfo.processInfo.operatingSystemVersionString)")
         print("swift capture backend: screencapturekit_system")
+        DoctorChecks.checkReleaseContract(&report)
         DoctorChecks.checkLocalConfig(&report)
         DoctorChecks.checkExecutable("ffmpeg", required: true, report: &report)
         DoctorChecks.checkExecutable("ffprobe", required: true, report: &report)
         DoctorChecks.checkExecutable("whisper-cli", required: true, report: &report)
         DoctorChecks.checkExecutable("jq", required: false, report: &report)
         DoctorChecks.checkExecutable("swiftlint", required: false, report: &report)
+        DoctorChecks.checkRuntimeToolCompatibility(&report)
         DoctorChecks.checkResourceScheduling(&report)
         DoctorChecks.checkScripts(&report)
         DoctorChecks.checkPython(&report)
@@ -486,6 +492,34 @@ enum Commands {
         if strict && report.failures > 0 {
             throw CLIError("doctor strict failed: \(report.failures) required checks failed")
         }
+    }
+
+    static func version(_ args: [String]) throws {
+        if args.isEmpty {
+            print("murmurmark \(MurmurMark.version)")
+            return
+        }
+        guard args == ["--json"] else {
+            throw CLIError("version only supports --json")
+        }
+        var payload: [String: Any] = [
+            "name": "murmurmark",
+            "version": MurmurMark.version,
+            "runtime_mode": RuntimeHome.runtimeURL == nil ? "developer_checkout" : "release_bundle",
+        ]
+        let manifestURL = PathURLs.fileURL("release-manifest.json")
+        if FileManager.default.fileExists(atPath: manifestURL.path),
+           let manifest = try? JSONFiles.object(manifestURL) {
+            payload["release_id"] = manifest["release_id"]
+            payload["git_commit"] = manifest["git_commit"]
+            payload["package_fingerprint"] = manifest["package_fingerprint"]
+            payload["manifest_schema"] = manifest["schema"]
+        }
+        let data = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
+        guard let text = String(data: data, encoding: .utf8) else {
+            throw CLIError("failed to encode version metadata")
+        }
+        print(text)
     }
 
     static func selfTest(_ args: [String]) throws {
@@ -972,7 +1006,8 @@ struct DoctorReport {
 
 enum DoctorChecks {
     static let defaultModel = "~/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
-    static let requiredPythonModules = ["numpy", "scipy", "soundfile", "librosa", "sklearn"]
+    static let testedModelName = "ggml-large-v3-q5_0.bin"
+    static let testedModelSize: UInt64 = 1_081_140_203
 
     static func printHelp() {
         print("""
@@ -987,6 +1022,67 @@ enum DoctorChecks {
         """)
     }
 
+    static func checkReleaseContract(_ report: inout DoctorReport) {
+        let compatibilityURL = PathURLs.fileURL("release/compatibility-v1.json")
+        do {
+            let compatibility = try JSONFiles.object(compatibilityURL)
+            guard compatibility["schema"] as? String == "murmurmark.release_compatibility/v1" else {
+                report.check(.fail, "release compatibility", "unsupported schema")
+                return
+            }
+            guard compatibility["release_version"] as? String == MurmurMark.version else {
+                report.check(
+                    .fail,
+                    "release compatibility",
+                    "version differs from CLI \(MurmurMark.version)",
+                    hint: "install a release whose compatibility contract matches its executable"
+                )
+                return
+            }
+            let schemas = compatibility["schemas"] as? [String: Any] ?? [:]
+            let config = schemas["config"] as? [String: Any] ?? [:]
+            let session = schemas["session"] as? [String: Any] ?? [:]
+            guard config["current"] as? String == "murmurmark.config/v1",
+                  session["current"] as? String == "murmurmark.session/v1" else {
+                report.check(.fail, "release compatibility", "config or session schema mismatch")
+                return
+            }
+            report.check(
+                .passed,
+                "release compatibility",
+                "v1; config=v1 session=v1 handoff=v2"
+            )
+        } catch {
+            report.check(
+                .fail,
+                "release compatibility",
+                error.localizedDescription,
+                hint: "reinstall a complete verified release bundle"
+            )
+            return
+        }
+
+        let manifestURL = PathURLs.fileURL("release-manifest.json")
+        guard FileManager.default.fileExists(atPath: manifestURL.path) else {
+            report.check(.passed, "release manifest", "developer checkout")
+            return
+        }
+        do {
+            let manifest = try JSONFiles.object(manifestURL)
+            guard manifest["schema"] as? String == "murmurmark.release_bundle/v2",
+                  manifest["version"] as? String == MurmurMark.version,
+                  let releaseID = manifest["release_id"] as? String,
+                  let fingerprint = manifest["package_fingerprint"] as? String,
+                  fingerprint.count == 64 else {
+                report.check(.fail, "release manifest", "invalid or incompatible metadata")
+                return
+            }
+            report.check(.passed, "release manifest", "\(releaseID) fingerprint=\(fingerprint.prefix(12))")
+        } catch {
+            report.check(.fail, "release manifest", error.localizedDescription)
+        }
+    }
+
     static func checkExecutable(_ name: String, required: Bool, report: inout DoctorReport) {
         if let path = Tooling.which(name) {
             report.check(.passed, name, path)
@@ -995,6 +1091,89 @@ enum DoctorChecks {
         } else {
             report.check(.warn, name, "not found in PATH", hint: installHint(for: name))
         }
+    }
+
+    static func checkRuntimeToolCompatibility(_ report: inout DoctorReport) {
+        var ffmpegVersion: (major: Int, minor: Int)?
+        if let path = Tooling.which("ffmpeg") {
+            do {
+                let output = try Tooling.runPathCapturing(URL(fileURLWithPath: path), ["-version"])
+                guard let version = parsedVersion(output, marker: "ffmpeg version") else {
+                    report.check(.fail, "ffmpeg compatibility", "version could not be parsed", hint: "install FFmpeg 7 or newer")
+                    return
+                }
+                ffmpegVersion = version
+                if version.major >= 7 {
+                    report.check(.passed, "ffmpeg compatibility", "\(version.major).\(version.minor); supported >=7")
+                } else {
+                    report.check(.fail, "ffmpeg compatibility", "\(version.major).\(version.minor); supported >=7", hint: "upgrade FFmpeg")
+                }
+            } catch {
+                report.check(.fail, "ffmpeg compatibility", error.localizedDescription, hint: "install FFmpeg 7 or newer")
+            }
+        }
+
+        if let path = Tooling.which("ffprobe") {
+            do {
+                let output = try Tooling.runPathCapturing(URL(fileURLWithPath: path), ["-version"])
+                guard let version = parsedVersion(output, marker: "ffprobe version") else {
+                    report.check(.fail, "ffprobe compatibility", "version could not be parsed", hint: "install ffprobe from the same FFmpeg release")
+                    return
+                }
+                if let ffmpegVersion, version.major != ffmpegVersion.major {
+                    report.check(
+                        .fail,
+                        "ffprobe compatibility",
+                        "ffprobe \(version.major).\(version.minor) differs from FFmpeg \(ffmpegVersion.major).\(ffmpegVersion.minor)",
+                        hint: "install ffmpeg and ffprobe from the same release family"
+                    )
+                } else if version.major >= 7 {
+                    report.check(.passed, "ffprobe compatibility", "\(version.major).\(version.minor); same supported family")
+                } else {
+                    report.check(.fail, "ffprobe compatibility", "\(version.major).\(version.minor); supported >=7", hint: "upgrade FFmpeg")
+                }
+            } catch {
+                report.check(.fail, "ffprobe compatibility", error.localizedDescription, hint: "install ffprobe from the same FFmpeg release")
+            }
+        }
+
+        if let path = Tooling.which("whisper-cli") {
+            do {
+                let output = try Tooling.runPathCapturing(URL(fileURLWithPath: path), ["--version"])
+                guard let version = parsedVersion(output, marker: "whisper.cpp version:") else {
+                    report.check(.fail, "whisper-cli compatibility", "version could not be parsed", hint: "install whisper.cpp 1.7 or newer")
+                    return
+                }
+                let supported = version.major > 1 || (version.major == 1 && version.minor >= 7)
+                if supported {
+                    report.check(.passed, "whisper-cli compatibility", "\(version.major).\(version.minor); supported >=1.7")
+                } else {
+                    report.check(
+                        .fail,
+                        "whisper-cli compatibility",
+                        "\(version.major).\(version.minor); supported >=1.7",
+                        hint: "upgrade whisper.cpp"
+                    )
+                }
+            } catch {
+                report.check(.fail, "whisper-cli compatibility", error.localizedDescription, hint: "install whisper.cpp 1.7 or newer")
+            }
+        }
+    }
+
+    private static func parsedVersion(_ output: String, marker: String) -> (major: Int, minor: Int)? {
+        guard let markerRange = output.range(of: marker) else { return nil }
+        let suffix = output[markerRange.upperBound...]
+        let components = suffix
+            .drop(while: { $0.isWhitespace })
+            .prefix(while: { $0.isNumber || $0 == "." })
+            .split(separator: ".")
+        guard components.count >= 2,
+              let major = Int(components[0]),
+              let minor = Int(components[1]) else {
+            return nil
+        }
+        return (major, minor)
     }
 
     static func checkLocalConfig(_ report: inout DoctorReport) {
@@ -1102,6 +1281,12 @@ enum DoctorChecks {
             "scripts/apply-retention-policy.py",
             "scripts/build-provider-payload-manifest.py",
             "scripts/compact-derived-artifacts.py",
+            "scripts/release-bundle.py",
+            "scripts/install-release.sh",
+            "scripts/acceptance-release-quality.sh",
+            "scripts/check-release-quality.py",
+            "release/compatibility-v1.json",
+            "release/licenses-v1.json",
             "scripts/smoke-cli-handoff.sh",
             "scripts/smoke-experimental-sidecar-contract.sh",
             "scripts/smoke-committed-pcm-sidecar.sh",
@@ -1120,19 +1305,75 @@ enum DoctorChecks {
         do {
             let python = try PythonRuntime.resolve()
             let version = (try? Tooling.runPathCapturing(python, ["--version"]).trimmedSingleLine()) ?? "version unknown"
-            report.check(.passed, "python", "\(python.path) (\(version))")
+            let compatibilityCode = """
+            import sys
+            print("ok" if (3, 12) <= sys.version_info[:2] < (3, 14) else "unsupported")
+            """
+            let compatibility = (
+                try Tooling.runPathCapturing(python, ["-c", compatibilityCode])
+            ).trimmedSingleLine()
+            if compatibility == "ok" {
+                report.check(.passed, "python", "\(python.path) (\(version); supported >=3.12,<3.14)")
+            } else {
+                report.check(
+                    .fail,
+                    "python",
+                    "\(python.path) (\(version); supported >=3.12,<3.14)",
+                    hint: "create a Python 3.12 or 3.13 environment and set MURMURMARK_PYTHON"
+                )
+            }
 
             let moduleCode = """
+            import importlib.metadata as metadata
             import importlib.util
-            mods = \(pythonList(requiredPythonModules))
-            missing = [m for m in mods if importlib.util.find_spec(m) is None]
-            print(",".join(missing))
+            import json
+            import re
+
+            rules = [
+                ("numpy", "numpy", (2, 0), (3, 0)),
+                ("scipy", "scipy", (1, 13), (2, 0)),
+                ("soundfile", "soundfile", (0, 12), (1, 0)),
+                ("librosa", "librosa", (0, 10), (1, 0)),
+                ("sklearn", "scikit-learn", (1, 5), (2, 0)),
+            ]
+            result = {"missing": [], "unsupported": [], "versions": {}}
+            for module, distribution, minimum, maximum in rules:
+                if importlib.util.find_spec(module) is None:
+                    result["missing"].append(module)
+                    continue
+                version = metadata.version(distribution)
+                result["versions"][module] = version
+                numbers = [int(value) for value in re.findall(r"\\d+", version)[:2]]
+                if len(numbers) < 2 or not (minimum <= tuple(numbers) < maximum):
+                    result["unsupported"].append(f"{module}={version}")
+            print(json.dumps(result, sort_keys=True))
             """
-            let missing = (try Tooling.runPathCapturing(python, ["-c", moduleCode])).trimmedSingleLine()
-            if missing.isEmpty {
-                report.check(.passed, "python modules", requiredPythonModules.joined(separator: ", "))
+            let moduleOutput = try Tooling.runPathCapturing(python, ["-c", moduleCode])
+            guard let moduleData = moduleOutput.data(using: .utf8),
+                  let moduleResult = try JSONSerialization.jsonObject(with: moduleData) as? [String: Any],
+                  let missing = moduleResult["missing"] as? [String],
+                  let unsupported = moduleResult["unsupported"] as? [String],
+                  let versions = moduleResult["versions"] as? [String: String] else {
+                report.check(.fail, "python modules", "compatibility result is invalid")
+                return
+            }
+            if !missing.isEmpty {
+                report.check(
+                    .fail,
+                    "python modules",
+                    "missing: \(missing.joined(separator: ","))",
+                    hint: "install project Python dependencies into .venv"
+                )
+            } else if !unsupported.isEmpty {
+                report.check(
+                    .fail,
+                    "python modules",
+                    "unsupported: \(unsupported.joined(separator: ","))",
+                    hint: "install versions from release/compatibility-v1.json"
+                )
             } else {
-                report.check(.fail, "python modules", "missing: \(missing)", hint: "install project Python dependencies into .venv")
+                let summary = versions.keys.sorted().map { "\($0)=\(versions[$0] ?? "unknown")" }
+                report.check(.passed, "python modules", summary.joined(separator: ", "))
             }
         } catch {
             report.check(.fail, "python", error.localizedDescription, hint: "create .venv or set MURMURMARK_PYTHON")
@@ -1142,14 +1383,45 @@ enum DoctorChecks {
     static func checkWhisperModel(_ report: inout DoctorReport) {
         let model = configuredModelPath()
         let url = PathURLs.fileURL(model)
-        if FileManager.default.fileExists(atPath: url.path) {
-            report.check(.passed, "whisper model", PathDisplay.display(url))
-        } else {
+        guard FileManager.default.fileExists(atPath: url.path) else {
             report.check(
                 .fail,
                 "whisper model",
                 "not found: \(url.path)",
                 hint: "download a multilingual whisper.cpp model or set transcription.model in murmurmark.config.json"
+            )
+            return
+        }
+
+        guard url.lastPathComponent == testedModelName else {
+            report.check(
+                .warn,
+                "whisper model",
+                "custom model: \(PathDisplay.display(url))",
+                hint: "the tested release profile uses \(testedModelName); verify custom model compatibility explicitly"
+            )
+            return
+        }
+
+        do {
+            let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+            let size = (attributes[.size] as? NSNumber)?.uint64Value ?? 0
+            guard size == testedModelSize else {
+                report.check(
+                    .fail,
+                    "whisper model",
+                    "unexpected size: \(size) bytes; expected \(testedModelSize)",
+                    hint: "download the tested model again; the current file may be incomplete or incompatible"
+                )
+                return
+            }
+            report.check(.passed, "whisper model", "\(PathDisplay.display(url)) (tested size)")
+        } catch {
+            report.check(
+                .fail,
+                "whisper model",
+                error.localizedDescription,
+                hint: "check model file permissions or download the tested model again"
             )
         }
     }
@@ -1321,10 +1593,6 @@ enum DoctorChecks {
             return defaultModel
         }
         return value
-    }
-
-    private static func pythonList(_ values: [String]) -> String {
-        "[" + values.map { "'\($0)'" }.joined(separator: ",") + "]"
     }
 
     private static func installHint(for executable: String) -> String {
@@ -7479,24 +7747,23 @@ enum FinishCommands {
     }
 
     private static func runRetention(session: URL, manifestURL: URL, policy: String?, provider: String?) throws {
-        var planCommand = [
+        let effectivePolicy = policy ?? PathURLs.fileURL(
+            "examples/retention-policy.local-first.json"
+        ).path
+        let planCommand = [
             try script("apply-retention-policy.py").path,
             session.path,
             "--export-manifest", manifestURL.path,
+            "--policy", effectivePolicy,
         ]
-        if let policy {
-            planCommand += ["--policy", policy]
-        }
         try Tooling.runPathQuiet(try PythonRuntime.resolve(), planCommand)
 
         var payloadCommand = [
             try script("build-provider-payload-manifest.py").path,
             session.path,
             "--export-manifest", manifestURL.path,
+            "--policy", effectivePolicy,
         ]
-        if let policy {
-            payloadCommand += ["--policy", policy]
-        }
         if let provider {
             payloadCommand += ["--provider", provider]
         }
@@ -7699,6 +7966,12 @@ enum RetentionCommands {
         var command = [try script(mode).path, session.path]
         if mode == "apply" {
             command.append("--apply")
+        }
+        if !ArgumentEditing.hasOption("policy", in: remaining) {
+            command += [
+                "--policy",
+                PathURLs.fileURL("examples/retention-policy.local-first.json").path,
+            ]
         }
         command += remaining
 
@@ -13648,13 +13921,45 @@ enum PathURLs {
         if path.hasPrefix("/") {
             return URL(fileURLWithPath: path)
         }
+        if let resource = RuntimeHome.resourceURL(for: path) {
+            return resource
+        }
         return URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
             .appendingPathComponent(path)
     }
 }
 
 enum RuntimeHome {
+    static var runtimeURL: URL? {
+        guard let value = ProcessInfo.processInfo.environment["MURMURMARK_RUNTIME_HOME"],
+              !value.isEmpty else {
+            return nil
+        }
+        return absoluteURL(value).standardizedFileURL
+    }
+
+    static func resourceURL(for path: String) -> URL? {
+        guard let runtimeURL else { return nil }
+        let first = path.split(separator: "/", maxSplits: 1).first.map(String.init) ?? ""
+        let resourceRoots: Set<String> = [
+            "scripts", "docs", "examples", "policies", "release", "tools",
+            "murmurmark.config.example.json", "release-manifest.json",
+        ]
+        guard resourceRoots.contains(first) else { return nil }
+        return runtimeURL.appendingPathComponent(path)
+    }
+
     static func apply() throws {
+        if let runtimeURL {
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(
+                atPath: runtimeURL.path,
+                isDirectory: &isDirectory
+            ), isDirectory.boolValue else {
+                throw CLIError("MURMURMARK_RUNTIME_HOME is not a directory: \(runtimeURL.path)")
+            }
+            return
+        }
         guard let value = ProcessInfo.processInfo.environment["MURMURMARK_HOME"],
               !value.isEmpty
         else {
@@ -13669,6 +13974,21 @@ enum RuntimeHome {
         guard FileManager.default.changeCurrentDirectoryPath(url.path) else {
             throw CLIError("failed to change directory to MURMURMARK_HOME: \(url.path)")
         }
+    }
+
+    private static func absoluteURL(_ path: String) -> URL {
+        if path == "~" {
+            return FileManager.default.homeDirectoryForCurrentUser
+        }
+        if path.hasPrefix("~/") {
+            return FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(String(path.dropFirst(2)))
+        }
+        if path.hasPrefix("/") {
+            return URL(fileURLWithPath: path)
+        }
+        return URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent(path)
     }
 }
 

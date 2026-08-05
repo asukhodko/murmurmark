@@ -52,6 +52,7 @@ CRITICAL_PATH = (
     "research-reference-conditioned-target-me-separation-v2",
     "product-evidence-export-v2",
     "product-release-quality-cli",
+    "research-remote-diarization",
 )
 
 EXPECTED_STATUSES = {"done", "current", "next", "later", "idea", "optional", "blocked"}

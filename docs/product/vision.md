@@ -55,13 +55,14 @@ the data, but the small scratch-trained separator still missed immutable dev wav
 absent-speaker gates. Both experiments stopped before hard-test and left production unchanged.
 
 Evidence Notes And Export v2 now binds the selected transcript, verdict, review evidence, notes and
-export into one verifiable handoff without depending on profile-specific filenames. The current
-product step is Release-quality CLI: package that boundary into a supported, installable and
-upgrade-safe local release.
+export into one verifiable handoff without depending on profile-specific filenames. Release-quality
+CLI packages that boundary into a supported, deterministic and upgrade-safe local release. The
+current product step is Remote Speaker Evidence Map v1: anonymous, audit-only segmentation of the
+authoritative remote track before names or rich transcript promotion are allowed.
 
-Remote-speaker diarization is an independent research branch after base transcript quality closure.
-It starts with anonymous speaker intervals, then an evidence-backed speaker map and
-`transcript.rich.json`. It does not wait for complete Echo suppression and does not block the CLI.
+Remote-speaker diarization starts with anonymous speaker intervals, then an evidence-backed speaker
+map and `transcript.rich.json`. It does not wait for complete Echo suppression. Names and
+cross-meeting identity remain later reviewed capabilities.
 
 ## Primary User
 
