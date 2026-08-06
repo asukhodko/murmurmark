@@ -296,29 +296,32 @@ murmurmark transcript "$SESSION" --rich
 
 Anonymous Rich Transcript Handoff v1 completed with `PROMOTE_OPTIONAL_RICH`: all `1235` remote
 references passed on 6/6 sessions; 629 utterances received anonymous IDs and 606 remained aggregate.
-The current goal is **Reviewed Remote Speaker Naming v1**: accept only explicit session-local labels,
-never infer a person's identity from voice. Plain Markdown, notes and guarded export stay unchanged.
+Reviewed Remote Speaker Naming v1 completed with `PROMOTE_OPTIONAL_REVIEWED_NAMING`. It adds only
+explicit session-local display labels over current anonymous IDs:
 
-The stable CLI supports durable capture, resumable processing, guarded profiles, evidence-backed
-review, export and retention. Exact experiment metrics live in the research documents and roadmap.
+```bash
+murmurmark speakers template "$SESSION"
+# Edit review/remote-speaker-labels.v1.json: resolve every row, then set review_completed to true.
+murmurmark speakers apply "$SESSION"
+murmurmark transcript "$SESSION" --rich --reviewed-speakers
+```
+
+Missing, partial or stale decisions fall back to the anonymous `--rich` view. No name is inferred
+from voice, text, contacts, calendar or another meeting. Plain Markdown, notes and guarded export
+stay unchanged. The current goal is **Reviewed Speaker-Aware Meeting Memory v1**: expose these
+explicit labels to a separate opt-in notes/export bundle without changing the authoritative path.
 
 The dependent critical path is:
 
 ```text
-Meeting Lifecycle -> Echo evidence and controlled lab -> Speaker-Preserving Neural Echo v2 (done)
--> Reference-Conditioned v1 (done) -> Identifiability Corpus (done)
--> Target-Me Separation v2 (done) -> Evidence Export v2 (done) -> Release-quality CLI (done)
--> Reliable Final Handoff v1 (done) -> Authoritative Incremental ASR v1 (done)
--> Canonical Live ASR Producer v1 (done: DO_NOT_PROMOTE)
--> Causal Canonical Mic ASR v1 (done: DO_NOT_PROMOTE)
--> Remote Speaker Evidence Map v1 (done: PROMOTE_AUDIT_ONLY)
--> Anonymous Rich Transcript Handoff v1 (done: PROMOTE_OPTIONAL_RICH)
--> Reviewed Remote Speaker Naming v1 (current)
+Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental ASR
+-> Canonical Live and Causal Mic ASR (done: DO_NOT_PROMOTE)
+-> Remote Speaker Map -> Anonymous Rich -> Reviewed Naming (done)
+-> Reviewed Speaker-Aware Meeting Memory v1 (current)
 ```
 
-Reviewed speaker naming follows the anonymous rich handoff and remains optional: voice similarity
-alone never assigns a person. Heavy local validators, LLM synthesis and UI remain parallel or
-parked. Live promotion remains blocked; Live Shadow is advisory evidence only.
+Reviewed speaker-aware memory remains optional. Heavy validators, LLM synthesis and UI stay
+parallel or parked; Live promotion remains blocked and Live Shadow stays advisory.
 
 See the [current goal](docs/project/current-goal.md), [readable roadmap](docs/roadmap/murmurmark-cli-roadmap.md)
 and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
@@ -327,6 +330,8 @@ and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 
 - Ordinary selected transcripts use `Me` and aggregate `Colleagues`; `--rich` is an optional,
   fingerprint-verified anonymous-speaker view and is not an export source.
+- `--rich --reviewed-speakers` uses only explicit labels from the current session decision file.
+  It is an optional read surface; ordinary notes and export do not consume those labels yet.
 - The personalized pre-ASR profile removes independently supported remote leakage on compatible
   speaker-playback sessions; it does not promise waveform-perfect echo removal on every room/device.
 - Echo Guard records `speaker_playback`, `headphones_or_low_leak` or `uncertain` in

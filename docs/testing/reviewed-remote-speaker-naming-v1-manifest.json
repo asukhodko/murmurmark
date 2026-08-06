@@ -1,0 +1,239 @@
+{
+  "constraints": {
+    "cross_session_identity_allowed": false,
+    "labels_explicit_only": true,
+    "notes_or_export_integration_promoted": false,
+    "plain_transcript_authoritative": true,
+    "private_labels_in_corpus_report": false,
+    "voice_identity_inference_allowed": false
+  },
+  "decision": "PROMOTE_OPTIONAL_REVIEWED_NAMING",
+  "gates": {
+    "all_missing_decisions_fail_open": true,
+    "all_ordinary_outputs_current": true,
+    "all_sessions_passed": true,
+    "all_templates_deterministic": true,
+    "minimum_frozen_sessions": true,
+    "synthetic_contract_checker": true
+  },
+  "generator": {
+    "fingerprint": {
+      "bytes": 12320,
+      "path": "scripts/report-reviewed-remote-speaker-naming-corpus.py",
+      "sha256": "532369b77d518eeddd9082162947864f2995acf54dea2459d3e09d70a089fd1e"
+    },
+    "script": "report-reviewed-remote-speaker-naming-corpus.py",
+    "version": "0.1.0"
+  },
+  "inputs": {
+    "anonymous_policy": {
+      "bytes": 2219,
+      "path": "policies/anonymous-rich-transcript-v1.json",
+      "sha256": "091516757e766b2b6e33088e83364f60bce73a2462be893ec7e1567ff5a50e0e"
+    },
+    "anonymous_source_corpus": {
+      "bytes": 38808,
+      "path": "docs/testing/anonymous-rich-transcript-v1-manifest.json",
+      "sha256": "cdd21586530fe79b392fda79b776f34d898fad26045461178751e321f42d8790"
+    },
+    "reviewed_materializer": {
+      "bytes": 30363,
+      "path": "scripts/review-remote-speaker-labels.py",
+      "sha256": "028a315d54e9a818941a4ea186717b2f132bbc5637a0becb586a6c70970dd63f"
+    }
+  },
+  "metrics": {
+    "aggregate_remote_utterances": 606,
+    "attributed_remote_utterances": 629,
+    "remote_utterances": 1235,
+    "sessions_passed": 6,
+    "sessions_total": 6,
+    "speaker_ids": 14
+  },
+  "schema": "murmurmark.reviewed_speaker_naming_frozen_manifest/v1",
+  "scope": "optional_explicit_session_local_speaker_labels",
+  "sessions": [
+    {
+      "anonymous_semantic_fingerprint": "8267d364ec32c024f4047ec8e55b87a195770aca0d676cce7f48b480bc1a6abd",
+      "counts": {
+        "aggregate_remote_utterances": 118,
+        "attributed_remote_utterances": 110,
+        "remote_utterances": 228,
+        "speaker_ids": 1
+      },
+      "gates": {
+        "anonymous_handoff_current": true,
+        "missing_decision_fails_open": true,
+        "ordinary_outputs_current_after": true,
+        "ordinary_outputs_current_before": true,
+        "template_contains_no_transcript_content": true,
+        "template_has_no_private_labels": true,
+        "template_replay_identical": true,
+        "template_requires_explicit_resolution": true,
+        "template_speaker_set_exact": true
+      },
+      "inputs": {
+        "anonymous_handoff": {
+          "bytes": 13972,
+          "path": "derived/transcript-rich/anonymous-v1/handoff_manifest.json",
+          "sha256": "c73c77d2d54def2e3b1b125ffab84f39c277a9ba81c756265da4da7032f1147e"
+        }
+      },
+      "reasons": [],
+      "session_id": "2026-06-23_14-04-37",
+      "status": "passed"
+    },
+    {
+      "anonymous_semantic_fingerprint": "a676f496936529a127cf11ffef0bd666d00be5393730e02aaeae248fda79758a",
+      "counts": {
+        "aggregate_remote_utterances": 69,
+        "attributed_remote_utterances": 60,
+        "remote_utterances": 129,
+        "speaker_ids": 1
+      },
+      "gates": {
+        "anonymous_handoff_current": true,
+        "missing_decision_fails_open": true,
+        "ordinary_outputs_current_after": true,
+        "ordinary_outputs_current_before": true,
+        "template_contains_no_transcript_content": true,
+        "template_has_no_private_labels": true,
+        "template_replay_identical": true,
+        "template_requires_explicit_resolution": true,
+        "template_speaker_set_exact": true
+      },
+      "inputs": {
+        "anonymous_handoff": {
+          "bytes": 13976,
+          "path": "derived/transcript-rich/anonymous-v1/handoff_manifest.json",
+          "sha256": "8e6ae9ab879c9780185c348aa298dfcd023df1773a124c1d561b40672235f5eb"
+        }
+      },
+      "reasons": [],
+      "session_id": "2026-06-24_15-03-52",
+      "status": "passed"
+    },
+    {
+      "anonymous_semantic_fingerprint": "ce7fe9f7fb4cc93843cf992f93b6f515ccbb3f6b75114bafc84b4546b02870da",
+      "counts": {
+        "aggregate_remote_utterances": 116,
+        "attributed_remote_utterances": 159,
+        "remote_utterances": 275,
+        "speaker_ids": 5
+      },
+      "gates": {
+        "anonymous_handoff_current": true,
+        "missing_decision_fails_open": true,
+        "ordinary_outputs_current_after": true,
+        "ordinary_outputs_current_before": true,
+        "template_contains_no_transcript_content": true,
+        "template_has_no_private_labels": true,
+        "template_replay_identical": true,
+        "template_requires_explicit_resolution": true,
+        "template_speaker_set_exact": true
+      },
+      "inputs": {
+        "anonymous_handoff": {
+          "bytes": 13959,
+          "path": "derived/transcript-rich/anonymous-v1/handoff_manifest.json",
+          "sha256": "164def7b915ea29f6dc6a124d6ee4b60722de36654bd689b7782ac9630d148ed"
+        }
+      },
+      "reasons": [],
+      "session_id": "2026-06-26_11-15-50",
+      "status": "passed"
+    },
+    {
+      "anonymous_semantic_fingerprint": "5b78f46eced08d81cf7c41efb175b35f835d45266ed7b53da918206d748ea8dd",
+      "counts": {
+        "aggregate_remote_utterances": 86,
+        "attributed_remote_utterances": 78,
+        "remote_utterances": 164,
+        "speaker_ids": 2
+      },
+      "gates": {
+        "anonymous_handoff_current": true,
+        "missing_decision_fails_open": true,
+        "ordinary_outputs_current_after": true,
+        "ordinary_outputs_current_before": true,
+        "template_contains_no_transcript_content": true,
+        "template_has_no_private_labels": true,
+        "template_replay_identical": true,
+        "template_requires_explicit_resolution": true,
+        "template_speaker_set_exact": true
+      },
+      "inputs": {
+        "anonymous_handoff": {
+          "bytes": 13894,
+          "path": "derived/transcript-rich/anonymous-v1/handoff_manifest.json",
+          "sha256": "5c35edb27d302f78932d26701f9dd9d7a8149922df9049d5400190fb0a377bc1"
+        }
+      },
+      "reasons": [],
+      "session_id": "2026-06-26_12-04-04",
+      "status": "passed"
+    },
+    {
+      "anonymous_semantic_fingerprint": "c8355533cbc59bcc17a3254955f75c21e2078f3846337b38ef8215a78fb1129f",
+      "counts": {
+        "aggregate_remote_utterances": 161,
+        "attributed_remote_utterances": 154,
+        "remote_utterances": 315,
+        "speaker_ids": 3
+      },
+      "gates": {
+        "anonymous_handoff_current": true,
+        "missing_decision_fails_open": true,
+        "ordinary_outputs_current_after": true,
+        "ordinary_outputs_current_before": true,
+        "template_contains_no_transcript_content": true,
+        "template_has_no_private_labels": true,
+        "template_replay_identical": true,
+        "template_requires_explicit_resolution": true,
+        "template_speaker_set_exact": true
+      },
+      "inputs": {
+        "anonymous_handoff": {
+          "bytes": 14075,
+          "path": "derived/transcript-rich/anonymous-v1/handoff_manifest.json",
+          "sha256": "8727d13c82844d9f6bf3a08fcced0c1a121b6e2ec29b1982fafcc8a4184f9fc1"
+        }
+      },
+      "reasons": [],
+      "session_id": "2026-07-14_15-01-19-live",
+      "status": "passed"
+    },
+    {
+      "anonymous_semantic_fingerprint": "70ea736493ac277d32257257b813181db9a56e1cc628a44e86f316bc573b2b41",
+      "counts": {
+        "aggregate_remote_utterances": 56,
+        "attributed_remote_utterances": 68,
+        "remote_utterances": 124,
+        "speaker_ids": 2
+      },
+      "gates": {
+        "anonymous_handoff_current": true,
+        "missing_decision_fails_open": true,
+        "ordinary_outputs_current_after": true,
+        "ordinary_outputs_current_before": true,
+        "template_contains_no_transcript_content": true,
+        "template_has_no_private_labels": true,
+        "template_replay_identical": true,
+        "template_requires_explicit_resolution": true,
+        "template_speaker_set_exact": true
+      },
+      "inputs": {
+        "anonymous_handoff": {
+          "bytes": 14230,
+          "path": "derived/transcript-rich/anonymous-v1/handoff_manifest.json",
+          "sha256": "88df225e019542689b178e8b371f262c45c06210a5fd49d593e8e85ac51fb989"
+        }
+      },
+      "reasons": [],
+      "session_id": "2026-07-20_15-15-26-live",
+      "status": "passed"
+    }
+  ],
+  "synthetic_failure": null,
+  "version": 1
+}

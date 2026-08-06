@@ -6135,6 +6135,91 @@ exact remote references, `629` attributed rows, `606` aggregate fallbacks and `1
 anonymous speakers. Promotion covers only this explicit read surface. Plain Markdown, notes,
 verdict, Evidence Handoff v2, auto-selection, guarded export and retention do not consume it.
 
+## Reviewed Remote Speaker Naming v1
+
+Reviewed naming is a separate opt-in overlay over a current Anonymous Rich Transcript Handoff v1:
+
+```text
+review/remote-speaker-labels.v1.json
+
+derived/transcript-rich/reviewed-speakers-v1/
+  handoff_manifest.json
+  report.json
+  report.md
+  bundles/<semantic-fingerprint>/
+    handoff_manifest.json
+    transcript.rich.reviewed.json
+    transcript.rich.reviewed.md
+```
+
+The versioned schemas are:
+
+- `murmurmark.reviewed_speaker_decisions/v1`;
+- `murmurmark.reviewed_speaker_handoff/v1`;
+- `murmurmark.reviewed_speaker_transcript/v1`;
+- `murmurmark.reviewed_speaker_report/v1`;
+- `murmurmark.reviewed_speaker_naming_frozen_manifest/v1`.
+
+A decision file is session-local and bound to the current anonymous semantic fingerprint, exact
+ordered speaker-ID set and evidence counts/bounds. Every row must be resolved explicitly:
+
+```json
+{
+  "schema": "murmurmark.reviewed_speaker_decisions/v1",
+  "version": 1,
+  "session_id": "2026-08-06_12-00-00",
+  "decision_source": "explicit_session_review",
+  "review_completed": true,
+  "source": {
+    "anonymous_semantic_fingerprint": "<sha256>",
+    "template_fingerprint": "<sha256>"
+  },
+  "labels": [
+    {
+      "speaker_id": "remote_speaker_01",
+      "action": "label",
+      "display_label": "Участник A",
+      "evidence": {"utterance_count": 18, "first_start": 4.2, "last_end": 912.4}
+    },
+    {
+      "speaker_id": "remote_speaker_02",
+      "action": "keep_anonymous",
+      "display_label": null,
+      "evidence": {"utterance_count": 7, "first_start": 36.1, "last_end": 740.0}
+    }
+  ]
+}
+```
+
+Labels must be non-empty, trimmed, unique inside the session, at most 80 characters and free of
+control characters or local absolute paths. `Me` and `Colleagues` are reserved. The implementation
+does not inspect voice identity, contacts, calendars or another session. Acoustic clustering only
+supplies the anonymous IDs being reviewed.
+
+`transcript.rich.reviewed.json.utterances` and `remote_speaker_attributions` must equal the current
+anonymous rich payload exactly. Labels live in a separate `reviewed_speaker_labels` array and only
+affect the optional Markdown headings. Aggregate evidence remains `Colleagues`. Reports and current
+manifests contain counts and hashes, never display-label values; private values remain in the local
+decision file and immutable reviewed transcript bundle.
+
+Publication uses the same transactional immutable-bundle pattern as the anonymous handoff. Missing,
+partial, malformed or stale decisions, a changed anonymous handoff, a source hash mismatch or an
+interrupted publication cannot expose a new current reviewed bundle. The CLI fails open:
+
+```bash
+murmurmark speakers template "$SESSION"
+# Resolve every row and set review_completed=true.
+murmurmark speakers apply "$SESSION"
+murmurmark speakers status "$SESSION"
+murmurmark transcript "$SESSION" --rich --reviewed-speakers
+```
+
+If reviewed verification fails, the final command reads the verified anonymous `--rich` view and
+prints the fallback reason. Plain transcript, notes, verdict, Evidence Handoff v2, auto-selection,
+guarded export and retention remain unchanged. The frozen decision is
+`PROMOTE_OPTIONAL_REVIEWED_NAMING` on 6/6 sessions, covering 14 anonymous speaker IDs and all 1235
+remote utterance references. Notes/export consumption requires a separate promotion decision.
+
 Schema:
 
 ```json

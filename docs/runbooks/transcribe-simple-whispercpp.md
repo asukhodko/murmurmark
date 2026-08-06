@@ -2170,6 +2170,28 @@ and reads an immutable optional bundle; stale evidence explains how to rebuild i
 the ordinary Evidence Handoff v2 transcript is unchanged. Notes, auto-selection and export do not
 consume anonymous labels.
 
+To replace useful anonymous IDs with explicit session-local labels, generate a review file:
+
+```bash
+murmurmark speakers template "$SESSION"
+```
+
+Edit `$SESSION/review/remote-speaker-labels.v1.json`. For every row choose either `label` with a
+unique `display_label`, or `keep_anonymous` with `display_label: null`; then set
+`review_completed: true`. Apply and read the separate view:
+
+```bash
+murmurmark speakers apply "$SESSION"
+murmurmark speakers status "$SESSION"
+murmurmark transcript "$SESSION" --rich --reviewed-speakers
+```
+
+The template contains no transcript text. Labels are accepted only from this explicit file and are
+bound to the current anonymous handoff fingerprint and speaker evidence. MurmurMark never infers a
+person from voice, text, contacts, calendar or another session. Missing, partial or stale decisions
+fall back to the anonymous rich transcript; aggregate evidence stays `Colleagues`. This reviewed
+view is not consumed by ordinary notes or export.
+
 The bridge then runs a small reconciliation layer:
 
 ```text

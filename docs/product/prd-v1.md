@@ -87,20 +87,21 @@ Current operating point, 2026-08-04:
   final canonical PCM because current Echo and branch selection have a session-end causal boundary;
 - Remote Speaker Evidence Map v1 completed with promoted audit-only anonymous evidence over the
   authoritative remote track and no selected-text mutation;
-- the current goal is Anonymous Rich Transcript Handoff v1: a fingerprint-bound optional rich
-  artifact and CLI read path over the passing anonymous subset;
+- Anonymous Rich Transcript Handoff v1 and Reviewed Remote Speaker Naming v1 are promoted optional
+  read surfaces; labels come only from an explicit fingerprint-bound session review;
+- the current goal is Reviewed Speaker-Aware Meeting Memory v1: a separate opt-in notes/export
+  bundle that preserves evidence IDs and never changes the authoritative handoff;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 
-Anonymous Rich Transcript Handoff v1 is the active critical-path stage after Remote Speaker
-Evidence Map v1 completed with `PROMOTE_AUDIT_ONLY`.
+Reviewed Speaker-Aware Meeting Memory v1 is the active critical-path stage after reviewed naming
+completed with `PROMOTE_OPTIONAL_REVIEWED_NAMING`.
 The personalized Echo selector activates only with compatible local enrollment and promotion
 evidence; every unsupported acoustic mode or regression uses exact `local_fir_role_masked`.
 Any later separator remains isolated until a corpus-wide decision and cannot use exact remix or
 audio quality alone as evidence of correct word attribution. Post-ASR duplicate cleanup receives no
-promotion credit. Reviewed speaker naming follows the optional anonymous rich handoff. Heavy
-validators, LLM synthesis, reviewed external integrations and UI remain research or optional work
-outside the current stage.
+promotion credit. Heavy validators, LLM synthesis, external writes and UI remain research or
+optional work outside the current stage.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.
 

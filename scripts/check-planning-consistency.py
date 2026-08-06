@@ -59,6 +59,7 @@ CRITICAL_PATH = (
     "research-remote-diarization",
     "research-rich-transcript",
     "research-speaker-map",
+    "product-reviewed-speaker-memory-v1",
 )
 
 EXPECTED_STATUSES = {"done", "current", "next", "later", "idea", "optional", "blocked"}
@@ -234,6 +235,10 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
     require(
         "research-rich-transcript" in nodes["research-speaker-map"].get("deps", []),
         "reviewed speaker naming must follow anonymous rich transcript",
+    )
+    require(
+        "research-speaker-map" in nodes["product-reviewed-speaker-memory-v1"].get("deps", []),
+        "speaker-aware meeting memory must follow reviewed speaker naming",
     )
     require(nodes["parked-live-promotion"].get("status") == "blocked", "live promotion must stay blocked")
     require("parked-ui" not in nodes, "UI must not occupy the active CLI roadmap")

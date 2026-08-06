@@ -80,9 +80,9 @@ Causal Canonical Mic ASR v1 also completed with `DO_NOT_PROMOTE`: the frozen cor
 exact raw-fallback mic windows, and `5/30/120s` prefix probes all differed from final local-FIR PCM.
 The current Echo path has a session-end causal boundary. Remote Speaker Evidence Map v1 completed
 with `PROMOTE_AUDIT_ONLY`: it publishes high-precision session-local evidence for roughly half of
-remote speech and leaves the rest aggregate. The current goal is Anonymous Rich Transcript Handoff
-v1: expose only current passing evidence through a versioned optional rich artifact and CLI path
-without changing selected text or guarded export.
+remote speech and leaves the rest aggregate. Anonymous rich and explicit reviewed naming are now
+promoted optional read surfaces. The current goal is Reviewed Speaker-Aware Meeting Memory v1:
+carry only current explicit labels into an opt-in evidence-bound notes/export bundle.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

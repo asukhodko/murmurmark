@@ -119,8 +119,10 @@ post-Echo path and closed with `DO_NOT_PROMOTE`: `0/147` candidate windows match
 prefixes through `120s` remained different from final PCM. The current exact mic boundary is
 session end. Remote Speaker Evidence Map v1 has promoted optional anonymous evidence over the
 already authoritative remote track. Anonymous Rich Transcript Handoff v1 is now a promoted optional
-read surface over unchanged selected utterances. Reviewed Remote Speaker Naming v1 is the active
-isolated semantic stage; neither layer can alter the plain authoritative path.
+read surface over unchanged selected utterances. Reviewed Remote Speaker Naming v1 is also promoted
+in optional scope: only explicit session-local decisions can replace an anonymous display ID. The
+next isolated stage is Reviewed Speaker-Aware Meeting Memory v1; none of these layers can alter the
+plain authoritative path.
 
 Target full-product path:
 

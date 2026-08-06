@@ -35,11 +35,13 @@ Current implementation status, 2026-08-06:
   session-end causal boundary;
 - the audit-only anonymous speaker map over authoritative remote audio is implemented and promoted
   for optional evidence;
-- the current bounded goal is Anonymous Rich Transcript Handoff v1: a fingerprint-bound optional
-  anonymous rich transcript and explicit CLI read surface;
+- anonymous rich transcript and explicit session-local reviewed naming are promoted optional read
+  surfaces with fingerprint verification and anonymous fail-open behavior;
+- the current bounded goal is Reviewed Speaker-Aware Meeting Memory v1: opt-in notes/export over
+  explicit labels, without changing ordinary output selection;
 - committed-PCM live preview exists as an advisory shadow, while batch remains authoritative;
-- speaker naming, authoritative speaker labels, rich notes/export integration, evidence-guarded LLM
-  synthesis and UI remain future or optional work.
+- authoritative speaker identity, cross-session matching, evidence-guarded LLM synthesis and UI
+  remain future or optional work.
 
 ## Goals
 

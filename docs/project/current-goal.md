@@ -5,71 +5,73 @@ Status: current
 Updated: 2026-08-06
 
 The supported product path remains `murmurmark meeting -> first Ctrl-C -> authoritative result`.
-Raw CAF, batch transcript and Evidence Handoff v2 remain authoritative. Optional speaker views must
-never weaken that path.
+Raw CAF, plain transcript, Evidence Handoff v2, ordinary notes and guarded export remain
+authoritative. Optional speaker-aware artifacts must never weaken that path.
 
 Roadmap status and dependencies live in
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`. `scripts/check-planning-consistency.py` keeps the
 README, roadmap and OpsKarta wording aligned.
 
-## Reviewed Remote Speaker Naming v1
+## Reviewed Speaker-Aware Meeting Memory v1
 
-OpsKarta nearest goal: Reviewed Remote Speaker Naming v1: поверх promoted Anonymous Rich Transcript Handoff v1 создать optional review-only label overlay, который принимает имена или метки только из явного session-local decision file с fingerprint-bound provenance, генерирует шаблон и проверяемый CLI read path, никогда не выводит имя из голоса и не связывает людей между сессиями, не меняет plain transcript, notes, Evidence Handoff v2, guarded export или auto-selection; доказать referential integrity, stale/fail-open/replay, privacy и corpus no-regression; завершить PROMOTE или воспроизводимым DO_NOT_PROMOTE, добавить тесты, актуализировать документацию, roadmap и OpsKarta, закоммитить и отправить изменения.
+OpsKarta nearest goal: Reviewed Speaker-Aware Meeting Memory v1: поверх promoted explicit session-local speaker labels создать отдельный fingerprint-bound opt-in notes/export handoff с exact utterance и evidence IDs; не менять ordinary notes, Evidence Handoff v2, guarded export или auto-selection, сохранять aggregate Colleagues и anonymous fallback, запрещать voice identity, cross-session roster и external writes; доказать stale/fail-open/replay, privacy, referential integrity и corpus no-regression; завершить PROMOTE или воспроизводимым DO_NOT_PROMOTE, добавить тесты, актуализировать документацию, roadmap и OpsKarta, закоммитить и отправить изменения.
 
 ## Why This Is Next
 
-Anonymous Rich Transcript Handoff v1 completed with `PROMOTE_OPTIONAL_RICH`. Six frozen sessions
-passed all gates: all `1235` remote utterances have exact references, `629` received one of `14`
-session-local anonymous speaker IDs and `606` remained aggregate `Colleagues`.
+Reviewed Remote Speaker Naming v1 completed with `PROMOTE_OPTIONAL_REVIEWED_NAMING`. Six frozen
+sessions passed all gates: 14 anonymous IDs are available for explicit review and all 1235 remote
+utterance references remain exact. Missing, partial or stale decisions fall back to anonymous rich;
+voice-only identity and cross-session matching are absent.
 
-The optional view can now distinguish stable speakers, but `remote_speaker_02` is not useful meeting
-memory by itself. The safe next step is explicit reviewed labeling. Acoustic similarity remains
-evidence for grouping, never evidence for a person's identity.
+The reviewed transcript is useful to read, but ordinary notes/export cannot yet carry those labels.
+The next bounded product step is a separate opt-in meeting-memory bundle, not a change to the normal
+handoff.
 
 ## Objective
 
-Provide a local, review-only overlay that lets a user assign a display label to a current anonymous
-speaker ID and read a separately versioned reviewed rich transcript. Every assignment must be an
-explicit session-local decision bound to the current anonymous handoff fingerprint.
+Allow a user to request local notes and a Markdown export that display current explicit
+session-local speaker labels while preserving exact links to the selected utterances and evidence.
+The optional bundle must be independently verifiable and must never become the default source.
 
 ## Required Work
 
-1. Define versioned template, decision and reviewed-handoff schemas keyed by the current
-   `remote_speaker_NN` IDs.
-2. Add CLI commands to generate a review template, validate/apply completed decisions and read the
-   optional reviewed speaker view.
-3. Accept only explicit labels from the decision file. Do not infer names from voice, transcript,
-   calendar, contacts or previous meetings.
-4. Bind decisions to the anonymous rich semantic fingerprint, speaker set and exact utterance
-   references. Stale, partial or malformed decisions fail open to the anonymous rich view.
-5. Keep aggregate `Colleagues` untouched. Never force a label onto abstained evidence.
-6. Prove deterministic replay, interrupted publication recovery, path/privacy safety and ordinary
-   transcript, notes, verdict, Evidence Handoff v2, export and raw-audio non-regression.
-7. Freeze a synthetic and real-session corpus decision. Promotion covers only the explicit reviewed
-   read surface; downstream notes/export require a separate goal.
+1. Define versioned speaker-aware notes/export handoff schemas over a current reviewed naming
+   fingerprint and current Evidence Handoff v2.
+2. Add explicit CLI read/export commands. Ordinary `notes`, `transcript`, `finish` and `export`
+   behavior stays unchanged.
+3. Preserve every evidence utterance ID and aggregate `Colleagues` abstention; do not invent speaker
+   attribution for unlabelled evidence.
+4. Publish transactionally into an immutable fingerprint bundle. Stale labels, stale source notes,
+   incomplete review or missing artifacts fail open to the ordinary meeting-memory path.
+5. Keep display labels out of ordinary reports, logs, frozen corpus artifacts and external systems.
+6. Prove deterministic replay, interrupted publication recovery, referential integrity, path safety,
+   privacy and ordinary-output non-regression on synthetic and real frozen sessions.
+7. End with a reproducible `PROMOTE` or `DO_NOT_PROMOTE` corpus decision.
 
 ## Acceptance Gates
 
-- every reviewed label was explicitly supplied for an existing current anonymous ID;
-- no voice-only or cross-session identity assignment exists in code or artifacts;
-- stale anonymous evidence or stale decisions cannot be read as current;
-- duplicate, empty, unsafe or unmapped labels produce explicit validation errors;
-- anonymous and ordinary views remain available when reviewed naming is unavailable;
+- every displayed speaker label comes from a current explicit session-local decision;
+- every note/export evidence reference exists in the current selected dialogue;
+- aggregate and anonymous fallbacks stay visible where evidence abstains;
+- no voice identity, cross-session roster or external write exists in code or artifacts;
+- stale or missing reviewed labels cannot be read as current speaker-aware memory;
 - repeated runs are byte-identical and interrupted publication preserves the prior pointer;
-- no private labels enter tracked fixtures, logs, notes or guarded export;
+- ordinary transcript, notes, verdict, Evidence Handoff v2, guarded export and raw audio remain
+  byte-exact;
 - the frozen corpus ends in reproducible `PROMOTE` or `DO_NOT_PROMOTE`;
 - tests, contracts, runbook, README, roadmap and OpsKarta are current before commit and push.
 
 ## Safety Boundary
 
-- no changes to capture, Echo Guard, ASR, transcript selection or anonymous clustering;
-- no face/contact/calendar lookup and no network service;
+- no changes to capture, Echo Guard, ASR, transcript selection or speaker clustering;
 - no automatic person naming, biometric identity store or cross-meeting voice matching;
-- no notes, export, retention or UI integration in this stage.
+- no calendar, contacts, network service, issue tracker or document-system write;
+- no replacement of ordinary notes/export or automatic promotion into `meeting`.
 
 ## Completed Predecessor
 
-Anonymous Rich Transcript Handoff v1 completed on 2026-08-06 with `PROMOTE_OPTIONAL_RICH`.
-`murmurmark transcript SESSION --rich` verifies current fingerprints before reading the immutable
-optional bundle. Missing or stale evidence leaves the ordinary transcript available and unchanged.
-See `docs/testing/2026-08-06-anonymous-rich-transcript-handoff-v1.md`.
+Reviewed Remote Speaker Naming v1 completed on 2026-08-06 with
+`PROMOTE_OPTIONAL_REVIEWED_NAMING`. `murmurmark speakers template|apply|status` manages explicit
+session decisions, and `murmurmark transcript SESSION --rich --reviewed-speakers` verifies the
+optional immutable bundle before reading it. See
+`docs/testing/2026-08-06-reviewed-remote-speaker-naming-v1.md`.

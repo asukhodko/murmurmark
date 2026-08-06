@@ -33,7 +33,7 @@ nodes:
     title: "MurmurMark CLI"
     kind: summary
     status: current
-    effort: 182
+    effort: 188
     notes: |
       Активная CLI-first, local-first и evidence-backed программа. Batch transcript остаётся
       authoritative. В работе одновременно может быть только одна исполнимая продуктовая цель.
@@ -442,13 +442,26 @@ nodes:
     kind: task
     parent: parallel-research
     deps: [research-rich-transcript]
-    status: current
+    status: done
     effort: 5
     notes: |
-      Создать optional session-local label overlay поверх current anonymous rich handoff. Имена или
-      метки принимаются только из явного reviewed decision file с проверяемой provenance; голосовая
-      похожесть никогда не присваивает имя и не связывает людей между сессиями. Plain transcript,
-      notes, Evidence Handoff v2, guarded export и auto-selection остаются неизменными.
+      Завершено PROMOTE_OPTIONAL_REVIEWED_NAMING: 6/6 frozen sessions, 14 anonymous IDs и 1235
+      remote references. Только explicit session-local decision может присвоить display label;
+      stale/partial решения откатываются к anonymous rich. Voice identity, cross-session matching,
+      plain transcript, notes, Evidence Handoff v2, export и auto-selection не менялись.
+
+  product-reviewed-speaker-memory-v1:
+    title: "Reviewed Speaker-Aware Meeting Memory v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [research-speaker-map, product-evidence-export-v2]
+    status: current
+    effort: 6
+    notes: |
+      Создать отдельный opt-in notes/export handoff, который использует только current explicit
+      session-local labels и сохраняет exact utterance/evidence IDs. Обычные notes/export остаются
+      authoritative fallback; stale labels, aggregate Colleagues и privacy boundaries должны быть
+      явными. Никаких external writes, voice identity или cross-session roster в этой цели.
 
   research-rich-transcript:
     title: "Anonymous Rich Transcript Handoff v1"
@@ -540,9 +553,9 @@ views:
         nodes: [working-capabilities, corpus-regression]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [research-speaker-map]
+        nodes: [product-reviewed-speaker-memory-v1]
       dependent:
-        title: "После reviewed naming"
+        title: "После speaker-aware memory"
         nodes: [parallel-research, parking-lot]
 
   critical-path:
@@ -575,6 +588,7 @@ views:
           - research-remote-diarization
           - research-rich-transcript
           - research-speaker-map
+          - product-reviewed-speaker-memory-v1
 
   parallel-research-view:
     title: "Параллельные исследования"
@@ -632,14 +646,15 @@ views:
           - research-remote-diarization
           - research-rich-transcript
           - research-speaker-map
+          - product-reviewed-speaker-memory-v1
           - parallel-research
           - parking-lot
 
 x:
   exec:
     program:
-      nearest_goal: "Reviewed Remote Speaker Naming v1: поверх promoted Anonymous Rich Transcript Handoff v1 создать optional review-only label overlay, который принимает имена или метки только из явного session-local decision file с fingerprint-bound provenance, генерирует шаблон и проверяемый CLI read path, никогда не выводит имя из голоса и не связывает людей между сессиями, не меняет plain transcript, notes, Evidence Handoff v2, guarded export или auto-selection; доказать referential integrity, stale/fail-open/replay, privacy и corpus no-regression; завершить PROMOTE или воспроизводимым DO_NOT_PROMOTE, добавить тесты, актуализировать документацию, roadmap и OpsKarta, закоммитить и отправить изменения."
-      success_by_next_sync: "Пользователь может явно и проверяемо сопоставить session-local anonymous IDs с локальными метками; stale или неполное решение fails open к anonymous rich view, а voice-only naming, cross-session identity и обычный product path остаются запрещены."
+      nearest_goal: "Reviewed Speaker-Aware Meeting Memory v1: поверх promoted explicit session-local speaker labels создать отдельный fingerprint-bound opt-in notes/export handoff с exact utterance и evidence IDs; не менять ordinary notes, Evidence Handoff v2, guarded export или auto-selection, сохранять aggregate Colleagues и anonymous fallback, запрещать voice identity, cross-session roster и external writes; доказать stale/fail-open/replay, privacy, referential integrity и corpus no-regression; завершить PROMOTE или воспроизводимым DO_NOT_PROMOTE, добавить тесты, актуализировать документацию, roadmap и OpsKarta, закоммитить и отправить изменения."
+      success_by_next_sync: "Пользователь может явно запросить локальный speaker-aware notes/export bundle с проверяемыми ссылками на текущий reviewed transcript; без current labels обычная meeting memory остаётся доступной и неизменной."
     defaults:
       status_progress:
         done: 1.0
@@ -660,13 +675,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle, batch transcript, review, notes/export и Live Shadow уже работают."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Текущий reviewed speaker naming path"
-        scope_nodes: [research-speaker-map]
+        title: "Текущий speaker-aware meeting memory path"
+        scope_nodes: [product-reviewed-speaker-memory-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Anonymous Rich Transcript Handoff v1 promoted optional: 6/6 sessions, 1235 exact remote references, 629 anonymous attributions. Текущий фокус — только explicit reviewed labels."
-          next_sync_goal: "Добавить fingerprint-bound session-local naming overlay без voice-only inference и без изменения authoritative path."
+          sync_note: "Reviewed naming promoted optional: 6/6 sessions, 14 IDs и 1235 exact remote references. Текущий фокус — отдельная opt-in meeting memory поверх explicit labels."
+          next_sync_goal: "Добавить evidence-bound speaker-aware notes/export без изменения ordinary handoff и без external writes."
       dependent-path:
         title: "Зависимый путь"
         scope_nodes:
@@ -690,11 +705,12 @@ x:
           - research-remote-diarization
           - research-rich-transcript
           - research-speaker-map
+          - product-reviewed-speaker-memory-v1
         kind: main
         mgmt:
           health: neutral
-          sync_note: "После reviewed naming отдельного решения потребуют notes/export consumption и cross-session roster UX."
-          next_sync_goal: "Не смешивать explicit session labels с voice identity, cross-session matching и export promotion."
+          sync_note: "После speaker-aware memory отдельного решения потребуют cross-session roster UX и external integrations."
+          next_sync_goal: "Не смешивать explicit session labels с voice identity, cross-session matching и внешними записями."
       research:
         title: "Параллельные исследования"
         scope_nodes: [parallel-research]

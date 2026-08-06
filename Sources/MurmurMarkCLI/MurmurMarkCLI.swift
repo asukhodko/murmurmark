@@ -205,6 +205,8 @@ struct MurmurMark {
                 try NotesCommands.notes(args)
             case "transcript":
                 try TranscriptCommands.transcript(args)
+            case "speakers":
+                try SpeakerCommands.speakers(args)
             case "echo-lab":
                 try EchoLabCommands.echoLab(args)
             case "corpus":
@@ -298,7 +300,10 @@ struct MurmurMark {
           murmurmark review --help
           murmurmark synthesize ./session|latest [--transcript-profile auto] [--sessions-root ./sessions]
           murmurmark notes ./session|latest [--kind notes|verdict|review-items|evidence] [--profile auto|current|NAME] [--path-only|--cat]
-          murmurmark transcript ./session|latest [--profile auto] [--rich] [--path-only|--cat] [--sessions-root ./sessions]
+          murmurmark transcript ./session|latest [--profile auto] [--rich [--reviewed-speakers]] [--path-only|--cat]
+                                [--sessions-root ./sessions]
+          murmurmark speakers template|apply|status ./session|latest [--decisions PATH]
+                                [--sessions-root ./sessions]
           murmurmark echo-lab prepare [--sessions-root ./sessions]
           murmurmark echo-lab capture --out ./session --scenario SCENARIO [--sessions-root ./sessions]
                                       [--confirm-operator-instructions]
@@ -1289,6 +1294,7 @@ enum DoctorChecks {
             "scripts/audit-target-me.py",
             "scripts/audit-remote-speaker-evidence.py",
             "scripts/materialize-anonymous-rich-transcript.py",
+            "scripts/review-remote-speaker-labels.py",
             "scripts/authoritative-boundary.py",
             "scripts/mixed-utterance-span-separation.py",
             "scripts/run-asr-positive-echo-candidate.py",
@@ -5766,6 +5772,13 @@ struct SynthesisArtifactHandoff {
 }
 
 enum TranscriptCommands {
+    private struct RichSelection {
+        let profile: String
+        let url: URL
+        let kind: String
+        let fallbackReason: String?
+    }
+
     static func transcript(_ args: [String]) throws {
         if args.isEmpty || ArgumentEditing.hasHelpFlag(args) {
             printHelp()
@@ -5777,6 +5790,7 @@ enum TranscriptCommands {
         let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
         let requestedProfile = ArgumentEditing.takeOption("profile", from: &remaining) ?? "auto"
         let rich = ArgumentEditing.takeFlag("rich", from: &remaining)
+        let reviewedSpeakers = ArgumentEditing.takeFlag("reviewed-speakers", from: &remaining)
         let pathOnly = ArgumentEditing.takeFlag("path-only", from: &remaining)
         let cat = ArgumentEditing.takeFlag("cat", from: &remaining)
         guard remaining.isEmpty else {
@@ -5787,10 +5801,19 @@ enum TranscriptCommands {
         if rich, requestedProfile != "auto" {
             throw CLIError("--rich uses the current Evidence Handoff v2 selection and cannot be combined with --profile")
         }
+        if reviewedSpeakers, !rich {
+            throw CLIError("--reviewed-speakers requires --rich")
+        }
         let profile: String
         let url: URL
+        let kind: String
+        var fallbackReason: String?
         if rich {
-            (profile, url) = try richTranscript(session: session)
+            let selection = try richTranscript(session: session, reviewedSpeakers: reviewedSpeakers)
+            profile = selection.profile
+            url = selection.url
+            kind = selection.kind
+            fallbackReason = selection.fallbackReason
         } else {
             profile = try selectedProfile(requestedProfile, session: session)
             url = requestedProfile == "auto"
@@ -5798,11 +5821,15 @@ enum TranscriptCommands {
                     ?? AuthoritativeHandoffState.artifact("transcript", session: session)
                     ?? transcriptURL(profile: profile, session: session))
                 : transcriptURL(profile: profile, session: session)
+            kind = "plain_authoritative"
         }
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw CLIError("transcript not found: \(PathDisplay.display(url)); run `murmurmark process \(PathDisplay.display(session))`")
         }
 
+        if let fallbackReason, cat || pathOnly {
+            fputs("warning: reviewed speaker labels unavailable (\(fallbackReason)); using anonymous rich transcript\n", stderr)
+        }
         if cat {
             let data = try Data(contentsOf: url)
             FileHandle.standardOutput.write(data)
@@ -5816,9 +5843,12 @@ enum TranscriptCommands {
         print("SESSION=\"\(PathDisplay.display(session))\"")
         print("")
         print("transcript:")
-        print("  kind: \(rich ? "anonymous_rich_optional" : "plain_authoritative")")
+        print("  kind: \(kind)")
         print("  profile: \(profile)")
         print("  path: \(PathDisplay.display(url))")
+        if let fallbackReason {
+            print("  fallback_reason: \(fallbackReason)")
+        }
         let verdictPayload = try? JSONFiles.object(verdictJSONPath(session: session, profile: profile))
         if let verdictPayload {
             ReviewSummaryPrinter.printReviewSummary(verdictPayload["review_summary"], indent: "  ")
@@ -5833,7 +5863,7 @@ enum TranscriptCommands {
         FinalNextPrinter.print(handoff.recommendedNext)
     }
 
-    private static func richTranscript(session: URL) throws -> (String, URL) {
+    private static func richTranscript(session: URL, reviewedSpeakers: Bool) throws -> RichSelection {
         let script = PathURLs.fileURL("scripts/materialize-anonymous-rich-transcript.py")
         guard FileManager.default.fileExists(atPath: script.path) else {
             throw CLIError("anonymous rich transcript helper not found: \(script.path)")
@@ -5877,7 +5907,60 @@ enum TranscriptCommands {
                     + "`murmurmark audit remote-speakers \(sessionDisplay)`"
             )
         }
-        return (profile, richURL)
+        guard reviewedSpeakers else {
+            return RichSelection(
+                profile: profile,
+                url: richURL,
+                kind: "anonymous_rich_optional",
+                fallbackReason: nil
+            )
+        }
+
+        let reviewedScript = PathURLs.fileURL("scripts/review-remote-speaker-labels.py")
+        guard FileManager.default.fileExists(atPath: reviewedScript.path) else {
+            return RichSelection(
+                profile: profile,
+                url: richURL,
+                kind: "anonymous_rich_fallback",
+                fallbackReason: "reviewed_speaker_helper_missing"
+            )
+        }
+        let reviewedStatus = try Tooling.runPathQuietAllowingExitCodes(
+            try PythonRuntime.resolve(),
+            [reviewedScript.path, "status", session.path, "--verify-only"],
+            allowedExitCodes: [0, 2]
+        )
+        let reviewedManifestURL = session.appendingPathComponent(
+            "derived/transcript-rich/reviewed-speakers-v1/handoff_manifest.json"
+        )
+        guard reviewedStatus == 0,
+              let reviewedManifest = try? JSONFiles.object(reviewedManifestURL),
+              reviewedManifest["state"] as? String == "ready",
+              let reviewedBundle = reviewedManifest["bundle"] as? [String: Any],
+              let reviewedFiles = reviewedBundle["files"] as? [String: Any],
+              let reviewedRow = reviewedFiles["transcript_markdown"] as? [String: Any],
+              let reviewedRawPath = reviewedRow["path"] as? String,
+              let reviewedURL = safeSessionPath(reviewedRawPath, session: session)
+        else {
+            var reason = "missing_or_stale_review_decisions"
+            if let payload = try? JSONFiles.object(reviewedManifestURL),
+               let reasons = payload["reasons"] as? [String],
+               let first = reasons.first {
+                reason = first
+            }
+            return RichSelection(
+                profile: profile,
+                url: richURL,
+                kind: "anonymous_rich_fallback",
+                fallbackReason: reason
+            )
+        }
+        return RichSelection(
+            profile: profile,
+            url: reviewedURL,
+            kind: "reviewed_speakers_optional",
+            fallbackReason: nil
+        )
     }
 
     private static func safeSessionPath(_ raw: String, session: URL) -> URL? {
@@ -5939,11 +6022,68 @@ enum TranscriptCommands {
 
     private static func printHelp() {
         print("""
-        usage: murmurmark transcript ./session|latest [--profile auto|current|NAME] [--rich] [--path-only|--cat] [--sessions-root ./sessions]
+        usage: murmurmark transcript ./session|latest [--profile auto|current|NAME]
+                              [--rich [--reviewed-speakers]] [--path-only|--cat]
+                              [--sessions-root ./sessions]
 
         Resolves the current authoritative handoff and prints its transcript path.
         Use --rich for the optional current session-local anonymous-speaker view.
+        Add --reviewed-speakers to request explicit session-local labels. Missing, incomplete or
+        stale decisions fail open to the anonymous rich view.
         Use --cat to stream Markdown to stdout.
+        """)
+    }
+}
+
+enum SpeakerCommands {
+    static func speakers(_ args: [String]) throws {
+        if args.isEmpty || ArgumentEditing.hasHelpFlag(args) {
+            printHelp()
+            return
+        }
+
+        var remaining = args
+        let command = remaining.removeFirst()
+        guard ["template", "apply", "status"].contains(command) else {
+            throw CLIError("unknown speakers command: \(command)")
+        }
+        guard let target = remaining.first else {
+            throw CLIError("speakers \(command) requires a session path or latest")
+        }
+        remaining.removeFirst()
+        let sessionsRoot = PathURLs.fileURL(
+            ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions"
+        )
+        let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
+        let script = PathURLs.fileURL("scripts/review-remote-speaker-labels.py")
+        guard FileManager.default.fileExists(atPath: script.path) else {
+            throw CLIError("reviewed speaker naming helper not found: \(script.path)")
+        }
+
+        print("SESSION=\"\(PathDisplay.display(session))\"")
+        fflush(stdout)
+        let status = try Tooling.runPathAllowingExitCodes(
+            try PythonRuntime.resolve(),
+            [script.path, command, session.path] + remaining,
+            allowedExitCodes: command == "status" ? [0, 2] : [0]
+        )
+        if command == "status", status == 2 {
+            FinalNextPrinter.print("murmurmark speakers template \(PathDisplay.display(session))")
+        }
+    }
+
+    private static func printHelp() {
+        print("""
+        usage:
+          murmurmark speakers template ./session|latest [--decisions PATH] [--force]
+                                      [--sessions-root ./sessions]
+          murmurmark speakers apply ./session|latest [--decisions PATH]
+                                   [--sessions-root ./sessions]
+          murmurmark speakers status ./session|latest [--decisions PATH]
+                                    [--sessions-root ./sessions]
+
+        Creates and applies explicit session-local display labels over current anonymous speaker IDs.
+        No name is inferred from voice, transcript, contacts, calendar or another session.
         """)
     }
 }

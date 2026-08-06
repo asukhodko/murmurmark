@@ -7,6 +7,8 @@ public release tag exists; development builds also carry the source commit in th
 
 - Added a fingerprint-bound optional anonymous-speaker transcript with deterministic corpus gates
   and the explicit `murmurmark transcript SESSION --rich` read path.
+- Added explicit session-local reviewed speaker labels, transactional immutable publication and
+  fail-open `murmurmark transcript SESSION --rich --reviewed-speakers` access.
 
 ## 0.1.0 - 2026-08-05
 

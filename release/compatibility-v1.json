@@ -95,6 +95,13 @@
         "murmurmark.anonymous_rich_handoff/v1"
       ],
       "migration": "optional; regenerate from current Evidence Handoff v2 and promoted remote-speaker evidence"
+    },
+    "reviewed_speaker_handoff": {
+      "current": "murmurmark.reviewed_speaker_handoff/v1",
+      "accepted": [
+        "murmurmark.reviewed_speaker_handoff/v1"
+      ],
+      "migration": "optional; regenerate from a current anonymous rich handoff and explicit session-local review decisions"
     }
   },
   "privacy": {

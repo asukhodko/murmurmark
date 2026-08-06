@@ -11,7 +11,6 @@ import inspect
 import json
 import os
 import re
-import shutil
 import tarfile
 import tempfile
 from pathlib import Path, PurePosixPath
@@ -134,6 +133,8 @@ def required_layout(root: Path) -> None:
         "libexec/murmurmark/murmurmark",
         "scripts/release-bundle.py",
         "scripts/install-release.sh",
+        "scripts/materialize-anonymous-rich-transcript.py",
+        "scripts/review-remote-speaker-labels.py",
         "release/compatibility-v1.json",
         "release/licenses-v1.json",
         "README.md",

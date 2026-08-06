@@ -53,17 +53,16 @@ remain, while rebuildable media below `derived/` can be removed through
 
 ## Current Goal
 
-Canonical Live ASR Producer v1 and Causal Canonical Mic ASR v1 completed with `DO_NOT_PROMOTE`:
-speedup was only `2.8651%..4.1040%` and `0/147` mic windows matched final PCM. Batch stays authoritative.
-
-**Remote Speaker Evidence Map v1** completed with `PROMOTE_AUDIT_ONLY`: 14 clusters covered
-`4490.170s`; `4420.800s` stayed aggregate. Reference ARI is `0.865804`, B-cubed F1 `0.913884`.
-
 **Anonymous Rich Transcript Handoff v1** completed with `PROMOTE_OPTIONAL_RICH`: 6/6 sessions and
 all 1235 remote references passed; 629 utterances use 14 anonymous IDs and 606 remain aggregate.
 
-**Reviewed Remote Speaker Naming v1** is current. It adds only explicit, fingerprint-bound,
-session-local labels. Voice similarity never assigns a person's identity.
+**Reviewed Remote Speaker Naming v1** completed with `PROMOTE_OPTIONAL_REVIEWED_NAMING`: 6/6
+sessions expose 14 IDs for explicit session-local review while preserving all 1235 remote
+references. Voice similarity never assigns a person's identity.
+
+**Reviewed Speaker-Aware Meeting Memory v1** is current. It will carry only current explicit labels
+into a separate opt-in notes/export bundle with exact evidence IDs. Ordinary notes and export remain
+the fallback and no external system is written.
 
 ## Critical Path
 
@@ -88,9 +87,10 @@ flowchart LR
     M["Done: DO_NOT_PROMOTE<br/>Causal Canonical<br/>Mic ASR v1"]
     R["Done: PROMOTE_AUDIT_ONLY<br/>Remote Speaker<br/>Evidence Map v1"]
     T["Done: PROMOTE<br/>Anonymous Rich<br/>Transcript Handoff v1"]
-    Q["Current<br/>Reviewed Remote<br/>Speaker Naming v1"]
+    Q["Done: PROMOTE<br/>Reviewed Remote<br/>Speaker Naming v1"]
+    W["Current<br/>Reviewed Speaker-Aware<br/>Meeting Memory v1"]
 
-    P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D --> F --> G --> C2 --> M --> R --> T --> Q
+    P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D --> F --> G --> C2 --> M --> R --> T --> Q --> W
 ```
 
 ### 0. Evidence-Backed Me Completion v2
@@ -245,22 +245,22 @@ non-regression pass on 6/6 frozen sessions.
 
 ### 19. Reviewed Remote Speaker Naming v1
 
-Current. Build an optional reviewed label overlay over the anonymous handoff. Only explicit local
-decisions may assign display labels; voice-only inference and cross-session identity stay forbidden.
-The anonymous view remains the fallback, and ordinary notes/export do not consume labels yet.
+Completed with `PROMOTE_OPTIONAL_REVIEWED_NAMING`. `speakers template|apply|status` accepts only
+explicit fingerprint-bound session-local decisions. The optional reviewed read path preserves exact
+utterances and anonymous attributions; stale or missing decisions fall back to anonymous rich.
+Voice-only identity, cross-session matching and ordinary notes/export remain untouched.
+
+### 20. Reviewed Speaker-Aware Meeting Memory v1
+
+Current. Build a separate opt-in notes/export handoff over current reviewed labels and exact
+utterance/evidence IDs. Aggregate `Colleagues`, anonymous fallback and ordinary meeting memory must
+remain available. External writes, voice identity and cross-session roster work stay out of scope.
 
 ## Dependent And Parallel Research
 
-Speaker-Preserving Neural Echo v2 remains production. Remote Speaker Evidence Map v1 and Anonymous
-Rich Transcript Handoff v1 are promoted in optional scope. Closed separation and causal-ASR
-experiments retain their evidence without changing production; Reviewed Remote Speaker Naming v1
-is now current.
-
-Remote speaker evidence works on authoritative `remote` and does not require complete Echo
-suppression. Explicit reviewed naming is the current stage; cross-session mapping and notes/export
-integration remain later gates.
-
-Heavy local models begin as bounded validators and require their own corpus gates.
+Speaker-Preserving Neural Echo v2 remains production. Remote speaker evidence, anonymous rich and
+reviewed naming are promoted optional layers. Speaker-aware meeting memory is current; cross-session
+mapping, external integrations, heavy validators and LLM synthesis remain separate gates.
 
 ## Parking Lot
 

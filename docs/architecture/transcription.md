@@ -172,9 +172,11 @@ decision is `PROMOTE_AUDIT_ONLY`, so this evidence does not replace the selected
 
 Anonymous Rich Transcript Handoff v1 is promoted in optional scope. It binds current passing
 speaker evidence to unchanged utterances and exposes `murmurmark transcript SESSION --rich` without
-changing the authoritative view. Reviewed session-local labels are the current step. Participant
-identity is never inferred from voice; cross-session matching, frame-level splitting and the heavier
-pyannote/Sortformer architecture below remain separate future gates.
+changing the authoritative view. Reviewed Remote Speaker Naming v1 adds only explicit session-local
+labels through `--rich --reviewed-speakers`; stale decisions fail open to the anonymous view.
+Participant identity is never inferred from voice. Optional speaker-aware notes/export, cross-session
+matching, frame-level splitting and the heavier pyannote/Sortformer architecture below remain
+separate gates.
 
 ## Heavy-Local v1 Profile
 

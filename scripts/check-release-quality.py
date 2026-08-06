@@ -49,6 +49,9 @@ assert compatibility["runtime"]["python"]["version"] == ">=3.12,<3.14"
 assert compatibility["schemas"]["config"]["current"] == config["schema"]
 assert compatibility["schemas"]["session"]["current"] == "murmurmark.session/v1"
 assert compatibility["schemas"]["evidence_handoff"]["current"] == "murmurmark.evidence_handoff/v2"
+assert compatibility["schemas"]["reviewed_speaker_handoff"]["current"] == (
+    "murmurmark.reviewed_speaker_handoff/v1"
+)
 assert licenses["schema"] == "murmurmark.release_license_inventory/v1"
 assert any(row["name"] == "MurmurMark" and row["license"] == "MIT" for row in licenses["redistributed"])
 
@@ -57,6 +60,8 @@ for relative in [
     "scripts/install-release.sh",
     "scripts/acceptance-release-quality.sh",
     "scripts/release-bundle.py",
+    "scripts/materialize-anonymous-rich-transcript.py",
+    "scripts/review-remote-speaker-labels.py",
 ]:
     path = ROOT / relative
     assert path.is_file(), f"missing release file: {relative}"
@@ -87,6 +92,8 @@ with tempfile.TemporaryDirectory(prefix="murmurmark-release-unit-") as temporary
         "release/licenses-v1.json",
         "scripts/release-bundle.py",
         "scripts/install-release.sh",
+        "scripts/materialize-anonymous-rich-transcript.py",
+        "scripts/review-remote-speaker-labels.py",
     ]:
         destination = bundle / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
