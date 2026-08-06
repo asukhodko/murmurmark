@@ -3364,6 +3364,9 @@ template remain in `review_decisions.jsonl`, and `suggested_closure.closed_by_su
 by stable review-row keys rather than list positions. This keeps `review progress`, `status`,
 `report`, session-quality and `suggested_closure.remaining_manual_queue` aligned on the same
 remaining rows and seconds.
+The stable identity uses session, source kind, utterance IDs, interval and label. Regenerated
+`cluster_id` and `source_audit_id` remain provenance, but must not reopen an otherwise identical
+review row when either identifier changes during report refresh.
 
 `review suggested` is cached-first for expensive local model evidence. It consumes existing
 `faster_whisper_judge.jsonl` and Target-Me rows when building lane suggestions. Target-Me rows can
@@ -3593,6 +3596,13 @@ closed with `drop_me`, `drop_remote`, `keep_me`, `needs_review`, or `skip`. If a
 the script still writes audit artifacts, but `review_decisions_report.reviewed_v1.json.gates.passed`
 is `false` and `--transcript-profile auto` must not select `reviewed_v1`.
 
+Repeated lane application is cumulative. `reviewed_v1` is rebuilt from a compatible non-reviewed
+input profile when possible, then applies closed rows from the current scope plus older closed rows
+whose input profile is the selected base or `reviewed_v1` and whose utterance IDs, roles and normalized
+texts still match exactly. Accepted rows outside the regenerated template are reported as
+`compatible_out_of_scope_decision_rows`; mismatched or stale rows remain ignored. This prevents a
+later lane from erasing an earlier `keep_me`, `drop_me`, local-recall or transcript-order decision.
+
 `--allow-partial-review` makes this gate explicit rather than silent. The report may pass with
 `coverage.allowed: true`, `coverage.complete: false` and warning `partial_review_scope_allowed` when
 at least one row was closed and the remaining rows are intentionally left for later. `coverage` must
@@ -3607,7 +3617,9 @@ For `source: "transcript_order"` rows, `drop_me` and `drop_remote` are also inva
 chronology risk as checked; `needs_review` keeps it in the readiness burden. These rows are recorded
 with `review_effect: "audit_only_transcript_order"` and are mirrored into
 `quality.transcript_order_review` on affected utterances. This metadata may mark the utterance as
-still needing review, but it must not move utterances, split text, or edit timestamps.
+still needing review when another explicit review source remains unresolved. Otherwise a closed
+`keep_me`/`skip` order decision clears the generic review flag. It must not move utterances, split
+text, or edit timestamps.
 `review-decisions-cli.py` and `apply-review-decisions.py` must honor `allowed_decisions`; for
 example, they must not accept `drop_me` or `drop_remote` on `source: "local_recall"` rows even though
 both decisions can be valid for ordinary audio-review rows.

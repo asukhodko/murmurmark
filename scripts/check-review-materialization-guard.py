@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -144,6 +145,145 @@ def main() -> int:
         missing_coverage = apply.review_coverage([stale_todo], [], missing_template, False)
         assert missing_coverage["status"] == "missing_template_scope", missing_coverage
         assert missing_coverage["allowed"] is False, missing_coverage
+
+    with tempfile.TemporaryDirectory(prefix="murmurmark-cumulative-review-") as temp_dir:
+        session = Path(temp_dir) / "cumulative-review-session"
+        resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
+        resolved.mkdir(parents=True)
+        utterances = [
+            {
+                "id": "utt_order_me",
+                "start": 1.0,
+                "end": 2.0,
+                "role": "me",
+                "source_track": "mic",
+                "text": "Проверяю порядок.",
+                "quality": {"needs_review": True},
+            },
+            {
+                "id": "utt_order_remote",
+                "start": 1.5,
+                "end": 2.5,
+                "role": "remote",
+                "source_track": "remote",
+                "text": "Порядок подтвержден.",
+                "quality": {"needs_review": False},
+            },
+            {
+                "id": "utt_audio_me",
+                "start": 3.0,
+                "end": 4.0,
+                "role": "me",
+                "source_track": "mic",
+                "text": "Это моя реплика.",
+                "quality": {"needs_review": True},
+            },
+        ]
+        (resolved / "clean_dialogue.audit_cleanup_v2.json").write_text(
+            json.dumps({"schema": "murmurmark.clean_dialogue/v1", "utterances": utterances}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        (resolved / "quality_report.audit_cleanup_v2.json").write_text(
+            json.dumps({"schema": "murmurmark.simple_transcript_quality/v1", "utterances": len(utterances)}),
+            encoding="utf-8",
+        )
+        order_row = {
+            "schema": "murmurmark.review_decision/v1",
+            "session_id": session.name,
+            "input_profile": "audit_cleanup_v2",
+            "source": "transcript_order",
+            "source_audit_id": "order_0001",
+            "cluster_id": "order_cluster",
+            "label": "probable_order_risk",
+            "review_action": "check_transcript_order",
+            "decision": "keep_me",
+            "status": "reviewed",
+            "me_utterance_ids": ["utt_order_me"],
+            "remote_utterance_ids": ["utt_order_remote"],
+            "utterance_ids": ["utt_order_me", "utt_order_remote"],
+            "interval": {"start": 1.5, "end": 2.0, "duration_sec": 0.5},
+            "text": [utterances[0], utterances[1]],
+        }
+        audio_row = {
+            "schema": "murmurmark.review_decision/v1",
+            "session_id": session.name,
+            "input_profile": "reviewed_v1",
+            "source": "audio_review",
+            "source_audit_id": "arp_0001",
+            "cluster_id": "audio_cluster",
+            "label": "uncertain",
+            "review_action": "classify_audio",
+            "decision": "keep_me",
+            "status": "reviewed",
+            "me_utterance_ids": ["utt_audio_me"],
+            "utterance_ids": ["utt_audio_me"],
+            "interval": {"start": 3.0, "end": 4.0, "duration_sec": 1.0},
+            "text": [utterances[2]],
+        }
+        stale_audio_row = {
+            **audio_row,
+            "source_audit_id": "arp_stale",
+            "cluster_id": "stale_audio_cluster",
+            "utterance_ids": ["utt_order_me"],
+            "me_utterance_ids": ["utt_order_me"],
+            "interval": {"start": 1.0, "end": 2.0, "duration_sec": 1.0},
+            "text": [{**utterances[0], "text": "Старый текст реплики."}],
+        }
+        decisions = Path(temp_dir) / "review_decisions.jsonl"
+        decisions.write_text(
+            "\n".join(json.dumps(row, ensure_ascii=False) for row in (order_row, audio_row, stale_audio_row)) + "\n",
+            encoding="utf-8",
+        )
+        template = Path(temp_dir) / "review_decisions.template.jsonl"
+        template.write_text(
+            json.dumps(
+                {
+                    **order_row,
+                    "cluster_id": "regenerated_order_cluster",
+                    "decision": "todo",
+                    "status": "todo",
+                },
+                ensure_ascii=False,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(Path(apply.__file__)),
+                str(session),
+                "--decisions",
+                str(decisions),
+                "--review-template",
+                str(template),
+                "--input-profile",
+                "auto",
+                "--output-profile",
+                "reviewed_v1",
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert completed.returncode == 0, (completed.stdout, completed.stderr)
+        reviewed = json.loads((resolved / "clean_dialogue.reviewed_v1.json").read_text(encoding="utf-8"))
+        reviewed_by_id = {row["id"]: row for row in reviewed["utterances"]}
+        assert reviewed_by_id["utt_order_me"]["quality"]["needs_review"] is False, reviewed_by_id["utt_order_me"]
+        assert reviewed_by_id["utt_audio_me"]["quality"]["needs_review"] is False, reviewed_by_id["utt_audio_me"]
+        report = json.loads(
+            (
+                session
+                / "derived/transcript-simple/whisper-cpp/review-decisions/review_decisions_report.reviewed_v1.json"
+            ).read_text(encoding="utf-8")
+        )
+        assert report["input_profile"] == "audit_cleanup_v2", report
+        assert report["coverage"]["complete"] is True, report
+        assert report["summary"]["applied_decision_rows"] == 2, report
+        assert report["summary"]["compatible_out_of_scope_decision_rows"] == 1, report
+        assert report["summary"]["ignored_out_of_scope_decision_rows"] == 1, report
+        assert "compatible_out_of_scope_review_decisions_applied" in report["gates"]["warnings"], report
+        assert "out_of_scope_review_decisions_ignored" in report["gates"]["warnings"], report
 
     quality = load_module("report-session-quality.py", "murmurmark_report_materialization")
     with tempfile.TemporaryDirectory(prefix="murmurmark-review-materialization-") as temp_dir:

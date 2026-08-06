@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.6.2"
+SCRIPT_VERSION = "0.6.3"
 SCHEMA = "murmurmark.review_workspace_apply_report/v1"
 VALID_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip", "todo", ""}
 KNOWN_REVIEW_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip"}
@@ -146,7 +146,7 @@ def normalize_text(value: Any) -> str:
 
 
 def review_row_key(row: dict[str, Any]) -> str:
-    cluster_id = str(row.get("cluster_id") or "").strip()
+    stable_id = str(row.get("source") or row.get("cluster_id") or "").strip()
     utterance_ids = row.get("utterance_ids")
     utterance_key = ",".join(str(item) for item in utterance_ids) if isinstance(utterance_ids, list) else ""
     interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
@@ -155,7 +155,7 @@ def review_row_key(row: dict[str, Any]) -> str:
     return (
         "review:"
         f"{row.get('session_id') or ''}:"
-        f"{cluster_id}:"
+        f"{stable_id}:"
         f"{utterance_key}:"
         f"{start}:{end}:"
         f"{row.get('label')}"

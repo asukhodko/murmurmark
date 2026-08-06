@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.8.3"
+SCRIPT_VERSION = "0.8.4"
 SCHEMA = "murmurmark.review_lane_pack/v1"
 KNOWN_REVIEW_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip"}
 DEFAULT_ALLOWED_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip"}
@@ -341,7 +341,7 @@ def row_role_text(row: dict[str, Any], role: str) -> str:
 
 
 def review_row_key(row: dict[str, Any]) -> str:
-    cluster_id = str(row.get("cluster_id") or "").strip()
+    stable_id = str(row.get("source") or row.get("cluster_id") or "").strip()
     utterance_ids = row.get("utterance_ids")
     utterance_key = ",".join(str(item) for item in utterance_ids) if isinstance(utterance_ids, list) else ""
     interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
@@ -350,7 +350,7 @@ def review_row_key(row: dict[str, Any]) -> str:
     return (
         "review:"
         f"{row.get('session_id') or ''}:"
-        f"{cluster_id}:"
+        f"{stable_id}:"
         f"{utterance_key}:"
         f"{start}:{end}:"
         f"{row.get('label')}"

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.6.0"
+SCRIPT_VERSION = "0.6.1"
 SCHEMA = "murmurmark.review_decision/v1"
 VALID_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip", "todo", ""}
 SHORTCUTS = {
@@ -95,7 +95,7 @@ def safe_float(value: Any) -> float:
 
 
 def review_row_key(row: dict[str, Any]) -> str:
-    cluster_id = str(row.get("cluster_id") or "").strip()
+    stable_id = str(row.get("source") or row.get("cluster_id") or "").strip()
     utterance_ids = row.get("utterance_ids")
     utterance_key = ",".join(str(item) for item in utterance_ids) if isinstance(utterance_ids, list) else ""
     interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
@@ -104,7 +104,7 @@ def review_row_key(row: dict[str, Any]) -> str:
     return (
         "review:"
         f"{row.get('session_id') or ''}:"
-        f"{cluster_id}:"
+        f"{stable_id}:"
         f"{utterance_key}:"
         f"{start}:{end}:"
         f"{row.get('label')}"

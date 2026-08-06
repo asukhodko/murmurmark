@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.3"
+SCRIPT_VERSION = "0.4.0"
 OUTPUT_PROFILE_DEFAULT = "reviewed_v1"
 VALID_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip", "todo", ""}
 OPEN_DECISIONS = {"", "todo"}
@@ -178,6 +178,61 @@ def selected_profile_from_decisions(rows: list[dict[str, Any]]) -> str | None:
     return None
 
 
+def profile_artifacts_exist(session: Path, profile: str) -> bool:
+    resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
+    return (
+        (resolved / f"clean_dialogue{suffix(profile)}.json").exists()
+        and (resolved / f"quality_report{suffix(profile)}.json").exists()
+    )
+
+
+def review_input_profile(
+    session: Path,
+    output_profile: str,
+    in_scope_decisions: list[dict[str, Any]],
+    all_decisions: list[dict[str, Any]],
+) -> str:
+    scoped = selected_profile_from_decisions(in_scope_decisions)
+    if scoped and scoped != output_profile and profile_artifacts_exist(session, scoped):
+        return scoped
+
+    review_report = (
+        session
+        / "derived/transcript-simple/whisper-cpp/review-decisions"
+        / f"review_decisions_report{suffix(output_profile)}.json"
+    )
+    if review_report.exists():
+        previous_input = str(read_json(review_report).get("input_profile") or "")
+        if previous_input and previous_input != output_profile and profile_artifacts_exist(session, previous_input):
+            return previous_input
+
+    candidates = [
+        str(row.get("input_profile") or "")
+        for row in all_decisions
+        if row.get("input_profile") and str(row.get("input_profile")) != output_profile
+    ]
+    candidates = [profile for profile in candidates if profile_artifacts_exist(session, profile)]
+    if candidates:
+        counts = {profile: candidates.count(profile) for profile in set(candidates)}
+        return sorted(counts, key=lambda profile: (-counts[profile], profile))[0]
+
+    existing = existing_profile(session)
+    if existing != output_profile:
+        return existing
+    for fallback in (
+        "audit_cleanup_v7",
+        "audit_cleanup_v4",
+        "audit_cleanup_v3",
+        "audit_cleanup_v2",
+        "audit_cleanup_v1",
+        "shadow_v2",
+        "current",
+    ):
+        if profile_artifacts_exist(session, fallback):
+            return fallback
+    return "current"
+
+
 def existing_profile(session: Path) -> str:
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
     cleanup = session / "derived/transcript-simple/whisper-cpp/audit-cleanup"
@@ -299,7 +354,7 @@ def template_for_session(args: argparse.Namespace, session: Path) -> tuple[list[
 
 
 def review_row_key(row: dict[str, Any]) -> str:
-    cluster_id = str(row.get("cluster_id") or "").strip()
+    stable_id = str(row.get("source") or row.get("cluster_id") or "").strip()
     utterance_ids = row.get("utterance_ids")
     utterance_key = ",".join(str(item) for item in utterance_ids) if isinstance(utterance_ids, list) else ""
     interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
@@ -308,7 +363,7 @@ def review_row_key(row: dict[str, Any]) -> str:
     return (
         "review:"
         f"{row.get('session_id') or ''}:"
-        f"{cluster_id}:"
+        f"{stable_id}:"
         f"{utterance_key}:"
         f"{start}:{end}:"
         f"{row.get('label')}"
@@ -479,6 +534,40 @@ def decision_utterance_ids(row: dict[str, Any]) -> list[str]:
     return out
 
 
+def decision_matches_dialogue(row: dict[str, Any], by_id: dict[str, dict[str, Any]]) -> bool:
+    target_ids = decision_utterance_ids(row)
+    if not target_ids:
+        return False
+    evidence_by_id = {
+        str(item.get("id")): item
+        for item in row.get("text") or []
+        if isinstance(item, dict) and item.get("id")
+    }
+    for utterance_id in target_ids:
+        current = by_id.get(utterance_id)
+        evidence = evidence_by_id.get(utterance_id)
+        if current is None or evidence is None:
+            return False
+        if normalize_text(current.get("text")) != normalize_text(evidence.get("text")):
+            return False
+        evidence_role = role_name(evidence)
+        if evidence_role != "Unknown" and role_name(current) != evidence_role:
+            return False
+    return True
+
+
+def has_explicit_unresolved_review(quality: dict[str, Any], excluded_key: str) -> bool:
+    for key, value in quality.items():
+        if key == excluded_key or not isinstance(value, dict):
+            continue
+        if str(value.get("status") or "") == "needs_review":
+            return True
+        decisions = value.get("decisions")
+        if isinstance(decisions, list) and "needs_review" in decisions:
+            return True
+    return False
+
+
 def add_review_quality(row: dict[str, Any], key: str, rows: list[dict[str, Any]], output_profile: str) -> None:
     if not rows:
         return
@@ -496,6 +585,8 @@ def add_review_quality(row: dict[str, Any], key: str, rows: list[dict[str, Any]]
     }
     if needs_review:
         quality["needs_review"] = True
+    elif not has_explicit_unresolved_review(quality, key):
+        quality["needs_review"] = False
 
 
 def quality_report(
@@ -540,20 +631,17 @@ def main() -> int:
         in_scope_decisions = [row for row in decisions if review_row_key(row) in template_keys]
     else:
         in_scope_decisions = decisions
-    out_of_scope_decisions = [row for row in decisions if row not in in_scope_decisions]
-    profile_decisions = [
+    closed_in_scope_decisions = [
         row for row in in_scope_decisions if not row.get("_invalid") and row.get("decision") not in OPEN_DECISIONS
-    ]
-    valid_decisions = [
-        row
-        for row in profile_decisions
-        if row.get("decision") != "skip" or is_local_recall_decision(row) or is_transcript_order_decision(row)
     ]
     input_profile = args.input_profile
     if input_profile == "auto":
-        input_profile = selected_profile_from_decisions(profile_decisions) or existing_profile(session)
-        if input_profile == args.output_profile:
-            input_profile = selected_profile_from_decisions(profile_decisions) or "audit_cleanup_v2"
+        input_profile = review_input_profile(
+            session,
+            args.output_profile,
+            closed_in_scope_decisions,
+            decisions,
+        )
 
     input_suffix = suffix(input_profile)
     output_suffix = suffix(args.output_profile)
@@ -568,6 +656,28 @@ def main() -> int:
         transcript_report = read_json(base_report_path) if base_report_path.exists() else {}
     utterances = [row for row in dialogue.get("utterances", []) if isinstance(row, dict)]
     by_id = {str(row.get("id")): row for row in utterances}
+
+    compatible_profiles = {input_profile, args.output_profile}
+    compatible_out_of_scope_decisions = [
+        row
+        for row in decisions
+        if row not in in_scope_decisions
+        and not row.get("_invalid")
+        and row.get("decision") not in OPEN_DECISIONS
+        and str(row.get("input_profile") or "") in compatible_profiles
+        and decision_matches_dialogue(row, by_id)
+    ]
+    out_of_scope_decisions = [
+        row
+        for row in decisions
+        if row not in in_scope_decisions and row not in compatible_out_of_scope_decisions
+    ]
+    profile_decisions = closed_in_scope_decisions + compatible_out_of_scope_decisions
+    valid_decisions = [
+        row
+        for row in profile_decisions
+        if row.get("decision") != "skip" or is_local_recall_decision(row) or is_transcript_order_decision(row)
+    ]
 
     per_utterance: dict[str, list[dict[str, Any]]] = {}
     per_remote_utterance: dict[str, list[dict[str, Any]]] = {}
@@ -693,6 +803,7 @@ def main() -> int:
         "skipped_decision_rows": sum(1 for row in decisions if row.get("decision") == "skip"),
         "pending_decision_rows": sum(1 for row in decisions if str(row.get("decision") or "") in OPEN_DECISIONS),
         "in_scope_decision_rows": len(in_scope_decisions),
+        "compatible_out_of_scope_decision_rows": len(compatible_out_of_scope_decisions),
         "ignored_out_of_scope_decision_rows": len(out_of_scope_decisions),
         "applied_decision_rows": len(applied_all),
         "transcript_applied_decision_rows": len(applied),
@@ -788,6 +899,8 @@ def main() -> int:
         gates["warnings"].append("obsolete_audit_only_local_recall_keep_ignored")
     if out_of_scope_decisions:
         gates["warnings"].append("out_of_scope_review_decisions_ignored")
+    if compatible_out_of_scope_decisions:
+        gates["warnings"].append("compatible_out_of_scope_review_decisions_applied")
     if coverage["duplicate_decision_keys"]:
         gates["warnings"].append("duplicate_decision_keys")
 
