@@ -486,8 +486,26 @@ scripts/materialize-live-asr-cache.py "$SESSION" \
 ```
 
 The override validates evidence only; it does not change the frozen promotion decision. The next
-latency stage is Causal Canonical Mic ASR v1, which must prove exact selected mic PCM after Echo
-Guard rather than reuse raw mic approximately.
+latency stage, Causal Canonical Mic ASR v1, has also completed with `DO_NOT_PROMOTE`. Audit a session
+and reproduce the frozen corpus decision with:
+
+```bash
+scripts/causal-canonical-mic-asr.py "$SESSION" --prefix-probe
+
+scripts/report-causal-canonical-mic-asr-corpus.py \
+  sessions/2026-08-05_11-15-06 \
+  sessions/2026-08-05_14-16-08 \
+  sessions/2026-08-05_17-00-29
+
+jq '{decision: .decision.status, summary, ceiling}' \
+  sessions/_reports/authoritative-incremental-asr-v1/causal-canonical-mic-asr-v1/causal_canonical_mic_asr_corpus_report.json
+```
+
+The result is `0/147` exact candidate windows and `0/8743.1315s` exact hard audio. The
+`5/30/120s` local-FIR prefix probes all differ from final canonical PCM because current activity
+floors, delay/fit choice, policy and Speaker-Preserving selection use whole-session evidence. The
+minimum exact future context is `session_end`. Do not connect this tool to ordinary recording or
+batch cache reuse; it is a reproducible causal-boundary audit.
 It also reads `sessions/_reports/live-pipeline/live_corpus_gates_report.json`: live/near-realtime
 cache promotion must remain blocked. The live comparison records measurable capture-safety, order,
 local-recall, remote-leak, review-burden, notes-readiness and chunk-boundary gates. Boundary
@@ -2122,8 +2140,9 @@ The same `raw/chunks/<track>/` shape can be materialized from live ASR only when
 requires an exact identity and completed JSON hash match. `raw/chunk_rebuild_check.json` must then
 prove byte-identical reconstruction. Legacy live sessions have no such proofs, so the bridge writes
 `not_eligible` and normal batch ASR runs. Canonical Live ASR Producer v1 proved exact remote
-production but closed with `DO_NOT_PROMOTE`; Causal Canonical Mic ASR v1 owns the remaining measured
-wall-time gap.
+production but closed with `DO_NOT_PROMOTE`; Causal Canonical Mic ASR v1 then measured the remaining
+path and also closed with `DO_NOT_PROMOTE`. Current Echo preparation has a session-end exact causal
+boundary, so ordinary batch remains the authoritative route.
 
 Initial role assignment is deliberately simple:
 
@@ -2132,7 +2151,9 @@ mic.wav    -> Me
 remote.wav -> Colleagues
 ```
 
-No remote diarization is attempted.
+The selected transcript does not perform remote diarization. Remote Speaker Evidence Map v1 is the
+current isolated audit stage; until its own corpus decision, all remote text remains aggregate
+`Colleagues` in production.
 
 The bridge then runs a small reconciliation layer:
 

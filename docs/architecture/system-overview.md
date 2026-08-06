@@ -114,8 +114,11 @@ blocker has an executable next action or a bounded manual decision item. Authori
 ASR v1 extends exact-identity replay to completed baseline chunks from durable-capture or
 interrupted-run provenance; approximate text reuse remains forbidden. Canonical Live ASR Producer
 v1 proved exact remote parity but closed with `DO_NOT_PROMOTE` because the parallel mic branch limits
-wall-time benefit to `2.8651%..4.1040%`. Causal Canonical Mic ASR v1 now owns that measured critical
-path after Echo Guard.
+wall-time benefit to `2.8651%..4.1040%`. Causal Canonical Mic ASR v1 then measured the selected
+post-Echo path and closed with `DO_NOT_PROMOTE`: `0/147` candidate windows matched and bounded
+prefixes through `120s` remained different from final PCM. The current exact mic boundary is
+session end. Remote Speaker Evidence Map v1 is the active isolated semantic stage over the already
+authoritative remote track.
 
 Target full-product path:
 

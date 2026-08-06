@@ -5229,6 +5229,51 @@ scripts/materialize-live-asr-cache.py "$SESSION" \
 The second flag is a lab override. Normal pipeline materialization reads the frozen corpus decision
 and stays on batch while it is `DO_NOT_PROMOTE`.
 
+### Causal Canonical Mic ASR Evidence
+
+Causal Canonical Mic ASR v1 is an isolated audit of the remaining post-Echo microphone critical
+path. It never changes recording, Echo selection, the normal chunk cache or the selected transcript.
+Per-session artifacts live under:
+
+```text
+derived/experiments/live-shadow-v1/authoritative-mic-asr/
+  lineage.json
+  windows.jsonl
+  report.json
+  report.md
+  chunks/<index>/mic.wav
+  chunks/<index>/mic.json
+  chunks/<index>/mic.proof.json
+```
+
+Schemas:
+
+- `lineage.json`: `murmurmark.causal_mic_lineage/v1`;
+- each `windows.jsonl` row: `murmurmark.causal_canonical_mic_window/v1`;
+- `report.json`: `murmurmark.causal_canonical_mic_asr_report/v1`;
+- an accepted exact chunk proof: existing `murmurmark.authoritative_live_asr_chunk/v1`.
+
+The lineage classifies each operation as `causal`, `delayed_commit` or `whole_session_only` and
+records `minimum_future_context`. A window may publish a proof only when its PCM bytes and sample
+geometry match the post-stop canonical mic slice and the whisper.cpp binary, model, language,
+prompt, decode options and completed output JSON all match the normal batch identity. Text
+similarity and approximate waveform comparison are never sufficient.
+
+Missing raw/canonical audio, unsupported selected profile, model failure, interrupted decode,
+corrupt proof or any identity mismatch leaves `proof_published: false` and uses ordinary batch ASR.
+The audit supports deterministic proof reuse and repair of corrupt derived outputs. Raw CAF is
+fingerprinted before and after the run.
+
+The corpus schemas are:
+
+- `murmurmark.causal_canonical_mic_asr_frozen_manifest/v1`;
+- `murmurmark.causal_canonical_mic_asr_corpus_report/v1`.
+
+The frozen three-session decision is `DO_NOT_PROMOTE`: `0/147` windows and `0/8743.1315s` hard
+audio matched exactly, bounded `5/30/120s` prefix probes all failed, and the minimum exact context
+was `session_end`. The producer is not connected to ordinary recording or cache materialization.
+See `docs/testing/2026-08-06-causal-canonical-mic-asr-v1.md`.
+
 ### Batch ASR Chunk Cache And Rebuild Check
 
 Default `windowed` whisper.cpp ASR writes per-track chunk cache reports:

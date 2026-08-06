@@ -59,13 +59,14 @@ export into one verifiable handoff without depending on profile-specific filenam
 CLI packages that boundary into a supported, deterministic and upgrade-safe local release. Reliable
 Final Handoff v1 now makes cached/resumed completion bounded and actionable. Authoritative
 Incremental ASR and exact remote production are complete, but remote-only work does not shorten the
-parallel mic critical path. The current product step is Causal Canonical Mic ASR v1: checkpoint the
-exact selected post-Echo mic input and remove fresh post-stop recognition delay without accepting
-approximate audio or provisional text.
+parallel mic critical path. Causal Canonical Mic ASR v1 then measured the exact post-Echo boundary
+and closed with `DO_NOT_PROMOTE`: current local-FIR and Speaker-Preserving selection depend on the
+complete session, and `0/147` candidate mic windows matched final canonical PCM.
 
-Remote-speaker diarization follows the canonical mic latency gate. It starts with anonymous speaker
-intervals, then an evidence-backed speaker map and `transcript.rich.json`. It does not wait for
-complete Echo suppression. Names and cross-meeting identity remain later reviewed capabilities.
+The current product step is Remote Speaker Evidence Map v1. It starts with anonymous speaker
+intervals over authoritative remote audio, then an evidence-backed speaker map and
+`transcript.rich.json`. It does not wait for complete Echo suppression. Names and cross-meeting
+identity remain later reviewed capabilities.
 
 ## Primary User
 

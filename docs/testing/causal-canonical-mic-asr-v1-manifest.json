@@ -1,0 +1,328 @@
+{
+  "schema": "murmurmark.causal_canonical_mic_asr_frozen_manifest/v1",
+  "version": 1,
+  "sessions": [
+    {
+      "session_id": "2026-08-05_11-15-06",
+      "inputs": {
+        "session_manifest": {
+          "path": "session.json",
+          "exists": true,
+          "bytes": 2641,
+          "sha256": "4849c785462e0f074d8ebafdeaf764b8bb00ed7d524d053cead10946ea2c468f"
+        },
+        "raw_mic": {
+          "path": "audio/mic/000001.caf",
+          "exists": true,
+          "bytes": 528398276,
+          "sha256": "1e35866a193a4388401fc31869cd745870255f1e627eba36f81e40685c16adc0"
+        },
+        "raw_remote": {
+          "path": "audio/remote/000001.caf",
+          "exists": true,
+          "bytes": 1056790192,
+          "sha256": "9e3df9e82ba011064cf37b7e5f84ad1de4ffcabdd5d570b2009a4660722e7d59"
+        },
+        "canonical_mic": {
+          "path": "derived/asr/mic.wav",
+          "exists": true,
+          "bytes": 88065586,
+          "sha256": "cdba71745ed72db3f2f4deb6d3de15cd5f1977921ea3d74689a8cbc2051aa1ec"
+        },
+        "canonical_remote": {
+          "path": "derived/asr/remote.wav",
+          "exists": true,
+          "bytes": 88065586,
+          "sha256": "8ca6d15be36d6d1403a746b1ccf1d5049e9701fe1cf30ccaf5de3b3b594a5a13"
+        },
+        "local_fir_report": {
+          "path": "derived/preprocess/echo/local_fir_report.json",
+          "exists": true,
+          "bytes": 4937,
+          "sha256": "34c447d617f978cfd8ecd275505784cd8e2984ea6922fe32c5ba7725072b9c76"
+        },
+        "echo_selection": {
+          "path": "derived/preprocess/echo/echo_suppression_selection.json",
+          "exists": true,
+          "bytes": 611,
+          "sha256": "fd950a4de90f69ab55cbb0457eb0a719c60d33d489e6a4350d3f7c2c21a1c3ec"
+        },
+        "speaker_preserving_selection": null,
+        "selected_outputs": [
+          {
+            "path": "derived/handoff-v2/handoff_manifest.json",
+            "exists": true,
+            "bytes": 9345,
+            "sha256": "bda415f2b6a840735cf3954115556c78cb9121ad74cdb24bea306faaa91fa21c"
+          },
+          {
+            "path": "derived/pipeline-run/authoritative_handoff.json",
+            "exists": true,
+            "bytes": 4442,
+            "sha256": "73d37a79802cb5fd259593bfbbbcf518d9b724a854d9f3f8a7238f9f6bc8236d"
+          },
+          {
+            "path": "derived/readiness/session_readiness.json",
+            "exists": true,
+            "bytes": 12715,
+            "sha256": "697207bd5dd965bb321af788ee1bc23aca0f1c75902b5b09ec14e64d980cbc02"
+          },
+          {
+            "path": "derived/synthesis-simple/extractive/evidence_notes.json",
+            "exists": true,
+            "bytes": 505207,
+            "sha256": "8a8d9dcf14560d05fef4c3c2920b4126435f5a5eca5c56e3caa4567ba349452f"
+          },
+          {
+            "path": "derived/synthesis-simple/extractive/notes.audit_cleanup_v2.md",
+            "exists": true,
+            "bytes": 11730,
+            "sha256": "62e3d08ecb866a93cb16c2b03fd97d26e4fafe1c6e5536f057e56e8b79f39b8c"
+          },
+          {
+            "path": "derived/synthesis-simple/extractive/quality_verdict.json",
+            "exists": true,
+            "bytes": 4164,
+            "sha256": "0069640f3f5911ad57855e21cb78e131ac7bbcf8e0c05e10a105fecf1e498deb"
+          },
+          {
+            "path": "derived/transcript-simple/whisper-cpp/raw/mic.json",
+            "exists": true,
+            "bytes": 3127281,
+            "sha256": "bac2df1b3dd27f1e97e6e95004bce63139bae5c7600203fd1117d70bcddd9bda"
+          },
+          {
+            "path": "derived/transcript-simple/whisper-cpp/raw/remote.json",
+            "exists": true,
+            "bytes": 2636727,
+            "sha256": "69eee9239ca091640780457b18b2f566ea0f1b1a979d01fff9eed19ec306675c"
+          },
+          {
+            "path": "derived/transcript-simple/whisper-cpp/resolved/transcript.audit_cleanup_v2.md",
+            "exists": true,
+            "bytes": 69513,
+            "sha256": "d31d5801c98a995e282c0cdbe9b0fe6f45fa629b79533c30f12a9dacde8579a6"
+          }
+        ]
+      }
+    },
+    {
+      "session_id": "2026-08-05_14-16-08",
+      "inputs": {
+        "session_manifest": {
+          "path": "session.json",
+          "exists": true,
+          "bytes": 2156,
+          "sha256": "fdfdd1b081e0e7f07ec859d570b35ea1cdbfec12e704dae107f5e6319f35c65f"
+        },
+        "raw_mic": {
+          "path": "audio/mic/000001.caf",
+          "exists": true,
+          "bytes": 585640024,
+          "sha256": "65c2a21b1123ae301b272e46bcadcede1c30bad954665543d9c2832e5a6f35ee"
+        },
+        "raw_remote": {
+          "path": "audio/remote/000001.caf",
+          "exists": true,
+          "bytes": 1171277240,
+          "sha256": "82a4fdcf6c0e47975f2f4b02605c809dd3e8e04dbaa1369a904c15272b8d3fae"
+        },
+        "canonical_mic": {
+          "path": "derived/asr/mic.wav",
+          "exists": true,
+          "bytes": 97606066,
+          "sha256": "ffef6631c40c146dcdba98328e63a90f29864fdf4c16cc56fe7ffd60075fecaf"
+        },
+        "canonical_remote": {
+          "path": "derived/asr/remote.wav",
+          "exists": true,
+          "bytes": 97606174,
+          "sha256": "577de40222a1e2308864cfafdd331b0500e1e1216d1ccdfcbd83b4adfb4f9bf3"
+        },
+        "local_fir_report": {
+          "path": "derived/preprocess/echo/local_fir_report.json",
+          "exists": true,
+          "bytes": 5172,
+          "sha256": "109acc10dee348bd45b79807590d3e49b0d4d678851500fa3f1d07cb51345e8f"
+        },
+        "echo_selection": {
+          "path": "derived/preprocess/echo/echo_suppression_selection.json",
+          "exists": true,
+          "bytes": 611,
+          "sha256": "25f89bf04f66252034d2a5e0c6fbf9a34ae2a978f29f2136fda6af5df2f75607"
+        },
+        "speaker_preserving_selection": {
+          "path": "derived/preprocess/speaker-preserving-neural-echo-v2/production_selection_report.json",
+          "exists": true,
+          "bytes": 51994,
+          "sha256": "9f3cb63a800ed0149396f8cb7201fb599a6bc0c7cf6a0478f0481d42510f7eb9"
+        },
+        "selected_outputs": [
+          {
+            "path": "derived/handoff-v2/handoff_manifest.json",
+            "exists": true,
+            "bytes": 8941,
+            "sha256": "336c33138ca11e587e6e840a3a634aece3fb25454d62d58736255b49ed8aa158"
+          },
+          {
+            "path": "derived/pipeline-run/authoritative_handoff.json",
+            "exists": true,
+            "bytes": 4412,
+            "sha256": "d0daa0ce1ee11045e266a47b3ba064d7f618dcb5f87e3274c0f52340432ec72b"
+          },
+          {
+            "path": "derived/readiness/session_readiness.json",
+            "exists": true,
+            "bytes": 11332,
+            "sha256": "c5a7271e6957874a45e5d6d43fd2edd8d7db01a5d2be969f4b2eb6348b7b16df"
+          },
+          {
+            "path": "derived/synthesis-simple/extractive/evidence_notes.json",
+            "exists": true,
+            "bytes": 364195,
+            "sha256": "280109a924ab64f85179ad4d0ccb56cf224be7d351763510f12b8cc46376f54b"
+          },
+          {
+            "path": "derived/synthesis-simple/extractive/notes.reviewed_v1.md",
+            "exists": true,
+            "bytes": 8466,
+            "sha256": "e732f5806b5a5ac6a2ef73903952148ee50f106727b887595f454111ca6e79f8"
+          },
+          {
+            "path": "derived/synthesis-simple/extractive/quality_verdict.json",
+            "exists": true,
+            "bytes": 4205,
+            "sha256": "7963ed0b76e26c7e057ad98be3373b4923f60fecea29ba5888c1a2769ad62f1e"
+          },
+          {
+            "path": "derived/transcript-simple/whisper-cpp/raw/mic.json",
+            "exists": true,
+            "bytes": 2821540,
+            "sha256": "7dd4c64fc4f1326b31cf4d6285a01d1672503d6289594fc26c68bf2c53cdea13"
+          },
+          {
+            "path": "derived/transcript-simple/whisper-cpp/raw/remote.json",
+            "exists": true,
+            "bytes": 1053799,
+            "sha256": "411ec8c633ce9e33ddb87cffa43f4f11e28b7d557ea7becc8574b7a5f3869b4b"
+          },
+          {
+            "path": "derived/transcript-simple/whisper-cpp/resolved/transcript.reviewed_v1.md",
+            "exists": true,
+            "bytes": 54425,
+            "sha256": "c3355947554ffc44c34cc53a47096ac15a7917e6a2287ecb2eb2e81ed9f7ba92"
+          }
+        ]
+      }
+    },
+    {
+      "session_id": "2026-08-05_17-00-29",
+      "inputs": {
+        "session_manifest": {
+          "path": "session.json",
+          "exists": true,
+          "bytes": 2158,
+          "sha256": "3d4d6c1e7941aa7b097ca9b5007b7dac58ed608e339987d5a5b51d901418665d"
+        },
+        "raw_mic": {
+          "path": "audio/mic/000001.caf",
+          "exists": true,
+          "bytes": 564656364,
+          "sha256": "0d85ba5c567390fdcb3c0ca3c17a395f43ca865961a09bf561015dd268e053e9"
+        },
+        "raw_remote": {
+          "path": "audio/remote/000001.caf",
+          "exists": true,
+          "bytes": 1129379008,
+          "sha256": "81f7755069fcca4e20c19c189db4c905b7eb030f4e4b2014c5dc5fd9ea722135"
+        },
+        "canonical_mic": {
+          "path": "derived/asr/mic.wav",
+          "exists": true,
+          "bytes": 94108790,
+          "sha256": "e8690b1dbc76d8326659cf759e0532b7bf990d0245c3daad812d6925d4f39245"
+        },
+        "canonical_remote": {
+          "path": "derived/asr/remote.wav",
+          "exists": true,
+          "bytes": 94114654,
+          "sha256": "a183a80187f6ee8914d7db946e698740bbe8d07d46d446aae28ee44e26dc582a"
+        },
+        "local_fir_report": {
+          "path": "derived/preprocess/echo/local_fir_report.json",
+          "exists": true,
+          "bytes": 5176,
+          "sha256": "8e2a1199e69fae76d1953b633c052a3e83248d2e9e45133bd3fe490da3282c7e"
+        },
+        "echo_selection": {
+          "path": "derived/preprocess/echo/echo_suppression_selection.json",
+          "exists": true,
+          "bytes": 611,
+          "sha256": "a72b2555298c91802a30a57aabc5d6399d5ed3a055e96b639da494e5ee19f6cb"
+        },
+        "speaker_preserving_selection": {
+          "path": "derived/preprocess/speaker-preserving-neural-echo-v2/production_selection_report.json",
+          "exists": true,
+          "bytes": 48126,
+          "sha256": "ae5e633bd69524f39afccb31eded636fce0e198136b4d04509ca0e9766d8cf1d"
+        },
+        "selected_outputs": [
+          {
+            "path": "derived/handoff-v2/handoff_manifest.json",
+            "exists": true,
+            "bytes": 8939,
+            "sha256": "802a721404c191943244021b4039923970b8bb4b5d76d4deda1cd79467f784f3"
+          },
+          {
+            "path": "derived/pipeline-run/authoritative_handoff.json",
+            "exists": true,
+            "bytes": 4412,
+            "sha256": "556c3bf363117082f6a96e8a5a0c9fb7288b8da42fcf030d7470de4b0f8c4058"
+          },
+          {
+            "path": "derived/readiness/session_readiness.json",
+            "exists": true,
+            "bytes": 11244,
+            "sha256": "922a70ead8e55af3def241a308817df2ba368add4ecd1e2b25d6c0b7360baf2e"
+          },
+          {
+            "path": "derived/synthesis-simple/extractive/evidence_notes.json",
+            "exists": true,
+            "bytes": 463506,
+            "sha256": "6b9079f8f5f36b813c9a0533d5b8151820fc37fad54c15d566fc23dd243bd98f"
+          },
+          {
+            "path": "derived/synthesis-simple/extractive/notes.reviewed_v1.md",
+            "exists": true,
+            "bytes": 12554,
+            "sha256": "20323bb59820216e2849cd1952ab596751667df7d9df41e331ee05f3da6bcc09"
+          },
+          {
+            "path": "derived/synthesis-simple/extractive/quality_verdict.json",
+            "exists": true,
+            "bytes": 4021,
+            "sha256": "17e95306bc8fa859b8f8d82722b0f73e2b0688aa5718f8b66747e8f6d4b9a44f"
+          },
+          {
+            "path": "derived/transcript-simple/whisper-cpp/raw/mic.json",
+            "exists": true,
+            "bytes": 3865913,
+            "sha256": "c3f387bded18a19ce83d183f855324b5941381e7836aaab00b33b7ccf4bd7748"
+          },
+          {
+            "path": "derived/transcript-simple/whisper-cpp/raw/remote.json",
+            "exists": true,
+            "bytes": 905847,
+            "sha256": "4c8c02d45138ab70b51c2fbb2b134b04fdb5425d73ab31fe53d110fa94c2029a"
+          },
+          {
+            "path": "derived/transcript-simple/whisper-cpp/resolved/transcript.reviewed_v1.md",
+            "exists": true,
+            "bytes": 65886,
+            "sha256": "96f507fac4e179487b42fb25810cd778082689808d9936e0291ebdc0798e6038"
+          }
+        ]
+      }
+    }
+  ]
+}

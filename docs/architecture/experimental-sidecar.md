@@ -350,6 +350,12 @@ mic and remote already decode in parallel. `materialize-live-asr-cache.py` there
 valid recording-time proof unless the frozen corpus report says `PROMOTE` or a lab invocation uses
 `--allow-unpromoted-live-origin`. This is a safe refusal, not a cache lookup failure.
 
+Causal Canonical Mic ASR v1 subsequently tested the remaining mic path and also closed with
+`DO_NOT_PROMOTE`. Across three frozen sessions, `0/147` candidate windows matched final canonical
+PCM; local-FIR prefix probes with `5s`, `30s` and `120s` lookahead all differed. Current Echo and
+Speaker-Preserving selection require session-end evidence. Ordinary Live Shadow therefore does not
+run a canonical mic producer, and approximate mic chunks remain ineligible for batch reuse.
+
 Long-session `experiment compare` uses an adaptive timeout derived from recorded duration (bounded
 between 300 and 1800 seconds). `MURMURMARK_LIVE_BATCH_COMPARE_TIMEOUT_SEC` remains an explicit test
 or diagnostic override.

@@ -16,7 +16,7 @@ v1 proves:
 - evidence-backed synthesis;
 - privacy and retention controls.
 
-Current implementation status, 2026-07-22:
+Current implementation status, 2026-08-06:
 
 - capture, session packaging, Echo Guard preprocessing, resumable local `whisper.cpp` transcription,
   quality verdict, evidence-backed extractive notes, guarded export and retention are implemented;
@@ -25,13 +25,18 @@ Current implementation status, 2026-07-22:
   executable review lane. `residual_local_recall_v1` remains the fallback outside that scope;
 - Speaker-Preserving Neural Echo v2 is the guarded pre-ASR production selector for compatible
   speaker-playback sessions, with exact `local_fir_role_masked` fallback;
-- reference-conditioned three-stem separation completed with `DO_NOT_PROMOTE`: hard-test remained
-  sealed because train/dev gates and non-target-speaker identifiability were not sufficient;
-- the current bounded data goal is a speaker-disjoint Target-Me identifiability corpus with known
-  non-target local speech and correct/wrong enrollment controls. It cannot alter production;
+- reference-conditioned three-stem separation v1 and v2 completed with `DO_NOT_PROMOTE`; the
+  speaker-disjoint Target-Me corpus proved query identity, but the bounded separator missed locked
+  waveform-quality gates and production remained unchanged;
+- Evidence Handoff v2, guarded export, release-quality packaging and bounded one-command meeting
+  completion are implemented;
+- Authoritative Incremental ASR is promoted for exact batch resume. Remote-only and causal mic
+  precomputation both completed with `DO_NOT_PROMOTE`; the current post-Echo mic has a measured
+  session-end causal boundary;
+- the current bounded goal is an audit-only anonymous speaker map over authoritative remote audio;
 - committed-PCM live preview exists as an advisory shadow, while batch remains authoritative;
-- heavy-local validators, individual remote diarization, rich transcript, evidence-guarded LLM
-  synthesis and UI remain future or optional work.
+- speaker naming, authoritative rich transcript, evidence-guarded LLM synthesis and UI remain
+  future or optional work.
 
 ## Goals
 

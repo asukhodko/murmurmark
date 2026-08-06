@@ -407,13 +407,13 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [product-canonical-live-asr-producer-v1, corpus-regression]
-    status: current
+    status: done
     effort: 8
     notes: |
-      Сделать selected post-Echo mic preparation checkpointable на закрытых committed-PCM окнах и
-      выпускать exact canonical mic 60s/5s chunks только при byte-identical совпадении с post-stop
-      batch identity. Capture callback и raw CAF неизменны, lag/unsupported profile дают fallback.
-      Gate: >=50% fresh post-stop ASR wall reduction на 3 real sessions либо DO_NOT_PROMOTE.
+      Завершено DO_NOT_PROMOTE. На трёх frozen real sessions ни одно из 147 raw-fallback окон не
+      совпало с final canonical mic; exact hard audio 0/8743.1315s. Prefix 5/30/120s также не дал
+      byte-identical local-FIR PCM. Текущие Echo statistics, delay/fit и guarded branch selection
+      имеют session-end causal boundary. Raw capture, batch и production defaults не изменены.
 
   parallel-research:
     title: "Параллельные исследования"
@@ -430,12 +430,14 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-operational-rebaseline-v1, corpus-regression, product-causal-canonical-mic-asr-v1]
-    status: next
+    status: current
     effort: 6
     notes: |
       Разделить authoritative remote на стабильные anonymous speaker intervals и audit-only rich
-      transcript с полной provenance. Не присваивать имена, не менять selected transcript,
-      Evidence Handoff v2 и export до отдельного corpus-wide PROMOTE.
+      transcript с полной provenance. Измерить deterministic replay, chunk/whole-file cluster
+      consistency, single-speaker false splits, overlap uncertainty и lossless text attribution.
+      Missing/weak evidence даёт aggregate Colleagues. Не присваивать имена, не менять selected
+      transcript, Evidence Handoff v2 и export до отдельного corpus-wide PROMOTE.
 
   research-speaker-map:
     title: "Speaker map"
@@ -532,10 +534,10 @@ views:
         nodes: [working-capabilities, corpus-regression]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [product-causal-canonical-mic-asr-v1]
+        nodes: [research-remote-diarization]
       dependent:
-        title: "После canonical mic-ASR gate"
-        nodes: [research-remote-diarization, parallel-research, parking-lot]
+        title: "После anonymous remote evidence"
+        nodes: [research-speaker-map, research-rich-transcript, parallel-research, parking-lot]
 
   critical-path:
     title: "Критический CLI-путь"
@@ -626,8 +628,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Causal Canonical Mic ASR v1: снять измеренный mic critical-path после Canonical Live ASR Producer v1: сделать Echo Guard и выбранную Speaker-Preserving mic-подготовку checkpointable на закрытых committed-PCM окнах, выпускать exact canonical 60s/5s mic ASR chunks только при полном совпадении PCM/model/prompt/decode identity с post-stop batch, сохранить raw CAF и batch authoritative, fail-open при lag или расхождении и добиться не менее 50% сокращения свежего post-stop ASR wall time на трёх реальных сессиях либо завершить воспроизводимым DO_NOT_PROMOTE."
-      success_by_next_sync: "Три fresh real sessions показывают byte-identical canonical mic acceptance и >=50% post-stop ASR wall reduction либо точный DO_NOT_PROMOTE ceiling без capture и transcript regression."
+      nearest_goal: "Remote Speaker Evidence Map v1: разделить authoritative remote на стабильные анонимные speaker intervals на замороженном корпусе реальных 1x1 и групповых встреч; построить audit-only speaker map и shadow rich transcript с полной provenance, измерить boundary и cluster consistency и сохранить весь исходный текст, не присваивать имена и не менять selected transcript, Evidence Handoff v2 или guarded export без отдельного corpus-wide PROMOTE; missing model, слабая кластеризация и конфликт evidence должны давать fail-open aggregate Colleagues; завершить PROMOTE или воспроизводимым DO_NOT_PROMOTE, добавить тесты и актуализировать документацию, roadmap и OpsKarta."
+      success_by_next_sync: "Frozen 1x1/group corpus имеет deterministic anonymous speaker map, lossless shadow rich transcript и измеренные boundary/cluster gates; обычный aggregate Colleagues path остаётся byte-identical, решение PROMOTE или DO_NOT_PROMOTE воспроизводимо."
     defaults:
       status_progress:
         done: 1.0
@@ -648,13 +650,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle, batch transcript, review, notes/export и Live Shadow уже работают."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Текущий canonical mic-ASR path"
-        scope_nodes: [product-causal-canonical-mic-asr-v1]
+        title: "Текущий anonymous remote evidence path"
+        scope_nodes: [research-remote-diarization]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Remote parity доказана, но remote-only wall ceiling равен 2.8651%..4.1040%; critical path остаётся в post-Echo mic."
-          next_sync_goal: "Выдать exact post-Echo mic proofs и измерить свежий end-to-end post-stop speedup."
+          sync_note: "Exact mic latency hypothesis закрыта DO_NOT_PROMOTE: 0/147 окон, causal boundary session_end. Текущий фокус — anonymous remote speakers без text mutation."
+          next_sync_goal: "Заморозить 1x1/group corpus, выпустить deterministic speaker evidence и измерить boundary/cluster consistency."
       dependent-path:
         title: "Зависимый путь"
         scope_nodes:
@@ -679,8 +681,8 @@ x:
         kind: main
         mgmt:
           health: neutral
-          sync_note: "После canonical mic-ASR gate критический путь переходит к anonymous remote speaker evidence."
-          next_sync_goal: "Не начинать diarization и speaker naming до решения mic critical-path hypothesis."
+          sync_note: "После anonymous remote evidence идут reviewed speaker naming и authoritative rich transcript gates."
+          next_sync_goal: "Не смешивать anonymous clustering с именами, cross-session identity и export promotion."
       research:
         title: "Параллельные исследования"
         scope_nodes: [parallel-research]

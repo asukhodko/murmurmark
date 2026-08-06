@@ -45,6 +45,8 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-live-asr-cache-compatibility.py
 "$python_bin" scripts/check-canonical-live-asr-producer.py
 "$python_bin" scripts/check-canonical-live-asr-corpus.py
+"$python_bin" scripts/check-causal-canonical-mic-asr.py
+"$python_bin" scripts/check-causal-canonical-mic-asr-corpus.py
 "$python_bin" scripts/check-authoritative-incremental-asr.py
 "$python_bin" scripts/check-authoritative-handoff.py
 "$python_bin" scripts/check-authoritative-handoff-corpus.py

@@ -58,9 +58,14 @@ parity on `3/3` frozen sessions, but remote-only precomputation reduces modeled 
 by just `2.8651%..4.1040%` because mic and remote already decode in parallel. It remains an explicit
 evidence-only tool.
 
-**Causal Canonical Mic ASR v1** is current. It must make the selected post-Echo mic branch
-checkpointable and produce exact canonical mic windows before the normal batch decode reaches them.
-Approximate audio, provisional text and weaker Echo gates are not acceptable cache evidence.
+**Causal Canonical Mic ASR v1** completed with `DO_NOT_PROMOTE`. The frozen corpus produced `0/147`
+exact candidate windows and `0/8743.1315s` exact hard audio. Prefix replays with `5s`, `30s` and
+`120s` lookahead all differed from final local-FIR PCM. Current Echo statistics and guarded branch
+selection require the complete session, so the exact mic boundary remains at session end.
+
+**Remote Speaker Evidence Map v1** is current. It will add stable anonymous speaker intervals over
+authoritative remote audio and an audit-only shadow rich transcript. It cannot invent names or
+change selected text, Evidence Handoff v2 or guarded export.
 
 Its prerequisites are complete: One-Command Meeting Lifecycle owns the unattended product path;
 Speaker-Preserving Neural Echo v2 remains the guarded pre-ASR profile; Evidence Notes And Export v2
@@ -87,8 +92,8 @@ flowchart LR
     F["Done<br/>Reliable Final<br/>Handoff v1"]
     G["Done: split decision<br/>Authoritative<br/>Incremental ASR v1"]
     C2["Done: DO_NOT_PROMOTE<br/>Canonical Live<br/>ASR Producer v1"]
-    M["Current<br/>Causal Canonical<br/>Mic ASR v1"]
-    R["Next<br/>Remote Speaker<br/>Evidence Map v1"]
+    M["Done: DO_NOT_PROMOTE<br/>Causal Canonical<br/>Mic ASR v1"]
+    R["Current<br/>Remote Speaker<br/>Evidence Map v1"]
 
     P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D --> F --> G --> C2 --> M --> R
 ```
@@ -221,17 +226,22 @@ gate keep the extra work quarantined.
 
 ### 16. Causal Canonical Mic ASR v1
 
-Current. Make the exact selected mic preparation after Echo Guard checkpointable on immutable
-windows, then run authoritative whisper.cpp early enough to remove the mic critical path. Reuse
-requires byte-identical post-stop PCM and the complete existing chunk identity. Three fresh sessions
-must show at least `50%` lower post-stop ASR wall time without capture, local-speech or output
-regression, or the hypothesis closes with `DO_NOT_PROMOTE`.
+Completed with `DO_NOT_PROMOTE`. The isolated producer formalized committed PCM, resampling and
+speech-band work as causal or delayed-commit operations, then proved the current local-FIR
+statistics, delay/fit choice, policy and Speaker-Preserving selection are whole-session operations.
+Across three frozen real sessions, `0/147` raw-fallback windows matched final canonical mic PCM and
+bounded `5/30/120s` prefix probes all failed exact parity. The strict consumer, raw capture and
+selected output remained unchanged. A future latency attempt first needs a separately quality-gated
+causal Echo architecture; approximate precomputation is closed.
 
 ### 17. Remote Speaker Evidence Map v1
 
-Next. Split the authoritative remote track into stable anonymous speaker intervals, publish a
-shadow rich transcript with full provenance and make a corpus-wide decision. The stage does not
-invent names, rewrite transcript text or change Evidence Handoff v2 and guarded export.
+Current. Split the authoritative remote track into stable anonymous speaker intervals, publish an
+audit-only shadow rich transcript with model/audio provenance and make a frozen corpus-wide
+decision. Measure deterministic replay, chunk/whole-file cluster consistency, single-speaker false
+splits, overlap uncertainty and lossless text attribution. Missing or weak evidence falls back to
+aggregate `Colleagues`. The stage does not invent names, rewrite transcript text or change Evidence
+Handoff v2 and guarded export.
 
 ## Dependent And Parallel Research
 
@@ -241,22 +251,20 @@ identifiable but the small scratch-trained separator is below the waveform-quali
 Evidence Notes And Export v2, Release-quality CLI, Reliable Final Handoff v1, the strict
 Authoritative Incremental ASR consumer and remote-only canonical producer are complete. The latter
 is `DO_NOT_PROMOTE` because it removes CPU work without removing the parallel mic wall-time path.
-Causal Canonical Mic ASR v1 is current; Remote Speaker Evidence Map v1 follows its measured gate.
+Causal Canonical Mic ASR v1 then proved the selected mic path is session-end causal and also closed
+with `DO_NOT_PROMOTE`. Remote Speaker Evidence Map v1 is now current.
 
 Remote diarization works on authoritative `remote` and does not require complete Echo suppression.
 Its next stage produces anonymous stable speaker IDs and an audit-only rich transcript. Naming,
 cross-session speaker mapping and authoritative rich transcript promotion remain later gates.
 
-Heavy local models begin as bounded validators. They do not replace the primary ASR without their
-own corpus gates.
+Heavy local models begin as bounded validators and require their own corpus gates.
 
 ## Parking Lot
 
 - Live result promotion: blocked by reproducible `DO_NOT_PROMOTE` evidence;
 - docs and issue-tracker proposals: optional and reviewed before external writes;
 - UI/Menu Bar: optional after release-quality CLI.
-
-These branches do not block the critical path.
 
 ## Promotion Gate
 
@@ -269,7 +277,6 @@ flowchart LR
     D{"Decision"}
     Y["PROMOTE"]
     N["DO_NOT_PROMOTE"]
-
     H --> I --> P --> G --> D
     D --> Y
     D --> N
@@ -282,7 +289,6 @@ record the evidence ceiling and leave the authoritative output unchanged.
 
 ```bash
 scripts/check-planning-consistency.py
-
 PYTHONPATH=../opskarta .venv/bin/python -m specs.v3.tools.cli validate docs/roadmap/murmurmark-cli-roadmap.plan.yaml
 PYTHONPATH=../opskarta .venv/bin/python -m specs.v3.tools.cli render tree docs/roadmap/murmurmark-cli-roadmap.plan.yaml
 PYTHONPATH=../opskarta .venv/bin/python -m specs.v3.tools.cli render executive docs/roadmap/murmurmark-cli-roadmap.plan.yaml --view exec-top

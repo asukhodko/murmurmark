@@ -83,21 +83,22 @@ Current operating point, 2026-08-04:
   and actionable terminal review;
 - Authoritative Incremental ASR and exact remote production are complete; remote-only work is
   quarantined after a measured `2.8651%..4.1040%` wall-time ceiling;
-- the current goal is Causal Canonical Mic ASR v1: exact fail-open reuse of the selected post-Echo
-  mic path to reduce cold first-pass latency without accepting approximate audio or provisional text;
+- Causal Canonical Mic ASR v1 completed with `DO_NOT_PROMOTE`: `0/147` candidate mic windows matched
+  final canonical PCM because current Echo and branch selection have a session-end causal boundary;
+- the current goal is Remote Speaker Evidence Map v1: anonymous, stable speaker intervals over the
+  authoritative remote track with an audit-only rich transcript and no selected-text mutation;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 
-Causal Canonical Mic ASR v1 is the active critical-path stage after the remote-only producer's
-`DO_NOT_PROMOTE`. Remote Speaker Evidence Map v1 follows it as the next audit-only semantic stage.
+Remote Speaker Evidence Map v1 is the active critical-path stage after the exact mic latency
+hypothesis closed with `DO_NOT_PROMOTE`.
 The personalized Echo selector activates only with compatible local enrollment and promotion
 evidence; every unsupported acoustic mode or regression uses exact `local_fir_role_masked`.
 Any later separator remains isolated until a corpus-wide decision and cannot use exact remix or
 audio quality alone as evidence of correct word attribution. Post-ASR duplicate cleanup receives no
-promotion credit. Remote diarization, speaker mapping and
-`transcript.rich.json` form a parallel future branch after base quality closure. Heavy validators,
-Speaker naming, LLM synthesis, reviewed external integrations and UI remain research or optional
-work outside the current stage.
+promotion credit. Speaker naming and authoritative `transcript.rich.json` follow the anonymous
+remote evidence map. Heavy validators, LLM synthesis, reviewed external integrations and UI remain
+research or optional work outside the current stage.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.
 

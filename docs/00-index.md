@@ -54,7 +54,8 @@ Read in this order:
 50. [Reference-Conditioned Target-Me Separation runbook](runbooks/reference-conditioned-target-me-separation.md)
 51. [Reliable Final Handoff v1 baseline](testing/2026-08-05-reliable-final-handoff-baseline.md)
 52. [Canonical Live ASR Producer v1 result](testing/2026-08-06-canonical-live-asr-producer-v1.md)
-53. [Planning and development history](history/README.md)
+53. [Causal Canonical Mic ASR v1 result](testing/2026-08-06-causal-canonical-mic-asr-v1.md)
+54. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
@@ -74,8 +75,11 @@ deterministic archives, complete integrity metadata, transactional install/upgra
 offline acceptance. Reliable Final Handoff v1 now passes its frozen cache/resume and actionability
 gate. Authoritative Incremental ASR v1 and the exact remote producer are complete; the latter is
 `DO_NOT_PROMOTE` because remote-only precomputation saves just `2.8651%..4.1040%` modeled wall time.
-The current goal is Causal Canonical Mic ASR v1: remove the post-Echo mic critical path through exact
-checkpointable mic windows. Remote Speaker Evidence Map v1 follows it.
+Causal Canonical Mic ASR v1 also completed with `DO_NOT_PROMOTE`: the frozen corpus produced `0/147`
+exact raw-fallback mic windows, and `5/30/120s` prefix probes all differed from final local-FIR PCM.
+The current Echo path has a session-end causal boundary. The current goal is Remote Speaker Evidence
+Map v1: build stable anonymous speaker intervals over authoritative remote audio without changing
+selected text or guarded export.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

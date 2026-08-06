@@ -33,9 +33,9 @@ historical replay rather than fresh recording-time proofs.
 
 The next latency hypothesis must remove the mic critical path. The authoritative mic source is
 selected after Echo Guard and Speaker-Preserving Neural Echo policy, so raw committed mic PCM cannot
-be declared canonical during capture. Causal Canonical Mic ASR v1 will test whether delayed,
-checkpointable mic preparation can produce exact accepted windows without weakening local-speech
-preservation.
+be declared canonical during capture. Causal Canonical Mic ASR v1 subsequently tested delayed,
+checkpointable mic preparation and closed with `DO_NOT_PROMOTE`: the current exact boundary is
+session end.
 
 ## Reproduction
 

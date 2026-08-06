@@ -286,25 +286,20 @@ experiments that missed locked gates remain isolated. Evidence Handoff v2, guard
 release-quality CLI are complete; detailed decisions and metrics live in the roadmap and research
 documents.
 
-**Reliable Final Handoff v1** is complete. On the frozen three-session cache/resume verification,
-p90 post-stop ratio is `0.059x`; there are no dead-end blockers, stale handoffs or unexplained
-overruns, and exact Speaker-Preserving Neural Echo reuse passes `2/2` applicable sessions. This
-proves bounded recovery and handoff convergence, not cold first-pass whisper.cpp speed.
+Reliable Final Handoff and Authoritative Incremental ASR are complete. Bounded resume, strict chunk
+identity, byte-identical replay and interrupted-batch reuse are promoted.
 
-**Authoritative Incremental ASR v1** is complete. Strict v2 chunk identity, integrity checks,
-byte-identical replay and interrupted-batch reuse are promoted. Historical checkpoint evidence shows
-a median process-time reduction of `98.94%`.
+Canonical Live ASR Producer v1 is complete with `DO_NOT_PROMOTE`: exact remote parity passed, but
+remote-only precomputation saved only `2.8651%..4.1040%` modeled wall time. It remains quarantined.
 
-**Canonical Live ASR Producer v1** is also complete with `DO_NOT_PROMOTE`. Exact remote parity passed
-on `3/3` frozen sessions, but remote-only precomputation reduced modeled post-stop wall time by only
-`2.8651%..4.1040%`: mic and remote ASR already run in parallel, and mic remains the critical path.
-The producer is quarantined behind `--canonical-live-asr-evidence`; ordinary meetings do not pay its
-cost, and unpromoted recording-time proofs cannot enter batch automatically.
+Causal Canonical Mic ASR v1 is complete with `DO_NOT_PROMOTE`: `0/147` windows matched final PCM,
+and current Echo selection has a measured session-end causal boundary. Ordinary meetings stay on
+the proven batch path.
 
-The current goal is **Causal Canonical Mic ASR v1**. It moves the exact mic preparation boundary
-through Echo Guard and the selected Speaker-Preserving profile into delayed, checkpointable windows.
-Only byte-identical canonical PCM and complete model/prompt/decode proof may be reused; every lag,
-unsupported profile or mismatch remains an ordinary batch fallback.
+The current goal is **Remote Speaker Evidence Map v1**. It will split authoritative `remote` audio
+into stable anonymous speaker intervals and publish an audit-only shadow rich transcript. It cannot
+invent names, rewrite selected text or affect Evidence Handoff v2 and guarded export without a
+separate corpus-wide promotion decision.
 
 The stable CLI supports durable capture, resumable processing, guarded profiles, evidence-backed
 review, export and retention. Exact experiment metrics live in the research documents and roadmap.
@@ -317,13 +312,13 @@ Meeting Lifecycle -> Echo evidence and controlled lab -> Speaker-Preserving Neur
 -> Target-Me Separation v2 (done) -> Evidence Export v2 (done) -> Release-quality CLI (done)
 -> Reliable Final Handoff v1 (done) -> Authoritative Incremental ASR v1 (done)
 -> Canonical Live ASR Producer v1 (done: DO_NOT_PROMOTE)
--> Causal Canonical Mic ASR v1 (current) -> Remote Speaker Evidence Map v1 (next)
+-> Causal Canonical Mic ASR v1 (done: DO_NOT_PROMOTE)
+-> Remote Speaker Evidence Map v1 (current)
 ```
 
-Remote Speaker Evidence Map v1 follows the canonical mic-ASR gate. Speaker naming and
-`transcript.rich.json` promotion follow the anonymous evidence map. Heavy local validators, LLM
-synthesis and UI remain parallel or parked. Live promotion remains blocked; Live Shadow is advisory
-evidence only.
+Speaker naming and authoritative `transcript.rich.json` promotion follow the anonymous evidence
+map. Heavy local validators, LLM synthesis and UI remain parallel or parked. Live promotion remains
+blocked; Live Shadow is advisory evidence only.
 
 See the [current goal](docs/project/current-goal.md), [readable roadmap](docs/roadmap/murmurmark-cli-roadmap.md)
 and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
@@ -331,7 +326,7 @@ and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 ## Scope And Limitations
 
 - Current selected transcripts use `Me` and aggregate `Colleagues`; anonymous remote-speaker
-  evidence follows the current authoritative ASR latency goal.
+  evidence is the current audit-only goal.
 - The personalized pre-ASR profile removes independently supported remote leakage on compatible
   speaker-playback sessions; it does not promise waveform-perfect echo removal on every room/device.
 - Echo Guard records `speaker_playback`, `headphones_or_low_leak` or `uncertain` in
