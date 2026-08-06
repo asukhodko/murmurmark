@@ -459,7 +459,7 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [research-speaker-map, research-reference-conditioned-target-me-separation-v2, corpus-regression]
-    status: current
+    status: done
     effort: 24
     notes: |
       Довести audio-first отделение Me от remote до PROMOTE либо воспроизводимого
@@ -470,7 +470,10 @@ nodes:
       и query identity, но завершился READY_FOR_STRONGER_LOCAL_SEPARATOR из-за слабых Target-Me,
       other-local, absent-query и residual dev-метрик. Stronger Offline Prerequisites закрепил
       Apache-2.0 SepFormer, 12/4/4 identity plan и завершился READY_FOR_STRONGER_SEPARATOR_QUALIFICATION.
-      Ближайший bounded этап — train/dev four-stem qualification. Post-ASR cleanup не получает credit.
+      SepFormer qualification завершился DO_NOT_ADVANCE_STRONGER_SEPARATOR на train: assignment
+      accuracy 1.0, но presence separation -0.253397 и false reject 0.643939. Dev/hard/sealed и
+      direct ASR не открывались. Production v2.17 остаётся exact plateau; bounded audio frontier
+      закрыт, а его reopening требует отдельного abstaining Target-Me presence detector.
 
   quality-pre-asr-residual-echo-ceiling-map-v1:
     title: "Pre-ASR Residual Echo Ceiling Map v1"
@@ -517,28 +520,27 @@ nodes:
     kind: task
     parent: quality-pre-asr-target-me-isolation-limit-v1
     deps: [quality-stronger-offline-target-speaker-separator-prerequisites-v1]
-    status: next
+    status: done
     effort: 10
     notes: |
-      Материализовать frozen 12/4 train/dev supervision без future-hard, выполнить pinned offline
-      SepFormer inference, назначить anonymous stems через paired WavLM margin, восстановить масштаб
-      и exact four-stem remainder. Сначала измерить frozen-backbone control, затем один immutable dev
-      pass. Завершить READY_FOR_STRONGER_SEPARATOR_HARD_TEST, DO_NOT_ADVANCE_STRONGER_SEPARATOR либо
-      CURRENT_RESOURCE_LIMIT_REACHED; direct ASR и production остаются закрыты.
+      Завершено DO_NOT_ADVANCE_STRONGER_SEPARATOR. Frozen 12/4 corpus и 180 train items прошли exact
+      accounting; WavLM назначил присутствующий Target-Me без ошибок и с collapse 0.03125. Однако
+      positive p05 -0.186223 пересёк negative p95 0.067174, поэтому reliable absent-Target-Me gate
+      невозможен. Dev не открывался; production v2.17, future-hard, sealed и direct ASR неизменны.
 
   product-reviewed-speaker-memory-v1:
     title: "Reviewed Speaker-Aware Meeting Memory v1"
     kind: task
     parent: murmurmark-cli
     deps: [quality-pre-asr-target-me-isolation-limit-v1, research-speaker-map, product-evidence-export-v2]
-    status: later
+    status: current
     effort: 6
     notes: |
-      Создать отдельный opt-in notes/export handoff, который использует только current explicit
-      session-local labels и сохраняет exact utterance/evidence IDs. Обычные notes/export остаются
-      authoritative fallback; stale labels, aggregate Colleagues и privacy boundaries должны быть
-      явными. Никаких external writes, voice identity или cross-session roster в этой цели. Этап
-      разблокирован технически, но сознательно отложен до решения текущего pre-ASR audio frontier.
+      Создать отдельный opt-in notes/export handoff только из current explicit session-local labels
+      и exact utterance/evidence IDs. Stale или partial review возвращает aggregate/anonymous
+      fallback; обычные notes/export не меняются. Corpus gates должны доказать deterministic replay,
+      referential integrity и zero unsupported attribution. External writes, voice identity,
+      cross-session roster и LLM claims вне цели.
 
   research-rich-transcript:
     title: "Anonymous Rich Transcript Handoff v1"
@@ -744,8 +746,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Pre-ASR Target-Me Isolation Limit v1: после завершённого Stronger Offline Target-Speaker Separator Prerequisites v1 с READY_FOR_STRONGER_SEPARATOR_QUALIFICATION провести SepFormer Four-Stem Target-Me Qualification v1; материализовать замороженное расширение train/dev с 12/4 split-disjoint non-target speakers, проверить pinned offline SepFormer через WavLM paired-query assignment, scale recovery, exact four-stem reconstruction и production-v2 fallback; не открывать future-hard, sealed или direct ASR до immutable dev pass; завершить READY_FOR_STRONGER_SEPARATOR_HARD_TEST, DO_NOT_ADVANCE_STRONGER_SEPARATOR либо CURRENT_RESOURCE_LIMIT_REACHED с тестами, актуальными документами, roadmap и OpsKarta, коммитом и push."
-      success_by_next_sync: "Pinned SepFormer измерен на frozen expanded train/dev; anonymous stems получают доказательное WavLM assignment и exact four-stem accounting либо выпущен воспроизводимый stop без открытия future-hard, sealed и direct ASR."
+      nearest_goal: "Reviewed Speaker-Aware Meeting Memory v1: после закрытия bounded pre-ASR audio frontier с DO_NOT_ADVANCE_STRONGER_SEPARATOR связать explicit session-local reviewed remote labels с evidence-backed notes и guarded export через отдельный opt-in fingerprinted handoff; сохранять exact utterance/evidence IDs, aggregate/anonymous fallback при stale или partial review и обычные notes/export без изменений; не добавлять voice identity, cross-session roster, LLM claims или external writes; завершить corpus-wide deterministic/stale/fallback gates, актуализировать документацию, roadmap и OpsKarta, закоммитить и отправить в origin/main."
+      success_by_next_sync: "Reviewed speaker labels дают отдельные проверяемые notes/export artifacts с exact evidence references; stale, partial или missing review возвращает anonymous/aggregate fallback без изменения обычного handoff."
     defaults:
       status_progress:
         done: 1.0
@@ -766,15 +768,15 @@ x:
           sync_note: "Durable capture, one-command lifecycle, batch transcript, review, notes/export и Live Shadow уже работают."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Текущий pre-ASR audio frontier"
+        title: "Закрытый pre-ASR audio frontier"
         scope_nodes: [quality-pre-asr-target-me-isolation-limit-v1, quality-pre-asr-residual-echo-ceiling-map-v1, quality-multi-component-residual-separator-v1, quality-stronger-offline-target-speaker-separator-prerequisites-v1, quality-sepformer-four-stem-target-me-qualification-v1]
         kind: main
         mgmt:
-          health: yellow
-          sync_note: "Stronger Offline Prerequisites завершён READY_FOR_STRONGER_SEPARATOR_QUALIFICATION: pinned SepFormer и 12/4/4 identity plan готовы, offline replay и resource budget прошли. Hard/sealed и direct ASR закрыты; production v2 остаётся fallback."
-          next_sync_goal: "Провести один frozen SepFormer train/dev qualification с WavLM assignment и exact four-stem remainder."
+          health: green
+          sync_note: "SepFormer завершён DO_NOT_ADVANCE на train: presence/absence неразделимы, dev закрыт. Production v2.17 остаётся exact plateau; reopening требует отдельного abstaining presence detector."
+          next_sync_goal: "Не возобновлять audio frontier без нового независимого Target-Me presence evidence."
       dependent-path:
-        title: "Зависимый путь"
+        title: "Текущий продуктовый путь"
         scope_nodes:
           - quality-operational-rebaseline-v1
           - quality-speaker-mode-hardening-v1
@@ -800,9 +802,9 @@ x:
           - product-reviewed-speaker-memory-v1
         kind: main
         mgmt:
-          health: neutral
-          sync_note: "После audio frontier возобновится уже разблокированный speaker-aware meeting memory; cross-session roster и external integrations остаются отдельными решениями."
-          next_sync_goal: "Не смешивать Target-Me audio identity с display labels remote participants или cross-session roster."
+          health: yellow
+          sync_note: "Reviewed Speaker-Aware Meeting Memory v1 теперь current: explicit session-local labels должны войти в отдельный evidence-backed notes/export handoff."
+          next_sync_goal: "Доказать exact references, stale fallback и zero unsupported attribution без cross-session identity."
       research:
         title: "Параллельные исследования"
         scope_nodes: [parallel-research]
@@ -844,7 +846,7 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: production v2 как опора, текущий pre-ASR предел, зависимый продуктовый путь и неблокирующие ветки."
+        caption: "Короткая карта: production v2 как закрытый audio plateau, текущий speaker-aware memory handoff и неблокирующие ветки."
         blocks:
           - working-now
           - current-quality

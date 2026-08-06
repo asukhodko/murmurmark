@@ -62,11 +62,14 @@ Read in this order:
 58. [Stronger Offline Separator Prerequisites contract](contracts/stronger-offline-target-speaker-separator-prerequisites.md)
 59. [Stronger Offline Separator Prerequisites runbook](runbooks/stronger-offline-target-speaker-separator-prerequisites.md)
 60. [Speaker-Preserving production requalification v2.17](research/2026-08-06-speaker-preserving-neural-echo-production-requalification-v2-17.md)
-61. [Reliable Final Handoff v1 baseline](testing/2026-08-05-reliable-final-handoff-baseline.md)
-62. [Canonical Live ASR Producer v1 result](testing/2026-08-06-canonical-live-asr-producer-v1.md)
-63. [Causal Canonical Mic ASR v1 result](testing/2026-08-06-causal-canonical-mic-asr-v1.md)
-64. [Remote Speaker Evidence Map v1 result](testing/2026-08-06-remote-speaker-evidence-map-v1.md)
-65. [Planning and development history](history/README.md)
+61. [SepFormer Four-Stem qualification contract](contracts/sepformer-four-stem-target-me-qualification.md)
+62. [SepFormer Four-Stem qualification runbook](runbooks/sepformer-four-stem-target-me-qualification.md)
+63. [SepFormer Four-Stem qualification result](research/2026-08-07-sepformer-four-stem-target-me-qualification-v1.md)
+64. [Reliable Final Handoff v1 baseline](testing/2026-08-05-reliable-final-handoff-baseline.md)
+65. [Canonical Live ASR Producer v1 result](testing/2026-08-06-canonical-live-asr-producer-v1.md)
+66. [Causal Canonical Mic ASR v1 result](testing/2026-08-06-causal-canonical-mic-asr-v1.md)
+67. [Remote Speaker Evidence Map v1 result](testing/2026-08-06-remote-speaker-evidence-map-v1.md)
+68. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 

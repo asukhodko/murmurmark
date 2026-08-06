@@ -122,29 +122,35 @@ word, contain no recognizable authoritative remote content and keep nearby non-t
 of `Me`. Unknown energy remains in an explicit `other_local` or residual stem; uncertainty selects
 the exact production fallback.
 
-Pre-ASR Target-Me Isolation Limit v1 owns the next bounded campaign:
+Pre-ASR Target-Me Isolation Limit v1 completed this bounded campaign:
 
 ```text
 production v2 plateau
   -> Residual Echo Ceiling Map v1: READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3
   -> Alignment/Echo-Path v3: READY_FOR_MULTI_COMPONENT_SEPARATOR
-  -> four-stem contract + split-disjoint supervision
-  -> Target-Me + remote echo + other-local + unexplained residual
-  -> controlled dev -> immutable hard test -> sealed real corpus
-  -> PROMOTE_MULTI_COMPONENT_RESIDUAL_SEPARATOR
-     | READY_FOR_STRONGER_LOCAL_SEPARATOR | CURRENT_RESOURCE_LIMIT_REACHED
+  -> Multi-Component v1: READY_FOR_STRONGER_LOCAL_SEPARATOR
+  -> SepFormer Four-Stem v1: DO_NOT_ADVANCE_STRONGER_SEPARATOR at train
+  -> production v2.17 remains exact plateau
 ```
 
 The completed map covers 14 real sessions and 2068 material events. Of `6869.306s` actionable
 evidence, alignment and echo-path capability accounts for `2443.222s` (`35.567%`) across 9
 sessions. Multi-component separation follows at `2124.220s` (`30.923%`), while Target-Me model
 uncertainty accounts for `1258.702s` (`18.324%`). Alignment/Echo-Path v3 closed the first class but
-missed its controlled coverage gate, making multi-component separation the nearest experiment. See
+missed its controlled coverage gate, which led to the multi-component experiment. See
 the [residual map](../research/2026-08-06-pre-asr-residual-echo-ceiling-map-v1.md) and
 [v3 result](../research/2026-08-06-alignment-echo-path-model-v3.md).
 
+SepFormer then preserved exact reconstruction and reached `1.0` paired train assignment, but its
+Target-Me presence score overlapped absent-query evidence by `0.253397`; false rejection was
+`0.643939` at the minimum threshold. Dev, hard, sealed and direct ASR stayed closed. The bounded
+local audio frontier is therefore complete. Reopening requires a separately qualified abstaining
+Target-Me presence detector plus stronger explicit residual preservation; another comparative
+WavLM threshold is not sufficient. See the
+[frozen result](../research/2026-08-07-sepformer-four-stem-target-me-qualification-v1.md).
+
 The terminal negative decision is intentionally stronger than another single-model
-`DO_NOT_PROMOTE`: it must record the complete frozen candidate matrix that is feasible with the
+`DO_NOT_PROMOTE`: it records the complete frozen candidate matrix that is feasible with the
 current Mac, local data, licenses and offline runtimes, plus the exact external prerequisite needed
 to reopen the track. No post-ASR transcript edit contributes to this decision.
 

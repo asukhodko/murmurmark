@@ -77,10 +77,10 @@ and closed with `DO_NOT_PROMOTE`: current local-FIR and Speaker-Preserving selec
 complete session, and `0/147` candidate mic windows matched final canonical PCM.
 
 Remote Speaker Evidence Map v1, Anonymous Rich Transcript Handoff v1 and explicit reviewed naming
-now provide promoted optional speaker views over authoritative remote audio. Speaker-aware notes
-remain ready but deferred while Pre-ASR Target-Me Isolation Limit v1 follows its measured residual
-ordering. The map selected Alignment and Echo-Path Model v3; v3 exhausted that physical-model
-ladder with `READY_FOR_MULTI_COMPONENT_SEPARATOR`, making the multi-component separator next.
+now provide promoted optional speaker views over authoritative remote audio. The bounded Pre-ASR
+Target-Me frontier is closed after SepFormer failed reliable presence/absence separation before dev;
+production v2.17 remains the exact plateau. Reviewed Speaker-Aware Meeting Memory v1 now connects
+explicit session-local labels to evidence-backed notes and export through an opt-in handoff.
 Voice similarity never assigns a person's identity;
 cross-meeting matching and external writes remain separate gates.
 

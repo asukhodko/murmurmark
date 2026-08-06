@@ -305,10 +305,10 @@ murmurmark transcript "$SESSION" --rich --reviewed-speakers
 ```
 
 Missing or stale decisions fall back to anonymous `--rich`; plain outputs stay unchanged. The
-current goal is **Pre-ASR Target-Me Isolation Limit v1**. Alignment/Echo-Path v3 and Multi-Component
-v1 are complete. Stronger Offline Prerequisites pinned Apache-2.0 SepFormer, froze `12/4/4`
-split-disjoint identities and passed local resource gates, ending in
-`READY_FOR_STRONGER_SEPARATOR_QUALIFICATION`; see the [result](docs/research/2026-08-06-stronger-offline-target-speaker-separator-prerequisites-v1.md).
+bounded pre-ASR frontier is complete. SepFormer assigned present Target-Me stems correctly on train,
+but presence/absence evidence overlapped and stopped before dev with
+`DO_NOT_ADVANCE_STRONGER_SEPARATOR`. The current goal is **Reviewed Speaker-Aware Meeting Memory v1**:
+an opt-in evidence-backed notes/export handoff over explicit session-local labels.
 
 The dependent critical path is:
 
@@ -318,12 +318,12 @@ Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental 
 -> Remote Speaker Map -> Anonymous Rich -> Reviewed Naming (done)
 -> Residual Echo Ceiling Map (done: READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3)
 -> Alignment and Echo-Path Model v3 (done: READY_FOR_MULTI_COMPONENT_SEPARATOR)
--> Multi-Component v1 (done) -> Stronger Offline Prerequisites (done) -> SepFormer Train/Dev Qualification (next)
--> Reviewed Speaker-Aware Meeting Memory v1 (later)
+-> Multi-Component v1 (done) -> Stronger Offline Prerequisites (done) -> SepFormer Qualification (done: DO_NOT_ADVANCE)
+-> Reviewed Speaker-Aware Meeting Memory v1 (current)
 ```
 
-Speaker-aware memory remains optional and deferred. LLM synthesis and UI stay parallel or parked;
-Live promotion remains blocked and Live Shadow stays advisory.
+Speaker-aware memory remains opt-in and is now current. LLM synthesis and UI stay parallel or
+parked; Live promotion remains blocked and Live Shadow stays advisory.
 
 See the [current goal](docs/project/current-goal.md), [readable roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 
@@ -337,7 +337,7 @@ See the [current goal](docs/project/current-goal.md), [readable roadmap](docs/ro
   speaker-playback sessions; it does not promise waveform-perfect echo removal on every room/device.
 - Alignment/Echo-Path v3 is audit-only after `READY_FOR_MULTI_COMPONENT_SEPARATOR`; it is not a
   production audio profile and its hard/sealed sets remain unopened.
-- Stronger Offline Prerequisites is readiness-only; SepFormer cannot enter direct ASR or production before a separate four-stem train/dev pass.
+- SepFormer Four-Stem v1 stopped at train presence/absence separation; dev, hard, direct ASR and production stayed closed.
 - Echo Guard records `speaker_playback`, `headphones_or_low_leak` or `uncertain` in
   `local_fir_report.json`; no user acoustic-mode flag is required.
 - `local_speech_completion_v2` is selected only for sessions named by its passing frozen-corpus
@@ -367,7 +367,7 @@ See the [current goal](docs/project/current-goal.md), [readable roadmap](docs/ro
 - [Mission and vision](docs/product/vision.md)
 - [Product requirements](docs/product/prd-v1.md)
 - [Current goal](docs/project/current-goal.md)
-- [Stronger Offline Separator Prerequisites v1](docs/research/2026-08-06-stronger-offline-target-speaker-separator-prerequisites-v1.md)
+- [SepFormer Four-Stem qualification v1](docs/research/2026-08-07-sepformer-four-stem-target-me-qualification-v1.md)
 - [Reliable transcription route](docs/project/reliable-transcription-route.md)
 - [Readable roadmap](docs/roadmap/murmurmark-cli-roadmap.md)
 - [OpsKarta v3 roadmap](docs/roadmap/murmurmark-cli-roadmap.plan.yaml)

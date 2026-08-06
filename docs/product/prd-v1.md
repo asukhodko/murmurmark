@@ -28,7 +28,7 @@ Working now:
 - live-ASR cache bridge exists as a diagnostic/future acceleration layer; incompatible or unsafe
   chunks fall back to batch ASR.
 
-Current operating point, 2026-08-04:
+Current operating point, 2026-08-07:
 
 - stable batch capture and processing produce a transcript, verdict, evidence notes, review plan,
   guarded export and retention plan;
@@ -89,10 +89,10 @@ Current operating point, 2026-08-04:
   authoritative remote track and no selected-text mutation;
 - Anonymous Rich Transcript Handoff v1 and Reviewed Remote Speaker Naming v1 are promoted optional
   read surfaces; labels come only from an explicit fingerprint-bound session review;
-- the current goal is Pre-ASR Target-Me Isolation Limit v1. Alignment/Echo-Path v3 and the bounded
-  multi-component separator are complete; stronger-separator prerequisites pinned Apache-2.0
-  SepFormer and a `12/4/4` speaker-disjoint plan. The nearest substage is frozen train/dev four-stem
-  qualification with WavLM assignment and exact production fallback;
+- Pre-ASR Target-Me Isolation Limit v1 is complete. SepFormer preserved exact accounting and paired
+  train assignment but failed Target-Me presence separation, ending in
+  `DO_NOT_ADVANCE_STRONGER_SEPARATOR` before dev. Reviewed Speaker-Aware Meeting Memory v1 is the
+  current opt-in notes/export handoff over explicit session-local labels;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 
@@ -104,9 +104,9 @@ and the v2.17-pinned transcriber/cache runtime; every unsupported acoustic mode,
 regression uses exact `local_fir_role_masked`.
 Any later separator remains isolated until a corpus-wide decision and cannot use exact remix or
 audio quality alone as evidence of correct word attribution. Post-ASR duplicate cleanup receives no
-promotion credit. Reviewed Speaker-Aware Meeting Memory v1 remains technically unblocked but is
-deferred until this audio frontier closes. LLM synthesis, external writes and UI remain research or
-optional work outside the current stage.
+promotion credit. Reopening the audio frontier requires an independently qualified abstaining
+Target-Me presence detector. LLM synthesis, external writes and UI remain research or optional work
+outside the current stage.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.
 

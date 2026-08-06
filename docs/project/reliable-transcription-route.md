@@ -2,10 +2,9 @@
 
 Status: active product route; durable capture, one-command processing, evidence handoff and guarded
 export are complete. Speaker-Preserving Neural Echo v2.17 is the compatible production pre-ASR
-plateau. Alignment/Echo-Path v3, Multi-Component Residual Separator v1 and the stronger-separator
-prerequisites are complete; the current bounded audio step is SepFormer Four-Stem Target-Me
-Qualification v1.
-Date: 2026-08-06
+plateau. The bounded pre-ASR frontier is complete after SepFormer stopped before dev on unreliable
+Target-Me presence evidence. Reviewed Speaker-Aware Meeting Memory v1 is the current product step.
+Date: 2026-08-07
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
 corpus-calibrated gates and explicit review burden before broader repair. Outcome Contract v1,
@@ -213,9 +212,10 @@ items exactly; the required low-leak control changed instead of exact fallback. 
 stayed closed. Multi-Component Residual Separator v1 preserved reconstruction and speaker-query
 use but missed four locked dev gates. Stronger Offline Target-Speaker Separator Prerequisites v1
 then pinned Apache-2.0 SepFormer, froze a `12/4/4` speaker-disjoint identity plan and passed two
-offline resource probes. The current train/dev qualification must establish WavLM stem assignment,
-source-scale recovery, exact four-stem accounting and production fallback before hard, sealed or
-direct-ASR access. Cold first-pass ASR latency and failed live-recovery
+offline resource probes. SepFormer Four-Stem v1 then reached perfect paired assignment on train but
+failed presence/absence separation by `-0.253397`, so it ended in
+`DO_NOT_ADVANCE_STRONGER_SEPARATOR` without dev, hard, sealed or direct-ASR access. Reopening the
+audio frontier requires a separate abstaining Target-Me presence detector. Cold first-pass ASR latency and failed live-recovery
 profiles remain secondary constraints, not reasons to accept remote leakage or lose local speech.
 
 ## Route To Reliability
@@ -457,12 +457,10 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Pre-ASR Target-Me Isolation Limit v1: сохранить production v2, residual map и завершённый
-Alignment/Echo-Path v3 неизменными; провести Multi-Component Residual Separator Qualification v1 с
-явными Target-Me, remote-echo, other-local и residual stems, correct/wrong query controls, mixture
-consistency и exact fallback. Завершить PROMOTE_MULTI_COMPONENT_RESIDUAL_SEPARATOR,
-READY_FOR_STRONGER_LOCAL_SEPARATOR либо CURRENT_RESOURCE_LIMIT_REACHED без потери protected Me,
-nearby speech, chronology, openings, double-talk и без post-ASR cleanup credit.
+Reviewed Speaker-Aware Meeting Memory v1: связать explicit session-local reviewed remote labels с
+evidence-backed notes и guarded export через отдельный opt-in fingerprinted handoff; сохранять
+exact utterance/evidence IDs и anonymous/aggregate fallback; не менять обычные notes/export и не
+добавлять voice identity, cross-session roster, LLM claims или external writes.
 ```
 
 ## Consultation Prompt
@@ -470,46 +468,29 @@ nearby speech, chronology, openings, double-talk и без post-ASR cleanup cred
 Use this prompt if external consultation is needed:
 
 ```text
-Мы строим MurmurMark: локальный macOS CLI-пайплайн для рабочих созвонов. Сейчас целиком
-фокусируемся на пред-ASR отделении целевого пользователя Me от акустического remote leakage.
+Мы строим MurmurMark: локальный macOS CLI-пайплайн для рабочих созвонов. Текущая цель — безопасно
+добавить reviewed session-local имена удалённых участников в evidence-backed notes и export.
 
 Имеется:
-- неизменяемые raw mic/remote CAF и authoritative digital remote;
-- local_fir, delay trajectory, speaker state и exact fallback;
-- private Target-Me enrollment, WavLM/Resemblyzer и controlled echo supervision;
-- promoted Speaker-Preserving Neural Echo v2: 5/12 candidate, 7/12 fallback, local retention 1.0;
-- frozen Residual Echo Ceiling Map: 14 real sessions, 2068 material events, 6869.306s actionable;
-- capability ordering: alignment/echo path 35.567%, multi-component 30.923%, Target-Me 18.324%;
-- Alignment/Echo-Path v3 завершён READY_FOR_MULTI_COMPONENT_SEPARATOR: 11/32 controlled remote
-  items вместо gate 12, median reduction 2.552124 dB, protected exact 156/156, required low-leak
-  control failed exact fallback, hard/sealed закрыты;
-- Target-Me Identifiability Corpus даёт split-disjoint correct/wrong-query и non-target controls;
-- Reference-Conditioned v2 доказал query adherence, но scratch FiLM+GRU не прошёл quality dev;
-- direct local whisper.cpp large-v3 q5_0 и frozen chronology/double-talk/opening/no-speech gates.
+- authoritative selected dialogue и Evidence Handoff v2;
+- anonymous rich transcript: 6/6 sessions, 1235 exact remote references;
+- explicit fingerprint-bound reviewed naming with anonymous fail-open;
+- deterministic extractive notes, quality verdict и guarded export;
+- closed pre-ASR frontier; production v2.17 remains exact audio plateau.
 
-North Star: canonical mic для ASR сохраняет каждое подтверждённое слово Me, не содержит
-распознаваемого authoritative remote и не относит nearby other-local speech к Me. Неизвестное
-остаётся explicit residual; недостаток доказательств выбирает exact production fallback.
+North Star: каждое имя в meeting memory доказано explicit review текущей сессии, а каждое
+утверждение сохраняет exact utterance/evidence references.
 
 Ограничения:
-- raw CAF не менять;
-- всё локально/offline на Apple Silicon, cloud audio запрещён;
-- post-ASR cleanup не получает promotion credit;
-- потеря protected Me, chronology, opening или double-talk запрещает promotion;
-- hard/sealed data нельзя открывать до locked dev pass;
-- residual-map thresholds и capability ordering нельзя настраивать по результатам candidate;
-- ещё один scalar mask, larger FIR bank или post-ASR cleanup не рассматриваются.
+- default transcript, notes и export не менять;
+- stale, missing или partial review обязан вернуть anonymous/aggregate fallback;
+- voice-only identity и cross-session roster запрещены;
+- external writes и unsupported LLM claims вне цели.
 
 Вопросы:
-1. Какой минимальный four-stem contract лучше задаёт Target-Me, remote echo, nearby other-local и
-   unexplained residual при одном mic и exact digital remote?
-2. Как объединить v3 echo estimate, complex mixture, remote reference и Target-Me query без
-   identity collapse и без принудительного возврата remote через mixture consistency?
-3. Какой bounded candidate ladder реалистичен локально на Apple Silicon: constrained baseline,
-   reference-conditioned separator и проверенная pretrained initialization?
-4. Как построить split-disjoint supervision из имеющихся measured echo, clean Target-Me,
-   non-target speakers и wrong-query controls без synthetic-to-real leakage?
-5. Какие audio, direct-ASR, speaker-attribution и runtime gates должны пройти dev до hard/sealed?
-6. Какой terminal negative result точно отделит нехватку архитектуры от нехватки локальных
-   вычислительных ресурсов или supervision?
+1. Какой минимальный versioned manifest связывает reviewed label, anonymous speaker ID, utterance и
+   evidence references без дублирования source of truth?
+2. Как доказать exact anonymous/aggregate fallback при stale и partial review?
+3. Какие corpus gates запрещают unsupported attribution и text mutation?
+4. Как дать opt-in CLI read/export path, не меняя обычный handoff и privacy boundary?
 ```

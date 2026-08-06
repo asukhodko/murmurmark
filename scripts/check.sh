@@ -30,6 +30,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-alignment-echo-path-model-v3.py
 "$python_bin" scripts/check-multi-component-residual-separator-v1.py
 "$python_bin" scripts/check-stronger-offline-target-speaker-separator-prerequisites-v1.py
+"$python_bin" scripts/check-sepformer-four-stem-target-me-qualification-v1.py
 "$python_bin" scripts/check-speaker-preserving-echo-adaptation-corpus.py
 "$python_bin" scripts/check-controlled-echo-supervision-v1.py
 "$python_bin" scripts/check-speaker-mode-hardening.py

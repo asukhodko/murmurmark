@@ -16,7 +16,7 @@ v1 proves:
 - evidence-backed synthesis;
 - privacy and retention controls.
 
-Current implementation status, 2026-08-06:
+Current implementation status, 2026-08-07:
 
 - capture, session packaging, Echo Guard preprocessing, resumable local `whisper.cpp` transcription,
   quality verdict, evidence-backed extractive notes, guarded export and retention are implemented;
@@ -38,12 +38,11 @@ Current implementation status, 2026-08-06:
   for optional evidence;
 - anonymous rich transcript and explicit session-local reviewed naming are promoted optional read
   surfaces with fingerprint verification and anonymous fail-open behavior;
-- the current bounded goal is Pre-ASR Target-Me Isolation Limit v1. Alignment/Echo-Path v3 and
-  Multi-Component Residual Separator v1 are complete; stronger-separator prerequisites pinned
-  SepFormer and a `12/4/4` split-disjoint identity plan. Production v2.17 remains exact fallback
-  while frozen train/dev four-stem qualification runs before any hard, sealed or direct-ASR access;
-- Reviewed Speaker-Aware Meeting Memory v1 remains technically ready but deferred until that audio
-  frontier closes;
+- Pre-ASR Target-Me Isolation Limit v1 is complete with `DO_NOT_ADVANCE_STRONGER_SEPARATOR` after
+  train presence/absence evidence failed; dev, hard, sealed and direct ASR stayed closed while
+  production v2.17 remained exact fallback;
+- Reviewed Speaker-Aware Meeting Memory v1 is current as a separate opt-in reviewed notes/export
+  handoff; ordinary outputs remain authoritative fallback;
 - committed-PCM live preview exists as an advisory shadow, while batch remains authoritative;
 - authoritative speaker identity, cross-session matching, evidence-guarded LLM synthesis and UI
   remain future or optional work.

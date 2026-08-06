@@ -1,6 +1,6 @@
 # MurmurMark CLI Roadmap
 
-Updated: 2026-08-06
+Updated: 2026-08-07
 
 This is the readable view of the active OpsKarta v3 plan:
 
@@ -45,10 +45,10 @@ advisory; its promotion remains blocked by quality and runtime evidence.
 The technical North Star is an ASR input that retains every confirmed `Me` word, contains no recognizable authoritative remote and keeps nearby non-target speech out of `Me`, with exact fallback.
 Speaker-Preserving Neural Echo v2 is the safe production plateau: `5/12` candidate sessions,
 `41.940s` and 90 tokens removed, local retention `1.0`; v2.17 requalified it on current ASR with
-hard `3/3`, corpus `12/12` and unchanged utility. **Pre-ASR Target-Me Isolation Limit v1** is
-current. Residual mapping, Alignment/Echo-Path v3 and Multi-Component v1 are complete. Stronger
-Offline Prerequisites pinned Apache-2.0 SepFormer, froze `12/4/4` identities and completed
-`READY_FOR_STRONGER_SEPARATOR_QUALIFICATION`; train/dev qualification is next.
+hard `3/3`, corpus `12/12` and unchanged utility. **Pre-ASR Target-Me Isolation Limit v1** is done.
+SepFormer reached perfect paired train assignment but failed Target-Me presence separation and
+stopped before dev with `DO_NOT_ADVANCE_STRONGER_SEPARATOR`. **Reviewed Speaker-Aware Meeting
+Memory v1** is current: reviewed session-local labels enter an opt-in notes/export handoff.
 ## Critical Path
 ```mermaid
 flowchart LR
@@ -73,8 +73,8 @@ flowchart LR
     T["Done: PROMOTE<br/>Anonymous Rich<br/>Transcript Handoff v1"]
     Q["Done: PROMOTE<br/>Reviewed Remote<br/>Speaker Naming v1"]
     Z["Done: READY<br/>Residual Map +<br/>Alignment/Echo v3"]
-    Y["Current umbrella<br/>Prerequisites done<br/>SepFormer train/dev next"]
-    W["Later<br/>Reviewed Speaker-Aware<br/>Meeting Memory v1"]
+    Y["Done: DO_NOT_ADVANCE<br/>Pre-ASR Target-Me<br/>Isolation Limit v1"]
+    W["Current<br/>Reviewed Speaker-Aware<br/>Meeting Memory v1"]
 
     P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D --> F --> G --> C2 --> M --> R --> T --> Q --> Z --> Y --> W
 ```
@@ -240,23 +240,23 @@ utterances and anonymous attributions; stale or missing decisions fall back to a
 Voice-only identity, cross-session matching and ordinary notes/export remain untouched.
 
 ### 20. Pre-ASR Target-Me Isolation Limit v1
-Current umbrella goal. Residual mapping, Alignment/Echo-Path v3 and Multi-Component v1 are complete;
-the last preserved reconstruction but missed four dev quality gates. Stronger Offline Prerequisites
-then pinned Apache-2.0 SepFormer, a `12/4/4` identity plan and two local resource probes. SepFormer
-Four-Stem Target-Me Qualification v1 now materializes train/dev, assigns anonymous stems through
-WavLM and preserves exact residual remainder. Future-hard, sealed and direct ASR stay closed unless
-every immutable dev gate passes.
+Completed as the bounded local audio frontier. SepFormer preserved exact accounting and assigned
+present Target-Me stems with `1.0` train accuracy, but presence separation was `-0.253397` and false
+rejection `0.643939`. It stopped before dev with `DO_NOT_ADVANCE_STRONGER_SEPARATOR`; future-hard,
+sealed, direct ASR and production remained unchanged. Reopening requires a separately qualified
+abstaining Target-Me presence detector and stronger residual preservation.
 
 ### 21. Reviewed Speaker-Aware Meeting Memory v1
 
-Later but already technically unblocked. Build a separate opt-in notes/export handoff over explicit
-session-local labels and exact evidence IDs after the current audio frontier closes.
+Current. Build a separate opt-in notes/export handoff over explicit session-local labels and exact
+evidence IDs. Missing, stale or partial review returns the anonymous/aggregate fallback; ordinary
+notes/export, voice identity, cross-session roster and external writes remain unchanged.
 
 ## Dependent And Parallel Research
 
-Speaker-Preserving Neural Echo v2 remains exact production fallback throughout the current audio
-frontier. Reviewed naming is already promoted optional. Speaker-aware memory, cross-session mapping,
-external integrations, heavy validators and LLM synthesis wait behind separate gates.
+Speaker-Preserving Neural Echo v2 remains the exact production plateau after the closed audio
+frontier. Reviewed naming is promoted optional; speaker-aware memory is current. Cross-session
+mapping, external integrations, heavy validators and LLM synthesis wait behind separate gates.
 
 ## Parking Lot
 
