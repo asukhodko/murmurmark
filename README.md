@@ -291,12 +291,13 @@ the rest stayed aggregate `Colleagues`. The private group reference reached attr
 
 ```bash
 murmurmark audit remote-speakers "$SESSION" --profile auto
+murmurmark transcript "$SESSION" --rich
 ```
 
-The current goal is **Anonymous Rich Transcript Handoff v1**. It will bind only current, passing
-anonymous evidence to a versioned optional rich artifact and CLI surface. The selected dialogue,
-ordinary Markdown, notes, Evidence Handoff v2 and guarded export stay unchanged until their own
-promotion gate.
+Anonymous Rich Transcript Handoff v1 completed with `PROMOTE_OPTIONAL_RICH`: all `1235` remote
+references passed on 6/6 sessions; 629 utterances received anonymous IDs and 606 remained aggregate.
+The current goal is **Reviewed Remote Speaker Naming v1**: accept only explicit session-local labels,
+never infer a person's identity from voice. Plain Markdown, notes and guarded export stay unchanged.
 
 The stable CLI supports durable capture, resumable processing, guarded profiles, evidence-backed
 review, export and retention. Exact experiment metrics live in the research documents and roadmap.
@@ -311,7 +312,8 @@ Meeting Lifecycle -> Echo evidence and controlled lab -> Speaker-Preserving Neur
 -> Canonical Live ASR Producer v1 (done: DO_NOT_PROMOTE)
 -> Causal Canonical Mic ASR v1 (done: DO_NOT_PROMOTE)
 -> Remote Speaker Evidence Map v1 (done: PROMOTE_AUDIT_ONLY)
--> Anonymous Rich Transcript Handoff v1 (current)
+-> Anonymous Rich Transcript Handoff v1 (done: PROMOTE_OPTIONAL_RICH)
+-> Reviewed Remote Speaker Naming v1 (current)
 ```
 
 Reviewed speaker naming follows the anonymous rich handoff and remains optional: voice similarity
@@ -323,8 +325,8 @@ and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 
 ## Scope And Limitations
 
-- Current selected transcripts use `Me` and aggregate `Colleagues`; promoted anonymous
-  remote-speaker evidence remains an optional audit artifact until the rich-handoff gate passes.
+- Ordinary selected transcripts use `Me` and aggregate `Colleagues`; `--rich` is an optional,
+  fingerprint-verified anonymous-speaker view and is not an export source.
 - The personalized pre-ASR profile removes independently supported remote leakage on compatible
   speaker-playback sessions; it does not promise waveform-perfect echo removal on every room/device.
 - Echo Guard records `speaker_playback`, `headphones_or_low_leak` or `uncertain` in

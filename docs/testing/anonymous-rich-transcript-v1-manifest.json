@@ -1,0 +1,862 @@
+{
+  "constraints": {
+    "cross_session_identity_allowed": false,
+    "notes_or_export_integration_promoted": false,
+    "plain_transcript_authoritative": true,
+    "speaker_names_allowed": false
+  },
+  "decision": "PROMOTE_OPTIONAL_RICH",
+  "gates": {
+    "all_labels_anonymous": true,
+    "all_ordinary_outputs_unchanged": true,
+    "all_remote_references_exact": true,
+    "all_replays_identical": true,
+    "all_selected_dialogues_exact": true,
+    "all_sessions_ready": true,
+    "minimum_frozen_sessions": true
+  },
+  "generator": {
+    "fingerprint": {
+      "bytes": 14082,
+      "path": "scripts/report-anonymous-rich-transcript-corpus.py",
+      "sha256": "8afb10cc322bd7ff9080fc55c6ac6b96309fe1c58e68ef4b80881c527a564a02"
+    },
+    "script": "report-anonymous-rich-transcript-corpus.py",
+    "version": "0.1.0"
+  },
+  "inputs": {
+    "materializer": {
+      "bytes": 38577,
+      "path": "scripts/materialize-anonymous-rich-transcript.py",
+      "sha256": "0254393c5f5f4b24b16d1f9a98a5ae5635a442c6686f0e1a707d62def61597d6"
+    },
+    "policy": {
+      "bytes": 2219,
+      "path": "policies/anonymous-rich-transcript-v1.json",
+      "sha256": "091516757e766b2b6e33088e83364f60bce73a2462be893ec7e1567ff5a50e0e"
+    },
+    "source_corpus": {
+      "bytes": 20985,
+      "path": "docs/testing/remote-speaker-evidence-map-v1-manifest.json",
+      "sha256": "19c1083ffabe6c29e4a3daf2fd6cc91eecb78bd7ec25726c319385dbca8ccdd6"
+    }
+  },
+  "metrics": {
+    "aggregate_remote_utterances": 606,
+    "anonymous_speakers": 14,
+    "attributed_remote_utterances": 629,
+    "remote_utterances": 1235,
+    "selected_utterances": 2319,
+    "sessions_passed": 6,
+    "sessions_total": 6
+  },
+  "schema": "murmurmark.anonymous_rich_frozen_manifest/v1",
+  "scope": "optional_session_local_anonymous_read_surface",
+  "sessions": [
+    {
+      "counts": {
+        "aggregate_remote_utterances": 118,
+        "anonymous_speakers": 1,
+        "attributed_remote_utterances": 110,
+        "remote_utterances": 228,
+        "selected_utterances": 414
+      },
+      "gates": {
+        "anonymous_labels_only": true,
+        "ordinary_outputs_unchanged": true,
+        "plain_transcript_authoritative": true,
+        "ready": true,
+        "remote_references_exact": true,
+        "replay_identical": true,
+        "selected_dialogue_exact": true
+      },
+      "inputs": {
+        "rich_handoff": {
+          "bytes": 13972,
+          "path": "derived/transcript-rich/anonymous-v1/handoff_manifest.json",
+          "sha256": "c73c77d2d54def2e3b1b125ffab84f39c277a9ba81c756265da4da7032f1147e"
+        },
+        "selected_dialogue": {
+          "bytes": 899899,
+          "path": "derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.agent_reviewed_v1.json",
+          "sha256": "6c2c1e4db0fa9cf916611ab1d851dc3061d23ad1b86661717a79b5e1bbd49794"
+        }
+      },
+      "ordinary_baseline": {
+        "authoritative_plain_transcript": {
+          "bytes": 66438,
+          "path": "derived/handoff-v2/bundles/b7be28db32486829f2d6e0af83737b7a606d2abe770a414727a436c157fe4790/transcript.md",
+          "scope": "session",
+          "sha256": "4e5cc3e17e378672744c0d5960d388582a030936388b953b7088c8ae185f3aa5"
+        },
+        "evidence_handoff_manifest": {
+          "bytes": 9035,
+          "path": "derived/handoff-v2/handoff_manifest.json",
+          "scope": "session",
+          "sha256": "6114fc67bc2e6595fddee0c0da1cd85e5908e8013618fc57e9438cec7cb6efc4"
+        },
+        "handoff_bundle_handoff_evidence": {
+          "bytes": 55028,
+          "path": "derived/handoff-v2/bundles/b7be28db32486829f2d6e0af83737b7a606d2abe770a414727a436c157fe4790/handoff_evidence.json",
+          "scope": "session",
+          "sha256": "ee28c689aa601812a7d4d123786c858e46fcef67192760b6b0c23567fb50c439"
+        },
+        "handoff_bundle_meeting": {
+          "bytes": 469,
+          "path": "derived/handoff-v2/bundles/b7be28db32486829f2d6e0af83737b7a606d2abe770a414727a436c157fe4790/meeting.md",
+          "scope": "session",
+          "sha256": "4483a2930fe5d5b96c13f007ca0218e899e8b0222d4174977e19931843f980e6"
+        },
+        "handoff_bundle_notes": {
+          "bytes": 7163,
+          "path": "derived/handoff-v2/bundles/b7be28db32486829f2d6e0af83737b7a606d2abe770a414727a436c157fe4790/notes.md",
+          "scope": "session",
+          "sha256": "1816672bd5a94d8f4e7b771702ef62b7b1368d584bed52183722ab7db198aacc"
+        },
+        "handoff_bundle_quality_verdict": {
+          "bytes": 209,
+          "path": "derived/handoff-v2/bundles/b7be28db32486829f2d6e0af83737b7a606d2abe770a414727a436c157fe4790/quality_verdict.md",
+          "scope": "session",
+          "sha256": "49f47301f194557fd0dd7559b46bbc89f844cf49042133e431120e22d312c013"
+        },
+        "handoff_bundle_transcript": {
+          "bytes": 66438,
+          "path": "derived/handoff-v2/bundles/b7be28db32486829f2d6e0af83737b7a606d2abe770a414727a436c157fe4790/transcript.md",
+          "scope": "session",
+          "sha256": "4e5cc3e17e378672744c0d5960d388582a030936388b953b7088c8ae185f3aa5"
+        },
+        "handoff_input_evidence_notes": {
+          "bytes": 377055,
+          "path": "derived/synthesis-simple/extractive/evidence_notes.agent_reviewed_v1.json",
+          "scope": "session",
+          "sha256": "b1b4176a3dcbdd0d4a1e4d370f7bf4183b29495dd30cd38c65d0c92626fbc5d6"
+        },
+        "handoff_input_notes": {
+          "bytes": 8198,
+          "path": "derived/synthesis-simple/extractive/notes.agent_reviewed_v1.md",
+          "scope": "session",
+          "sha256": "4c4b3583d6e8251313dd53b1631dc99a5a9b843eb350b489eaacb60c501020ce"
+        },
+        "handoff_input_quality_verdict_json": {
+          "bytes": 4349,
+          "path": "derived/synthesis-simple/extractive/quality_verdict.agent_reviewed_v1.json",
+          "scope": "session",
+          "sha256": "2c19a6cc956aeb991771370562b1ea4e151ee58c7758e7b8d0b251ad1f2e14d2"
+        },
+        "handoff_input_quality_verdict_md": {
+          "bytes": 1288,
+          "path": "derived/synthesis-simple/extractive/quality_verdict.agent_reviewed_v1.md",
+          "scope": "session",
+          "sha256": "0e3c5d6582ced19ef27491f6ec85bf9715cc485c4f742c799c6b5122f51f6aff"
+        },
+        "handoff_input_readiness": {
+          "bytes": 11617,
+          "path": "derived/readiness/session_readiness.json",
+          "scope": "session",
+          "sha256": "05027a1958783ea973bbc17e49c57a90988e20f03656bdbc9bf3f125b0884348"
+        },
+        "resolved_plain_transcript": {
+          "bytes": 61003,
+          "path": "derived/transcript-simple/whisper-cpp/resolved/transcript.agent_reviewed_v1.md",
+          "scope": "session",
+          "sha256": "e6284a84192581675ab25964abfbda259bffa9e4ea0c5569423213c9e0fddc64"
+        },
+        "selected_dialogue": {
+          "bytes": 899899,
+          "path": "derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.agent_reviewed_v1.json",
+          "scope": "session",
+          "sha256": "6c2c1e4db0fa9cf916611ab1d851dc3061d23ad1b86661717a79b5e1bbd49794"
+        }
+      },
+      "outputs": {
+        "rich_json": {
+          "bytes": 1003571,
+          "path": "derived/transcript-rich/anonymous-v1/bundles/8267d364ec32c024f4047ec8e55b87a195770aca0d676cce7f48b480bc1a6abd/transcript.rich.json",
+          "sha256": "a7fedd9cabbd0aed16b3f5cbd5d40006b7990eb6bb7fe467aeb6d05adf05d780"
+        },
+        "rich_markdown": {
+          "bytes": 61834,
+          "path": "derived/transcript-rich/anonymous-v1/bundles/8267d364ec32c024f4047ec8e55b87a195770aca0d676cce7f48b480bc1a6abd/transcript.rich.md",
+          "sha256": "5bd8f9de92a185acc4e4932c43b47a8994e290a27c3b21c786ff6d79a04c5df0"
+        }
+      },
+      "reasons": [],
+      "selected_profile": "agent_reviewed_v1",
+      "semantic_fingerprint": "8267d364ec32c024f4047ec8e55b87a195770aca0d676cce7f48b480bc1a6abd",
+      "session_id": "2026-06-23_14-04-37",
+      "status": "passed"
+    },
+    {
+      "counts": {
+        "aggregate_remote_utterances": 69,
+        "anonymous_speakers": 1,
+        "attributed_remote_utterances": 60,
+        "remote_utterances": 129,
+        "selected_utterances": 358
+      },
+      "gates": {
+        "anonymous_labels_only": true,
+        "ordinary_outputs_unchanged": true,
+        "plain_transcript_authoritative": true,
+        "ready": true,
+        "remote_references_exact": true,
+        "replay_identical": true,
+        "selected_dialogue_exact": true
+      },
+      "inputs": {
+        "rich_handoff": {
+          "bytes": 13976,
+          "path": "derived/transcript-rich/anonymous-v1/handoff_manifest.json",
+          "sha256": "8e6ae9ab879c9780185c348aa298dfcd023df1773a124c1d561b40672235f5eb"
+        },
+        "selected_dialogue": {
+          "bytes": 693826,
+          "path": "derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.agent_reviewed_v1.json",
+          "sha256": "de4265e44f706b894b8b5e2f8c328fdc59d3ca0e9cc9c6c9e1cb6f01c808d4c9"
+        }
+      },
+      "ordinary_baseline": {
+        "authoritative_plain_transcript": {
+          "bytes": 60336,
+          "path": "derived/handoff-v2/bundles/b5cd8a6a5dbe50b5015bc4e379d7c84fcfb13a590dba3f4a8ff9acbfbaf74aec/transcript.md",
+          "scope": "session",
+          "sha256": "435736c99f6c299bc34245e783aa8e28beb214b9e113d29e98aa9d6e3ad68919"
+        },
+        "evidence_handoff_manifest": {
+          "bytes": 8953,
+          "path": "derived/handoff-v2/handoff_manifest.json",
+          "scope": "session",
+          "sha256": "948a848012954e9535e7bbbb63c746be02c39f5ffe533477c2fe074292ae1b87"
+        },
+        "handoff_bundle_handoff_evidence": {
+          "bytes": 55471,
+          "path": "derived/handoff-v2/bundles/b5cd8a6a5dbe50b5015bc4e379d7c84fcfb13a590dba3f4a8ff9acbfbaf74aec/handoff_evidence.json",
+          "scope": "session",
+          "sha256": "ceaeee9a39aa639bcfa6af762b9cf31953a99db6a03812a91ec026027cee7733"
+        },
+        "handoff_bundle_meeting": {
+          "bytes": 469,
+          "path": "derived/handoff-v2/bundles/b5cd8a6a5dbe50b5015bc4e379d7c84fcfb13a590dba3f4a8ff9acbfbaf74aec/meeting.md",
+          "scope": "session",
+          "sha256": "a6bc0499c4e2005f9310e24ba4ac4bfbcda5a17b7a2069fc76c67acb8a7fa180"
+        },
+        "handoff_bundle_notes": {
+          "bytes": 12101,
+          "path": "derived/handoff-v2/bundles/b5cd8a6a5dbe50b5015bc4e379d7c84fcfb13a590dba3f4a8ff9acbfbaf74aec/notes.md",
+          "scope": "session",
+          "sha256": "b5546adb7fa6cafb7a27ff5d81cf1098d08d14b07079cbb388211e3027086cb7"
+        },
+        "handoff_bundle_quality_verdict": {
+          "bytes": 209,
+          "path": "derived/handoff-v2/bundles/b5cd8a6a5dbe50b5015bc4e379d7c84fcfb13a590dba3f4a8ff9acbfbaf74aec/quality_verdict.md",
+          "scope": "session",
+          "sha256": "183cb6e42bd46e24011827514e4545f32c087a8792607ab6e5ee954573d4f372"
+        },
+        "handoff_bundle_transcript": {
+          "bytes": 60336,
+          "path": "derived/handoff-v2/bundles/b5cd8a6a5dbe50b5015bc4e379d7c84fcfb13a590dba3f4a8ff9acbfbaf74aec/transcript.md",
+          "scope": "session",
+          "sha256": "435736c99f6c299bc34245e783aa8e28beb214b9e113d29e98aa9d6e3ad68919"
+        },
+        "handoff_input_evidence_notes": {
+          "bytes": 383272,
+          "path": "derived/synthesis-simple/extractive/evidence_notes.agent_reviewed_v1.json",
+          "scope": "session",
+          "sha256": "d4a8be914b30f5ca82b0c391f2d150a3b91e104e69757bb0748209e898b4e9bc"
+        },
+        "handoff_input_notes": {
+          "bytes": 13644,
+          "path": "derived/synthesis-simple/extractive/notes.agent_reviewed_v1.md",
+          "scope": "session",
+          "sha256": "472216c3ba22a078299281e0f6f2f01098b7bd318855badcc280244680203388"
+        },
+        "handoff_input_quality_verdict_json": {
+          "bytes": 4151,
+          "path": "derived/synthesis-simple/extractive/quality_verdict.agent_reviewed_v1.json",
+          "scope": "session",
+          "sha256": "3497c469c098f44f2ef063ef6894c5a7d97742261a9c2d7e617bfb8bdfb4ed48"
+        },
+        "handoff_input_quality_verdict_md": {
+          "bytes": 1222,
+          "path": "derived/synthesis-simple/extractive/quality_verdict.agent_reviewed_v1.md",
+          "scope": "session",
+          "sha256": "a67c6ffcaf1357fc233f192f206601b920e55915b1e809a2af97483507fbba2d"
+        },
+        "handoff_input_readiness": {
+          "bytes": 10619,
+          "path": "derived/readiness/session_readiness.json",
+          "scope": "session",
+          "sha256": "b09c8874bc9ebe5692edc7db503912c4f9edf5a42ec7322e5585c1f52bf4553c"
+        },
+        "resolved_plain_transcript": {
+          "bytes": 55623,
+          "path": "derived/transcript-simple/whisper-cpp/resolved/transcript.agent_reviewed_v1.md",
+          "scope": "session",
+          "sha256": "72956c5e2d4869e2e5b46bd4d6d6a2b461d73a7c270bb84abe6304d2d60630ac"
+        },
+        "selected_dialogue": {
+          "bytes": 693826,
+          "path": "derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.agent_reviewed_v1.json",
+          "scope": "session",
+          "sha256": "de4265e44f706b894b8b5e2f8c328fdc59d3ca0e9cc9c6c9e1cb6f01c808d4c9"
+        }
+      },
+      "outputs": {
+        "rich_json": {
+          "bytes": 753111,
+          "path": "derived/transcript-rich/anonymous-v1/bundles/a676f496936529a127cf11ffef0bd666d00be5393730e02aaeae248fda79758a/transcript.rich.json",
+          "sha256": "e973126e521dae6d75c7b3484714b2643864f0d563b366a80948beaa41397e05"
+        },
+        "rich_markdown": {
+          "bytes": 56104,
+          "path": "derived/transcript-rich/anonymous-v1/bundles/a676f496936529a127cf11ffef0bd666d00be5393730e02aaeae248fda79758a/transcript.rich.md",
+          "sha256": "6ae4b222e6090850862ef2ffba1803dcd56139c690bb55fe90f429d1137e0460"
+        }
+      },
+      "reasons": [],
+      "selected_profile": "agent_reviewed_v1",
+      "semantic_fingerprint": "a676f496936529a127cf11ffef0bd666d00be5393730e02aaeae248fda79758a",
+      "session_id": "2026-06-24_15-03-52",
+      "status": "passed"
+    },
+    {
+      "counts": {
+        "aggregate_remote_utterances": 116,
+        "anonymous_speakers": 5,
+        "attributed_remote_utterances": 159,
+        "remote_utterances": 275,
+        "selected_utterances": 468
+      },
+      "gates": {
+        "anonymous_labels_only": true,
+        "ordinary_outputs_unchanged": true,
+        "plain_transcript_authoritative": true,
+        "ready": true,
+        "remote_references_exact": true,
+        "replay_identical": true,
+        "selected_dialogue_exact": true
+      },
+      "inputs": {
+        "rich_handoff": {
+          "bytes": 13959,
+          "path": "derived/transcript-rich/anonymous-v1/handoff_manifest.json",
+          "sha256": "164def7b915ea29f6dc6a124d6ee4b60722de36654bd689b7782ac9630d148ed"
+        },
+        "selected_dialogue": {
+          "bytes": 712222,
+          "path": "derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.audit_cleanup_v7.json",
+          "sha256": "979d92c61abe57b9651244d44ce4eed1bdd4cf63b7a0bee474b152e8d3157ad1"
+        }
+      },
+      "ordinary_baseline": {
+        "authoritative_plain_transcript": {
+          "bytes": 81487,
+          "path": "derived/handoff-v2/bundles/ff564d0221a98dbe92bd59772610603abe2837bf5012356012bb91745207fe9d/transcript.md",
+          "scope": "session",
+          "sha256": "559857d2c4bf8912da1d80d67b219510606024ccfd3c4f9172211ad9a002ade8"
+        },
+        "evidence_handoff_manifest": {
+          "bytes": 8941,
+          "path": "derived/handoff-v2/handoff_manifest.json",
+          "scope": "session",
+          "sha256": "09bce39776d9566330f5584444c23f6e79f22bc3f6a3703d8669349e000496ce"
+        },
+        "handoff_bundle_handoff_evidence": {
+          "bytes": 154992,
+          "path": "derived/handoff-v2/bundles/ff564d0221a98dbe92bd59772610603abe2837bf5012356012bb91745207fe9d/handoff_evidence.json",
+          "scope": "session",
+          "sha256": "f6d81f09cb92ab91060e67d6d686dc9b44e73aa564c694911b319e56ff67f9f1"
+        },
+        "handoff_bundle_meeting": {
+          "bytes": 468,
+          "path": "derived/handoff-v2/bundles/ff564d0221a98dbe92bd59772610603abe2837bf5012356012bb91745207fe9d/meeting.md",
+          "scope": "session",
+          "sha256": "42b0ecf9bd19d4c4390addb3242cf2edae0f96eb8e9a5dc7d128128e2d7df26b"
+        },
+        "handoff_bundle_notes": {
+          "bytes": 14011,
+          "path": "derived/handoff-v2/bundles/ff564d0221a98dbe92bd59772610603abe2837bf5012356012bb91745207fe9d/notes.md",
+          "scope": "session",
+          "sha256": "90ab3eb37bb0afbb6ec5a6b8999e1e26c614af961940d3600658a68ff2af04d9"
+        },
+        "handoff_bundle_quality_verdict": {
+          "bytes": 208,
+          "path": "derived/handoff-v2/bundles/ff564d0221a98dbe92bd59772610603abe2837bf5012356012bb91745207fe9d/quality_verdict.md",
+          "scope": "session",
+          "sha256": "283fcd28d1af5d8ed71e466d9d26cdad17fcbfc070ea84559b80f5b74d7ee6d8"
+        },
+        "handoff_bundle_transcript": {
+          "bytes": 81487,
+          "path": "derived/handoff-v2/bundles/ff564d0221a98dbe92bd59772610603abe2837bf5012356012bb91745207fe9d/transcript.md",
+          "scope": "session",
+          "sha256": "559857d2c4bf8912da1d80d67b219510606024ccfd3c4f9172211ad9a002ade8"
+        },
+        "handoff_input_evidence_notes": {
+          "bytes": 631011,
+          "path": "derived/synthesis-simple/extractive/evidence_notes.audit_cleanup_v7.json",
+          "scope": "session",
+          "sha256": "8adecc05328d06de929153ac3743bcae3a578dfd998591eb600a6d833de616cb"
+        },
+        "handoff_input_notes": {
+          "bytes": 16837,
+          "path": "derived/synthesis-simple/extractive/notes.audit_cleanup_v7.md",
+          "scope": "session",
+          "sha256": "e98f81a42a17f1bb035c635e7d4bc5f95ccdde208f710092e0b754725ee53991"
+        },
+        "handoff_input_quality_verdict_json": {
+          "bytes": 3994,
+          "path": "derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v7.json",
+          "scope": "session",
+          "sha256": "b0180ef46f061ba8b078c91de75161c2a996b2cc14d6a5e30d43462910d3bc6d"
+        },
+        "handoff_input_quality_verdict_md": {
+          "bytes": 1082,
+          "path": "derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v7.md",
+          "scope": "session",
+          "sha256": "1e1afda5b89b856567394bcf88be524de683b992c617109c47b07c3f6a6941f0"
+        },
+        "handoff_input_readiness": {
+          "bytes": 10629,
+          "path": "derived/readiness/session_readiness.json",
+          "scope": "session",
+          "sha256": "1716ff60030b8deb9c661bbb0cc32f5431be3ada650012681b8228b0895fd682"
+        },
+        "resolved_plain_transcript": {
+          "bytes": 75362,
+          "path": "derived/transcript-simple/whisper-cpp/resolved/transcript.audit_cleanup_v7.md",
+          "scope": "session",
+          "sha256": "d642a04c6a5c24e0f73477b1623564318a4ecad40bea396907acfdd4079913ee"
+        },
+        "selected_dialogue": {
+          "bytes": 712222,
+          "path": "derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.audit_cleanup_v7.json",
+          "scope": "session",
+          "sha256": "979d92c61abe57b9651244d44ce4eed1bdd4cf63b7a0bee474b152e8d3157ad1"
+        }
+      },
+      "outputs": {
+        "rich_json": {
+          "bytes": 839050,
+          "path": "derived/transcript-rich/anonymous-v1/bundles/ce7fe9f7fb4cc93843cf992f93b6f515ccbb3f6b75114bafc84b4546b02870da/transcript.rich.json",
+          "sha256": "bc176358d50bffcd740aef95bc578812ab3801aecfb04daccd6ae4b80a537835"
+        },
+        "rich_markdown": {
+          "bytes": 76545,
+          "path": "derived/transcript-rich/anonymous-v1/bundles/ce7fe9f7fb4cc93843cf992f93b6f515ccbb3f6b75114bafc84b4546b02870da/transcript.rich.md",
+          "sha256": "422a9461e0599f8634c58667502bfdd23819c566376f81fb359f50aa4e7b98e3"
+        }
+      },
+      "reasons": [],
+      "selected_profile": "audit_cleanup_v7",
+      "semantic_fingerprint": "ce7fe9f7fb4cc93843cf992f93b6f515ccbb3f6b75114bafc84b4546b02870da",
+      "session_id": "2026-06-26_11-15-50",
+      "status": "passed"
+    },
+    {
+      "counts": {
+        "aggregate_remote_utterances": 86,
+        "anonymous_speakers": 2,
+        "attributed_remote_utterances": 78,
+        "remote_utterances": 164,
+        "selected_utterances": 256
+      },
+      "gates": {
+        "anonymous_labels_only": true,
+        "ordinary_outputs_unchanged": true,
+        "plain_transcript_authoritative": true,
+        "ready": true,
+        "remote_references_exact": true,
+        "replay_identical": true,
+        "selected_dialogue_exact": true
+      },
+      "inputs": {
+        "rich_handoff": {
+          "bytes": 13894,
+          "path": "derived/transcript-rich/anonymous-v1/handoff_manifest.json",
+          "sha256": "5c35edb27d302f78932d26701f9dd9d7a8149922df9049d5400190fb0a377bc1"
+        },
+        "selected_dialogue": {
+          "bytes": 446998,
+          "path": "derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.reviewed_v1.json",
+          "sha256": "5b796ea89a3d473ea7204272ecbb29cdde71a5573a24515a220843b352f74b43"
+        }
+      },
+      "ordinary_baseline": {
+        "authoritative_plain_transcript": {
+          "bytes": 42240,
+          "path": "derived/handoff-v2/bundles/fee6a451ee94a4a94f8910c7a84069395e810a2462ac9b1eb1b43f14e075858b/transcript.md",
+          "scope": "session",
+          "sha256": "b427bc4255b7dd68cc7ba30fe68e8ba2c4795553d2c10b895c5abd9563001404"
+        },
+        "evidence_handoff_manifest": {
+          "bytes": 8941,
+          "path": "derived/handoff-v2/handoff_manifest.json",
+          "scope": "session",
+          "sha256": "113d9798ef9d1e948b760bdefe5d4b83a4ff7eba3493db6ffce7a88157b5917b"
+        },
+        "handoff_bundle_handoff_evidence": {
+          "bytes": 41230,
+          "path": "derived/handoff-v2/bundles/fee6a451ee94a4a94f8910c7a84069395e810a2462ac9b1eb1b43f14e075858b/handoff_evidence.json",
+          "scope": "session",
+          "sha256": "dc4b5534d4c91609f668dae345d72d18862837a125b3a1f479cc76a24fce2fe9"
+        },
+        "handoff_bundle_meeting": {
+          "bytes": 464,
+          "path": "derived/handoff-v2/bundles/fee6a451ee94a4a94f8910c7a84069395e810a2462ac9b1eb1b43f14e075858b/meeting.md",
+          "scope": "session",
+          "sha256": "7e272469cb2a77a2db7c6ce4c0dd7c59a6e874a515628ab248ed178194463a0d"
+        },
+        "handoff_bundle_notes": {
+          "bytes": 7223,
+          "path": "derived/handoff-v2/bundles/fee6a451ee94a4a94f8910c7a84069395e810a2462ac9b1eb1b43f14e075858b/notes.md",
+          "scope": "session",
+          "sha256": "64cdb5d626a26bcc233a1195df268d0c7079020b2e2fc911c17c761fd828ebbc"
+        },
+        "handoff_bundle_quality_verdict": {
+          "bytes": 204,
+          "path": "derived/handoff-v2/bundles/fee6a451ee94a4a94f8910c7a84069395e810a2462ac9b1eb1b43f14e075858b/quality_verdict.md",
+          "scope": "session",
+          "sha256": "e4058777a4626a90389046b7c069dfd4bbc5b7ac894b8107752943b4af67872b"
+        },
+        "handoff_bundle_transcript": {
+          "bytes": 42240,
+          "path": "derived/handoff-v2/bundles/fee6a451ee94a4a94f8910c7a84069395e810a2462ac9b1eb1b43f14e075858b/transcript.md",
+          "scope": "session",
+          "sha256": "b427bc4255b7dd68cc7ba30fe68e8ba2c4795553d2c10b895c5abd9563001404"
+        },
+        "handoff_input_evidence_notes": {
+          "bytes": 297377,
+          "path": "derived/synthesis-simple/extractive/evidence_notes.reviewed_v1.json",
+          "scope": "session",
+          "sha256": "a9d7e7b6487d2d532c44681eca3d8f80a858a1aa7c3c1634f0e92ce133d282d7"
+        },
+        "handoff_input_notes": {
+          "bytes": 8141,
+          "path": "derived/synthesis-simple/extractive/notes.reviewed_v1.md",
+          "scope": "session",
+          "sha256": "2268e350d8ca9dcc8d138a65d58a0c86fe0958ef7dc326e13ccf6930f74ee910"
+        },
+        "handoff_input_quality_verdict_json": {
+          "bytes": 4037,
+          "path": "derived/synthesis-simple/extractive/quality_verdict.reviewed_v1.json",
+          "scope": "session",
+          "sha256": "59279983887984a0fa4897c250abec79b6f8f02f256b0c4445878ce199196dd7"
+        },
+        "handoff_input_quality_verdict_md": {
+          "bytes": 1142,
+          "path": "derived/synthesis-simple/extractive/quality_verdict.reviewed_v1.md",
+          "scope": "session",
+          "sha256": "db3fd94b5f4ea9e3aa970beb83f614d62e769858fc4ae2613a741bba51893e85"
+        },
+        "handoff_input_readiness": {
+          "bytes": 10852,
+          "path": "derived/readiness/session_readiness.json",
+          "scope": "session",
+          "sha256": "22dc8f0aa0f844bd69c0dce841a576c6a6f53c1f1751f0782b72be8b888f5abf"
+        },
+        "resolved_plain_transcript": {
+          "bytes": 38855,
+          "path": "derived/transcript-simple/whisper-cpp/resolved/transcript.reviewed_v1.md",
+          "scope": "session",
+          "sha256": "9fca8692d4c36a5395daba75d30a9067d223c380c8bee8538f2a91a3bbe1a879"
+        },
+        "selected_dialogue": {
+          "bytes": 446998,
+          "path": "derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.reviewed_v1.json",
+          "scope": "session",
+          "sha256": "5b796ea89a3d473ea7204272ecbb29cdde71a5573a24515a220843b352f74b43"
+        }
+      },
+      "outputs": {
+        "rich_json": {
+          "bytes": 522142,
+          "path": "derived/transcript-rich/anonymous-v1/bundles/5b78f46eced08d81cf7c41efb175b35f835d45266ed7b53da918206d748ea8dd/transcript.rich.json",
+          "sha256": "71a2a5602c178ed6e5e4eb51199cb5fe72aec90d3e3012d4ed323b89802956e1"
+        },
+        "rich_markdown": {
+          "bytes": 39466,
+          "path": "derived/transcript-rich/anonymous-v1/bundles/5b78f46eced08d81cf7c41efb175b35f835d45266ed7b53da918206d748ea8dd/transcript.rich.md",
+          "sha256": "3967972693a3ef4c2f00ee71f2e0c6c3b5b633756f767612b1fa022982aabab3"
+        }
+      },
+      "reasons": [],
+      "selected_profile": "reviewed_v1",
+      "semantic_fingerprint": "5b78f46eced08d81cf7c41efb175b35f835d45266ed7b53da918206d748ea8dd",
+      "session_id": "2026-06-26_12-04-04",
+      "status": "passed"
+    },
+    {
+      "counts": {
+        "aggregate_remote_utterances": 161,
+        "anonymous_speakers": 3,
+        "attributed_remote_utterances": 154,
+        "remote_utterances": 315,
+        "selected_utterances": 558
+      },
+      "gates": {
+        "anonymous_labels_only": true,
+        "ordinary_outputs_unchanged": true,
+        "plain_transcript_authoritative": true,
+        "ready": true,
+        "remote_references_exact": true,
+        "replay_identical": true,
+        "selected_dialogue_exact": true
+      },
+      "inputs": {
+        "rich_handoff": {
+          "bytes": 14075,
+          "path": "derived/transcript-rich/anonymous-v1/handoff_manifest.json",
+          "sha256": "8727d13c82844d9f6bf3a08fcced0c1a121b6e2ec29b1982fafcc8a4184f9fc1"
+        },
+        "selected_dialogue": {
+          "bytes": 1509673,
+          "path": "derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.residual_local_recall_v1.json",
+          "sha256": "ef5d4beb37e7fcb8f462b763175eff0ffa99ce1b5fedda8905acf696cc4b6cc0"
+        }
+      },
+      "ordinary_baseline": {
+        "authoritative_plain_transcript": {
+          "bytes": 96432,
+          "path": "derived/handoff-v2/bundles/bdef5fb59ac9b17f51c5e00e538a6835cb6e79d1373c767d30e3b2edace2685f/transcript.md",
+          "scope": "session",
+          "sha256": "fdc734648336552af8423872bcf2bfde144c45fd9e7b148abeabf1e58ba5b092"
+        },
+        "evidence_handoff_manifest": {
+          "bytes": 9353,
+          "path": "derived/handoff-v2/handoff_manifest.json",
+          "scope": "session",
+          "sha256": "9690c043de6868c25d7e2a0f0c1ee20876f00836d739e9c9176172cffcd25fb4"
+        },
+        "handoff_bundle_handoff_evidence": {
+          "bytes": 105820,
+          "path": "derived/handoff-v2/bundles/bdef5fb59ac9b17f51c5e00e538a6835cb6e79d1373c767d30e3b2edace2685f/handoff_evidence.json",
+          "scope": "session",
+          "sha256": "a8549d1ea207c449c99dbf56138567f21360d578e43904e57ee3a325bb0f2569"
+        },
+        "handoff_bundle_meeting": {
+          "bytes": 477,
+          "path": "derived/handoff-v2/bundles/bdef5fb59ac9b17f51c5e00e538a6835cb6e79d1373c767d30e3b2edace2685f/meeting.md",
+          "scope": "session",
+          "sha256": "bf5b8762e616614d38b0395616734c5b420c679eff44a1ba178f3236317ba061"
+        },
+        "handoff_bundle_notes": {
+          "bytes": 15202,
+          "path": "derived/handoff-v2/bundles/bdef5fb59ac9b17f51c5e00e538a6835cb6e79d1373c767d30e3b2edace2685f/notes.md",
+          "scope": "session",
+          "sha256": "f98ee19faed406344d234b1d31836612a13952ecbdec005afa33d6e3e77b28ed"
+        },
+        "handoff_bundle_quality_verdict": {
+          "bytes": 217,
+          "path": "derived/handoff-v2/bundles/bdef5fb59ac9b17f51c5e00e538a6835cb6e79d1373c767d30e3b2edace2685f/quality_verdict.md",
+          "scope": "session",
+          "sha256": "0e708bccfdaa5cbf1374de5a28b9fda6807ea463a7c56f6012edc752894c0e4e"
+        },
+        "handoff_bundle_transcript": {
+          "bytes": 96432,
+          "path": "derived/handoff-v2/bundles/bdef5fb59ac9b17f51c5e00e538a6835cb6e79d1373c767d30e3b2edace2685f/transcript.md",
+          "scope": "session",
+          "sha256": "fdc734648336552af8423872bcf2bfde144c45fd9e7b148abeabf1e58ba5b092"
+        },
+        "handoff_input_evidence_notes": {
+          "bytes": 660785,
+          "path": "derived/synthesis-simple/extractive/evidence_notes.residual_local_recall_v1.json",
+          "scope": "session",
+          "sha256": "07721aca4d7836f0867b25808981c6921fe863609467fc07697b31b0a94d222f"
+        },
+        "handoff_input_notes": {
+          "bytes": 17554,
+          "path": "derived/synthesis-simple/extractive/notes.residual_local_recall_v1.md",
+          "scope": "session",
+          "sha256": "0124a20fe6f873871ef9df3aec95df4d4a70342c382b5439ed7884129f66f374"
+        },
+        "handoff_input_quality_verdict_json": {
+          "bytes": 4075,
+          "path": "derived/synthesis-simple/extractive/quality_verdict.residual_local_recall_v1.json",
+          "scope": "session",
+          "sha256": "764ef8f3514bbbc5f646a54ddf8214d64feace38e8f72046d3db35edfb18492f"
+        },
+        "handoff_input_quality_verdict_md": {
+          "bytes": 1201,
+          "path": "derived/synthesis-simple/extractive/quality_verdict.residual_local_recall_v1.md",
+          "scope": "session",
+          "sha256": "8d77a6485ff97c065b2b1119601f74aad886c5fd79c087007e40aa2ffd92315c"
+        },
+        "handoff_input_readiness": {
+          "bytes": 12335,
+          "path": "derived/readiness/session_readiness.json",
+          "scope": "session",
+          "sha256": "1e6d585d84dcce6249deb1275b8122c50fc8e80dceb345cf4cd6032cfba574c1"
+        },
+        "resolved_plain_transcript": {
+          "bytes": 89035,
+          "path": "derived/transcript-simple/whisper-cpp/resolved/transcript.residual_local_recall_v1.md",
+          "scope": "session",
+          "sha256": "ba68ff81f498d7461d04359afc70e1afb72ea058d6d81bf68a4456bc82a1b7a8"
+        },
+        "selected_dialogue": {
+          "bytes": 1509673,
+          "path": "derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.residual_local_recall_v1.json",
+          "scope": "session",
+          "sha256": "ef5d4beb37e7fcb8f462b763175eff0ffa99ce1b5fedda8905acf696cc4b6cc0"
+        }
+      },
+      "outputs": {
+        "rich_json": {
+          "bytes": 1653328,
+          "path": "derived/transcript-rich/anonymous-v1/bundles/c8355533cbc59bcc17a3254955f75c21e2078f3846337b38ef8215a78fb1129f/transcript.rich.json",
+          "sha256": "82d9ebfe1b26caad2b009bb8bff93490c6d081f42e15e117154298d6082ab029"
+        },
+        "rich_markdown": {
+          "bytes": 89965,
+          "path": "derived/transcript-rich/anonymous-v1/bundles/c8355533cbc59bcc17a3254955f75c21e2078f3846337b38ef8215a78fb1129f/transcript.rich.md",
+          "sha256": "35461ec5625872d8c54976acaf4592984cb4f2900cc13658e70f39479593ff6f"
+        }
+      },
+      "reasons": [],
+      "selected_profile": "residual_local_recall_v1",
+      "semantic_fingerprint": "c8355533cbc59bcc17a3254955f75c21e2078f3846337b38ef8215a78fb1129f",
+      "session_id": "2026-07-14_15-01-19-live",
+      "status": "passed"
+    },
+    {
+      "counts": {
+        "aggregate_remote_utterances": 56,
+        "anonymous_speakers": 2,
+        "attributed_remote_utterances": 68,
+        "remote_utterances": 124,
+        "selected_utterances": 265
+      },
+      "gates": {
+        "anonymous_labels_only": true,
+        "ordinary_outputs_unchanged": true,
+        "plain_transcript_authoritative": true,
+        "ready": true,
+        "remote_references_exact": true,
+        "replay_identical": true,
+        "selected_dialogue_exact": true
+      },
+      "inputs": {
+        "rich_handoff": {
+          "bytes": 14230,
+          "path": "derived/transcript-rich/anonymous-v1/handoff_manifest.json",
+          "sha256": "88df225e019542689b178e8b371f262c45c06210a5fd49d593e8e85ac51fb989"
+        },
+        "selected_dialogue": {
+          "bytes": 750553,
+          "path": "derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.agent_reviewed_v1.json",
+          "sha256": "0b5ccf6ff756c27be3c08a07241c7ffb389271b52e375ecfbe94945d8373769e"
+        }
+      },
+      "ordinary_baseline": {
+        "authoritative_handoff": {
+          "bytes": 7852,
+          "path": "derived/pipeline-run/authoritative_handoff.json",
+          "scope": "session",
+          "sha256": "300fe7e892b8051a1fa1c8bfe6ca5f9e8db1b76c9c0687c3ab1d40f894625d72"
+        },
+        "authoritative_plain_transcript": {
+          "bytes": 38518,
+          "path": "derived/handoff-v2/bundles/67afed407c1645c525e49e6558010dce60431400e60b57f1b65ff7b3d7b0ba03/transcript.md",
+          "scope": "session",
+          "sha256": "b10e7d5c316ec56cb7a330dbb086a48e87ca4a98a2398406dc8bf5fad5855ba5"
+        },
+        "evidence_handoff_manifest": {
+          "bytes": 9539,
+          "path": "derived/handoff-v2/handoff_manifest.json",
+          "scope": "session",
+          "sha256": "70f09a9a5e012be37922f92bab26a809a999eac455a4ead560cb9958440342c2"
+        },
+        "handoff_bundle_handoff_evidence": {
+          "bytes": 33819,
+          "path": "derived/handoff-v2/bundles/67afed407c1645c525e49e6558010dce60431400e60b57f1b65ff7b3d7b0ba03/handoff_evidence.json",
+          "scope": "session",
+          "sha256": "017fc872af7dc77d54a7f8787a7c547fd348a4438079cb64f58e711f7a98d303"
+        },
+        "handoff_bundle_meeting": {
+          "bytes": 470,
+          "path": "derived/handoff-v2/bundles/67afed407c1645c525e49e6558010dce60431400e60b57f1b65ff7b3d7b0ba03/meeting.md",
+          "scope": "session",
+          "sha256": "a681b76e6041bfd95d584a29bd7e80a21002b89890676d6eb4fa550353aa6351"
+        },
+        "handoff_bundle_notes": {
+          "bytes": 7229,
+          "path": "derived/handoff-v2/bundles/67afed407c1645c525e49e6558010dce60431400e60b57f1b65ff7b3d7b0ba03/notes.md",
+          "scope": "session",
+          "sha256": "ebab5f6aee08fa9474521d07101cc467ffa84133de782e0dc6b9f9b24d8dc171"
+        },
+        "handoff_bundle_quality_verdict": {
+          "bytes": 210,
+          "path": "derived/handoff-v2/bundles/67afed407c1645c525e49e6558010dce60431400e60b57f1b65ff7b3d7b0ba03/quality_verdict.md",
+          "scope": "session",
+          "sha256": "8e665ff4ee6fa4d199b16d3f63bbcf714a1689a9821861c6d09509617aeda050"
+        },
+        "handoff_bundle_transcript": {
+          "bytes": 38518,
+          "path": "derived/handoff-v2/bundles/67afed407c1645c525e49e6558010dce60431400e60b57f1b65ff7b3d7b0ba03/transcript.md",
+          "scope": "session",
+          "sha256": "b10e7d5c316ec56cb7a330dbb086a48e87ca4a98a2398406dc8bf5fad5855ba5"
+        },
+        "handoff_input_evidence_notes": {
+          "bytes": 262708,
+          "path": "derived/synthesis-simple/extractive/evidence_notes.agent_reviewed_v1.json",
+          "scope": "session",
+          "sha256": "646e5e3404167282f8d75c5cfe27d97188ecce13bdcb5ce9eb6d6ff4f2a6a206"
+        },
+        "handoff_input_notes": {
+          "bytes": 8376,
+          "path": "derived/synthesis-simple/extractive/notes.agent_reviewed_v1.md",
+          "scope": "session",
+          "sha256": "3e74a11ba0112d5f6f72c7d43f67d80d1ff6fe31401b90bca4ef7121db40832a"
+        },
+        "handoff_input_quality_verdict_json": {
+          "bytes": 4208,
+          "path": "derived/synthesis-simple/extractive/quality_verdict.agent_reviewed_v1.json",
+          "scope": "session",
+          "sha256": "7b7403567926a50dd1cc4e7c28e9a025a17562cdd176f08c59045af4340b2108"
+        },
+        "handoff_input_quality_verdict_md": {
+          "bytes": 1226,
+          "path": "derived/synthesis-simple/extractive/quality_verdict.agent_reviewed_v1.md",
+          "scope": "session",
+          "sha256": "d68fd2b5125d44e8f8cee3a66391d9b4882aebd0b00df5e39e0c5e51169616be"
+        },
+        "handoff_input_readiness": {
+          "bytes": 11813,
+          "path": "derived/readiness/session_readiness.json",
+          "scope": "session",
+          "sha256": "1c5987cbec6b335dd4e3e14bec448ecca55ff5632865938b5da2c687340a47d4"
+        },
+        "resolved_plain_transcript": {
+          "bytes": 35047,
+          "path": "derived/transcript-simple/whisper-cpp/resolved/transcript.agent_reviewed_v1.md",
+          "scope": "session",
+          "sha256": "70ff8c0bb6c15b7c8e7c169a9b2257de00bef7db3dcb0c79277670e86fda8267"
+        },
+        "selected_dialogue": {
+          "bytes": 750553,
+          "path": "derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.agent_reviewed_v1.json",
+          "scope": "session",
+          "sha256": "0b5ccf6ff756c27be3c08a07241c7ffb389271b52e375ecfbe94945d8373769e"
+        }
+      },
+      "outputs": {
+        "rich_json": {
+          "bytes": 807981,
+          "path": "derived/transcript-rich/anonymous-v1/bundles/70ea736493ac277d32257257b813181db9a56e1cc628a44e86f316bc573b2b41/transcript.rich.json",
+          "sha256": "5f76375faf65f2f49082d3a8c57b4b83e84b2b4dca9c836e50914b4c5878f81a"
+        },
+        "rich_markdown": {
+          "bytes": 35584,
+          "path": "derived/transcript-rich/anonymous-v1/bundles/70ea736493ac277d32257257b813181db9a56e1cc628a44e86f316bc573b2b41/transcript.rich.md",
+          "sha256": "30a73580f9a38d45f88bb0c41e5f3015e4307dfc8aa3930c70f4a06221d1d02f"
+        }
+      },
+      "reasons": [],
+      "selected_profile": "agent_reviewed_v1",
+      "semantic_fingerprint": "70ea736493ac277d32257257b813181db9a56e1cc628a44e86f316bc573b2b41",
+      "session_id": "2026-07-20_15-15-26-live",
+      "status": "passed"
+    }
+  ],
+  "version": 1
+}

@@ -2151,21 +2151,24 @@ mic.wav    -> Me
 remote.wav -> Colleagues
 ```
 
-The selected transcript does not perform remote diarization. Remote Speaker Evidence Map v1 passed
-its frozen corpus as optional audit evidence; all ordinary remote text still remains aggregate
-`Colleagues` in production. Generate the map explicitly with:
+The ordinary selected transcript keeps remote text aggregate as `Colleagues`. Remote Speaker
+Evidence Map v1 and Anonymous Rich Transcript Handoff v1 passed their frozen gates as an optional
+session-local view. Generate and read it explicitly with:
 
 ```bash
 murmurmark audit remote-speakers "$SESSION" --profile auto
+murmurmark transcript "$SESSION" --rich
+murmurmark transcript "$SESSION" --rich --path-only
 
 less "$SESSION/derived/audit/remote-speaker-evidence-v1/report.md"
-less "$SESSION/derived/audit/remote-speaker-evidence-v1/transcript.rich.shadow.md"
 ```
 
 The command is local and fail-open. Missing Resemblyzer/model/audio, weak clusters, conflicting
 overlap or failed replay consistency produce aggregate `Colleagues`; they do not fail the meeting
-pipeline. Anonymous IDs are valid only inside the session. The shadow file is not selected by
-`murmurmark transcript`, notes, handoff or export.
+pipeline. Anonymous IDs are valid only inside the session. `--rich` verifies current SHA-256 lineage
+and reads an immutable optional bundle; stale evidence explains how to rebuild it. Without `--rich`,
+the ordinary Evidence Handoff v2 transcript is unchanged. Notes, auto-selection and export do not
+consume anonymous labels.
 
 The bridge then runs a small reconciliation layer:
 

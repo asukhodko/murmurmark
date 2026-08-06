@@ -1,0 +1,71 @@
+{
+  "schema": "murmurmark.anonymous_rich_policy/v1",
+  "version": 1,
+  "decision": "PROMOTE_OPTIONAL_RICH",
+  "scope": "optional_session_local_anonymous",
+  "source_evidence": {
+    "decision": "PROMOTE_AUDIT_ONLY",
+    "promotion_scope": "optional_anonymous_remote_speaker_evidence",
+    "frozen_manifest_path": "docs/testing/remote-speaker-evidence-map-v1-manifest.json",
+    "frozen_manifest": {
+      "bytes": 20985,
+      "sha256": "19c1083ffabe6c29e4a3daf2fd6cc91eecb78bd7ec25726c319385dbca8ccdd6"
+    },
+    "audit_implementation": {
+      "fingerprint": {
+        "bytes": 46252,
+        "exists": true,
+        "sha256": "97f3abc4fbed2bbcdb527ddec19e8e37e0651629797ddf11095c6f04d99ac47d"
+      },
+      "script": "audit-remote-speaker-evidence.py",
+      "version": "0.1.0"
+    },
+    "corpus_reporter": {
+      "fingerprint": {
+        "bytes": 26372,
+        "exists": true,
+        "sha256": "f5f6c841cac33fad9cc7ec6aafe0ce40949ea44501e5edd1f432a7515bebdd07"
+      },
+      "script": "report-remote-speaker-evidence-corpus.py",
+      "version": "0.1.0"
+    },
+    "model": {
+      "license": "Apache-2.0",
+      "method": "resemblyzer_dvector",
+      "model": {
+        "bytes": 17090379,
+        "exists": true,
+        "sha256": "39373b86598fa3da9fcddee6142382efe09777e8d37dc9c0561f41f0070f134e"
+      },
+      "package_version": "0.1.4",
+      "runtime": {
+        "numpy": "2.4.6",
+        "python": "3.12.13"
+      }
+    },
+    "parameters": {
+      "chunk_merge_distance": 0.1,
+      "chunk_sec": 600.0,
+      "cluster_distance": 0.2,
+      "max_unit_sec": 12.0,
+      "max_units": 400,
+      "min_assignment_margin": 0.02,
+      "min_assignment_similarity": 0.72,
+      "min_chunk_consistency": 0.8,
+      "min_cluster_cohesion": 0.85,
+      "min_cluster_sec": 60.0,
+      "min_cluster_span_sec": 60.0,
+      "min_cluster_units": 10,
+      "min_published_speech_ratio": 0.55,
+      "min_unit_sec": 1.0,
+      "overlap_ambiguity_sec": 0.5
+    }
+  },
+  "constraints": {
+    "speaker_id_pattern": "^remote_speaker_[0-9]{2}$",
+    "speaker_names_allowed": false,
+    "cross_session_identity_allowed": false,
+    "plain_transcript_authoritative": true,
+    "notes_export_integration_allowed": false
+  }
+}

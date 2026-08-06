@@ -3,6 +3,11 @@
 All notable user-facing changes are recorded here. MurmurMark follows semantic versioning once a
 public release tag exists; development builds also carry the source commit in their manifest.
 
+## Unreleased
+
+- Added a fingerprint-bound optional anonymous-speaker transcript with deterministic corpus gates
+  and the explicit `murmurmark transcript SESSION --rich` read path.
+
 ## 0.1.0 - 2026-08-05
 
 - Added durable two-track local capture and the one-command meeting lifecycle.

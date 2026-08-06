@@ -88,6 +88,13 @@
         "murmurmark.evidence_handoff/v2"
       ],
       "migration": "regenerate derived handoff only through the normal pipeline"
+    },
+    "anonymous_rich_handoff": {
+      "current": "murmurmark.anonymous_rich_handoff/v1",
+      "accepted": [
+        "murmurmark.anonymous_rich_handoff/v1"
+      ],
+      "migration": "optional; regenerate from current Evidence Handoff v2 and promoted remote-speaker evidence"
     }
   },
   "privacy": {

@@ -6078,6 +6078,63 @@ the source dialogue, remote audio, model, parameter and implementation-script fi
 using a map. The frozen corpus manifest also fingerprints its reporter. Stale or missing evidence
 fails open to aggregate `Colleagues`.
 
+## Anonymous Rich Transcript Handoff v1
+
+The promoted optional handoff is stored separately from the authoritative transcript:
+
+```text
+derived/transcript-rich/anonymous-v1/
+  handoff_manifest.json
+  report.md
+  bundles/<semantic-fingerprint>/
+    handoff_manifest.json
+    transcript.rich.json
+    transcript.rich.md
+```
+
+The versioned schemas are:
+
+- `murmurmark.anonymous_rich_policy/v1`;
+- `murmurmark.anonymous_rich_handoff/v1`;
+- `murmurmark.anonymous_rich_transcript/v1`;
+- `murmurmark.anonymous_rich_frozen_manifest/v1`.
+
+`transcript.rich.json.utterances` must equal the current Evidence Handoff v2 selected
+`clean_dialogue*.json.utterances` array logically and in order. Remote speaker evidence stays in a
+separate `remote_speaker_attributions` array. It contains exactly one row per selected remote
+utterance ID and cannot change text, role, boundaries, order or any `Me` utterance.
+
+The semantic fingerprint binds:
+
+- the current Evidence Handoff v2 fingerprint and selected dialogue;
+- the promoted policy and frozen Remote Speaker Evidence Map v1 corpus;
+- current report, map, attribution and artifact-manifest hashes;
+- audit implementation, model, parameters, source dialogue, prepared remote and raw remote hashes;
+- materializer implementation and exact rich JSON/Markdown output hashes.
+
+Publication is transactional. Files are fsynced into an immutable fingerprint directory before the
+current manifest is atomically replaced. Replaying unchanged inputs produces identical bytes. A
+stale input, remote-projection mismatch, missing model evidence, invalid anonymous ID or interrupted
+publication cannot expose a partial current bundle.
+
+Generate and read the view explicitly:
+
+```bash
+murmurmark audit remote-speakers "$SESSION" --profile auto
+murmurmark transcript "$SESSION" --rich
+murmurmark transcript "$SESSION" --rich --path-only
+```
+
+The audit command attempts optional publication after building the speaker map. The transcript
+command runs verification only; it never repairs or regenerates evidence while reading. If
+verification fails, it reports the audit command and leaves ordinary `murmurmark transcript`
+available.
+
+The frozen decision is `PROMOTE_OPTIONAL_RICH` on six sessions: `2319` selected utterances, `1235`
+exact remote references, `629` attributed rows, `606` aggregate fallbacks and `14` session-local
+anonymous speakers. Promotion covers only this explicit read surface. Plain Markdown, notes,
+verdict, Evidence Handoff v2, auto-selection, guarded export and retention do not consume it.
+
 Schema:
 
 ```json

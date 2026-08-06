@@ -298,7 +298,7 @@ struct MurmurMark {
           murmurmark review --help
           murmurmark synthesize ./session|latest [--transcript-profile auto] [--sessions-root ./sessions]
           murmurmark notes ./session|latest [--kind notes|verdict|review-items|evidence] [--profile auto|current|NAME] [--path-only|--cat]
-          murmurmark transcript ./session|latest [--profile auto] [--path-only|--cat] [--sessions-root ./sessions]
+          murmurmark transcript ./session|latest [--profile auto] [--rich] [--path-only|--cat] [--sessions-root ./sessions]
           murmurmark echo-lab prepare [--sessions-root ./sessions]
           murmurmark echo-lab capture --out ./session --scenario SCENARIO [--sessions-root ./sessions]
                                       [--confirm-operator-instructions]
@@ -1287,6 +1287,8 @@ enum DoctorChecks {
             "scripts/audit-audio-review-pack.py",
             "scripts/audit-stronger-audio-judge.py",
             "scripts/audit-target-me.py",
+            "scripts/audit-remote-speaker-evidence.py",
+            "scripts/materialize-anonymous-rich-transcript.py",
             "scripts/authoritative-boundary.py",
             "scripts/mixed-utterance-span-separation.py",
             "scripts/run-asr-positive-echo-candidate.py",
@@ -4500,6 +4502,16 @@ enum AuditCommands {
             }
             try Tooling.runPath(python, auditArgs)
             try AuditPrinter.printRemoteSpeakers(session: session, args: auditArgs)
+            var richArgs = [try script("materialize-anonymous-rich-transcript.py").path, session.path]
+            if let outDir = ArgumentEditing.peekOption("out-dir", in: auditArgs) {
+                richArgs += ["--audit-dir", outDir]
+            }
+            let richStatus = try Tooling.runPathQuietAllowingExitCodes(
+                python,
+                richArgs,
+                allowedExitCodes: [0, 2]
+            )
+            try AuditPrinter.printAnonymousRichHandoff(session: session, helperStatus: richStatus)
         case "asr-positive-echo-candidate", "asr_positive_echo_candidate", "echo-candidate", "echo_candidate":
             if !ArgumentEditing.hasOption("candidate", in: remaining) {
                 remaining += ["--candidate", "coverage_v2_remote_gate_local_fir"]
@@ -4931,6 +4943,51 @@ enum AuditPrinter {
             report: outDir.appendingPathComponent("report.md"),
             needsReview: false
         )
+    }
+
+    static func printAnonymousRichHandoff(session: URL, helperStatus: Int32) throws {
+        let root = session.appendingPathComponent("derived/transcript-rich/anonymous-v1")
+        let manifestURL = root.appendingPathComponent("handoff_manifest.json")
+        if helperStatus != 0 {
+            let fallback = "murmurmark transcript \(PathDisplay.display(session))"
+            print("")
+            print("anonymous_rich_handoff:")
+            print("  state: unavailable")
+            print("  reason: materializer_rejected_arguments")
+            print("  fallback: \(fallback)")
+            FinalNextPrinter.print(fallback)
+            return
+        }
+        guard FileManager.default.fileExists(atPath: manifestURL.path) else {
+            let fallback = "murmurmark transcript \(PathDisplay.display(session))"
+            print("")
+            print("anonymous_rich_handoff:")
+            print("  state: unavailable")
+            print("  reason: handoff_manifest_missing")
+            print("  fallback: \(fallback)")
+            FinalNextPrinter.print(fallback)
+            return
+        }
+        let payload = try JSONFiles.object(manifestURL)
+        let reasons = payload["reasons"] as? [String] ?? []
+        print("")
+        print("anonymous_rich_handoff:")
+        print("  state: \(string(payload["state"]) ?? "unavailable")")
+        print("  selected_profile: \(string(payload["selected_profile"]) ?? "none")")
+        print("  fingerprint: \(string(payload["semantic_fingerprint"]) ?? "none")")
+        if let reason = reasons.first {
+            print("  reason: \(reason)")
+        }
+        print("  manifest: \(PathDisplay.display(manifestURL))")
+        if string(payload["state"]) == "ready" {
+            let next = "murmurmark transcript \(PathDisplay.display(session)) --rich"
+            print("  next: \(next)")
+            FinalNextPrinter.print(next)
+        } else {
+            let fallback = "murmurmark transcript \(PathDisplay.display(session))"
+            print("  fallback: \(fallback)")
+            FinalNextPrinter.print(fallback)
+        }
     }
 
     static func printASRPositiveEchoCandidate(session: URL) throws {
@@ -5719,6 +5776,7 @@ enum TranscriptCommands {
         let target = remaining.removeFirst()
         let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
         let requestedProfile = ArgumentEditing.takeOption("profile", from: &remaining) ?? "auto"
+        let rich = ArgumentEditing.takeFlag("rich", from: &remaining)
         let pathOnly = ArgumentEditing.takeFlag("path-only", from: &remaining)
         let cat = ArgumentEditing.takeFlag("cat", from: &remaining)
         guard remaining.isEmpty else {
@@ -5726,12 +5784,21 @@ enum TranscriptCommands {
         }
 
         let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
-        let profile = try selectedProfile(requestedProfile, session: session)
-        let url = requestedProfile == "auto"
-            ? (EvidenceHandoffState.artifact("transcript", session: session)
-                ?? AuthoritativeHandoffState.artifact("transcript", session: session)
-                ?? transcriptURL(profile: profile, session: session))
-            : transcriptURL(profile: profile, session: session)
+        if rich, requestedProfile != "auto" {
+            throw CLIError("--rich uses the current Evidence Handoff v2 selection and cannot be combined with --profile")
+        }
+        let profile: String
+        let url: URL
+        if rich {
+            (profile, url) = try richTranscript(session: session)
+        } else {
+            profile = try selectedProfile(requestedProfile, session: session)
+            url = requestedProfile == "auto"
+                ? (EvidenceHandoffState.artifact("transcript", session: session)
+                    ?? AuthoritativeHandoffState.artifact("transcript", session: session)
+                    ?? transcriptURL(profile: profile, session: session))
+                : transcriptURL(profile: profile, session: session)
+        }
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw CLIError("transcript not found: \(PathDisplay.display(url)); run `murmurmark process \(PathDisplay.display(session))`")
         }
@@ -5749,6 +5816,7 @@ enum TranscriptCommands {
         print("SESSION=\"\(PathDisplay.display(session))\"")
         print("")
         print("transcript:")
+        print("  kind: \(rich ? "anonymous_rich_optional" : "plain_authoritative")")
         print("  profile: \(profile)")
         print("  path: \(PathDisplay.display(url))")
         let verdictPayload = try? JSONFiles.object(verdictJSONPath(session: session, profile: profile))
@@ -5763,6 +5831,65 @@ enum TranscriptCommands {
             print("    \(command)")
         }
         FinalNextPrinter.print(handoff.recommendedNext)
+    }
+
+    private static func richTranscript(session: URL) throws -> (String, URL) {
+        let script = PathURLs.fileURL("scripts/materialize-anonymous-rich-transcript.py")
+        guard FileManager.default.fileExists(atPath: script.path) else {
+            throw CLIError("anonymous rich transcript helper not found: \(script.path)")
+        }
+        let status = try Tooling.runPathQuietAllowingExitCodes(
+            try PythonRuntime.resolve(),
+            [script.path, session.path, "--verify-only"],
+            allowedExitCodes: [0, 2]
+        )
+        let manifestURL = session.appendingPathComponent(
+            "derived/transcript-rich/anonymous-v1/handoff_manifest.json"
+        )
+        let sessionDisplay = PathDisplay.display(session)
+        guard status == 0,
+              FileManager.default.fileExists(atPath: manifestURL.path)
+        else {
+            var reason = "missing_or_stale_anonymous_evidence"
+            if let payload = try? JSONFiles.object(manifestURL),
+               let reasons = payload["reasons"] as? [String],
+               let first = reasons.first {
+                reason = first
+            }
+            throw CLIError(
+                "anonymous rich transcript unavailable (\(reason)); "
+                    + "run `murmurmark audit remote-speakers \(sessionDisplay)`; "
+                    + "ordinary transcript remains available with "
+                    + "`murmurmark transcript \(sessionDisplay)`"
+            )
+        }
+        let payload = try JSONFiles.object(manifestURL)
+        guard payload["state"] as? String == "ready",
+              let profile = payload["selected_profile"] as? String,
+              let bundle = payload["bundle"] as? [String: Any],
+              let files = bundle["files"] as? [String: Any],
+              let row = files["transcript_markdown"] as? [String: Any],
+              let rawPath = row["path"] as? String,
+              let richURL = safeSessionPath(rawPath, session: session)
+        else {
+            throw CLIError(
+                "anonymous rich transcript manifest is invalid; rebuild it with "
+                    + "`murmurmark audit remote-speakers \(sessionDisplay)`"
+            )
+        }
+        return (profile, richURL)
+    }
+
+    private static func safeSessionPath(_ raw: String, session: URL) -> URL? {
+        guard !raw.hasPrefix("/") else { return nil }
+        let components = raw.split(separator: "/")
+        guard !components.contains("..") else { return nil }
+        let root = session.standardizedFileURL.path + "/"
+        let url = session.appendingPathComponent(raw).standardizedFileURL
+        guard url.path.hasPrefix(root), FileManager.default.fileExists(atPath: url.path) else {
+            return nil
+        }
+        return url
     }
 
     private static func selectedProfile(_ requested: String, session: URL) throws -> String {
@@ -5812,9 +5939,10 @@ enum TranscriptCommands {
 
     private static func printHelp() {
         print("""
-        usage: murmurmark transcript ./session|latest [--profile auto|current|NAME] [--path-only|--cat] [--sessions-root ./sessions]
+        usage: murmurmark transcript ./session|latest [--profile auto|current|NAME] [--rich] [--path-only|--cat] [--sessions-root ./sessions]
 
-        Resolves the selected transcript profile from quality_verdict.json and prints the transcript path.
+        Resolves the current authoritative handoff and prints its transcript path.
+        Use --rich for the optional current session-local anonymous-speaker view.
         Use --cat to stream Markdown to stdout.
         """)
     }

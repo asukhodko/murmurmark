@@ -48,6 +48,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-causal-canonical-mic-asr.py
 "$python_bin" scripts/check-causal-canonical-mic-asr-corpus.py
 "$python_bin" scripts/check-remote-speaker-evidence.py
+"$python_bin" scripts/check-anonymous-rich-transcript.py
 "$python_bin" scripts/check-authoritative-incremental-asr.py
 "$python_bin" scripts/check-authoritative-handoff.py
 "$python_bin" scripts/check-authoritative-handoff-corpus.py

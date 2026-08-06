@@ -438,25 +438,30 @@ nodes:
       ARI 0.865804, B-cubed F1 0.913884. Selected transcript и guarded export не менялись.
 
   research-speaker-map:
-    title: "Reviewed Remote Speaker Naming"
+    title: "Reviewed Remote Speaker Naming v1"
     kind: task
     parent: parallel-research
     deps: [research-rich-transcript]
-    status: later
+    status: current
     effort: 5
-    notes: "Optional reviewed names or roster evidence; voice similarity alone never assigns identity."
+    notes: |
+      Создать optional session-local label overlay поверх current anonymous rich handoff. Имена или
+      метки принимаются только из явного reviewed decision file с проверяемой provenance; голосовая
+      похожесть никогда не присваивает имя и не связывает людей между сессиями. Plain transcript,
+      notes, Evidence Handoff v2, guarded export и auto-selection остаются неизменными.
 
   research-rich-transcript:
     title: "Anonymous Rich Transcript Handoff v1"
     kind: task
     parent: murmurmark-cli
     deps: [research-remote-diarization]
-    status: current
+    status: done
     effort: 6
     notes: |
-      Bind unchanged selected dialogue to current passing anonymous evidence in a versioned optional
-      rich handoff and explicit CLI read surface. Stale/weak evidence fails open. Plain transcript,
-      notes, Evidence Handoff v2 and guarded export remain byte-identical.
+      Завершено PROMOTE_OPTIONAL_RICH: 6/6 frozen sessions, 2319 selected utterances и 1235 exact
+      remote references; 629 remote utterances получили 14 session-local anonymous IDs, 606 остались
+      aggregate Colleagues. Replay deterministic, stale evidence fails open, plain transcript,
+      notes, Evidence Handoff v2 и guarded export не изменились.
 
   research-heavy-local-validators:
     title: "Heavy local ASR/audio validators"
@@ -535,10 +540,10 @@ views:
         nodes: [working-capabilities, corpus-regression]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [research-rich-transcript]
+        nodes: [research-speaker-map]
       dependent:
-        title: "После anonymous rich handoff"
-        nodes: [research-speaker-map, parallel-research, parking-lot]
+        title: "После reviewed naming"
+        nodes: [parallel-research, parking-lot]
 
   critical-path:
     title: "Критический CLI-путь"
@@ -569,6 +574,7 @@ views:
           - product-causal-canonical-mic-asr-v1
           - research-remote-diarization
           - research-rich-transcript
+          - research-speaker-map
 
   parallel-research-view:
     title: "Параллельные исследования"
@@ -577,8 +583,8 @@ views:
         title: "Remote speakers"
         nodes:
           - research-remote-diarization
-          - research-speaker-map
           - research-rich-transcript
+          - research-speaker-map
       validators:
         title: "Validators and synthesis"
         nodes:
@@ -625,14 +631,15 @@ views:
           - product-causal-canonical-mic-asr-v1
           - research-remote-diarization
           - research-rich-transcript
+          - research-speaker-map
           - parallel-research
           - parking-lot
 
 x:
   exec:
     program:
-      nearest_goal: "Anonymous Rich Transcript Handoff v1: превратить promoted Remote Speaker Evidence Map v1 в versioned optional rich transcript и CLI/read surface, сохраняя selected dialogue byte-identical; публиковать session-local anonymous speaker IDs только при текущих input/model/output fingerprints и passing per-session/corpus gates, оставлять abstain как aggregate Colleagues, не присваивать имена и не менять обычный Markdown, notes, verdict, Evidence Handoff v2 или guarded export; доказать referential integrity, stale/fail-open/replay и corpus no-regression; завершить PROMOTE или воспроизводимым DO_NOT_PROMOTE, добавить тесты, актуализировать документацию, roadmap и OpsKarta, закоммитить и отправить изменения."
-      success_by_next_sync: "Passing anonymous evidence имеет current fingerprint-bound rich handoff и explicit CLI read path; stale/missing evidence fails open, ordinary transcript/handoff/export остаются byte-identical, corpus decision воспроизводим."
+      nearest_goal: "Reviewed Remote Speaker Naming v1: поверх promoted Anonymous Rich Transcript Handoff v1 создать optional review-only label overlay, который принимает имена или метки только из явного session-local decision file с fingerprint-bound provenance, генерирует шаблон и проверяемый CLI read path, никогда не выводит имя из голоса и не связывает людей между сессиями, не меняет plain transcript, notes, Evidence Handoff v2, guarded export или auto-selection; доказать referential integrity, stale/fail-open/replay, privacy и corpus no-regression; завершить PROMOTE или воспроизводимым DO_NOT_PROMOTE, добавить тесты, актуализировать документацию, roadmap и OpsKarta, закоммитить и отправить изменения."
+      success_by_next_sync: "Пользователь может явно и проверяемо сопоставить session-local anonymous IDs с локальными метками; stale или неполное решение fails open к anonymous rich view, а voice-only naming, cross-session identity и обычный product path остаются запрещены."
     defaults:
       status_progress:
         done: 1.0
@@ -653,13 +660,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle, batch transcript, review, notes/export и Live Shadow уже работают."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Текущий anonymous rich handoff path"
-        scope_nodes: [research-rich-transcript]
+        title: "Текущий reviewed speaker naming path"
+        scope_nodes: [research-speaker-map]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Remote Speaker Evidence Map v1 promoted audit-only: 14 clusters, 50.3892% speech coverage, attributed ARI 0.865804. Текущий фокус — безопасный optional rich handoff."
-          next_sync_goal: "Связать rich artifact с текущими fingerprints и CLI read path без изменения plain authoritative path."
+          sync_note: "Anonymous Rich Transcript Handoff v1 promoted optional: 6/6 sessions, 1235 exact remote references, 629 anonymous attributions. Текущий фокус — только explicit reviewed labels."
+          next_sync_goal: "Добавить fingerprint-bound session-local naming overlay без voice-only inference и без изменения authoritative path."
       dependent-path:
         title: "Зависимый путь"
         scope_nodes:
@@ -682,11 +689,12 @@ x:
           - product-causal-canonical-mic-asr-v1
           - research-remote-diarization
           - research-rich-transcript
+          - research-speaker-map
         kind: main
         mgmt:
           health: neutral
-          sync_note: "После optional anonymous rich handoff идёт только reviewed naming; notes/export integration требует отдельного gate."
-          next_sync_goal: "Не смешивать anonymous rich publication с именами, cross-session identity и export promotion."
+          sync_note: "После reviewed naming отдельного решения потребуют notes/export consumption и cross-session roster UX."
+          next_sync_goal: "Не смешивать explicit session labels с voice identity, cross-session matching и export promotion."
       research:
         title: "Параллельные исследования"
         scope_nodes: [parallel-research]

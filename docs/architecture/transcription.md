@@ -90,10 +90,12 @@ derived/transcript-simple/whisper-cpp/resolved/
 
 Limitations:
 
-- `Colleagues` is not split into individual people;
+- the ordinary transcript does not split `Colleagues`; the optional `--rich` view labels only
+  confidently supported session-local clusters;
 - domain terms are only nudged through the prompt, not guaranteed by a correction layer;
 - some long overlaps remain audit risks;
-- `transcript.rich.json` and `speaker_map.json` are not emitted yet;
+- optional `transcript.rich.json` and `speaker_map.json` are emitted separately and never selected
+  by the ordinary transcript, notes or export path;
 - Markdown is useful for reading, but JSON remains the safer processing target.
 
 ### Authoritative boundary profile
@@ -168,10 +170,11 @@ Resemblyzer d-vector model to publish conservative session-local anonymous clust
 major, stable clusters; unsupported intervals remain aggregate `Colleagues`. The frozen corpus
 decision is `PROMOTE_AUDIT_ONLY`, so this evidence does not replace the selected transcript.
 
-Anonymous Rich Transcript Handoff v1 is the current integration step. It will bind current passing
-speaker evidence to unchanged utterances and expose an optional CLI read path. Participant names,
-cross-session identity, frame-level splitting and the heavier pyannote/Sortformer architecture below
-remain separate future gates.
+Anonymous Rich Transcript Handoff v1 is promoted in optional scope. It binds current passing
+speaker evidence to unchanged utterances and exposes `murmurmark transcript SESSION --rich` without
+changing the authoritative view. Reviewed session-local labels are the current step. Participant
+identity is never inferred from voice; cross-session matching, frame-level splitting and the heavier
+pyannote/Sortformer architecture below remain separate future gates.
 
 ## Heavy-Local v1 Profile
 

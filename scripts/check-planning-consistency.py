@@ -58,6 +58,7 @@ CRITICAL_PATH = (
     "product-causal-canonical-mic-asr-v1",
     "research-remote-diarization",
     "research-rich-transcript",
+    "research-speaker-map",
 )
 
 EXPECTED_STATUSES = {"done", "current", "next", "later", "idea", "optional", "blocked"}

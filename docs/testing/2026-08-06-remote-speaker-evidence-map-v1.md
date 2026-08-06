@@ -78,5 +78,6 @@ Remaining limits:
 - missing Resemblyzer/model/audio, stale inputs or failed consistency gates publish an explicit
   aggregate fallback.
 
-The next stage is Anonymous Rich Transcript Handoff v1: bind current anonymous evidence to a
-versioned optional rich artifact and CLI surface without weakening the authoritative plain path.
+Anonymous Rich Transcript Handoff v1 subsequently promoted this evidence into a versioned optional
+CLI read surface without weakening the authoritative plain path. Reviewed labels remain a separate
+explicit-decision stage.

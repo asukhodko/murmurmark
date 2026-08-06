@@ -59,11 +59,11 @@ speedup was only `2.8651%..4.1040%` and `0/147` mic windows matched final PCM. B
 **Remote Speaker Evidence Map v1** completed with `PROMOTE_AUDIT_ONLY`: 14 clusters covered
 `4490.170s`; `4420.800s` stayed aggregate. Reference ARI is `0.865804`, B-cubed F1 `0.913884`.
 
-**Anonymous Rich Transcript Handoff v1** is current. It binds only current passing anonymous evidence
-to a versioned optional rich artifact and CLI read surface. Plain text, notes and export stay intact.
+**Anonymous Rich Transcript Handoff v1** completed with `PROMOTE_OPTIONAL_RICH`: 6/6 sessions and
+all 1235 remote references passed; 629 utterances use 14 anonymous IDs and 606 remain aggregate.
 
-Its prerequisites are complete: lifecycle owns the unattended path, Neural Echo v2 owns guarded
-pre-ASR, and the evidence/export and release CLI gates pass on the frozen corpus.
+**Reviewed Remote Speaker Naming v1** is current. It adds only explicit, fingerprint-bound,
+session-local labels. Voice similarity never assigns a person's identity.
 
 ## Critical Path
 
@@ -87,9 +87,10 @@ flowchart LR
     C2["Done: DO_NOT_PROMOTE<br/>Canonical Live<br/>ASR Producer v1"]
     M["Done: DO_NOT_PROMOTE<br/>Causal Canonical<br/>Mic ASR v1"]
     R["Done: PROMOTE_AUDIT_ONLY<br/>Remote Speaker<br/>Evidence Map v1"]
-    T["Current<br/>Anonymous Rich<br/>Transcript Handoff v1"]
+    T["Done: PROMOTE<br/>Anonymous Rich<br/>Transcript Handoff v1"]
+    Q["Current<br/>Reviewed Remote<br/>Speaker Naming v1"]
 
-    P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D --> F --> G --> C2 --> M --> R --> T
+    P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D --> F --> G --> C2 --> M --> R --> T --> Q
 ```
 
 ### 0. Evidence-Backed Me Completion v2
@@ -237,26 +238,27 @@ remains aggregate. Both 1x1 controls publish exactly one remote speaker; four gr
 
 ### 18. Anonymous Rich Transcript Handoff v1
 
-Current. Materialize a fingerprint-bound optional rich artifact over unchanged selected utterances
-and expose it explicitly through the CLI. Stale, unavailable or non-promoted speaker evidence must
-fail open without affecting the plain transcript. Names, cross-session identity, notes and export
-integration remain outside this stage.
+Completed with `PROMOTE_OPTIONAL_RICH`. A transactional immutable bundle binds current Evidence
+Handoff v2 utterances to passing anonymous evidence. `murmurmark transcript SESSION --rich` verifies
+all fingerprints before reading it. Replay, stale/fail-open, exact references and plain-output
+non-regression pass on 6/6 frozen sessions.
+
+### 19. Reviewed Remote Speaker Naming v1
+
+Current. Build an optional reviewed label overlay over the anonymous handoff. Only explicit local
+decisions may assign display labels; voice-only inference and cross-session identity stay forbidden.
+The anonymous view remains the fallback, and ordinary notes/export do not consume labels yet.
 
 ## Dependent And Parallel Research
 
-Speaker-Preserving Neural Echo v2 remains production. Both Reference-Conditioned Target-Me
-Separation experiments are complete with `DO_NOT_PROMOTE`; v2 showed that paired enrollment is
-identifiable but the small scratch-trained separator is below the waveform-quality ceiling.
-Evidence Notes And Export v2, Release-quality CLI, Reliable Final Handoff v1, the strict
-Authoritative Incremental ASR consumer and remote-only canonical producer are complete. The latter
-is `DO_NOT_PROMOTE` because it removes CPU work without removing the parallel mic wall-time path.
-Causal Canonical Mic ASR v1 then proved the selected mic path is session-end causal and also closed
-with `DO_NOT_PROMOTE`. Remote Speaker Evidence Map v1 promoted optional anonymous audit evidence;
-Anonymous Rich Transcript Handoff v1 is now current.
+Speaker-Preserving Neural Echo v2 remains production. Remote Speaker Evidence Map v1 and Anonymous
+Rich Transcript Handoff v1 are promoted in optional scope. Closed separation and causal-ASR
+experiments retain their evidence without changing production; Reviewed Remote Speaker Naming v1
+is now current.
 
 Remote speaker evidence works on authoritative `remote` and does not require complete Echo
-suppression. The current stage makes its passing subset discoverable and verifiable without naming
-people. Reviewed naming, cross-session mapping and notes/export integration remain later gates.
+suppression. Explicit reviewed naming is the current stage; cross-session mapping and notes/export
+integration remain later gates.
 
 Heavy local models begin as bounded validators and require their own corpus gates.
 
