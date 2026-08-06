@@ -47,6 +47,8 @@ def main() -> int:
     local_recall_repair = load_local_recall_repair_module()
 
     assert module.KNOWN_HALLUCINATION_RE.search("Субтитры подогнал «Симон»")
+    assert module.KNOWN_HALLUCINATION_RE.search("ДИНАМИЧНАЯ МУЗЫКА")
+    assert not module.KNOWN_HALLUCINATION_RE.search("динамичная музыка")
     assert not module.KNOWN_HALLUCINATION_RE.search("Обсудили подготовку субтитров к докладу")
 
     output, corrections = module.suppress_adjacent_same_speaker_duplicates(
