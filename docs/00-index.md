@@ -55,11 +55,14 @@ Read in this order:
 51. [Pre-ASR Residual Echo Ceiling Map contract](contracts/pre-asr-residual-echo-ceiling-map.md)
 52. [Pre-ASR Residual Echo Ceiling Map v1 result](research/2026-08-06-pre-asr-residual-echo-ceiling-map-v1.md)
 53. [Alignment and Echo-Path Model v3 result](research/2026-08-06-alignment-echo-path-model-v3.md)
-54. [Reliable Final Handoff v1 baseline](testing/2026-08-05-reliable-final-handoff-baseline.md)
-55. [Canonical Live ASR Producer v1 result](testing/2026-08-06-canonical-live-asr-producer-v1.md)
-56. [Causal Canonical Mic ASR v1 result](testing/2026-08-06-causal-canonical-mic-asr-v1.md)
-57. [Remote Speaker Evidence Map v1 result](testing/2026-08-06-remote-speaker-evidence-map-v1.md)
-58. [Planning and development history](history/README.md)
+54. [Multi-Component Residual Separator v1 result](research/2026-08-06-multi-component-residual-separator-v1.md)
+55. [Multi-Component Residual Separator contract](contracts/multi-component-residual-separator.md)
+56. [Multi-Component Residual Separator runbook](runbooks/multi-component-residual-separator.md)
+57. [Reliable Final Handoff v1 baseline](testing/2026-08-05-reliable-final-handoff-baseline.md)
+58. [Canonical Live ASR Producer v1 result](testing/2026-08-06-canonical-live-asr-producer-v1.md)
+59. [Causal Canonical Mic ASR v1 result](testing/2026-08-06-causal-canonical-mic-asr-v1.md)
+60. [Remote Speaker Evidence Map v1 result](testing/2026-08-06-remote-speaker-evidence-map-v1.md)
+61. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
@@ -86,14 +89,12 @@ with `PROMOTE_AUDIT_ONLY`: it publishes high-precision session-local evidence fo
 remote speech and leaves the rest aggregate. Anonymous rich and explicit reviewed naming are now
 promoted optional read surfaces. The current technical North Star now returns to the pre-ASR audio
 boundary: retain every confirmed `Me` word while removing recognizable authoritative remote. The
-current goal is Pre-ASR Target-Me Isolation Limit v1. Its residual map completed with
-`READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3`; Alignment and Echo-Path Model v3 then exhausted the locked
-physical-model ladder with `READY_FOR_MULTI_COMPONENT_SEPARATOR`. It safely changed 11 of 32
-controlled remote items, below the required 12, while preserving all 156 protected items exactly.
-The required headphones/low-leak control did not fall back exactly. Hard/sealed stayed closed and production
-v2 stayed unchanged. The nearest bounded stage is
-Multi-Component Residual Separator Qualification v1. Reviewed Speaker-Aware Meeting Memory v1
-remains ready but deferred until that frontier closes.
+current goal is Pre-ASR Target-Me Isolation Limit v1. Its residual map and Alignment/Echo-Path v3
+are complete. Multi-Component Residual Separator v1 then preserved exact reconstruction and
+speaker-query use but missed four locked dev quality gates, ending in
+`READY_FOR_STRONGER_LOCAL_SEPARATOR`. Hard/sealed and direct ASR stayed closed; production v2 stayed
+unchanged. The nearest bounded stage is Stronger Offline Target-Speaker Separator Prerequisites v1.
+Reviewed Speaker-Aware Meeting Memory v1 remains ready but deferred until that frontier closes.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

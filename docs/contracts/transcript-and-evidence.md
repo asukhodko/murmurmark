@@ -8465,3 +8465,17 @@ miss. Hard/sealed remained closed and production v2.16 unchanged.
 The next profile must use a distinct multi-component schema and output at least `target_me`,
 `remote_echo`, `other_local` and `unexplained_residual`. Nothing in v3 authorizes such a profile or
 changes auto-selection.
+
+## Multi-Component Residual Separator v1 Qualification
+
+The isolated `multi_component_residual_separator_v1` profile implements that four-stem contract
+with `other_local` as the exact mixture remainder. Its policy pins production v2, Alignment v3,
+Target-Me split manifests, train/dev caches and every prerequisite SHA-256. Only train updates model
+weights; dev selects, while hard/sealed and direct ASR remain inaccessible until the full dev lock
+passes. Missing or stale evidence fails open to unchanged production v2.
+
+The terminal decision is `READY_FOR_STRONGER_LOCAL_SEPARATOR`. Exact reconstruction and query use
+passed, but Target-Me, other-local, absent-query and unexplained-residual quality did not. The
+profile therefore has no apply path and cannot modify canonical audio, transcript, notes or export.
+The standalone schema and provenance contract is documented in
+[Multi-Component Residual Separator Contract](multi-component-residual-separator.md).

@@ -2452,9 +2452,11 @@ required low-leak control instead of exact fallback. Do not rerun hard or sealed
 is intentionally locked after the failed development gate. The
 normal transcript remains on Speaker-Preserving Neural Echo v2 or its exact FIR fallback.
 
-The next research stage is Multi-Component Residual Separator Qualification v1. It must use a new
-isolated profile with explicit Target-Me, remote-echo, other-local and unexplained-residual stems;
-copying the v3 WAV into canonical preprocessing or transcript paths is forbidden.
+Multi-Component Residual Separator Qualification v1 is also complete with
+`READY_FOR_STRONGER_LOCAL_SEPARATOR`. Its isolated four-stem FiLM-GRU missed the locked dev quality
+gates, so direct ASR and hard/sealed remained closed. Reproduce or inspect it with the
+[dedicated runbook](multi-component-residual-separator.md); copying any research WAV into canonical
+preprocessing or transcript paths remains forbidden.
 
 ## Known Limitations
 

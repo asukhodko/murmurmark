@@ -307,9 +307,9 @@ closed that physical-model ladder with `READY_FOR_MULTI_COMPONENT_SEPARATOR`: 11
 remote items changed safely versus the required 12, median reduction was `2.552124 dB`, and all 156
 protected items stayed sample-exact. The required low-leak control changed instead of falling back;
 hard/sealed data remained closed and production v2 unchanged.
-The nearest bounded stage is Multi-Component Residual Separator Qualification v1: explicitly model
-Target-Me, remote echo, other-local and unexplained residual with exact production fallback. See the
-[v3 result](docs/research/2026-08-06-alignment-echo-path-model-v3.md).
+Multi-Component v1 completed `READY_FOR_STRONGER_LOCAL_SEPARATOR`: reconstruction held, but
+Target-Me (`5.561 dB`), other-local (`4.443 dB`), absent-query (`6.803 dB`) and residual (`-1.545 dB`)
+failed. Next, Stronger Offline Prerequisites expands data and pins one backbone; see the [result](docs/research/2026-08-06-multi-component-residual-separator-v1.md).
 
 The dependent critical path is:
 
@@ -319,7 +319,7 @@ Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental 
 -> Remote Speaker Map -> Anonymous Rich -> Reviewed Naming (done)
 -> Residual Echo Ceiling Map (done: READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3)
 -> Alignment and Echo-Path Model v3 (done: READY_FOR_MULTI_COMPONENT_SEPARATOR)
--> Multi-Component Residual Separator Qualification v1 (next substage)
+-> Multi-Component v1 (done: READY_FOR_STRONGER_LOCAL_SEPARATOR) -> Stronger Offline Prerequisites (next)
 -> Reviewed Speaker-Aware Meeting Memory v1 (later)
 ```
 

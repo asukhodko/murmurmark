@@ -424,8 +424,8 @@ nodes:
     status: idea
     effort: 24
     notes: |
-      Эти гипотезы могут создавать isolated evidence, но не блокируют критический CLI-путь и не
-      меняют production defaults без собственных corpus gates.
+      Эти гипотезы могут создавать isolated evidence, включая heavy local ASR/audio validators, но
+      не блокируют критический CLI-путь и не меняют production defaults без собственных corpus gates.
 
   research-remote-diarization:
     title: "Remote Speaker Evidence Map v1"
@@ -464,9 +464,10 @@ nodes:
       CURRENT_RESOURCE_LIMIT_REACHED. Residual map выбрал alignment/echo-path как крупнейший класс,
       а Alignment/Echo-Path v3 исчерпал его с READY_FOR_MULTI_COMPONENT_SEPARATOR: 11/32
       controlled remote items при требовании 12, 156/156 exact protected items и failed exact
-      fallback на required low-leak control. Ближайший bounded
-      этап явно разделяет Target-Me, remote echo, other-local и residual. Нельзя терять protected
-      Me, chronology, openings или double-talk; post-ASR cleanup не получает promotion credit.
+      fallback на required low-leak control. Multi-Component v1 затем сохранил exact reconstruction
+      и query identity, но завершился READY_FOR_STRONGER_LOCAL_SEPARATOR из-за слабых Target-Me,
+      other-local, absent-query и residual dev-метрик. Ближайший bounded этап готовит расширенные
+      split-disjoint данные и один pinned offline backbone. Post-ASR cleanup не получает credit.
 
   quality-pre-asr-residual-echo-ceiling-map-v1:
     title: "Pre-ASR Residual Echo Ceiling Map v1"
@@ -486,15 +487,27 @@ nodes:
     kind: task
     parent: quality-pre-asr-target-me-isolation-limit-v1
     deps: [quality-pre-asr-residual-echo-ceiling-map-v1, research-speaker-preserving-neural-echo-v2, research-reference-conditioned-target-me-separation-v2]
-    status: next
+    status: done
     effort: 10
     notes: |
-      Alignment/Echo-Path v3 завершён READY_FOR_MULTI_COMPONENT_SEPARATOR, failed exact fallback на
-      required low-leak control и не открыл hard/sealed.
-      До hard данных заморозить decomposition contract, four-stem supervision, candidate ladder и
-      dev gates. Direct whisper.cpp, correct/wrong Target-Me query, nearby other-local, chronology,
-      openings, double-talk, mixture consistency, runtime и determinism решают PROMOTE; любой
-      конфликт возвращает exact production v2.
+      Завершено READY_FOR_STRONGER_LOCAL_SEPARATOR. Four-stem FiLM-GRU на 320 train / 85 dev
+      mixtures сохранил reconstruction 0.0 и query collapse 0.0, но получил Target-Me 5.561 dB,
+      other-local 4.443 dB, absent-query 6.803 dB и residual -1.545 dB. Единственная revision не
+      сняла предел; hard/sealed и direct ASR не открывались, production v2 не изменён.
+
+  quality-stronger-offline-target-speaker-separator-prerequisites-v1:
+    title: "Stronger Offline Target-Speaker Separator Prerequisites v1"
+    kind: task
+    parent: quality-pre-asr-target-me-isolation-limit-v1
+    deps: [quality-multi-component-residual-separator-v1, quality-target-me-identifiability-corpus-v1]
+    status: next
+    effort: 6
+    notes: |
+      До нового training/hard цикла заморозить gap map supervision, расширение split-disjoint
+      Target-Me/nearby-speaker данных, один лицензированно совместимый offline backbone с pinned
+      revision/hash и измеренный resource preflight. Зафиксировать four-stem adapter, query controls,
+      exact production fallback и immutable readiness manifest. Завершить
+      READY_FOR_STRONGER_SEPARATOR_QUALIFICATION либо CURRENT_RESOURCE_LIMIT_REACHED.
 
   product-reviewed-speaker-memory-v1:
     title: "Reviewed Speaker-Aware Meeting Memory v1"
@@ -522,15 +535,6 @@ nodes:
       remote references; 629 remote utterances получили 14 session-local anonymous IDs, 606 остались
       aggregate Colleagues. Replay deterministic, stale evidence fails open, plain transcript,
       notes, Evidence Handoff v2 и guarded export не изменились.
-
-  research-heavy-local-validators:
-    title: "Heavy local ASR/audio validators"
-    kind: task
-    parent: parallel-research
-    deps: [quality-operational-rebaseline-v1, corpus-regression]
-    status: idea
-    effort: 4
-    notes: "Тяжёлые локальные модели сначала работают как bounded judges, не как обязательный ASR."
 
   research-speaker-preserving-neural-echo-v2:
     title: "Speaker-Preserving Neural Echo v2"
@@ -651,11 +655,12 @@ views:
           - research-reference-conditioned-target-me-separation-v2
           - quality-pre-asr-residual-echo-ceiling-map-v1
           - quality-multi-component-residual-separator-v1
+          - quality-stronger-offline-target-speaker-separator-prerequisites-v1
       current:
         title: "Текущий предел"
         nodes:
           - quality-pre-asr-target-me-isolation-limit-v1
-          - quality-multi-component-residual-separator-v1
+          - quality-stronger-offline-target-speaker-separator-prerequisites-v1
       fallback:
         title: "После решения"
         nodes:
@@ -673,7 +678,6 @@ views:
       validators:
         title: "Validators and synthesis"
         nodes:
-          - research-heavy-local-validators
           - research-evidence-guarded-llm
 
   parking-lot-view:
@@ -720,6 +724,7 @@ views:
           - quality-pre-asr-target-me-isolation-limit-v1
           - quality-pre-asr-residual-echo-ceiling-map-v1
           - quality-multi-component-residual-separator-v1
+          - quality-stronger-offline-target-speaker-separator-prerequisites-v1
           - product-reviewed-speaker-memory-v1
           - parallel-research
           - parking-lot
@@ -727,8 +732,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Pre-ASR Target-Me Isolation Limit v1: провести Multi-Component Residual Separator Qualification v1 поверх неизменяемого production v2 и завершённого Alignment/Echo-Path v3; до hard/sealed данных заморозить decomposition contract, dev corpus, candidate ladder и stop rules; разделять Target-Me, remote echo, other-local и unexplained residual с mixture consistency и exact fallback; доказать direct-ASR уменьшение remote без потери protected Me, nearby speech, chronology, openings и double-talk и без post-ASR cleanup credit; завершить PROMOTE_MULTI_COMPONENT_RESIDUAL_SEPARATOR, READY_FOR_STRONGER_LOCAL_SEPARATOR либо CURRENT_RESOURCE_LIMIT_REACHED с тестами, актуальной документацией, roadmap и OpsKarta, коммитом и push."
-      success_by_next_sync: "Alignment/Echo-Path v3 остаётся frozen; four-stem multi-component ladder закрыт dev-gated решением без потери production v2, protected Me и nearby other-local."
+      nearest_goal: "Pre-ASR Target-Me Isolation Limit v1: после завершённого Multi-Component Residual Separator v1 с READY_FOR_STRONGER_LOCAL_SEPARATOR подготовить Stronger Offline Target-Speaker Separator Prerequisites v1; заморозить расширение split-disjoint supervision для Target-Me и nearby speakers, выбрать один лицензированно совместимый offline backbone с зафиксированными hash, resource preflight и four-stem adapter plan; не открывать новый hard/sealed цикл до доказанной готовности данных и модели; завершить READY_FOR_STRONGER_SEPARATOR_QUALIFICATION либо CURRENT_RESOURCE_LIMIT_REACHED с тестами, актуальной документацией, roadmap и OpsKarta, коммитом и push."
+      success_by_next_sync: "Multi-Component v1 остаётся frozen; данные, один offline backbone, four-stem adapter и ресурсный бюджет готовы к отдельной qualification либо доказан текущий ресурсный предел."
     defaults:
       status_progress:
         done: 1.0
@@ -750,12 +755,12 @@ x:
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
         title: "Текущий pre-ASR audio frontier"
-        scope_nodes: [quality-pre-asr-target-me-isolation-limit-v1, quality-pre-asr-residual-echo-ceiling-map-v1, quality-multi-component-residual-separator-v1]
+        scope_nodes: [quality-pre-asr-target-me-isolation-limit-v1, quality-pre-asr-residual-echo-ceiling-map-v1, quality-multi-component-residual-separator-v1, quality-stronger-offline-target-speaker-separator-prerequisites-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Alignment/Echo-Path v3 завершён READY_FOR_MULTI_COMPONENT_SEPARATOR: 11/32 controlled remote items, 156/156 protected exact, exact fallback failed on the required low-leak control, hard/sealed закрыты. Production v2 остаётся fallback."
-          next_sync_goal: "Квалифицировать four-stem multi-component separator без потери Target-Me, nearby other-local, chronology, openings или double-talk."
+          sync_note: "Multi-Component v1 завершён READY_FOR_STRONGER_LOCAL_SEPARATOR: exact reconstruction и query identity сохранены, но четыре dev quality gate не пройдены. Hard/sealed и direct ASR закрыты; production v2 остаётся fallback."
+          next_sync_goal: "Заморозить достаточные split-disjoint данные и один pinned offline backbone до нового qualification cycle."
       dependent-path:
         title: "Зависимый путь"
         scope_nodes:

@@ -1,0 +1,258 @@
+{
+  "schema": "murmurmark.multi_component_residual_separator_policy/v1",
+  "profile": "multi_component_residual_separator_v1",
+  "status": "locked_before_train_dev",
+  "locked_at": "2026-08-06T16:00:00+03:00",
+  "purpose": "qualify a four-stem Target-Me, remote-echo, other-local and unexplained-residual separator above immutable production v2",
+  "production_publication": "forbidden_until_corpus_decision",
+  "post_asr_cleanup_promotion_credit": 0,
+  "sources": {
+    "production_policy": {
+      "path": "policies/speaker-preserving-neural-echo-production-v2.json",
+      "sha256": "68f9abab1197035c76a936b97cca6fba05d3992e7a0ccce82de4d8ec0959a425"
+    },
+    "production_decision": {
+      "path": "sessions/_reports/speaker-preserving-neural-echo-v2-16-corpus/promotion_decision.json",
+      "sha256": "0e5be06cb7ea2368824d1e4a35a55f732753e1ec15c70b2ab7ceb29a39e10863",
+      "required_decision": "PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2"
+    },
+    "production_report": {
+      "path": "sessions/_reports/speaker-preserving-neural-echo-v2-16-corpus/corpus_report.json",
+      "sha256": "819a8ce2e00df8f59f83fe99e0de30cad367e886b253930e6b6555a42031a7e3"
+    },
+    "residual_map_policy": {
+      "path": "policies/pre-asr-residual-echo-ceiling-map-v1.json",
+      "sha256": "2fd3e625e8f35d8bab96c4bcf2dc3ef7d97ce0c291faf03d9f2c7fe88196f20f"
+    },
+    "residual_map_frozen_inputs": {
+      "path": "sessions/_reports/pre-asr-residual-echo-map-v1/frozen_inputs.json",
+      "sha256": "0dca5914133810be366a65eca8babf7884ca421b6a82b4dd3f4cf1ec25070424"
+    },
+    "residual_map_decision": {
+      "path": "sessions/_reports/pre-asr-residual-echo-map-v1/decision.json",
+      "sha256": "ee997faa11acb06a0fdbb26d8a59ae7c6c3c3ea80767a8665d97c4c650569631",
+      "required_decision": "READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3"
+    },
+    "alignment_v3_policy": {
+      "path": "policies/alignment-echo-path-model-v3.json",
+      "sha256": "5395353d6f69f2a828279bf5f68bf6228130182427b4e6803e03d147512e0edc"
+    },
+    "alignment_v3_candidate_lock": {
+      "path": "sessions/_reports/alignment-echo-path-model-v3/candidate_lock.json",
+      "sha256": "50b901bad9aecaa61df290d394ab1e5ff6d8a122c9ad57127319be41cf7c666e"
+    },
+    "alignment_v3_decision": {
+      "path": "sessions/_reports/alignment-echo-path-model-v3/decision.json",
+      "sha256": "c240b20c0d34aa2a78352a9a2be75bd52658fad31428b15ce4f292d8d8f7969a",
+      "required_decision": "READY_FOR_MULTI_COMPONENT_SEPARATOR"
+    },
+    "target_corpus_current": {
+      "path": "sessions/_reports/target-me-identifiability-corpus-v1/current.json",
+      "sha256": "634cafc2cba6dc0df2814f010de2628fc89f163e19fd4ceb740a29698e10088d",
+      "required_decision": "READY_FOR_TARGET_CONDITIONED_TRAINING",
+      "required_fingerprint": "530cb0fd23503884d438bc24be10fff45610da1fb8fe710aad1b6b6cd992b2ce"
+    },
+    "reference_v2_policy": {
+      "path": "policies/reference-conditioned-target-me-separation-v2.json",
+      "sha256": "770c845c6eb92f00dc73cbb08d0bb25d45be0bcb9dcd48a0763758d5581285f7"
+    },
+    "reference_v2_decision": {
+      "path": "sessions/_reports/reference-conditioned-target-me-separation-v2/decision.json",
+      "sha256": "4d310f405812b38f704b774771233c75e9f9200b72966ccdd0675c28271e8656",
+      "required_decision": "DO_NOT_PROMOTE_REFERENCE_CONDITIONED_TARGET_ME_SEPARATION_V2"
+    },
+    "reference_v2_train_dev": {
+      "path": "sessions/_reports/reference-conditioned-target-me-separation-v2/train-dev/train_dev_report.json",
+      "sha256": "a066427151134baff4bcd0621e942c995b401221e5e99b58e44690a812044371",
+      "required_decision": "DEV_CANDIDATE_REJECTED"
+    },
+    "reference_v2_checkpoint": {
+      "path": "sessions/_reports/reference-conditioned-target-me-separation-v2/train-dev/separator.pt",
+      "sha256": "8e4228c6978ccee3e960a8ee9ba9435f1a89dad3c3a52f18284b01e110abbd94"
+    }
+  },
+  "corpus": {
+    "root": "sessions/_reports/target-me-identifiability-corpus-v1/published/530cb0fd23503884d438bc24be10fff45610da1fb8fe710aad1b6b6cd992b2ce",
+    "fingerprint": "530cb0fd23503884d438bc24be10fff45610da1fb8fe710aad1b6b6cd992b2ce",
+    "files": {
+      "item_manifest.jsonl": "0db427db488bf48117084997a540775ce53376b7426e3ae4ce6dfffef0dae8a0",
+      "query_manifest.jsonl": "cf0446a55cddc770dd790eee7d9d36d53d25e9ce2453c4053dcd03c385a69fa3",
+      "enrollment_manifest.jsonl": "468e4df836645e7970a9b31439ab9ef7dad5168b2d5d072c6b8ebbc3add6d447",
+      "split_manifest.json": "280b49e74fe2abaac8b78442fb60f713681e8e0245b214738f3660d37113deb2",
+      "replay_report.json": "2c8d56f21b6b09bf4dedfb2a7a33be9bd2e1a636cc2cf87bab35d74a81094c82"
+    },
+    "split_counts": {
+      "train": {"items": 320, "queries": 640, "non_target_speakers": 4},
+      "dev": {"items": 85, "queries": 170, "non_target_speakers": 2},
+      "hard": {"items": 85, "queries": 170, "non_target_speakers": 2}
+    },
+    "cache": {
+      "train_manifest": {
+        "path": "sessions/_reports/reference-conditioned-target-me-separation-v2/cache/train_cache_manifest.json",
+        "sha256": "cf08ef59d3fbd12e57c2c0d9e329b247c7ff4555d175f0355962adb790521d1d"
+      },
+      "train_waveforms": {
+        "path": "sessions/_reports/reference-conditioned-target-me-separation-v2/cache/train_waveforms.npy",
+        "sha256": "0b0c61defe6f5de793095722880834633501d4fe7a171c716d67f326285d47ea"
+      },
+      "dev_manifest": {
+        "path": "sessions/_reports/reference-conditioned-target-me-separation-v2/cache/dev_cache_manifest.json",
+        "sha256": "62befa332336c00427312a8f80be72766e833bc7a1755d2d6c96c801f1d008ca"
+      },
+      "dev_waveforms": {
+        "path": "sessions/_reports/reference-conditioned-target-me-separation-v2/cache/dev_waveforms.npy",
+        "sha256": "c3e573b06206d7638221bd2aa17341e13e527e71562efbb28cd9444ac1320e73"
+      }
+    }
+  },
+  "data_isolation": {
+    "training_split": "train",
+    "selection_split": "dev",
+    "hard_split": "hard",
+    "hard_audio_access_before_locked_dev_pass": false,
+    "sealed_access_before_hard_pass": false,
+    "threshold_tuning_on_hard_or_sealed": false,
+    "ordinary_meeting_training": false,
+    "paired_query_required": true
+  },
+  "decomposition_contract": {
+    "sample_rate": 16000,
+    "channels": 1,
+    "clip_samples": 64000,
+    "inputs": ["production_v2_mic", "frozen_v3_echo_estimate", "target_me_enrollment"],
+    "stems": ["target_me", "remote_echo", "other_local", "unexplained_residual"],
+    "unexplained_residual_supervision": "measured_other_local_noise",
+    "mixture_consistency": "other_local_is_exact_remainder",
+    "reconstruction_max_abs_error": 0.00001,
+    "outside_selected_samples": "sample_exact_production_v2",
+    "missing_or_uncertain_evidence": "exact_production_v2_fallback",
+    "raw_caf_mutation_forbidden": true,
+    "authoritative_remote_mutation_forbidden": true,
+    "publication_before_corpus_decision": false
+  },
+  "candidate_ladder": [
+    {
+      "id": "query_agnostic_accounting_control",
+      "kind": "deterministic_control",
+      "promotion_eligible": false,
+      "target_me": "mixture_minus_echo_hint",
+      "remote_echo": "frozen_echo_hint",
+      "other_local": "zero",
+      "unexplained_residual": "zero"
+    },
+    {
+      "id": "frozen_reference_v2_control",
+      "kind": "frozen_reference_conditioned_control",
+      "checkpoint": "sessions/_reports/reference-conditioned-target-me-separation-v2/train-dev/separator.pt",
+      "promotion_eligible": false,
+      "residual_split": "zero_residual"
+    },
+    {
+      "id": "four_stem_film_gru_v1",
+      "kind": "local_train_dev_candidate",
+      "promotion_eligible": true,
+      "seed": 8062026,
+      "hidden_size": 128,
+      "layers": 1,
+      "mask_limit": 4.0,
+      "batch_items": 8,
+      "epochs": 18,
+      "learning_rate": 0.0012,
+      "gradient_clip": 5.0,
+      "loss_weights": {
+        "target": 1.0,
+        "other_local": 0.5,
+        "unexplained_residual": 1.0,
+        "paired_speech_sum": 0.25,
+        "paired_residual_consistency": 0.1
+      }
+    },
+    {
+      "id": "offline_pretrained_initialization",
+      "kind": "preflight_only",
+      "promotion_eligible": false,
+      "status": "not_available",
+      "reason": "no pinned offline model with compatible four-stem query, license and runtime contract"
+    }
+  ],
+  "required_families": [
+    "ordinary_double_talk",
+    "quiet_target_me",
+    "quiet_other_local",
+    "keyboard_background",
+    "opening_backchannel",
+    "target_only",
+    "remote_only",
+    "other_speaker_only",
+    "target_remote",
+    "target_other"
+  ],
+  "gates": {
+    "dev": {
+      "target_me_snr_db_median_min": 8.0,
+      "target_me_improvement_db_median_min": 3.0,
+      "other_local_snr_db_median_min": 8.0,
+      "paired_query_margin_db_median_min": 4.0,
+      "query_collapse_rate_max": 0.05,
+      "absent_query_attenuation_db_median_min": 12.0,
+      "unexplained_residual_snr_db_median_min": 6.0,
+      "remote_echo_snr_db_median_min": 8.0,
+      "reconstruction_max_abs_error_max": 0.00001,
+      "clipped_outputs_max": 0,
+      "non_finite_outputs_max": 0,
+      "hard_audio_files_read_max": 0,
+      "runtime_sec_max": 600.0
+    },
+    "hard": {
+      "target_me_snr_db_median_min": 8.0,
+      "other_local_snr_db_median_min": 8.0,
+      "paired_query_margin_db_median_min": 4.0,
+      "query_collapse_rate_max": 0.05,
+      "quiet_target_me_snr_db_median_min": 6.0,
+      "opening_backchannel_snr_db_median_min": 8.0,
+      "ordinary_double_talk_snr_db_median_min": 8.0,
+      "unexplained_residual_snr_db_median_min": 6.0,
+      "reconstruction_max_abs_error_max": 0.00001,
+      "clipped_outputs_max": 0,
+      "non_finite_outputs_max": 0
+    },
+    "real_direct_asr": {
+      "remote_supported_token_reduction_min": 6,
+      "sessions_with_reduction_min": 2,
+      "protected_me_token_retention_ratio_min": 1.0,
+      "nearby_other_local_leak_increase_max": 0,
+      "chronology_regressions_max": 0,
+      "opening_regressions_max": 0,
+      "double_talk_regressions_max": 0,
+      "runtime_factor_max": 0.5
+    }
+  },
+  "revision_budget": {
+    "maximum_bounded_revisions_after_initial_dev": 1,
+    "allowed_scope": [
+      "one loss weight",
+      "one candidate rung removal",
+      "one deterministic defect fix"
+    ],
+    "gate_weakening": "forbidden",
+    "hard_or_sealed_feedback_for_tuning": "forbidden",
+    "used": 1,
+    "revision": {
+      "id": "bounded_revision_1",
+      "kind": "one loss weight",
+      "trigger": "initial dev preserved exact reconstruction and query identity but unexplained residual SNR was -1.146944 dB against a 6.0 dB gate",
+      "field": "candidate_ladder[2].loss_weights.unexplained_residual",
+      "before": 0.35,
+      "after": 1.0,
+      "gate_weakening": false,
+      "hard_or_sealed_observed": false,
+      "initial_report": "sessions/_reports/multi-component-residual-separator-v1/train-dev-attempt-01/train_dev_report.json",
+      "initial_report_fingerprint": "17528b27de37b85a5061dcfe790ad11bebc70c21db819fe0ccaf330f0ec86943"
+    }
+  },
+  "terminal_decisions": [
+    "PROMOTE_MULTI_COMPONENT_RESIDUAL_SEPARATOR",
+    "READY_FOR_STRONGER_LOCAL_SEPARATOR",
+    "CURRENT_RESOURCE_LIMIT_REACHED"
+  ]
+}

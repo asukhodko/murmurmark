@@ -51,8 +51,9 @@ Speaker-Preserving Neural Echo v2 is the safe production plateau: `5/12` candida
 echo-path work (`2443.222s`, `35.567%`, 9 sessions), followed by multi-component separation
 (`2124.220s`, `30.923%`). Alignment/Echo-Path v3 then ended in
 `READY_FOR_MULTI_COMPONENT_SEPARATOR`: 11/32 controlled remote items changed safely versus the
-required 12, with 156/156 protected items exact, but the required low-leak control changed. Multi-Component
-Residual Separator Qualification v1 is next. Speaker-aware memory remains deferred until this closes.
+required 12, with 156/156 protected items exact, but the required low-leak control changed.
+Multi-Component v1 then ended in `READY_FOR_STRONGER_LOCAL_SEPARATOR`: reconstruction and query
+identity held, but four dev gates failed. Stronger Offline Prerequisites is next; memory is deferred.
 ## Critical Path
 
 ```mermaid
@@ -78,7 +79,7 @@ flowchart LR
     T["Done: PROMOTE<br/>Anonymous Rich<br/>Transcript Handoff v1"]
     Q["Done: PROMOTE<br/>Reviewed Remote<br/>Speaker Naming v1"]
     Z["Done: READY<br/>Residual Map +<br/>Alignment/Echo v3"]
-    Y["Current<br/>Pre-ASR Target-Me Isolation Limit<br/>Multi-Component Separator v1"]
+    Y["Current umbrella<br/>Multi-Component done<br/>Stronger prerequisites next"]
     W["Later<br/>Reviewed Speaker-Aware<br/>Meeting Memory v1"]
 
     P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D --> F --> G --> C2 --> M --> R --> T --> Q --> Z --> Y --> W
@@ -243,17 +244,16 @@ Voice-only identity, cross-session matching and ordinary notes/export remain unt
 
 ### 20. Pre-ASR Target-Me Isolation Limit v1
 
-Current umbrella goal. The residual map is complete on 14 real sessions and Alignment/Echo-Path v3
-has closed its bounded physical-model ladder with `READY_FOR_MULTI_COMPONENT_SEPARATOR`. It changed
-11/32 controlled remote items instead of the required 12, preserved 156/156 protected items exactly,
-failed exact fallback on the required low-leak control, kept hard/sealed closed and left production v2,
-raw CAF and transcripts unchanged.
+Current umbrella goal. Residual mapping and Alignment/Echo-Path v3 are complete. Multi-Component v1
+then tested an explicit four-stem FiLM-GRU on 320 train and 85 dev mixtures. It preserved exact
+reconstruction and speaker-query use, but missed Target-Me (`5.561 dB`), other-local (`4.443 dB`),
+absent-query (`6.803 dB`) and residual (`-1.545 dB`) gates. It completed
+`READY_FOR_STRONGER_LOCAL_SEPARATOR`; hard/sealed, direct ASR, production v2, raw CAF and transcripts
+remained unchanged.
 
-The nearest substage is Multi-Component Residual Separator Qualification v1. It freezes four output
-stems (`Target-Me`, `remote echo`, `other-local`, residual), split-disjoint supervision, query and
-mixture-consistency controls before hard data. Direct whisper.cpp must prove less remote with no lost
-local words, nearby-speaker attribution, chronology, opening or double-talk regression. Every weak
-window falls back exactly to production v2; post-ASR cleanup receives zero credit.
+Next, Stronger Offline Target-Speaker Separator Prerequisites v1 expands split-disjoint supervision,
+pins one licensed offline backbone and freezes its four-stem adapter and local resource budget. A new
+qualification cannot open hard/sealed before reproducible readiness; post-ASR cleanup receives zero credit.
 
 ### 21. Reviewed Speaker-Aware Meeting Memory v1
 

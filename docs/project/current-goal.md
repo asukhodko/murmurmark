@@ -15,7 +15,7 @@ README, roadmap and OpsKarta wording aligned.
 
 ## Pre-ASR Target-Me Isolation Limit v1
 
-OpsKarta nearest goal: Pre-ASR Target-Me Isolation Limit v1: провести Multi-Component Residual Separator Qualification v1 поверх неизменяемого production v2 и завершённого Alignment/Echo-Path v3; до hard/sealed данных заморозить decomposition contract, dev corpus, candidate ladder и stop rules; разделять Target-Me, remote echo, other-local и unexplained residual с mixture consistency и exact fallback; доказать direct-ASR уменьшение remote без потери protected Me, nearby speech, chronology, openings и double-talk и без post-ASR cleanup credit; завершить PROMOTE_MULTI_COMPONENT_RESIDUAL_SEPARATOR, READY_FOR_STRONGER_LOCAL_SEPARATOR либо CURRENT_RESOURCE_LIMIT_REACHED с тестами, актуальной документацией, roadmap и OpsKarta, коммитом и push.
+OpsKarta nearest goal: Pre-ASR Target-Me Isolation Limit v1: после завершённого Multi-Component Residual Separator v1 с READY_FOR_STRONGER_LOCAL_SEPARATOR подготовить Stronger Offline Target-Speaker Separator Prerequisites v1; заморозить расширение split-disjoint supervision для Target-Me и nearby speakers, выбрать один лицензированно совместимый offline backbone с зафиксированными hash, resource preflight и four-stem adapter plan; не открывать новый hard/sealed цикл до доказанной готовности данных и модели; завершить READY_FOR_STRONGER_SEPARATOR_QUALIFICATION либо CURRENT_RESOURCE_LIMIT_REACHED с тестами, актуальной документацией, roadmap и OpsKarta, коммитом и push.
 
 ## North Star
 
@@ -46,66 +46,58 @@ Alignment and Echo-Path Model v3 завершён с `READY_FOR_MULTI_COMPONENT_
 На real dev изменения оставались только внутри remote-only окон, однако required low-leak control
 не получил exact fallback. Direct ASR, hard и sealed поэтому не запускались. Production v2 не изменён.
 
-Вывод ограничен, но полезен: time-varying FIR и нелинейные remote bases уменьшают когерентное эхо,
-однако не объясняют весь остаток. Дальше нужен разделитель, который моделирует несколько источников,
-а не ещё один порог или более длинный FIR.
+Multi-Component Residual Separator v1 завершён с `READY_FOR_STRONGER_LOCAL_SEPARATOR`. Небольшой
+four-stem FiLM-GRU сохранил exact reconstruction и не схлопнул speaker query, но dev дал только
+`5.561 dB` Target-Me SNR, `4.443 dB` other-local SNR, `6.803 dB` absent-query attenuation и
+`-1.545 dB` residual SNR. Единственная разрешённая revision не улучшила предел. Hard, sealed и
+direct ASR не открывались; production v2 остался неизменным.
+
+Вывод теперь точнее: четырёхкомпонентный контракт пригоден, но имеющихся данных и небольшой модели
+недостаточно для тихой/отсутствующей Target-Me и nearby speech. Следующий цикл должен сначала
+доказать готовность более сильного локального разделителя, а не снова настраивать ту же архитектуру.
 
 ## Objective
 
-За один ограниченный исследовательский цикл проверить multi-component separator поверх production
-v2. Он должен явно выделять `target_me`, `remote_echo`, `other_local` и `unexplained_residual`,
-сохранять их происхождение и возвращать baseline для каждого сомнительного окна. Цикл заканчивается
-продвижением, доказанным пределом доступной локальной реализации или точным требованием к следующему
-классу модели.
+Подготовить один воспроизводимый путь к более сильной локальной квалификации. До обучения нужно
+закрыть два известных ограничения: увеличить split-disjoint supervision для Target-Me и nearby
+speakers и выбрать один лицензированно совместимый offline speech-separation backbone, который
+помещается в локальный ресурсный бюджет и допускает four-stem Target-Me adapter.
 
 ## Required Work
 
-1. Заморозить production v2, residual map, решение v3, controlled supervision, Target-Me
-   Identifiability Corpus, development/hard/sealed splits и SHA-256 до обучения или настройки.
-2. Зафиксировать decomposition contract: входы, четыре стема, временную сетку, mixture-consistency
-   tolerance, allowable latency, exact fallback и запрет публикации до corpus decision.
-3. Подготовить split-disjoint supervised mixtures из уже проверенных clean Target-Me, non-target
-   local, measured echo и digital remote. Не превращать `speaker_state` или ASR-текст в ground truth.
-4. Зафиксировать bounded ladder до hard data: deterministic constrained baseline; v3 echo estimate
-   как дополнительный признак; reference-conditioned local model; один лицензированно и технически
-   проверенный pretrained/local initialization, если он доступен offline.
-5. Учить и выбирать модель только на train/dev. Target-Me query должен влиять на выход; wrong-query,
-   nearby-speaker, remote-only, keyboard, silence, opening и measured double-talk являются
-   обязательными отрицательными или preservation controls.
-6. Публиковать candidate только целыми доказанными окнами. Любой конфликт идентичности, source
-   attribution, reconstruction, chronology или local-word evidence выбирает exact production v2.
-7. На dev измерить stem reconstruction, remote leakage, wrong-query margin и direct whisper.cpp.
-   Hard и sealed открывать лишь после полного locked dev pass; tuning после открытия запрещён.
-8. Выпустить `PROMOTE_MULTI_COMPONENT_RESIDUAL_SEPARATOR`,
-   `READY_FOR_STRONGER_LOCAL_SEPARATOR` или `CURRENT_RESOURCE_LIMIT_REACHED` с воспроизводимыми
-   отчётами, provenance и транзакционным publication plan.
+1. Заморозить production v2, завершённый Multi-Component v1, текущий Target-Me corpus и все SHA-256.
+2. Составить точную карту нехватки данных по quiet/absent Target-Me, nearby speakers, double-talk,
+   openings, клавиатуре и офисному шуму; обычные встречи не использовать как скрытые labels.
+3. Спроектировать расширение train/dev/hard с непересекающимися non-target speakers и отдельными
+   отрицательными query controls. Sealed corpus не открывать.
+4. Проверить ограниченный список локальных pretrained separators по лицензии, воспроизводимой загрузке,
+   pinned hash, macOS CPU runtime, памяти, sample rate и доступу к внутренним признакам.
+5. Выбрать ровно один backbone либо доказать, что ни один кандидат не укладывается в текущие ресурсы.
+6. Зафиксировать four-stem adapter plan: Target-Me query, frozen echo hint, other-local, residual,
+   mixture consistency, exact production fallback и прямой ASR только после dev pass.
+7. Выпустить immutable readiness manifest и ресурсный preflight без обучения на hard/sealed.
+8. Завершить `READY_FOR_STRONGER_SEPARATOR_QUALIFICATION` или
+   `CURRENT_RESOURCE_LIMIT_REACHED` с воспроизводимым отчётом и следующим ограниченным шагом.
 
 ## Acceptance Gates
 
-- все подтверждённые слова `Me`, openings, chronology и measured double-talk не хуже production v2;
-- nearby `other_local` не попадает в Target-Me stem и остаётся доступен как отдельное доказательство;
-- authoritative remote audio/text не меняются, а ASR-visible remote в Target-Me уменьшается на
-  заранее замороженную существенную величину в нескольких сессиях;
-- correct-query результат превосходит wrong-query и query-agnostic controls на split-disjoint
-  speakers; identity collapse запрещает promotion;
-- сумма стемов объясняет вход в заданной tolerance, но mixture consistency не может насильно
-  вернуть remote в Target-Me stem;
-- no-speech, headphones/low-leak, unsupported and uncertain windows выбирают exact fallback;
-- outside-selected samples совпадают с production v2, raw CAF и transcript evidence неизменны;
-- повторный запуск детерминирован, runtime укладывается в замороженный локальный budget;
-- post-ASR filtering, role cleanup и transcript deletion получают нулевой promotion credit;
-- contracts, runbook, README, roadmap, OpsKarta и автоматические тесты отражают итоговое решение.
+- данные покрывают известные dev-провалы и сохраняют split-disjoint non-target identities;
+- выбранный backbone имеет проверенные license, source revision, SHA-256 и offline-only загрузку;
+- resource preflight на текущем Mac измеряет память, runtime и число потоков с фоновым приоритетом;
+- adapter plan сохраняет четыре стема, speaker-query controls, exact fallback и post-ASR credit `0`;
+- hard/sealed и production publication остаются закрыты до следующего immutable dev pass;
+- raw CAF, production v2, transcript evidence и существующие frozen reports неизменны;
+- повторный preflight детерминирован, а отсутствие модели или данных даёт явный ресурсный предел;
+- contracts, runbook, README, roadmap, OpsKarta и тесты отражают принятое решение.
 
 ## Stop Rules
 
-- не ослаблять local-word, identity, chronology, opening или double-talk gates ради suppression;
-- не настраивать thresholds, architecture или splits по hard/sealed результатам;
-- не считать AECMOS, SI-SDR, speaker similarity или exact remix самостоятельным разрешением;
-- не заменять multi-component модель ещё одной scalar mask или post-ASR эвристикой;
-- не загружать непроверенную модель во время qualification: license, hash, offline runtime и ресурсный
-  budget должны пройти preflight до заморозки;
-- если доступная локальная модель не проходит dev после одной bounded revision, завершить точным
-  отрицательным решением, а не продолжать поиск на тех же данных.
+- не продолжать подстройку завершённого FiLM-GRU на тех же dev speakers;
+- не выбирать backbone по hard/sealed или transcript cleanup;
+- не скачивать модель без проверяемой лицензии, revision и hash;
+- не выдавать большой размер модели, SI-SDR или speaker similarity за сохранение слов;
+- не начинать обучение, пока данные, адаптер и ресурсный бюджет не заморожены;
+- если подходящего offline backbone или supervision нет, завершить ресурсным пределом.
 
 ## Safety Boundary
 
