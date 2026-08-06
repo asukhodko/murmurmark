@@ -118,20 +118,21 @@ Pre-ASR Target-Me Isolation Limit v1 owns the next bounded campaign:
 ```text
 production v2 plateau
   -> Residual Echo Ceiling Map v1: READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3
-  -> sub-window delay/drift + echo-path bank + nonlinear remote bases
-  -> guarded remote-only residual suppression
+  -> Alignment/Echo-Path v3: READY_FOR_MULTI_COMPONENT_SEPARATOR
+  -> four-stem contract + split-disjoint supervision
+  -> Target-Me + remote echo + other-local + unexplained residual
   -> controlled dev -> immutable hard test -> sealed real corpus
-  -> PROMOTE_ALIGNMENT_OR_ECHO_MODEL_V3
-     | READY_FOR_MULTI_COMPONENT_SEPARATOR
-     | CURRENT_RESOURCE_LIMIT_REACHED
+  -> PROMOTE_MULTI_COMPONENT_RESIDUAL_SEPARATOR
+     | READY_FOR_STRONGER_LOCAL_SEPARATOR | CURRENT_RESOURCE_LIMIT_REACHED
 ```
 
 The completed map covers 14 real sessions and 2068 material events. Of `6869.306s` actionable
 evidence, alignment and echo-path capability accounts for `2443.222s` (`35.567%`) across 9
 sessions. Multi-component separation follows at `2124.220s` (`30.923%`), while Target-Me model
-uncertainty accounts for `1258.702s` (`18.324%`). This measured ordering makes Alignment and
-Echo-Path Model v3 Qualification the nearest experiment. See the
-[frozen result](../research/2026-08-06-pre-asr-residual-echo-ceiling-map-v1.md).
+uncertainty accounts for `1258.702s` (`18.324%`). Alignment/Echo-Path v3 closed the first class but
+missed its controlled coverage gate, making multi-component separation the nearest experiment. See
+the [residual map](../research/2026-08-06-pre-asr-residual-echo-ceiling-map-v1.md) and
+[v3 result](../research/2026-08-06-alignment-echo-path-model-v3.md).
 
 The terminal negative decision is intentionally stronger than another single-model
 `DO_NOT_PROMOTE`: it must record the complete frozen candidate matrix that is feasible with the
@@ -1115,6 +1116,49 @@ Evaluation compares that audio and direct ASR output with `local_fir`; post-ASR 
 duplicate cleanup are disabled for suppression credit. Later layers remain safety guards. Rejected
 or inapplicable sessions preserve the exact baseline. Corpus-wide promotion is fingerprinted and
 personalized; a clean checkout without private enrollment cannot accidentally enable it.
+
+## Physical-Model Ceiling And Next Separator
+
+Pre-ASR Residual Echo Ceiling Map v1 measured the remaining production-v2 signal before choosing a
+new model class. Alignment/Echo-Path v3 then tested sub-window delay, linear FIR banks, bounded
+Hammerstein remote bases and held-out remote-only selection. It ended in
+`READY_FOR_MULTI_COMPONENT_SEPARATOR`: 11 of 32 controlled remote items changed safely instead of
+the required 12, while all 156 protected items stayed sample-exact. The single allowed threshold
+revision was consumed, and the required low-leak control changed instead of exact fallback. Hard
+and sealed inputs were hash-frozen but not evaluated, and production was not published.
+
+The result separates two regimes:
+
+```mermaid
+flowchart LR
+    R["Authoritative remote"]
+    M["Production v2 mic"]
+    P["Time-varying physical echo model"]
+    C{"Coherent remote-only<br/>evidence sufficient?"}
+    F["Exact production v2 fallback"]
+    S["Multi-component separator"]
+
+    R --> P
+    M --> P --> C
+    C -->|yes, bounded subset| F
+    C -->|no, mixed residual| S
+```
+
+The next separator must not collapse the remainder to one clean/noisy scalar mask. Its contract has
+four explicit outputs:
+
+```text
+production v2 mic + authoritative remote + Target-Me query + v3 echo estimate
+    -> Target-Me + remote echo + other-local + unexplained residual
+```
+
+Mixture consistency is checked across all outputs, while only independently supported Target-Me may
+feed ASR. Nearby speech must remain `other_local`; uncertain energy remains residual; every weak or
+conflicting window is exact production v2. This keeps the decomposition inspectable and prevents a
+good aggregate audio metric from hiding lost local words or wrong speaker attribution.
+
+The frozen v3 protocol, measurements and stop decision are documented in
+[Alignment and Echo-Path Model v3](../research/2026-08-06-alignment-echo-path-model-v3.md).
 
 ## References
 

@@ -289,8 +289,7 @@ murmurmark audit remote-speakers "$SESSION" --profile auto
 murmurmark transcript "$SESSION" --rich
 ```
 
-Anonymous Rich Transcript Handoff v1 completed with `PROMOTE_OPTIONAL_RICH`: all `1235` remote
-references passed on 6/6 sessions; 629 utterances received anonymous IDs and 606 remained aggregate.
+Anonymous Rich Transcript Handoff v1 completed with `PROMOTE_OPTIONAL_RICH`: all `1235` remote references passed on 6/6 sessions; 629 utterances received anonymous IDs and 606 remained aggregate.
 Reviewed Remote Speaker Naming v1 completed with `PROMOTE_OPTIONAL_REVIEWED_NAMING`. It adds only
 explicit session-local display labels over current anonymous IDs:
 
@@ -301,18 +300,16 @@ murmurmark speakers apply "$SESSION"
 murmurmark transcript "$SESSION" --rich --reviewed-speakers
 ```
 
-Missing, partial or stale decisions fall back to the anonymous `--rich` view. No name is inferred
-from voice, text, contacts, calendar or another meeting. Plain Markdown, notes and guarded export
-stay unchanged. Speaker-aware meeting memory is ready but deliberately deferred.
-
-The current goal is **Pre-ASR Target-Me Isolation Limit v1**. Its first residual map is complete:
-14 real sessions and 2068 material events produced `READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3`.
-Alignment and echo-path work accounts for `2443.222s` (`35.567%`) of actionable evidence, ahead of
-multi-component separation (`30.923%`) and Target-Me model work (`18.324%`). The nearest bounded
-stage therefore qualifies sub-window drift, an echo-path bank, nonlinear remote bases and guarded
-remote-only residual suppression without weakening protected-local or chronology gates.
-The audit-only map is reproduced with
-`.venv/bin/python scripts/pre-asr-residual-echo-ceiling-map-v1.py verify`.
+Missing, partial or stale decisions fall back to the anonymous `--rich` view. No name is inferred from voice, text, contacts, calendar or another meeting. Plain Markdown, notes and guarded export stay unchanged. Speaker-aware meeting memory is ready but deliberately deferred.
+The current goal is **Pre-ASR Target-Me Isolation Limit v1**. Its residual map first selected alignment/echo-path
+work as `35.567%` of actionable evidence. Alignment and Echo-Path Model v3 then
+closed that physical-model ladder with `READY_FOR_MULTI_COMPONENT_SEPARATOR`: 11/32 controlled
+remote items changed safely versus the required 12, median reduction was `2.552124 dB`, and all 156
+protected items stayed sample-exact. The required low-leak control changed instead of falling back;
+hard/sealed data remained closed and production v2 unchanged.
+The nearest bounded stage is Multi-Component Residual Separator Qualification v1: explicitly model
+Target-Me, remote echo, other-local and unexplained residual with exact production fallback. See the
+[v3 result](docs/research/2026-08-06-alignment-echo-path-model-v3.md).
 
 The dependent critical path is:
 
@@ -321,7 +318,8 @@ Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental 
 -> Canonical Live and Causal Mic ASR (done: DO_NOT_PROMOTE)
 -> Remote Speaker Map -> Anonymous Rich -> Reviewed Naming (done)
 -> Residual Echo Ceiling Map (done: READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3)
--> Alignment and Echo-Path Model v3 Qualification (current substage)
+-> Alignment and Echo-Path Model v3 (done: READY_FOR_MULTI_COMPONENT_SEPARATOR)
+-> Multi-Component Residual Separator Qualification v1 (next substage)
 -> Reviewed Speaker-Aware Meeting Memory v1 (later)
 ```
 
@@ -339,6 +337,8 @@ and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
   It is an optional read surface; ordinary notes and export do not consume those labels yet.
 - The personalized pre-ASR profile removes independently supported remote leakage on compatible
   speaker-playback sessions; it does not promise waveform-perfect echo removal on every room/device.
+- Alignment/Echo-Path v3 is audit-only after `READY_FOR_MULTI_COMPONENT_SEPARATOR`; it is not a
+  production audio profile and its hard/sealed sets remain unopened.
 - Echo Guard records `speaker_playback`, `headphones_or_low_leak` or `uncertain` in
   `local_fir_report.json`; no user acoustic-mode flag is required.
 - `local_speech_completion_v2` is selected only for sessions named by its passing frozen-corpus

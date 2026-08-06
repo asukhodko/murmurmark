@@ -33,7 +33,7 @@ nodes:
     title: "MurmurMark CLI"
     kind: summary
     status: current
-    effort: 212
+    effort: 214
     notes: |
       Активная CLI-first, local-first и evidence-backed программа. Batch transcript остаётся
       authoritative. Текущий технический North Star: сохранить всю подтверждённую локальную речь
@@ -461,10 +461,12 @@ nodes:
     effort: 24
     notes: |
       Довести audio-first отделение Me от remote до PROMOTE либо воспроизводимого
-      CURRENT_RESOURCE_LIMIT_REACHED. Residual map уже выбрал alignment/echo-path как крупнейший
-      доступный класс. Ближайший bounded этап проверяет delay/drift, echo-path bank, nonlinear
-      remote bases и guarded residual suppression. Нельзя терять protected Me, chronology,
-      openings или double-talk; post-ASR cleanup не получает promotion credit.
+      CURRENT_RESOURCE_LIMIT_REACHED. Residual map выбрал alignment/echo-path как крупнейший класс,
+      а Alignment/Echo-Path v3 исчерпал его с READY_FOR_MULTI_COMPONENT_SEPARATOR: 11/32
+      controlled remote items при требовании 12, 156/156 exact protected items и failed exact
+      fallback на required low-leak control. Ближайший bounded
+      этап явно разделяет Target-Me, remote echo, other-local и residual. Нельзя терять protected
+      Me, chronology, openings или double-talk; post-ASR cleanup не получает promotion credit.
 
   quality-pre-asr-residual-echo-ceiling-map-v1:
     title: "Pre-ASR Residual Echo Ceiling Map v1"
@@ -479,18 +481,20 @@ nodes:
       multi-component separation 2124.220s (30.923%), Target-Me model 1258.702s (18.324%). Raw,
       production v2 и transcript неизменны; replay и frozen SHA-256 проходят.
 
-  quality-alignment-echo-path-model-v3-qualification:
-    title: "Alignment and Echo-Path Model v3 Qualification"
+  quality-multi-component-residual-separator-v1:
+    title: "Multi-Component Residual Separator Qualification v1"
     kind: task
     parent: quality-pre-asr-target-me-isolation-limit-v1
-    deps: [quality-pre-asr-residual-echo-ceiling-map-v1, research-speaker-preserving-neural-echo-v2]
+    deps: [quality-pre-asr-residual-echo-ceiling-map-v1, research-speaker-preserving-neural-echo-v2, research-reference-conditioned-target-me-separation-v2]
     status: next
-    effort: 8
+    effort: 10
     notes: |
-      До hard/sealed данных зафиксировать bounded candidate ladder и dev gates. Проверить
-      sub-window delay/drift, echo-path bank, nonlinear remote bases и remote-only residual
-      suppression. Direct whisper.cpp, protected Me, chronology, openings, double-talk, runtime и
-      determinism решают PROMOTE; любой конфликт возвращает exact production v2.
+      Alignment/Echo-Path v3 завершён READY_FOR_MULTI_COMPONENT_SEPARATOR, failed exact fallback на
+      required low-leak control и не открыл hard/sealed.
+      До hard данных заморозить decomposition contract, four-stem supervision, candidate ladder и
+      dev gates. Direct whisper.cpp, correct/wrong Target-Me query, nearby other-local, chronology,
+      openings, double-talk, mixture consistency, runtime и determinism решают PROMOTE; любой
+      конфликт возвращает exact production v2.
 
   product-reviewed-speaker-memory-v1:
     title: "Reviewed Speaker-Aware Meeting Memory v1"
@@ -646,11 +650,12 @@ views:
           - quality-target-me-identifiability-corpus-v1
           - research-reference-conditioned-target-me-separation-v2
           - quality-pre-asr-residual-echo-ceiling-map-v1
+          - quality-multi-component-residual-separator-v1
       current:
         title: "Текущий предел"
         nodes:
           - quality-pre-asr-target-me-isolation-limit-v1
-          - quality-alignment-echo-path-model-v3-qualification
+          - quality-multi-component-residual-separator-v1
       fallback:
         title: "После решения"
         nodes:
@@ -714,7 +719,7 @@ views:
           - research-speaker-map
           - quality-pre-asr-target-me-isolation-limit-v1
           - quality-pre-asr-residual-echo-ceiling-map-v1
-          - quality-alignment-echo-path-model-v3-qualification
+          - quality-multi-component-residual-separator-v1
           - product-reviewed-speaker-memory-v1
           - parallel-research
           - parking-lot
@@ -722,8 +727,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Pre-ASR Target-Me Isolation Limit v1: провести Alignment and Echo-Path Model v3 Qualification по завершённой residual map; заморозить production v2 и discovery decision, проверить sub-window delay/drift, bounded echo-path bank, nonlinear remote bases и remote-only residual suppression в изолированном профиле; до hard/sealed данных зафиксировать dev gates и stop rules, сохранить protected Me, other-local speech, chronology, openings, double-talk и exact fallback, не засчитывать post-ASR cleanup; завершить PROMOTE_ALIGNMENT_OR_ECHO_MODEL_V3, READY_FOR_MULTI_COMPONENT_SEPARATOR либо CURRENT_RESOURCE_LIMIT_REACHED с воспроизводимым корпусным решением, тестами, актуальной документацией, roadmap и OpsKarta, коммитом и push."
-      success_by_next_sync: "Residual map остаётся frozen и воспроизводимой; bounded Alignment/Echo-Path v3 ladder закрыт corpus-wide решением без потери production v2 и protected Me."
+      nearest_goal: "Pre-ASR Target-Me Isolation Limit v1: провести Multi-Component Residual Separator Qualification v1 поверх неизменяемого production v2 и завершённого Alignment/Echo-Path v3; до hard/sealed данных заморозить decomposition contract, dev corpus, candidate ladder и stop rules; разделять Target-Me, remote echo, other-local и unexplained residual с mixture consistency и exact fallback; доказать direct-ASR уменьшение remote без потери protected Me, nearby speech, chronology, openings и double-talk и без post-ASR cleanup credit; завершить PROMOTE_MULTI_COMPONENT_RESIDUAL_SEPARATOR, READY_FOR_STRONGER_LOCAL_SEPARATOR либо CURRENT_RESOURCE_LIMIT_REACHED с тестами, актуальной документацией, roadmap и OpsKarta, коммитом и push."
+      success_by_next_sync: "Alignment/Echo-Path v3 остаётся frozen; four-stem multi-component ladder закрыт dev-gated решением без потери production v2, protected Me и nearby other-local."
     defaults:
       status_progress:
         done: 1.0
@@ -745,12 +750,12 @@ x:
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
         title: "Текущий pre-ASR audio frontier"
-        scope_nodes: [quality-pre-asr-target-me-isolation-limit-v1, quality-pre-asr-residual-echo-ceiling-map-v1, quality-alignment-echo-path-model-v3-qualification]
+        scope_nodes: [quality-pre-asr-target-me-isolation-limit-v1, quality-pre-asr-residual-echo-ceiling-map-v1, quality-multi-component-residual-separator-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Residual map завершена: крупнейший actionable класс — alignment/echo-path 35.567%, затем multi-component 30.923%. Production v2 остаётся точным fallback."
-          next_sync_goal: "Закрыть Alignment/Echo-Path v3 ladder решением PROMOTE, READY_FOR_MULTI_COMPONENT_SEPARATOR либо CURRENT_RESOURCE_LIMIT_REACHED без потери protected Me."
+          sync_note: "Alignment/Echo-Path v3 завершён READY_FOR_MULTI_COMPONENT_SEPARATOR: 11/32 controlled remote items, 156/156 protected exact, exact fallback failed on the required low-leak control, hard/sealed закрыты. Production v2 остаётся fallback."
+          next_sync_goal: "Квалифицировать four-stem multi-component separator без потери Target-Me, nearby other-local, chronology, openings или double-talk."
       dependent-path:
         title: "Зависимый путь"
         scope_nodes:

@@ -43,16 +43,16 @@ advisory; its promotion remains blocked by quality and runtime evidence.
 
 ## North Star And Current Goal
 
-The technical North Star is an ASR input that retains every confirmed `Me` word, contains no
-recognizable authoritative remote and keeps nearby non-target speech out of `Me`, with exact fallback.
+The technical North Star is an ASR input that retains every confirmed `Me` word, contains no recognizable authoritative remote and keeps nearby non-target speech out of `Me`, with exact fallback.
 Speaker-Preserving Neural Echo v2 is the safe production plateau: `5/12` candidate sessions,
 `41.940s` and 90 remote-supported tokens removed, local retention `1.0`; the other `7/12` fell back.
 **Pre-ASR Target-Me Isolation Limit v1** is current. Its residual map completed with
 `READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3`: the largest measured actionable class is alignment and
 echo-path work (`2443.222s`, `35.567%`, 9 sessions), followed by multi-component separation
-(`2124.220s`, `30.923%`). The nearest bounded substage is Alignment and Echo-Path Model v3
-Qualification. Speaker-aware meeting memory remains ready but deferred until this frontier closes.
-
+(`2124.220s`, `30.923%`). Alignment/Echo-Path v3 then ended in
+`READY_FOR_MULTI_COMPONENT_SEPARATOR`: 11/32 controlled remote items changed safely versus the
+required 12, with 156/156 protected items exact, but the required low-leak control changed. Multi-Component
+Residual Separator Qualification v1 is next. Speaker-aware memory remains deferred until this closes.
 ## Critical Path
 
 ```mermaid
@@ -77,8 +77,8 @@ flowchart LR
     R["Done: PROMOTE_AUDIT_ONLY<br/>Remote Speaker<br/>Evidence Map v1"]
     T["Done: PROMOTE<br/>Anonymous Rich<br/>Transcript Handoff v1"]
     Q["Done: PROMOTE<br/>Reviewed Remote<br/>Speaker Naming v1"]
-    Z["Done: READY<br/>Residual Echo<br/>Ceiling Map v1"]
-    Y["Current<br/>Pre-ASR Target-Me Isolation Limit<br/>Alignment/Echo-Path v3"]
+    Z["Done: READY<br/>Residual Map +<br/>Alignment/Echo v3"]
+    Y["Current<br/>Pre-ASR Target-Me Isolation Limit<br/>Multi-Component Separator v1"]
     W["Later<br/>Reviewed Speaker-Aware<br/>Meeting Memory v1"]
 
     P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D --> F --> G --> C2 --> M --> R --> T --> Q --> Z --> Y --> W
@@ -243,17 +243,17 @@ Voice-only identity, cross-session matching and ordinary notes/export remain unt
 
 ### 20. Pre-ASR Target-Me Isolation Limit v1
 
-Current umbrella goal. Pre-ASR Residual Echo Ceiling Map v1 is complete on 14 real sessions and
-2068 material events. It reconciles every session, replays deterministically and selects
-`READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3`. Production v2, raw CAF and transcripts remain unchanged.
+Current umbrella goal. The residual map is complete on 14 real sessions and Alignment/Echo-Path v3
+has closed its bounded physical-model ladder with `READY_FOR_MULTI_COMPONENT_SEPARATOR`. It changed
+11/32 controlled remote items instead of the required 12, preserved 156/156 protected items exactly,
+failed exact fallback on the required low-leak control, kept hard/sealed closed and left production v2,
+raw CAF and transcripts unchanged.
 
-The nearest substage is Alignment and Echo-Path Model v3 Qualification. It must lock a bounded
-ladder of sub-window delay/drift, multiple echo-path hypotheses, nonlinear remote bases and
-remote-only residual suppression before hard or sealed data. Candidate audio is judged directly by
-whisper.cpp and exact per-window or whole-session v2 fallback. The stage ends in
-`PROMOTE_ALIGNMENT_OR_ECHO_MODEL_V3`, `READY_FOR_MULTI_COMPONENT_SEPARATOR` or a precise
-`CURRENT_RESOURCE_LIMIT_REACHED`; protected words, openings, chronology and double-talk may not
-regress and post-ASR cleanup receives zero credit.
+The nearest substage is Multi-Component Residual Separator Qualification v1. It freezes four output
+stems (`Target-Me`, `remote echo`, `other-local`, residual), split-disjoint supervision, query and
+mixture-consistency controls before hard data. Direct whisper.cpp must prove less remote with no lost
+local words, nearby-speaker attribution, chronology, opening or double-talk regression. Every weak
+window falls back exactly to production v2; post-ASR cleanup receives zero credit.
 
 ### 21. Reviewed Speaker-Aware Meeting Memory v1
 

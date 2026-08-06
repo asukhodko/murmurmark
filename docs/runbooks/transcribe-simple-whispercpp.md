@@ -2434,6 +2434,26 @@ Repeated processing is supported. The pipeline restores the exact baseline befor
 then either republishes the same compatible candidate or keeps fallback. `publication_transaction.json`
 records snapshots and recovers an interrupted publication on the next run.
 
+## Alignment/Echo-Path v3 Research Audit
+
+This qualification is complete and is not part of ordinary `murmurmark process`. Verify its frozen
+policy, source hashes, candidate lock and fail-open implementation without opening hard/sealed data:
+
+```bash
+.venv/bin/python scripts/alignment-echo-path-model-v3.py verify
+.venv/bin/python scripts/check-alignment-echo-path-model-v3.py
+```
+
+Expected decision: `READY_FOR_MULTI_COMPONENT_SEPARATOR`. Controlled development selected 11/32
+remote items against a gate of 12, preserved 156/156 protected items exactly, and changed the
+required low-leak control instead of exact fallback. Do not rerun hard or sealed manually: the command
+is intentionally locked after the failed development gate. The
+normal transcript remains on Speaker-Preserving Neural Echo v2 or its exact FIR fallback.
+
+The next research stage is Multi-Component Residual Separator Qualification v1. It must use a new
+isolated profile with explicit Target-Me, remote-echo, other-local and unexplained-residual stems;
+copying the v3 WAV into canonical preprocessing or transcript paths is forbidden.
+
 ## Known Limitations
 
 - The transcript is a draft.

@@ -8396,3 +8396,67 @@ The sealed v2.16 evidence is `HARD_TEST_PASSED_V2_16` plus
 `PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2`. Its corpus selected candidate audio in `5/12` sessions,
 exact fallback in `7/12`, removed `41.940s` and `90` remote-supported tokens, retained local tokens
 at `1.0`, and gave post-ASR cleanup no credit.
+
+## Alignment and Echo-Path Model v3 Qualification
+
+Alignment/Echo-Path v3 is an isolated research profile above production v2.16. It never writes
+canonical `mic_for_asr`, transcript, notes or export artifacts. Its locked policy is
+`policies/alignment-echo-path-model-v3.json`; generated private evidence lives under:
+
+```text
+sessions/_reports/alignment-echo-path-model-v3/
+  candidate_lock.json
+  controlled_dev_report.json
+  development/corpus_report.json
+  decision.json
+
+sessions/<session-id>/derived/preprocess/alignment-echo-path-model-v3/
+  selected_clean_mic_pcm16.wav
+  session_report.json
+  selected_windows.jsonl
+  rejected_windows.jsonl
+```
+
+The following schemas are versioned together:
+
+```text
+murmurmark.alignment_echo_path_candidate_lock/v3
+murmurmark.alignment_echo_path_window/v3
+murmurmark.alignment_echo_path_session_report/v3
+murmurmark.alignment_echo_path_controlled_report/v3
+murmurmark.alignment_echo_path_corpus_report/v3
+murmurmark.alignment_echo_path_decision/v3
+```
+
+`candidate_lock.json` binds policy, runtime, wrapper and every baseline/remote/raw-mic/speaker-state
+input by SHA-256. Every downstream report repeats `candidate_lock_fingerprint` and stale cached
+reports are rejected. A non-blocking process lock allows only one qualification command to write the
+shared report root at a time; each process captures the candidate fingerprint before evaluation, so
+a later `freeze` cannot relabel an already running report. The selected/rejected window JSONL files
+record delay, model family, bases,
+FIR length, held-out metrics, interval and fallback reason. Outside selected remote-only samples the candidate
+must be PCM16-exact production v2. Local-only, double-talk, opening, other-local, silence, keyboard,
+uncertain and boundary states always use exact fallback.
+
+Direct ASR accepts only the policy-pinned local `ggml-large-v3-q5_0` SHA-256. A missing or different
+model fails before evaluation; controls are never counted as development utility.
+
+Development is ordered and fail-closed:
+
+```text
+controlled dev -> real dev + direct ASR -> controlled hard -> real hard -> sealed
+```
+
+The CLI refuses controlled-hard, hard-session, hard-corpus and sealed access until every preceding
+report exists and passes. One policy-defined bounded revision may be consumed before hard access.
+Post-ASR cleanup always has promotion credit `0`.
+
+The frozen v3 result is `READY_FOR_MULTI_COMPONENT_SEPARATOR`. Controlled dev selected 11/32
+measured remote items versus the required 12, reduced them by median `2.552124 dB`, and preserved
+156/156 protected items exactly. Real dev stayed confined to eligible samples, but the required
+headphones/low-leak control changed instead of exact fallback. Direct ASR was not run after the controlled
+miss. Hard/sealed remained closed and production v2.16 unchanged.
+
+The next profile must use a distinct multi-component schema and output at least `target_me`,
+`remote_echo`, `other_local` and `unexplained_residual`. Nothing in v3 authorizes such a profile or
+changes auto-selection.

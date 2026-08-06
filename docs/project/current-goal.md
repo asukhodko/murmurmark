@@ -5,8 +5,8 @@ Status: current
 Updated: 2026-08-06
 
 The supported product path remains `murmurmark meeting -> first Ctrl-C -> authoritative result`.
-Raw CAF and the promoted Speaker-Preserving Neural Echo v2 output remain immutable baselines. Every
-new separator runs in isolation and may replace `mic_for_asr` only after audio, direct-ASR and
+Raw CAF and the promoted Speaker-Preserving Neural Echo v2 output remain immutable baselines. New
+separators run in isolated profiles and may replace `mic_for_asr` only after audio, direct-ASR and
 corpus-wide safety gates pass.
 
 Roadmap status and dependencies live in
@@ -15,7 +15,7 @@ README, roadmap and OpsKarta wording aligned.
 
 ## Pre-ASR Target-Me Isolation Limit v1
 
-OpsKarta nearest goal: Pre-ASR Target-Me Isolation Limit v1: провести Alignment and Echo-Path Model v3 Qualification по завершённой residual map; заморозить production v2 и discovery decision, проверить sub-window delay/drift, bounded echo-path bank, nonlinear remote bases и remote-only residual suppression в изолированном профиле; до hard/sealed данных зафиксировать dev gates и stop rules, сохранить protected Me, other-local speech, chronology, openings, double-talk и exact fallback, не засчитывать post-ASR cleanup; завершить PROMOTE_ALIGNMENT_OR_ECHO_MODEL_V3, READY_FOR_MULTI_COMPONENT_SEPARATOR либо CURRENT_RESOURCE_LIMIT_REACHED с воспроизводимым корпусным решением, тестами, актуальной документацией, roadmap и OpsKarta, коммитом и push.
+OpsKarta nearest goal: Pre-ASR Target-Me Isolation Limit v1: провести Multi-Component Residual Separator Qualification v1 поверх неизменяемого production v2 и завершённого Alignment/Echo-Path v3; до hard/sealed данных заморозить decomposition contract, dev corpus, candidate ladder и stop rules; разделять Target-Me, remote echo, other-local и unexplained residual с mixture consistency и exact fallback; доказать direct-ASR уменьшение remote без потери protected Me, nearby speech, chronology, openings и double-talk и без post-ASR cleanup credit; завершить PROMOTE_MULTI_COMPONENT_RESIDUAL_SEPARATOR, READY_FOR_STRONGER_LOCAL_SEPARATOR либо CURRENT_RESOURCE_LIMIT_REACHED с тестами, актуальной документацией, roadmap и OpsKarta, коммитом и push.
 
 ## North Star
 
@@ -24,109 +24,97 @@ OpsKarta nearest goal: Pre-ASR Target-Me Isolation Limit v1: провести Al
 - содержать всю распознаваемую речь целевого пользователя `Me`;
 - не содержать распознаваемого содержания authoritative remote;
 - не присваивать `Me` речь людей рядом с микрофоном;
-- сохранять явный `other_local` или residual для необъяснённого звука;
+- сохранять `other_local` и необъяснённый residual как отдельные доказательства;
 - возвращаться к точному production baseline при недостатке доказательств.
 
-Это операционный North Star, а не обещание математически идеального разделения waveform. Решение
-оценивается по сохранённым словам, ролям и порядку реплик. Нулевой residual signal без сохранённых
-слов не считается успехом.
+Это операционный критерий по словам, ролям и порядку реплик. Нулевой residual без сохранённых слов
+не считается успехом.
 
-## Why This Is Next
+## Evidence So Far
 
-Speaker-Preserving Neural Echo v2 уже доказал, что пред-ASR улучшение возможно без участия
-post-ASR cleanup: на sealed corpus кандидат выбран в `5/12` сессиях, удалены `41.940s` и `90`
-remote-supported токенов при local-token retention `1.0`. На остальных `7/12` сессиях сработал
-точный fallback.
+Speaker-Preserving Neural Echo v2 остаётся production plateau: на sealed corpus кандидат выбран в
+`5/12` сессиях, удалены `41.940s` и 90 remote-supported токенов при local-token retention `1.0`;
+остальные `7/12` сессий используют exact fallback.
 
-Это лучший безопасный production результат, но не предел подавления. Селектор принимает только
-небольшую долю independently supported окон, остаточный remote всё ещё виден mic ASR, а профиль
-персонализирован и применим не ко всем акустическим режимам.
+Residual Echo Ceiling Map v1 измерил `6869.306s` actionable material evidence. Alignment/echo-path
+занимал `2443.222s` (`35.567%`), multi-component separation — `2124.220s` (`30.923%`), Target-Me
+model — `1258.702s` (`18.324%`). Поэтому первым был проверен физический эхотракт.
 
-Pre-ASR Residual Echo Ceiling Map v1 затем объяснил остаток на 14 real sessions. Из `6869.306s`
-actionable material evidence крупнейший класс требует улучшения alignment/echo path: `2443.222s`
-(`35.567%`) в 9 сессиях. Multi-component separation занимает `2124.220s` (`30.923%`), Target-Me
-model — `1258.702s` (`18.324%`). Неопределённый остаток составляет `9.216%`, поэтому решение
-`READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3` прошло locked evidence gate.
+Alignment and Echo-Path Model v3 завершён с `READY_FOR_MULTI_COMPONENT_SEPARATOR`. После единственной
+разрешённой revision модель безопасно изменила 11 из 32 контролируемых remote-фрагментов при
+требовании 12, дала median reduction `2.552124 dB` и сохранила все 156 protected items sample-exact.
+На real dev изменения оставались только внутри remote-only окон, однако required low-leak control
+не получил exact fallback. Direct ASR, hard и sealed поэтому не запускались. Production v2 не изменён.
 
-Это меняет порядок работы. Ещё одна Target-Me модель сейчас не является первым обоснованным
-экспериментом. Сначала надо проверить, насколько далеко production можно продвинуть за счёт
-локальной time-varying задержки, нескольких эхотрактов и нелинейных remote bases, сохраняя текущий
-строгий local-preservation guard.
-
-Reviewed Speaker-Aware Meeting Memory v1 остаётся полезным и уже разблокированным продуктовым
-шагом, но временно уступает критический путь этому audio-first пределу.
+Вывод ограничен, но полезен: time-varying FIR и нелинейные remote bases уменьшают когерентное эхо,
+однако не объясняют весь остаток. Дальше нужен разделитель, который моделирует несколько источников,
+а не ещё один порог или более длинный FIR.
 
 ## Objective
 
-За один bounded research-to-production цикл квалифицировать Alignment and Echo-Path Model v3:
-либо продвинуть изолированный пред-ASR профиль, который существенно уменьшает подтверждённое remote
-echo поверх production v2, либо доказать, что этот класс методов исчерпан и следующий необходимый
-шаг — многокомпонентное разделение. Отрицательный результат должен закрыть весь заранее
-зафиксированный candidate ladder, а не одну реализацию.
+За один ограниченный исследовательский цикл проверить multi-component separator поверх production
+v2. Он должен явно выделять `target_me`, `remote_echo`, `other_local` и `unexplained_residual`,
+сохранять их происхождение и возвращать baseline для каждого сомнительного окна. Цикл заканчивается
+продвижением, доказанным пределом доступной локальной реализации или точным требованием к следующему
+классу модели.
 
 ## Required Work
 
-1. Считать frozen residual map и production v2.16 неизменяемыми входами. Проверить их SHA-256 и
-   запретить повторную настройку map thresholds по результатам candidate.
-2. До реализации зафиксировать candidate ladder, dev sessions, hard/sealed границы, direct-ASR
-   метрики, runtime budget, thresholds и ровно одну допустимую bounded revision.
-3. Реализовать локальный sub-window delay/drift estimator с устойчивостью к паузам, boundary и
-   смене громкости. Сравнить его с whole-session delay без изменения authoritative remote.
-4. Проверить bounded echo-path bank: несколько FIR/transfer hypotheses для изменяющегося положения,
-   комнаты и усиления. Выбор должен опираться только на causal audio evidence внутри окна.
-5. Добавить ограниченные nonlinear remote bases для coloration и мягкого clipping/distortion.
-   Любая энергия, не объяснённая remote, должна сохраняться.
-6. Разрешать residual suppression только на confirmed-remote/weak-local окнах. Double-talk,
-   Target-Me uncertainty, other-local и boundary uncertainty должны выбирать production v2.
-7. На locked dev сравнить каждый rung с v2 по direct whisper.cpp remote-forbidden токенам,
-   protected Me, chronology, openings, double-talk, no-speech, runtime и determinism. Hard/sealed
-   открывать только после полного dev pass.
-8. Выпустить одно воспроизводимое решение: `PROMOTE_ALIGNMENT_OR_ECHO_MODEL_V3`,
-   `READY_FOR_MULTI_COMPONENT_SEPARATOR` либо `CURRENT_RESOURCE_LIMIT_REACHED`. Публикация должна
-   быть транзакционной и сохранять exact per-window или whole-session fallback.
+1. Заморозить production v2, residual map, решение v3, controlled supervision, Target-Me
+   Identifiability Corpus, development/hard/sealed splits и SHA-256 до обучения или настройки.
+2. Зафиксировать decomposition contract: входы, четыре стема, временную сетку, mixture-consistency
+   tolerance, allowable latency, exact fallback и запрет публикации до corpus decision.
+3. Подготовить split-disjoint supervised mixtures из уже проверенных clean Target-Me, non-target
+   local, measured echo и digital remote. Не превращать `speaker_state` или ASR-текст в ground truth.
+4. Зафиксировать bounded ladder до hard data: deterministic constrained baseline; v3 echo estimate
+   как дополнительный признак; reference-conditioned local model; один лицензированно и технически
+   проверенный pretrained/local initialization, если он доступен offline.
+5. Учить и выбирать модель только на train/dev. Target-Me query должен влиять на выход; wrong-query,
+   nearby-speaker, remote-only, keyboard, silence, opening и measured double-talk являются
+   обязательными отрицательными или preservation controls.
+6. Публиковать candidate только целыми доказанными окнами. Любой конфликт идентичности, source
+   attribution, reconstruction, chronology или local-word evidence выбирает exact production v2.
+7. На dev измерить stem reconstruction, remote leakage, wrong-query margin и direct whisper.cpp.
+   Hard и sealed открывать лишь после полного locked dev pass; tuning после открытия запрещён.
+8. Выпустить `PROMOTE_MULTI_COMPONENT_RESIDUAL_SEPARATOR`,
+   `READY_FOR_STRONGER_LOCAL_SEPARATOR` или `CURRENT_RESOURCE_LIMIT_REACHED` с воспроизводимыми
+   отчётами, provenance и транзакционным publication plan.
 
 ## Acceptance Gates
 
-- protected-local, opening acknowledgement, chronology и measured double-talk не хуже production
-  v2; потеря подтверждённого слова `Me` запрещает promotion;
-- candidate сокращает `alignment_or_echo_model_v3` residual относительно frozen map на заранее
-  зафиксированную существенную величину в нескольких сессиях;
-- whole-session drift, boundary transitions, gain changes и nonlinear remote coloration покрыты
-  отдельными воспроизводимыми тестами;
-- nearby `other_local` и Target-Me uncertainty никогда не разрешают агрессивный echo-only output;
-- authoritative remote audio и text остаются неизменными;
-- candidate даёт заранее зафиксированное существенное уменьшение остаточного ASR-visible remote
-  относительно v2 на applicable scope;
-- no-speech, headphones/low-leak и unsupported sessions выбирают безопасный результат;
-- повторный запуск детерминирован, publication восстановима после прерывания;
-- raw CAF, production v2 baseline, transcript evidence, notes и guarded export не меняются до
-  полного promotion decision;
-- итоговое решение покрывает delay/drift, echo-path bank, nonlinear bases и bounded residual
-  suppression и не оставляет молча непроверенную доступную гипотезу этого класса;
-- тесты, contracts, runbook, README, roadmap и OpsKarta актуальны перед commit и push.
+- все подтверждённые слова `Me`, openings, chronology и measured double-talk не хуже production v2;
+- nearby `other_local` не попадает в Target-Me stem и остаётся доступен как отдельное доказательство;
+- authoritative remote audio/text не меняются, а ASR-visible remote в Target-Me уменьшается на
+  заранее замороженную существенную величину в нескольких сессиях;
+- correct-query результат превосходит wrong-query и query-agnostic controls на split-disjoint
+  speakers; identity collapse запрещает promotion;
+- сумма стемов объясняет вход в заданной tolerance, но mixture consistency не может насильно
+  вернуть remote в Target-Me stem;
+- no-speech, headphones/low-leak, unsupported and uncertain windows выбирают exact fallback;
+- outside-selected samples совпадают с production v2, raw CAF и transcript evidence неизменны;
+- повторный запуск детерминирован, runtime укладывается в замороженный локальный budget;
+- post-ASR filtering, role cleanup и transcript deletion получают нулевой promotion credit;
+- contracts, runbook, README, roadmap, OpsKarta и автоматические тесты отражают итоговое решение.
 
 ## Stop Rules
 
-- не ослаблять local-word, chronology, double-talk или speaker-attribution gates ради suppression;
-- не менять residual-map classification или capability ordering по результатам candidate;
-- не продолжать настройку на том же dev после одной заранее разрешённой bounded revision;
-- не открывать hard/sealed corpus кандидату, который не прошёл supervised dev;
-- не возвращаться к ещё одному маленькому Target-Me spectral mask, пока echo-path ladder не закрыт;
-- не считать SI-SDR, AECMOS, exact remix или speaker similarity самостоятельным разрешением;
-- не использовать cloud audio processing или непроверенный remote model download во время run;
-- если ни одна доступная pretrained representation не проходит license/runtime/preflight, завершить
-  `CURRENT_RESOURCE_LIMIT_REACHED`, а не подменять цель более слабой эвристикой.
+- не ослаблять local-word, identity, chronology, opening или double-talk gates ради suppression;
+- не настраивать thresholds, architecture или splits по hard/sealed результатам;
+- не считать AECMOS, SI-SDR, speaker similarity или exact remix самостоятельным разрешением;
+- не заменять multi-component модель ещё одной scalar mask или post-ASR эвристикой;
+- не загружать непроверенную модель во время qualification: license, hash, offline runtime и ресурсный
+  budget должны пройти preflight до заморозки;
+- если доступная локальная модель не проходит dev после одной bounded revision, завершить точным
+  отрицательным решением, а не продолжать поиск на тех же данных.
 
 ## Safety Boundary
 
-- no changes to capture, raw writer, authoritative remote, ordinary ASR model or Live Shadow;
-- production v2 and `local_fir_role_masked` remain exact fallbacks;
-- no post-ASR transcript mutation may justify audio promotion;
-- no automatic voice identity, cross-session roster or external write;
-- private enrollment and meeting audio remain local and ignored by source control.
+- capture, raw writer, authoritative remote, ordinary whisper.cpp и Live Shadow не меняются;
+- production v2 и `local_fir_role_masked` остаются exact fallbacks;
+- private enrollment, models and meeting audio stay local and ignored by source control;
+- no cloud audio processing, external writes, automatic voice identity or cross-session roster.
 
 ## Deferred Product Step
 
-Reviewed Speaker-Aware Meeting Memory v1 remains ready after this goal. Its explicit session-local
-labels, anonymous fallback and evidence-bound export contract are preserved unchanged while the
-audio frontier is active.
+Reviewed Speaker-Aware Meeting Memory v1 remains ready. Its explicit session-local labels and
+evidence-bound export contract resume after the current audio frontier reaches a terminal decision.

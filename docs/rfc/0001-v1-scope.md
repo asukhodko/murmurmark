@@ -38,8 +38,9 @@ Current implementation status, 2026-08-06:
 - anonymous rich transcript and explicit session-local reviewed naming are promoted optional read
   surfaces with fingerprint verification and anonymous fail-open behavior;
 - the current bounded goal is Pre-ASR Target-Me Isolation Limit v1. Its completed residual map
-  selected Alignment and Echo-Path Model v3 Qualification as the nearest substage; production v2
-  remains the exact fallback until corpus-wide audio and direct-ASR gates authorize a successor;
+  selected Alignment and Echo-Path Model v3, which completed with
+  `READY_FOR_MULTI_COMPONENT_SEPARATOR`; production v2 remains exact fallback while the bounded
+  multi-component separator stage seeks corpus-wide audio and direct-ASR evidence;
 - Reviewed Speaker-Aware Meeting Memory v1 remains technically ready but deferred until that audio
   frontier closes;
 - committed-PCM live preview exists as an advisory shadow, while batch remains authoritative;

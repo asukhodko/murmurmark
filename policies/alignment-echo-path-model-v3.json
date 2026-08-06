@@ -1,0 +1,253 @@
+{
+  "schema": "murmurmark.alignment_echo_path_model_policy/v3",
+  "status": "locked_before_v3_implementation",
+  "locked_at": "2026-08-06T12:23:57+03:00",
+  "purpose": "qualify time-varying alignment and bounded echo-path models above the promoted production v2 baseline",
+  "production_publication": "forbidden_until_corpus_decision",
+  "post_asr_cleanup_promotion_credit": 0,
+  "sources": {
+    "residual_frozen_inputs": {
+      "path": "sessions/_reports/pre-asr-residual-echo-map-v1/frozen_inputs.json",
+      "sha256": "0dca5914133810be366a65eca8babf7884ca421b6a82b4dd3f4cf1ec25070424"
+    },
+    "residual_decision": {
+      "path": "sessions/_reports/pre-asr-residual-echo-map-v1/decision.json",
+      "sha256": "ee997faa11acb06a0fdbb26d8a59ae7c6c3c3ea80767a8665d97c4c650569631",
+      "required_decision": "READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3"
+    },
+    "residual_corpus_summary": {
+      "path": "sessions/_reports/pre-asr-residual-echo-map-v1/corpus_summary.json",
+      "sha256": "911157031bfa1ef009b58694d36b97cd02e978b8252877c04ec8062afb92c5bd",
+      "required_frozen_fingerprint": "1df6cc703c130c178487cd0e8093c71e33cf249cd2eec23b031f75bae0b476c9"
+    },
+    "residual_events": {
+      "path": "sessions/_reports/pre-asr-residual-echo-map-v1/residual_events.jsonl",
+      "sha256": "1fa56b386acbd898564e9d6d6d142b6fc694a6e766d05601fc83f7e302924ddf"
+    },
+    "controlled_frozen_corpus": {
+      "path": "sessions/_reports/controlled-echo-supervision-v1/frozen_corpus.json",
+      "sha256": "d8f977652c81f1ddeed40e9d77c84cd2dd3c246c7a40f9016a04337c8038f778"
+    },
+    "controlled_supervision_manifest": {
+      "path": "sessions/_reports/controlled-echo-supervision-v1/supervision_manifest.jsonl",
+      "sha256": "12a3162efcf1d0aec99744b755d30d0f38fb994b8126a7a94eeb44c9a1520c2a"
+    },
+    "controlled_split_manifest": {
+      "path": "sessions/_reports/controlled-echo-supervision-v1/split_manifest.json",
+      "sha256": "6190dfe2040faba8985f4af4162348e6984d5a9742b97447c3537d3902a932d0"
+    },
+    "production_v2_decision": {
+      "path": "sessions/_reports/speaker-preserving-neural-echo-v2-16-corpus/promotion_decision.json",
+      "sha256": "0e5be06cb7ea2368824d1e4a35a55f732753e1ec15c70b2ab7ceb29a39e10863",
+      "required_decision": "PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2"
+    },
+    "production_v2_report": {
+      "path": "sessions/_reports/speaker-preserving-neural-echo-v2-16-corpus/corpus_report.json",
+      "sha256": "819a8ce2e00df8f59f83fe99e0de30cad367e886b253930e6b6555a42031a7e3"
+    }
+  },
+  "models": {
+    "primary_asr": {
+      "id": "whisper.cpp/ggml-large-v3-q5_0",
+      "path": "~/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin",
+      "sha256": "d75795ecff3f83b5faa89d1900604ad8c780abd5739fae406de19f23ecd98ad1"
+    }
+  },
+  "sets": {
+    "development": [
+      "2026-07-20_15-15-26-live",
+      "2026-07-20_16-30-42-live",
+      "2026-07-30_11-16-54",
+      "2026-07-30_14-01-49",
+      "2026-07-31_15-15-56",
+      "2026-08-03_16-04-41",
+      "2026-08-03_16-34-32"
+    ],
+    "development_controls": [
+      "2026-06-30_11-15-56",
+      "2026-06-30_17-17-20",
+      "2026-07-16_11-15-15-live",
+      "2026-07-31_16-02-38",
+      "2026-07-31_16-32-30"
+    ],
+    "hard": [
+      "2026-07-14_15-01-19-live",
+      "2026-07-16_14-01-26-live",
+      "2026-07-20_14-00-54-live"
+    ],
+    "sealed": [
+      "2026-08-05_14-16-08",
+      "2026-08-05_17-00-29",
+      "2026-08-06_10-23-27"
+    ],
+    "controlled_development_split": "dev",
+    "controlled_hard_split": "hard_test"
+  },
+  "control_expectations": {
+    "development_exact_fallback_sessions": [
+      "2026-07-16_11-15-15-live"
+    ],
+    "hard_no_speech_session": "2026-07-20_14-00-54-live"
+  },
+  "audio_contract": {
+    "sample_rate": 16000,
+    "baseline_preference": [
+      "derived/preprocess/speaker-preserving-neural-echo-v2-15/selected_clean_mic_pcm16.wav",
+      "derived/preprocess/audio/mic_for_asr.wav"
+    ],
+    "remote_preference": [
+      "derived/preprocess/audio/remote_for_aec.wav",
+      "derived/asr/remote.wav"
+    ],
+    "speaker_state": "derived/preprocess/echo/speaker_state.jsonl",
+    "eligible_states": [
+      "remote_only",
+      "remote_only_correlation",
+      "remote_only_level"
+    ],
+    "minimum_state_confidence": 0.6,
+    "minimum_remote_db": -58.0,
+    "boundary_guard_sec": 0.25,
+    "crossfade_sec": 0.05,
+    "outside_selected_samples": "bit_exact_production_v2_baseline",
+    "raw_caf_mutation_forbidden": true,
+    "authoritative_remote_mutation_forbidden": true
+  },
+  "candidate_ladder": [
+    {
+      "id": "whole_session_delay_control",
+      "purpose": "control only; no promotion credit",
+      "delay_source": "speaker_state_session_median",
+      "fir_taps": [512],
+      "nonlinear_bases": ["x"]
+    },
+    {
+      "id": "subwindow_linear_path_bank",
+      "delay_search_ms": 120,
+      "delay_refinement_window_sec": 1.0,
+      "delay_smoothing_windows": 3,
+      "context_sec": 4.0,
+      "validation_sec": 0.75,
+      "application_sec": 2.25,
+      "hop_sec": 3.0,
+      "fir_taps": [128, 512, 1280],
+      "ridge": [0.001, 0.003],
+      "nonlinear_bases": ["x"]
+    },
+    {
+      "id": "subwindow_hammerstein_path_bank",
+      "inherits": "subwindow_linear_path_bank",
+      "fir_taps": [128, 512],
+      "ridge": [0.003],
+      "nonlinear_bases": ["x", "x_abs_x", "x_cubed"],
+      "minimum_gain_over_best_linear_db": 0.25
+    },
+    {
+      "id": "guarded_remote_only_residual_suppression",
+      "selection": "best_held_out_candidate_or_exact_fallback",
+      "maximum_energy_reduction_db": 18.0,
+      "minimum_validation_reduction_db": 0.5,
+      "maximum_validation_coherence_ratio": 0.975,
+      "minimum_prediction_target_correlation": 0.15
+    }
+  ],
+  "safety": {
+    "double_talk": "exact_fallback",
+    "local_only": "exact_fallback",
+    "other_local": "exact_fallback",
+    "target_me_uncertainty": "exact_fallback",
+    "opening_backchannel": "exact_fallback",
+    "silence_background": "exact_fallback",
+    "keyboard_noise": "exact_fallback",
+    "boundary_uncertainty": "exact_fallback",
+    "missing_artifact_or_model": "exact_fallback",
+    "non_finite_candidate": "exact_fallback",
+    "post_asr_cleanup_promotion_credit": 0
+  },
+  "direct_asr_sampling": {
+    "source": "sessions/_reports/pre-asr-residual-echo-map-v1/residual_events.jsonl",
+    "required_capability": "alignment_or_echo_model_v3",
+    "required_signal_truth": "confirmed_remote_echo",
+    "minimum_changed_overlap_sec": 0.5,
+    "maximum_events_per_session": 12,
+    "selection": "descending_remote_supported_seconds_then_event_id",
+    "overlapping_events": "merge_before_asr",
+    "padding_sec": 1.0,
+    "post_asr_cleanup_promotion_credit": 0
+  },
+  "gates": {
+    "controlled_dev": {
+      "measured_remote_changed_items_min": 12,
+      "measured_remote_median_reduction_db_min": 2.0,
+      "measured_remote_p10_reduction_db_min": 0.0,
+      "protected_non_remote_exact_retention_ratio_min": 1.0,
+      "nonlinear_selected_only_if_gain_db_min": 0.25
+    },
+    "real_dev": {
+      "changed_sessions_min": 3,
+      "changed_seconds_min": 30.0,
+      "median_remote_coherence_ratio_max": 0.9,
+      "p90_remote_coherence_ratio_max": 1.0,
+      "outside_eligible_changed_samples_max": 0,
+      "local_or_double_talk_changed_samples_max": 0,
+      "direct_asr_remote_supported_token_reduction_min": 6,
+      "direct_asr_sessions_with_reduction_min": 2,
+      "protected_me_token_retention_ratio_min": 1.0,
+      "chronology_regressions_max": 0,
+      "opening_regressions_max": 0,
+      "exact_fallback_control_sessions_required": true
+    },
+    "hard_and_sealed": {
+      "speaker_sessions_with_safe_utility_min": 2,
+      "no_speech_exact_fallback_required": true,
+      "protected_me_token_retention_ratio_min": 1.0,
+      "chronology_regressions_max": 0,
+      "opening_regressions_max": 0,
+      "remote_supported_token_increase_max": 0,
+      "runtime_factor_max": 0.5
+    }
+  },
+  "revision_budget": {
+    "maximum_bounded_revisions_after_dev": 1,
+    "allowed_scope": [
+      "one numeric threshold",
+      "one candidate rung removal",
+      "one deterministic defect fix"
+    ],
+    "hard_or_sealed_feedback_for_tuning": "forbidden",
+    "used": 1,
+    "revision": {
+      "id": "bounded_revision_1",
+      "kind": "one numeric threshold",
+      "trigger": "valid corrected controlled dev selected 4/32 measured remote clips while accepted candidates retained 156/156 protected items and reduced remote by median 4.470565 dB",
+      "field": "candidate_ladder[3].maximum_validation_coherence_ratio",
+      "before": 0.95,
+      "after": 0.975,
+      "prior_policy_sha256": "9e0fe0f978c5a62aacfc2323fb5d7f1f6aa2673f15938436455d245d8a104155",
+      "prior_candidate_lock_sha256": "c76c7812b397ac075ac306a70450746a8f53f543ad2bbbc3b9ff911fd8d6ded4",
+      "prior_controlled_dev_report_sha256": "b996f84ea7edd7f85f7e1aa4d00e553692c15e870ea47e89548dbed9c81c230c",
+      "hard_or_sealed_observed": false
+    }
+  },
+  "qualification_integrity_reset": {
+    "id": "pre_hard_in_place_array_mutation_fix",
+    "reason": "correlation and FIR helpers centered float64 views in place, making candidate evaluation order-dependent",
+    "invalidated_policy_sha256": "d7009e19dc0e1cfc99536c489a0494d8084a445f534de0b48446350ec754ee32",
+    "invalidated_candidate_lock_sha256": "0a88aebf9758a3f14d18e7ced3d7171440431340aee9da69a3b59f53c255e38b",
+    "invalidated_controlled_dev_report_sha256": "c94393705b674923d315bcbe9b248f4b23d3a14d6c7d5f090e4aaabb8018bd45",
+    "threshold_restored_to_pre_observation_value": 0.95,
+    "bounded_revision_budget_reset_reason": "all prior development observations were invalidated before hard or sealed access",
+    "additional_pre_hard_safety_fixes": [
+      "headphones control and no-speech gates read explicit session outcomes instead of constants",
+      "prerequisite reports must match the current policy and candidate lock",
+      "direct ASR uses one hash-pinned local whisper.cpp model",
+      "development utility excludes safety-control sessions"
+    ],
+    "hard_or_sealed_observed": false
+  },
+  "decisions": {
+    "promote": "PROMOTE_ALIGNMENT_OR_ECHO_MODEL_V3",
+    "next_capability": "READY_FOR_MULTI_COMPONENT_SEPARATOR",
+    "resource_limit": "CURRENT_RESOURCE_LIMIT_REACHED"
+  }
+}

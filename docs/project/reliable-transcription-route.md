@@ -1,13 +1,10 @@
 # Reliable Transcription Route
 
-Status: active product route; stable batch capture/processing, live transport evidence, order/role
-reconciliation, causal local-island, remote-active and double-talk recovery, bounded recording-time
-runtime and fast authoritative handoff complete; boundary and residual Me evidence profiles are
-promoted; residual audio arbitration is complete with `DO_NOT_PROMOTE`; residual local recall is
-promoted; speaker-mode hardening and chronology evidence are complete with `DO_NOT_PROMOTE`;
-one-command meeting orchestration is complete and mixed-utterance remote-span separation is the
-current bounded quality goal
-Date: 2026-07-22
+Status: active product route; durable capture, one-command processing, evidence handoff and guarded
+export are complete. Speaker-Preserving Neural Echo v2 is the production pre-ASR plateau.
+Alignment/Echo-Path v3 is complete with `READY_FOR_MULTI_COMPONENT_SEPARATOR`; the current bounded
+audio step is Multi-Component Residual Separator Qualification v1.
+Date: 2026-08-06
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
 corpus-calibrated gates and explicit review burden before broader repair. Outcome Contract v1,
@@ -203,8 +200,11 @@ to the earlier audio boundary. Pre-ASR Target-Me Isolation Limit v1 now treats S
 Neural Echo v2 as the exact production plateau. Its completed residual map selected
 `READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3`: alignment and echo-path capability accounts for
 `2443.222s` (`35.567%`) of actionable evidence, ahead of multi-component separation and Target-Me
-model work. Cold first-pass ASR latency and the failed live-recovery profile remain measured
-secondary constraints, not reasons to accept remote leakage or lose protected local speech.
+model work. Alignment/Echo-Path v3 then reached `READY_FOR_MULTI_COMPONENT_SEPARATOR`: it safely
+changed 11/32 controlled remote items instead of the required 12 and retained 156/156 protected
+items exactly; the required low-leak control changed instead of exact fallback. Hard/sealed data
+stayed closed. Cold first-pass ASR latency and failed live-recovery
+profiles remain secondary constraints, not reasons to accept remote leakage or lose local speech.
 
 ## Route To Reliability
 
@@ -445,12 +445,12 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Pre-ASR Target-Me Isolation Limit v1: заморозить production v2 и residual remote corpus,
-сохранить завершённую residual map неизменной и провести Alignment and Echo-Path Model v3
-Qualification: sub-window delay/drift, bounded echo-path bank, nonlinear remote bases и guarded
-remote-only residual suppression. Завершить PROMOTE_ALIGNMENT_OR_ECHO_MODEL_V3,
-READY_FOR_MULTI_COMPONENT_SEPARATOR либо CURRENT_RESOURCE_LIMIT_REACHED без потери protected Me,
-chronology, openings, double-talk и без post-ASR cleanup credit.
+Pre-ASR Target-Me Isolation Limit v1: сохранить production v2, residual map и завершённый
+Alignment/Echo-Path v3 неизменными; провести Multi-Component Residual Separator Qualification v1 с
+явными Target-Me, remote-echo, other-local и residual stems, correct/wrong query controls, mixture
+consistency и exact fallback. Завершить PROMOTE_MULTI_COMPONENT_RESIDUAL_SEPARATOR,
+READY_FOR_STRONGER_LOCAL_SEPARATOR либо CURRENT_RESOURCE_LIMIT_REACHED без потери protected Me,
+nearby speech, chronology, openings, double-talk и без post-ASR cleanup credit.
 ```
 
 ## Consultation Prompt
@@ -468,8 +468,11 @@ Use this prompt if external consultation is needed:
 - promoted Speaker-Preserving Neural Echo v2: 5/12 candidate, 7/12 fallback, local retention 1.0;
 - frozen Residual Echo Ceiling Map: 14 real sessions, 2068 material events, 6869.306s actionable;
 - capability ordering: alignment/echo path 35.567%, multi-component 30.923%, Target-Me 18.324%;
-- Target-Me Identifiability Corpus и Reference-Conditioned v2 остаются доказательством для более
-  позднего multi-component этапа, но scratch FiLM+GRU не прошёл dev;
+- Alignment/Echo-Path v3 завершён READY_FOR_MULTI_COMPONENT_SEPARATOR: 11/32 controlled remote
+  items вместо gate 12, median reduction 2.552124 dB, protected exact 156/156, required low-leak
+  control failed exact fallback, hard/sealed закрыты;
+- Target-Me Identifiability Corpus даёт split-disjoint correct/wrong-query и non-target controls;
+- Reference-Conditioned v2 доказал query adherence, но scratch FiLM+GRU не прошёл quality dev;
 - direct local whisper.cpp large-v3 q5_0 и frozen chronology/double-talk/opening/no-speech gates.
 
 North Star: canonical mic для ASR сохраняет каждое подтверждённое слово Me, не содержит
@@ -483,18 +486,18 @@ North Star: canonical mic для ASR сохраняет каждое подтв�
 - потеря protected Me, chronology, opening или double-talk запрещает promotion;
 - hard/sealed data нельзя открывать до locked dev pass;
 - residual-map thresholds и capability ordering нельзя настраивать по результатам candidate;
-- ещё один маленький spectral mask с нуля на прежних пяти identities не рассматривается.
+- ещё один scalar mask, larger FIR bank или post-ASR cleanup не рассматриваются.
 
 Вопросы:
-1. Какой bounded sub-window delay/drift estimator надёжнее всего работает при паузах, изменении
-   громкости и double-talk, имея exact digital remote и один mic?
-2. Как построить небольшой echo-path bank и выбирать hypothesis без утечки local speech в
-   критерий качества?
-3. Какие нелинейные remote bases полезны для coloration и mild clipping, но остаются
-   детерминированными и недорогими на Apple Silicon?
-4. Где безопасно применять residual suppression, если confirmed remote и weak local evidence
-   согласованы, а где нужен exact production fallback?
-5. Какие locked dev gates и stop rules достаточно сильны, чтобы открыть hard/sealed corpus?
-6. Как отделить предел alignment/echo-path класса от необходимости следующего
-   multi-component separator и выпустить воспроизводимый terminal decision?
+1. Какой минимальный four-stem contract лучше задаёт Target-Me, remote echo, nearby other-local и
+   unexplained residual при одном mic и exact digital remote?
+2. Как объединить v3 echo estimate, complex mixture, remote reference и Target-Me query без
+   identity collapse и без принудительного возврата remote через mixture consistency?
+3. Какой bounded candidate ladder реалистичен локально на Apple Silicon: constrained baseline,
+   reference-conditioned separator и проверенная pretrained initialization?
+4. Как построить split-disjoint supervision из имеющихся measured echo, clean Target-Me,
+   non-target speakers и wrong-query controls без synthetic-to-real leakage?
+5. Какие audio, direct-ASR, speaker-attribution и runtime gates должны пройти dev до hard/sealed?
+6. Какой terminal negative result точно отделит нехватку архитектуры от нехватки локальных
+   вычислительных ресурсов или supervision?
 ```
