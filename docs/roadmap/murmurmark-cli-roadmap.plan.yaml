@@ -33,10 +33,12 @@ nodes:
     title: "MurmurMark CLI"
     kind: summary
     status: current
-    effort: 188
+    effort: 212
     notes: |
       Активная CLI-first, local-first и evidence-backed программа. Batch transcript остаётся
-      authoritative. В работе одновременно может быть только одна исполнимая продуктовая цель.
+      authoritative. Текущий технический North Star: сохранить всю подтверждённую локальную речь
+      и удалить распознаваемый remote до первичного ASR. В работе одновременно может быть только
+      одна исполнимая цель.
       Подробная история экспериментов сохранена в
       docs/history/murmurmark-cli-roadmap-through-2026-07-19.plan.yaml.
 
@@ -450,18 +452,59 @@ nodes:
       stale/partial решения откатываются к anonymous rich. Voice identity, cross-session matching,
       plain transcript, notes, Evidence Handoff v2, export и auto-selection не менялись.
 
+  quality-pre-asr-target-me-isolation-limit-v1:
+    title: "Pre-ASR Target-Me Isolation Limit v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [research-speaker-map, research-reference-conditioned-target-me-separation-v2, corpus-regression]
+    status: current
+    effort: 24
+    notes: |
+      Довести audio-first отделение Me от remote до PROMOTE либо воспроизводимого
+      CURRENT_RESOURCE_LIMIT_REACHED. Residual map уже выбрал alignment/echo-path как крупнейший
+      доступный класс. Ближайший bounded этап проверяет delay/drift, echo-path bank, nonlinear
+      remote bases и guarded residual suppression. Нельзя терять protected Me, chronology,
+      openings или double-talk; post-ASR cleanup не получает promotion credit.
+
+  quality-pre-asr-residual-echo-ceiling-map-v1:
+    title: "Pre-ASR Residual Echo Ceiling Map v1"
+    kind: task
+    parent: quality-pre-asr-target-me-isolation-limit-v1
+    deps: [research-speaker-preserving-neural-echo-v2, research-reference-conditioned-target-me-separation-v2]
+    status: done
+    effort: 5
+    notes: |
+      Завершено READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3 на 14 discovery sessions и 2068 material
+      events. Из 6869.306s actionable evidence alignment/echo-path требует 2443.222s (35.567%),
+      multi-component separation 2124.220s (30.923%), Target-Me model 1258.702s (18.324%). Raw,
+      production v2 и transcript неизменны; replay и frozen SHA-256 проходят.
+
+  quality-alignment-echo-path-model-v3-qualification:
+    title: "Alignment and Echo-Path Model v3 Qualification"
+    kind: task
+    parent: quality-pre-asr-target-me-isolation-limit-v1
+    deps: [quality-pre-asr-residual-echo-ceiling-map-v1, research-speaker-preserving-neural-echo-v2]
+    status: next
+    effort: 8
+    notes: |
+      До hard/sealed данных зафиксировать bounded candidate ladder и dev gates. Проверить
+      sub-window delay/drift, echo-path bank, nonlinear remote bases и remote-only residual
+      suppression. Direct whisper.cpp, protected Me, chronology, openings, double-talk, runtime и
+      determinism решают PROMOTE; любой конфликт возвращает exact production v2.
+
   product-reviewed-speaker-memory-v1:
     title: "Reviewed Speaker-Aware Meeting Memory v1"
     kind: task
     parent: murmurmark-cli
-    deps: [research-speaker-map, product-evidence-export-v2]
-    status: current
+    deps: [quality-pre-asr-target-me-isolation-limit-v1, research-speaker-map, product-evidence-export-v2]
+    status: later
     effort: 6
     notes: |
       Создать отдельный opt-in notes/export handoff, который использует только current explicit
       session-local labels и сохраняет exact utterance/evidence IDs. Обычные notes/export остаются
       authoritative fallback; stale labels, aggregate Colleagues и privacy boundaries должны быть
-      явными. Никаких external writes, voice identity или cross-session roster в этой цели.
+      явными. Никаких external writes, voice identity или cross-session roster в этой цели. Этап
+      разблокирован технически, но сознательно отложен до решения текущего pre-ASR audio frontier.
 
   research-rich-transcript:
     title: "Anonymous Rich Transcript Handoff v1"
@@ -553,10 +596,10 @@ views:
         nodes: [working-capabilities, corpus-regression]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [product-reviewed-speaker-memory-v1]
+        nodes: [quality-pre-asr-target-me-isolation-limit-v1]
       dependent:
-        title: "После speaker-aware memory"
-        nodes: [parallel-research, parking-lot]
+        title: "После audio frontier"
+        nodes: [product-reviewed-speaker-memory-v1, parallel-research, parking-lot]
 
   critical-path:
     title: "Критический CLI-путь"
@@ -588,6 +631,29 @@ views:
           - research-remote-diarization
           - research-rich-transcript
           - research-speaker-map
+          - quality-pre-asr-target-me-isolation-limit-v1
+          - product-reviewed-speaker-memory-v1
+
+  echo-frontier:
+    title: "Пред-ASR отделение Me от remote"
+    lanes:
+      evidence:
+        title: "Доказанная база"
+        nodes:
+          - quality-controlled-echo-supervision-lab-v1
+          - research-speaker-preserving-neural-echo-v2
+          - research-reference-conditioned-target-me-separation-v1
+          - quality-target-me-identifiability-corpus-v1
+          - research-reference-conditioned-target-me-separation-v2
+          - quality-pre-asr-residual-echo-ceiling-map-v1
+      current:
+        title: "Текущий предел"
+        nodes:
+          - quality-pre-asr-target-me-isolation-limit-v1
+          - quality-alignment-echo-path-model-v3-qualification
+      fallback:
+        title: "После решения"
+        nodes:
           - product-reviewed-speaker-memory-v1
 
   parallel-research-view:
@@ -646,6 +712,9 @@ views:
           - research-remote-diarization
           - research-rich-transcript
           - research-speaker-map
+          - quality-pre-asr-target-me-isolation-limit-v1
+          - quality-pre-asr-residual-echo-ceiling-map-v1
+          - quality-alignment-echo-path-model-v3-qualification
           - product-reviewed-speaker-memory-v1
           - parallel-research
           - parking-lot
@@ -653,8 +722,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Reviewed Speaker-Aware Meeting Memory v1: поверх promoted explicit session-local speaker labels создать отдельный fingerprint-bound opt-in notes/export handoff с exact utterance и evidence IDs; не менять ordinary notes, Evidence Handoff v2, guarded export или auto-selection, сохранять aggregate Colleagues и anonymous fallback, запрещать voice identity, cross-session roster и external writes; доказать stale/fail-open/replay, privacy, referential integrity и corpus no-regression; завершить PROMOTE или воспроизводимым DO_NOT_PROMOTE, добавить тесты, актуализировать документацию, roadmap и OpsKarta, закоммитить и отправить изменения."
-      success_by_next_sync: "Пользователь может явно запросить локальный speaker-aware notes/export bundle с проверяемыми ссылками на текущий reviewed transcript; без current labels обычная meeting memory остаётся доступной и неизменной."
+      nearest_goal: "Pre-ASR Target-Me Isolation Limit v1: провести Alignment and Echo-Path Model v3 Qualification по завершённой residual map; заморозить production v2 и discovery decision, проверить sub-window delay/drift, bounded echo-path bank, nonlinear remote bases и remote-only residual suppression в изолированном профиле; до hard/sealed данных зафиксировать dev gates и stop rules, сохранить protected Me, other-local speech, chronology, openings, double-talk и exact fallback, не засчитывать post-ASR cleanup; завершить PROMOTE_ALIGNMENT_OR_ECHO_MODEL_V3, READY_FOR_MULTI_COMPONENT_SEPARATOR либо CURRENT_RESOURCE_LIMIT_REACHED с воспроизводимым корпусным решением, тестами, актуальной документацией, roadmap и OpsKarta, коммитом и push."
+      success_by_next_sync: "Residual map остаётся frozen и воспроизводимой; bounded Alignment/Echo-Path v3 ladder закрыт corpus-wide решением без потери production v2 и protected Me."
     defaults:
       status_progress:
         done: 1.0
@@ -675,13 +744,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle, batch transcript, review, notes/export и Live Shadow уже работают."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Текущий speaker-aware meeting memory path"
-        scope_nodes: [product-reviewed-speaker-memory-v1]
+        title: "Текущий pre-ASR audio frontier"
+        scope_nodes: [quality-pre-asr-target-me-isolation-limit-v1, quality-pre-asr-residual-echo-ceiling-map-v1, quality-alignment-echo-path-model-v3-qualification]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Reviewed naming promoted optional: 6/6 sessions, 14 IDs и 1235 exact remote references. Текущий фокус — отдельная opt-in meeting memory поверх explicit labels."
-          next_sync_goal: "Добавить evidence-bound speaker-aware notes/export без изменения ordinary handoff и без external writes."
+          sync_note: "Residual map завершена: крупнейший actionable класс — alignment/echo-path 35.567%, затем multi-component 30.923%. Production v2 остаётся точным fallback."
+          next_sync_goal: "Закрыть Alignment/Echo-Path v3 ladder решением PROMOTE, READY_FOR_MULTI_COMPONENT_SEPARATOR либо CURRENT_RESOURCE_LIMIT_REACHED без потери protected Me."
       dependent-path:
         title: "Зависимый путь"
         scope_nodes:
@@ -705,20 +774,21 @@ x:
           - research-remote-diarization
           - research-rich-transcript
           - research-speaker-map
+          - quality-pre-asr-target-me-isolation-limit-v1
           - product-reviewed-speaker-memory-v1
         kind: main
         mgmt:
           health: neutral
-          sync_note: "После speaker-aware memory отдельного решения потребуют cross-session roster UX и external integrations."
-          next_sync_goal: "Не смешивать explicit session labels с voice identity, cross-session matching и внешними записями."
+          sync_note: "После audio frontier возобновится уже разблокированный speaker-aware meeting memory; cross-session roster и external integrations остаются отдельными решениями."
+          next_sync_goal: "Не смешивать Target-Me audio identity с display labels remote participants или cross-session roster."
       research:
         title: "Параллельные исследования"
         scope_nodes: [parallel-research]
         kind: context
         mgmt:
           health: neutral
-          sync_note: "Speaker naming, validators и synthesis остаются зависимыми или параллельными исследованиями."
-          next_sync_goal: "Не смешивать anonymous remote diarization с Target-Me supervision corpus."
+          sync_note: "Heavy validators и synthesis остаются параллельными; reviewed speaker memory поставлен после текущего audio frontier."
+          next_sync_goal: "Не смешивать remote participant naming с Target-Me supervision corpus."
       parked:
         title: "Parking lot"
         scope_nodes: [parking-lot]
@@ -752,7 +822,7 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: готовая основа, одна текущая цель, зависимый путь и неблокирующие ветки."
+        caption: "Короткая карта: production v2 как опора, текущий pre-ASR предел, зависимый продуктовый путь и неблокирующие ветки."
         blocks:
           - working-now
           - current-quality

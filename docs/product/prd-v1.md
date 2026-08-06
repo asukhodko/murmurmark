@@ -89,18 +89,22 @@ Current operating point, 2026-08-04:
   authoritative remote track and no selected-text mutation;
 - Anonymous Rich Transcript Handoff v1 and Reviewed Remote Speaker Naming v1 are promoted optional
   read surfaces; labels come only from an explicit fingerprint-bound session review;
-- the current goal is Reviewed Speaker-Aware Meeting Memory v1: a separate opt-in notes/export
-  bundle that preserves evidence IDs and never changes the authoritative handoff;
+- the current goal is Pre-ASR Target-Me Isolation Limit v1. Its residual map completed with
+  `READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3`; the nearest substage qualifies time-varying alignment,
+  bounded echo-path hypotheses, nonlinear remote bases and guarded residual suppression before a
+  later multi-component or Target-Me model attempt;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 
-Reviewed Speaker-Aware Meeting Memory v1 is the active critical-path stage after reviewed naming
-completed with `PROMOTE_OPTIONAL_REVIEWED_NAMING`.
+The current technical North Star is to retain every independently confirmed local word while
+removing recognizable authoritative remote content before primary ASR. `other_local` speech and
+unexplained residual must stay explicit rather than being silently assigned to `Me` or deleted.
 The personalized Echo selector activates only with compatible local enrollment and promotion
 evidence; every unsupported acoustic mode or regression uses exact `local_fir_role_masked`.
 Any later separator remains isolated until a corpus-wide decision and cannot use exact remix or
 audio quality alone as evidence of correct word attribution. Post-ASR duplicate cleanup receives no
-promotion credit. Heavy validators, LLM synthesis, external writes and UI remain research or
+promotion credit. Reviewed Speaker-Aware Meeting Memory v1 remains technically unblocked but is
+deferred until this audio frontier closes. LLM synthesis, external writes and UI remain research or
 optional work outside the current stage.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.

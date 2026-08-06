@@ -12,7 +12,8 @@ MurmurMark turns sensitive working conversations into reliable local transcripts
 
 The user should be able to start and stop a meeting recording once and receive an honest result
 without launching or supervising internal stages. Uncertain regions remain explicit review items.
-Notes and exports point back to transcript or audit evidence.
+Notes and exports point back to transcript or audit evidence. The current technical North Star is
+to preserve every confirmed local word and remove recognizable remote before ASR, with exact fallback.
 
 ## Reliability Contract
 
@@ -280,14 +281,8 @@ The one-command lifecycle, Speaker-Preserving Neural Echo v2, Evidence Handoff v
 release-quality CLI, bounded resume and authoritative incremental ASR are promoted. The normal path
 is one command plus `Ctrl-C`; diagnostic commands remain available for recovery.
 
-Canonical Live ASR Producer v1 and Causal Canonical Mic ASR v1 ended with `DO_NOT_PROMOTE`: measured
-speedup was too small and no tested mic window matched final PCM. Ordinary meetings stay on the
-proven batch path; exact experiment metrics live in the roadmap and research documents.
-
-Remote Speaker Evidence Map v1 completed with `PROMOTE_AUDIT_ONLY`. Across six frozen real sessions
-it published `14` session-local anonymous clusters over `4490.170s` (`50.3892%`) of remote speech;
-the rest stayed aggregate `Colleagues`. The private group reference reached attributed-only ARI
-`0.865804` and B-cubed F1 `0.913884`. Generate the optional evidence with:
+Remote Speaker Evidence Map v1 and its anonymous rich handoff are promoted optional read surfaces.
+Generate or inspect that evidence with:
 
 ```bash
 murmurmark audit remote-speakers "$SESSION" --profile auto
@@ -308,8 +303,16 @@ murmurmark transcript "$SESSION" --rich --reviewed-speakers
 
 Missing, partial or stale decisions fall back to the anonymous `--rich` view. No name is inferred
 from voice, text, contacts, calendar or another meeting. Plain Markdown, notes and guarded export
-stay unchanged. The current goal is **Reviewed Speaker-Aware Meeting Memory v1**: expose these
-explicit labels to a separate opt-in notes/export bundle without changing the authoritative path.
+stay unchanged. Speaker-aware meeting memory is ready but deliberately deferred.
+
+The current goal is **Pre-ASR Target-Me Isolation Limit v1**. Its first residual map is complete:
+14 real sessions and 2068 material events produced `READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3`.
+Alignment and echo-path work accounts for `2443.222s` (`35.567%`) of actionable evidence, ahead of
+multi-component separation (`30.923%`) and Target-Me model work (`18.324%`). The nearest bounded
+stage therefore qualifies sub-window drift, an echo-path bank, nonlinear remote bases and guarded
+remote-only residual suppression without weakening protected-local or chronology gates.
+The audit-only map is reproduced with
+`.venv/bin/python scripts/pre-asr-residual-echo-ceiling-map-v1.py verify`.
 
 The dependent critical path is:
 
@@ -317,11 +320,13 @@ The dependent critical path is:
 Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental ASR
 -> Canonical Live and Causal Mic ASR (done: DO_NOT_PROMOTE)
 -> Remote Speaker Map -> Anonymous Rich -> Reviewed Naming (done)
--> Reviewed Speaker-Aware Meeting Memory v1 (current)
+-> Residual Echo Ceiling Map (done: READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3)
+-> Alignment and Echo-Path Model v3 Qualification (current substage)
+-> Reviewed Speaker-Aware Meeting Memory v1 (later)
 ```
 
-Reviewed speaker-aware memory remains optional. Heavy validators, LLM synthesis and UI stay
-parallel or parked; Live promotion remains blocked and Live Shadow stays advisory.
+Speaker-aware memory remains optional and deferred. LLM synthesis and UI stay parallel or parked;
+Live promotion remains blocked and Live Shadow stays advisory.
 
 See the [current goal](docs/project/current-goal.md), [readable roadmap](docs/roadmap/murmurmark-cli-roadmap.md)
 and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
@@ -363,19 +368,14 @@ and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 - [Mission and vision](docs/product/vision.md)
 - [Product requirements](docs/product/prd-v1.md)
 - [Current goal](docs/project/current-goal.md)
-- [Speaker-Preserving Neural Echo v2 result](docs/research/2026-08-04-speaker-preserving-neural-echo-v2.md)
-- [Reference-Conditioned Target-Me Separation v1](docs/research/2026-08-04-reference-conditioned-target-me-separation-v1.md)
-- [Target-Me Identifiability Corpus v1](docs/research/2026-08-04-target-me-identifiability-corpus-v1.md)
-- [Reference-Conditioned Target-Me Separation v2](docs/research/2026-08-05-reference-conditioned-target-me-separation-v2.md)
+- [Pre-ASR Residual Echo Ceiling Map v1](docs/research/2026-08-06-pre-asr-residual-echo-ceiling-map-v1.md)
 - [Reliable transcription route](docs/project/reliable-transcription-route.md)
 - [Readable roadmap](docs/roadmap/murmurmark-cli-roadmap.md)
 - [OpsKarta v3 roadmap](docs/roadmap/murmurmark-cli-roadmap.plan.yaml)
 - [Meeting lifecycle contract](docs/contracts/meeting-lifecycle.md)
 - [Meeting cheat sheet](docs/runbooks/meeting-cheatsheet.md)
-- [First recording runbook](docs/runbooks/first-recording.md)
 - [Transcription and review runbook](docs/runbooks/transcribe-simple-whispercpp.md)
 - [Transcript and evidence contracts](docs/contracts/transcript-and-evidence.md)
-- [Historical planning and development snapshots](docs/history/README.md)
 
 ## Development Checks
 

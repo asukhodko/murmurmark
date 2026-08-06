@@ -105,6 +105,39 @@ Publication is recoverable. Fresh preprocessing invalidates stale baseline snaps
 ASR run restores the exact baseline before comparison; interrupted publication rolls back on the
 next run. See the [frozen result](../research/2026-08-04-speaker-preserving-neural-echo-v2.md).
 
+## Current North Star And Frontier
+
+The production selector is the safest proven plateau, not the end state. For a supported
+speaker-playback session, the target mic input to primary ASR should retain every confirmed local
+word, contain no recognizable authoritative remote content and keep nearby non-target speech out
+of `Me`. Unknown energy remains in an explicit `other_local` or residual stem; uncertainty selects
+the exact production fallback.
+
+Pre-ASR Target-Me Isolation Limit v1 owns the next bounded campaign:
+
+```text
+production v2 plateau
+  -> Residual Echo Ceiling Map v1: READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3
+  -> sub-window delay/drift + echo-path bank + nonlinear remote bases
+  -> guarded remote-only residual suppression
+  -> controlled dev -> immutable hard test -> sealed real corpus
+  -> PROMOTE_ALIGNMENT_OR_ECHO_MODEL_V3
+     | READY_FOR_MULTI_COMPONENT_SEPARATOR
+     | CURRENT_RESOURCE_LIMIT_REACHED
+```
+
+The completed map covers 14 real sessions and 2068 material events. Of `6869.306s` actionable
+evidence, alignment and echo-path capability accounts for `2443.222s` (`35.567%`) across 9
+sessions. Multi-component separation follows at `2124.220s` (`30.923%`), while Target-Me model
+uncertainty accounts for `1258.702s` (`18.324%`). This measured ordering makes Alignment and
+Echo-Path Model v3 Qualification the nearest experiment. See the
+[frozen result](../research/2026-08-06-pre-asr-residual-echo-ceiling-map-v1.md).
+
+The terminal negative decision is intentionally stronger than another single-model
+`DO_NOT_PROMOTE`: it must record the complete frozen candidate matrix that is feasible with the
+current Mac, local data, licenses and offline runtimes, plus the exact external prerequisite needed
+to reopen the track. No post-ASR transcript edit contributes to this decision.
+
 ## Reference-Conditioned Separation Result
 
 Reference-Conditioned Target-Me Separation v1 completed as an isolated successor experiment to the
@@ -138,9 +171,10 @@ with zero collapse. Waveform quality remained below the locked gates, however: `
 Target-Me SNR, `4.106966 dB` non-target SNR and `8.293271 dB` absent-query attenuation. The dev lock
 therefore denied hard and sealed access. Speaker-Preserving Neural Echo v2 remains production.
 
-The next audio attempt, if resumed, needs a pretrained target-speaker extraction representation or
-a much larger multilingual speaker-query corpus. Another small spectral mask trained from scratch
-on the same five identities is not a useful next experiment.
+That result still rules out another small spectral mask trained from scratch on the same five
+identities. The later residual map also showed that target-speaker uncertainty is not the largest
+remaining production blocker. Target-speaker model qualification now follows the measured
+alignment/echo-path and multi-component work unless new evidence changes that ordering.
 
 The experiment contract, data ownership, model ladder and decision gates are recorded in
 [Reference-Conditioned Target-Me Separation v1](../research/2026-08-04-reference-conditioned-target-me-separation-v1.md).

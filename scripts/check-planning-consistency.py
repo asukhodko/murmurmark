@@ -59,6 +59,7 @@ CRITICAL_PATH = (
     "research-remote-diarization",
     "research-rich-transcript",
     "research-speaker-map",
+    "quality-pre-asr-target-me-isolation-limit-v1",
     "product-reviewed-speaker-memory-v1",
 )
 
@@ -237,8 +238,14 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
         "reviewed speaker naming must follow anonymous rich transcript",
     )
     require(
-        "research-speaker-map" in nodes["product-reviewed-speaker-memory-v1"].get("deps", []),
-        "speaker-aware meeting memory must follow reviewed speaker naming",
+        "research-speaker-map"
+        in nodes["quality-pre-asr-target-me-isolation-limit-v1"].get("deps", []),
+        "the active audio frontier must follow the completed reviewed-speaker checkpoint",
+    )
+    require(
+        "quality-pre-asr-target-me-isolation-limit-v1"
+        in nodes["product-reviewed-speaker-memory-v1"].get("deps", []),
+        "speaker-aware meeting memory must resume after the active audio frontier",
     )
     require(nodes["parked-live-promotion"].get("status") == "blocked", "live promotion must stay blocked")
     require("parked-ui" not in nodes, "UI must not occupy the active CLI roadmap")

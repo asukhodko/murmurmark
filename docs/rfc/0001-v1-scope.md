@@ -2,7 +2,7 @@
 
 Status: implemented
 Date: 2026-06-22
-Last updated: 2026-08-04
+Last updated: 2026-08-06
 
 ## Summary
 
@@ -37,8 +37,11 @@ Current implementation status, 2026-08-06:
   for optional evidence;
 - anonymous rich transcript and explicit session-local reviewed naming are promoted optional read
   surfaces with fingerprint verification and anonymous fail-open behavior;
-- the current bounded goal is Reviewed Speaker-Aware Meeting Memory v1: opt-in notes/export over
-  explicit labels, without changing ordinary output selection;
+- the current bounded goal is Pre-ASR Target-Me Isolation Limit v1. Its completed residual map
+  selected Alignment and Echo-Path Model v3 Qualification as the nearest substage; production v2
+  remains the exact fallback until corpus-wide audio and direct-ASR gates authorize a successor;
+- Reviewed Speaker-Aware Meeting Memory v1 remains technically ready but deferred until that audio
+  frontier closes;
 - committed-PCM live preview exists as an advisory shadow, while batch remains authoritative;
 - authoritative speaker identity, cross-session matching, evidence-guarded LLM synthesis and UI
   remain future or optional work.

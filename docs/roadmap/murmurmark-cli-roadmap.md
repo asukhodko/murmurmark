@@ -12,13 +12,8 @@ redefine current priorities.
 
 ## Planning Rules
 
-- `done`: implemented and evidenced capability;
-- `current`: work being executed now;
-- `next`: unlocked goal that follows the current one;
-- `later`: dependent stage whose prerequisites are not complete;
-- `idea`: research hypothesis outside the committed path;
-- `optional`: useful but nonessential capability;
-- `blocked`: work with an explicit unsatisfied gate.
+Statuses are `done`, `current`, `next`, `later`, `idea`, `optional` and `blocked`; only `current`
+denotes active execution, while every other unfinished status retains an explicit dependency role.
 
 Evergreen capabilities such as corpus regression are `done`, not permanently `current`. A completed
 experiment ends in `PROMOTE` or `DO_NOT_PROMOTE`; either outcome closes its hypothesis.
@@ -46,23 +41,17 @@ murmurmark meeting -> first Ctrl-C -> bounded authoritative lifecycle -> honest 
 Raw CAF files and batch output are authoritative. Committed-PCM Live Shadow is capture-safe and
 advisory; its promotion remains blocked by quality and runtime evidence.
 
-Successful guarded export now has a thin-session retention path: raw CAF and structured evidence
-remain, while rebuildable media below `derived/` can be removed through
-`retention compact plan|apply|verify`. Ordinary `meeting`/`finish` runs compact automatically;
-`--keep-debug-artifacts` preserves the full diagnostic workspace.
+## North Star And Current Goal
 
-## Current Goal
-
-**Anonymous Rich Transcript Handoff v1** completed with `PROMOTE_OPTIONAL_RICH`: 6/6 sessions and
-all 1235 remote references passed; 629 utterances use 14 anonymous IDs and 606 remain aggregate.
-
-**Reviewed Remote Speaker Naming v1** completed with `PROMOTE_OPTIONAL_REVIEWED_NAMING`: 6/6
-sessions expose 14 IDs for explicit session-local review while preserving all 1235 remote
-references. Voice similarity never assigns a person's identity.
-
-**Reviewed Speaker-Aware Meeting Memory v1** is current. It will carry only current explicit labels
-into a separate opt-in notes/export bundle with exact evidence IDs. Ordinary notes and export remain
-the fallback and no external system is written.
+The technical North Star is an ASR input that retains every confirmed `Me` word, contains no
+recognizable authoritative remote and keeps nearby non-target speech out of `Me`, with exact fallback.
+Speaker-Preserving Neural Echo v2 is the safe production plateau: `5/12` candidate sessions,
+`41.940s` and 90 remote-supported tokens removed, local retention `1.0`; the other `7/12` fell back.
+**Pre-ASR Target-Me Isolation Limit v1** is current. Its residual map completed with
+`READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3`: the largest measured actionable class is alignment and
+echo-path work (`2443.222s`, `35.567%`, 9 sessions), followed by multi-component separation
+(`2124.220s`, `30.923%`). The nearest bounded substage is Alignment and Echo-Path Model v3
+Qualification. Speaker-aware meeting memory remains ready but deferred until this frontier closes.
 
 ## Critical Path
 
@@ -88,9 +77,11 @@ flowchart LR
     R["Done: PROMOTE_AUDIT_ONLY<br/>Remote Speaker<br/>Evidence Map v1"]
     T["Done: PROMOTE<br/>Anonymous Rich<br/>Transcript Handoff v1"]
     Q["Done: PROMOTE<br/>Reviewed Remote<br/>Speaker Naming v1"]
-    W["Current<br/>Reviewed Speaker-Aware<br/>Meeting Memory v1"]
+    Z["Done: READY<br/>Residual Echo<br/>Ceiling Map v1"]
+    Y["Current<br/>Pre-ASR Target-Me Isolation Limit<br/>Alignment/Echo-Path v3"]
+    W["Later<br/>Reviewed Speaker-Aware<br/>Meeting Memory v1"]
 
-    P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D --> F --> G --> C2 --> M --> R --> T --> Q --> W
+    P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D --> F --> G --> C2 --> M --> R --> T --> Q --> Z --> Y --> W
 ```
 
 ### 0. Evidence-Backed Me Completion v2
@@ -250,17 +241,30 @@ explicit fingerprint-bound session-local decisions. The optional reviewed read p
 utterances and anonymous attributions; stale or missing decisions fall back to anonymous rich.
 Voice-only identity, cross-session matching and ordinary notes/export remain untouched.
 
-### 20. Reviewed Speaker-Aware Meeting Memory v1
+### 20. Pre-ASR Target-Me Isolation Limit v1
 
-Current. Build a separate opt-in notes/export handoff over current reviewed labels and exact
-utterance/evidence IDs. Aggregate `Colleagues`, anonymous fallback and ordinary meeting memory must
-remain available. External writes, voice identity and cross-session roster work stay out of scope.
+Current umbrella goal. Pre-ASR Residual Echo Ceiling Map v1 is complete on 14 real sessions and
+2068 material events. It reconciles every session, replays deterministically and selects
+`READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3`. Production v2, raw CAF and transcripts remain unchanged.
+
+The nearest substage is Alignment and Echo-Path Model v3 Qualification. It must lock a bounded
+ladder of sub-window delay/drift, multiple echo-path hypotheses, nonlinear remote bases and
+remote-only residual suppression before hard or sealed data. Candidate audio is judged directly by
+whisper.cpp and exact per-window or whole-session v2 fallback. The stage ends in
+`PROMOTE_ALIGNMENT_OR_ECHO_MODEL_V3`, `READY_FOR_MULTI_COMPONENT_SEPARATOR` or a precise
+`CURRENT_RESOURCE_LIMIT_REACHED`; protected words, openings, chronology and double-talk may not
+regress and post-ASR cleanup receives zero credit.
+
+### 21. Reviewed Speaker-Aware Meeting Memory v1
+
+Later but already technically unblocked. Build a separate opt-in notes/export handoff over explicit
+session-local labels and exact evidence IDs after the current audio frontier closes.
 
 ## Dependent And Parallel Research
 
-Speaker-Preserving Neural Echo v2 remains production. Remote speaker evidence, anonymous rich and
-reviewed naming are promoted optional layers. Speaker-aware meeting memory is current; cross-session
-mapping, external integrations, heavy validators and LLM synthesis remain separate gates.
+Speaker-Preserving Neural Echo v2 remains exact production fallback throughout the current audio
+frontier. Reviewed naming is already promoted optional. Speaker-aware memory, cross-session mapping,
+external integrations, heavy validators and LLM synthesis wait behind separate gates.
 
 ## Parking Lot
 
@@ -293,8 +297,4 @@ record the evidence ceiling and leave the authoritative output unchanged.
 scripts/check-planning-consistency.py
 PYTHONPATH=../opskarta .venv/bin/python -m specs.v3.tools.cli validate docs/roadmap/murmurmark-cli-roadmap.plan.yaml
 PYTHONPATH=../opskarta .venv/bin/python -m specs.v3.tools.cli render tree docs/roadmap/murmurmark-cli-roadmap.plan.yaml
-PYTHONPATH=../opskarta .venv/bin/python -m specs.v3.tools.cli render executive docs/roadmap/murmurmark-cli-roadmap.plan.yaml --view exec-top
 ```
-
-Detailed planning and experiment history through 2026-07-19 is archived in
-`docs/history/README.md`.

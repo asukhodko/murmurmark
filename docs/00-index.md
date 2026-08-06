@@ -52,11 +52,13 @@ Read in this order:
 48. [Target-Me Identifiability Corpus runbook](runbooks/target-me-identifiability-corpus.md)
 49. [Reference-Conditioned Target-Me Separation v2 result](research/2026-08-05-reference-conditioned-target-me-separation-v2.md)
 50. [Reference-Conditioned Target-Me Separation runbook](runbooks/reference-conditioned-target-me-separation.md)
-51. [Reliable Final Handoff v1 baseline](testing/2026-08-05-reliable-final-handoff-baseline.md)
-52. [Canonical Live ASR Producer v1 result](testing/2026-08-06-canonical-live-asr-producer-v1.md)
-53. [Causal Canonical Mic ASR v1 result](testing/2026-08-06-causal-canonical-mic-asr-v1.md)
-54. [Remote Speaker Evidence Map v1 result](testing/2026-08-06-remote-speaker-evidence-map-v1.md)
-55. [Planning and development history](history/README.md)
+51. [Pre-ASR Residual Echo Ceiling Map contract](contracts/pre-asr-residual-echo-ceiling-map.md)
+52. [Pre-ASR Residual Echo Ceiling Map v1 result](research/2026-08-06-pre-asr-residual-echo-ceiling-map-v1.md)
+53. [Reliable Final Handoff v1 baseline](testing/2026-08-05-reliable-final-handoff-baseline.md)
+54. [Canonical Live ASR Producer v1 result](testing/2026-08-06-canonical-live-asr-producer-v1.md)
+55. [Causal Canonical Mic ASR v1 result](testing/2026-08-06-causal-canonical-mic-asr-v1.md)
+56. [Remote Speaker Evidence Map v1 result](testing/2026-08-06-remote-speaker-evidence-map-v1.md)
+57. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
@@ -81,8 +83,13 @@ exact raw-fallback mic windows, and `5/30/120s` prefix probes all differed from 
 The current Echo path has a session-end causal boundary. Remote Speaker Evidence Map v1 completed
 with `PROMOTE_AUDIT_ONLY`: it publishes high-precision session-local evidence for roughly half of
 remote speech and leaves the rest aggregate. Anonymous rich and explicit reviewed naming are now
-promoted optional read surfaces. The current goal is Reviewed Speaker-Aware Meeting Memory v1:
-carry only current explicit labels into an opt-in evidence-bound notes/export bundle.
+promoted optional read surfaces. The current technical North Star now returns to the pre-ASR audio
+boundary: retain every confirmed `Me` word while removing recognizable authoritative remote. The
+current goal is Pre-ASR Target-Me Isolation Limit v1. Its first residual map completed with
+`READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3`: alignment and echo-path work accounts for `2443.222s`
+(`35.567%`) of actionable residual evidence, ahead of multi-component separation and Target-Me
+model work. The nearest bounded stage is therefore Alignment and Echo-Path Model v3 Qualification.
+Reviewed Speaker-Aware Meeting Memory v1 remains ready but deferred until that frontier closes.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

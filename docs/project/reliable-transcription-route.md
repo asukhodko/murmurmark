@@ -198,9 +198,13 @@ evidence-backed notes and export readiness in one fingerprinted product boundary
 corpus has zero referential-integrity, stale-manifest and deterministic-replay failures.
 Release-quality CLI then made this boundary installable, upgrade-safe and verifiable from a
 packaged release. Reliable Final Handoff v1 separated optional work, added bounded resume and made
-terminal review actionable. The remaining reliability gap is cold first-pass ASR latency; cache
-replay is fast, but recent fresh runs spent most post-stop time in baseline whisper.cpp.
-The failed live-recovery profile remains diagnostic evidence rather than another user-facing branch.
+terminal review actionable. Product handoff is therefore stable enough to return the critical path
+to the earlier audio boundary. Pre-ASR Target-Me Isolation Limit v1 now treats Speaker-Preserving
+Neural Echo v2 as the exact production plateau. Its completed residual map selected
+`READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3`: alignment and echo-path capability accounts for
+`2443.222s` (`35.567%`) of actionable evidence, ahead of multi-component separation and Target-Me
+model work. Cold first-pass ASR latency and the failed live-recovery profile remain measured
+secondary constraints, not reasons to accept remote leakage or lose protected local speech.
 
 ## Route To Reliability
 
@@ -441,10 +445,12 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Anonymous Rich Transcript Handoff v1: связать promoted anonymous remote evidence с unchanged
-selected dialogue в versioned optional rich artifact и явном CLI read path. Stale/weak evidence
-остаётся aggregate Colleagues; имена, cross-session identity, plain transcript, notes и guarded
-export не меняются.
+Pre-ASR Target-Me Isolation Limit v1: заморозить production v2 и residual remote corpus,
+сохранить завершённую residual map неизменной и провести Alignment and Echo-Path Model v3
+Qualification: sub-window delay/drift, bounded echo-path bank, nonlinear remote bases и guarded
+remote-only residual suppression. Завершить PROMOTE_ALIGNMENT_OR_ECHO_MODEL_V3,
+READY_FOR_MULTI_COMPONENT_SEPARATOR либо CURRENT_RESOURCE_LIMIT_REACHED без потери protected Me,
+chronology, openings, double-talk и без post-ASR cleanup credit.
 ```
 
 ## Consultation Prompt
@@ -452,47 +458,43 @@ export не меняются.
 Use this prompt if external consultation is needed:
 
 ```text
-Мы строим MurmurMark: локальный macOS CLI-пайплайн для превращения рабочих созвонов в
-транскрибацию, заметки и evidence-backed артефакты без облачного рекордера.
+Мы строим MurmurMark: локальный macOS CLI-пайплайн для рабочих созвонов. Сейчас целиком
+фокусируемся на пред-ASR отделении целевого пользователя Me от акустического remote leakage.
 
-Текущая архитектура:
-- запись двух дорожек: mic и remote в raw CAF;
-- raw CAF неизменяемы;
-- Echo Guard local_fir создаёт mic_for_asr;
-- основной ASR: локальный whisper.cpp large-v3 q5_0, русский язык;
-- remote считается authoritative для Colleagues, mic — candidate source для Me;
-- есть timeline repair, start-of-call repair, audit cleanup profiles, group overlap audit,
-  local recall audit, transcript order audit, audio-review pack, optional faster-whisper
-  stronger audio judge, Target-Me evidence, extractive notes, quality verdict, review lanes,
-  guarded export и retention plan;
-- pipeline уже работает на реальных встречах, но не всегда unattended: иногда остаются
-  order risks, remote leak в mic, короткий review burden, заблокированный export.
+Имеется:
+- неизменяемые raw mic/remote CAF и authoritative digital remote;
+- local_fir, delay trajectory, speaker state и exact fallback;
+- private Target-Me enrollment, WavLM/Resemblyzer и controlled echo supervision;
+- promoted Speaker-Preserving Neural Echo v2: 5/12 candidate, 7/12 fallback, local retention 1.0;
+- frozen Residual Echo Ceiling Map: 14 real sessions, 2068 material events, 6869.306s actionable;
+- capability ordering: alignment/echo path 35.567%, multi-component 30.923%, Target-Me 18.324%;
+- Target-Me Identifiability Corpus и Reference-Conditioned v2 остаются доказательством для более
+  позднего multi-component этапа, но scratch FiLM+GRU не прошёл dev;
+- direct local whisper.cpp large-v3 q5_0 и frozen chronology/double-talk/opening/no-speech gates.
 
-Новая продуктовая цель:
-сделать не “ещё одну эвристику”, а надёжный маршрут:
-record meeting -> process unattended -> получить честный outcome:
-ready_for_notes / review_first / do_not_use_without_manual_review,
-с точным next command, review burden и export/retention status.
+North Star: canonical mic для ASR сохраняет каждое подтверждённое слово Me, не содержит
+распознаваемого authoritative remote и не относит nearby other-local speech к Me. Неизвестное
+остаётся explicit residual; недостаток доказательств выбирает exact production fallback.
 
 Ограничения:
 - raw CAF не менять;
-- cloud ASR/LLM не использовать по умолчанию;
-- default local_fir и основной whisper.cpp ASR не менять без corpus gates;
-- лучше честный review_first, чем уверенный неправильный transcript;
-- UI не приоритет, CLI-first.
+- всё локально/offline на Apple Silicon, cloud audio запрещён;
+- post-ASR cleanup не получает promotion credit;
+- потеря protected Me, chronology, opening или double-talk запрещает promotion;
+- hard/sealed data нельзя открывать до locked dev pass;
+- residual-map thresholds и capability ordering нельзя настраивать по результатам candidate;
+- ещё один маленький spectral mask с нуля на прежних пяти identities не рассматривается.
 
 Вопросы:
-1. Как бы вы спроектировали outcome contract и gates, чтобы пользователь не контролировал
-   пайплайн вручную, но система не скрывала риск?
-2. Какие 3-5 метрик лучше всего предсказывают, что transcript уже достаточно надёжен для
-   заметок и для полного export?
-3. Как лучше уменьшать mandatory review burden: через echo suppression, order repair, local
-   speaker evidence, stronger ASR judge, forced alignment или иной слой?
-4. Какой safe promotion path нужен для shadow audio candidate, который снижает ASR-visible remote
-   leakage, но может не помогать на части сессий?
-5. Как организовать resumable/progress-aware batch pipeline, чтобы long ASR не выглядел как
-   зависание?
-6. Какие ошибки в такой архитектуре чаще всего будут создавать ложное чувство готовности?
-7. Какой минимальный следующий milestone вы бы выбрали, чтобы приблизиться к “просто работает”
-   без большой смены архитектуры?
+1. Какой bounded sub-window delay/drift estimator надёжнее всего работает при паузах, изменении
+   громкости и double-talk, имея exact digital remote и один mic?
+2. Как построить небольшой echo-path bank и выбирать hypothesis без утечки local speech в
+   критерий качества?
+3. Какие нелинейные remote bases полезны для coloration и mild clipping, но остаются
+   детерминированными и недорогими на Apple Silicon?
+4. Где безопасно применять residual suppression, если confirmed remote и weak local evidence
+   согласованы, а где нужен exact production fallback?
+5. Какие locked dev gates и stop rules достаточно сильны, чтобы открыть hard/sealed corpus?
+6. Как отделить предел alignment/echo-path класса от необходимости следующего
+   multi-component separator и выпустить воспроизводимый terminal decision?
 ```

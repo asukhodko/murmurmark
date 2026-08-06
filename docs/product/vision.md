@@ -20,6 +20,19 @@ Short version:
 Local-first meeting transcription for sensitive work.
 ```
 
+## Current Technical North Star
+
+For the primary speaker-playback workflow, the microphone audio presented to ASR should preserve
+every confirmed word spoken by the local user while carrying no recognizable content from the
+authoritative remote track. Speech from nearby people must remain distinguishable from `Me`, and
+unexplained energy must remain auditable rather than being silently deleted.
+
+This is an operational target, not a claim of mathematically perfect waveform separation. Word
+retention, attribution, chronology and double-talk safety are authoritative. Every uncertain or
+unsupported session must return to the exact promoted fallback. The current program will either
+promote a materially stronger pre-ASR separator or record the reproducible limit of the models,
+data and compute presently available.
+
 The product is for situations where a user needs memory and follow-up from a call, but cannot safely
 create a shared cloud recording: 1 on 1 meetings, retrospectives, incident reviews, architecture
 reviews, planning sessions, and internal discussions with sensitive context.
@@ -63,10 +76,12 @@ parallel mic critical path. Causal Canonical Mic ASR v1 then measured the exact 
 and closed with `DO_NOT_PROMOTE`: current local-FIR and Speaker-Preserving selection depend on the
 complete session, and `0/147` candidate mic windows matched final canonical PCM.
 
-Remote Speaker Evidence Map v1 and Anonymous Rich Transcript Handoff v1 now provide a promoted,
-verifiable optional speaker view over authoritative remote audio. The current step is explicit
-reviewed labeling of session-local IDs. Voice similarity never assigns identity; cross-meeting
-matching, notes and export consumption remain separate gates.
+Remote Speaker Evidence Map v1, Anonymous Rich Transcript Handoff v1 and explicit reviewed naming
+now provide promoted optional speaker views over authoritative remote audio. Speaker-aware notes
+remain ready but deferred while Pre-ASR Target-Me Isolation Limit v1 follows its measured residual
+ordering. The completed map selects Alignment and Echo-Path Model v3 Qualification before a later
+multi-component or Target-Me model attempt. Voice similarity never assigns a person's identity;
+cross-meeting matching and external writes remain separate gates.
 
 ## Primary User
 

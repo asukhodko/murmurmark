@@ -1,0 +1,88 @@
+{
+  "schema": "murmurmark.pre_asr_residual_echo_ceiling_policy/v1",
+  "status": "locked_before_residual_analysis",
+  "locked_at": "2026-08-06T09:53:00+03:00",
+  "bounded_revision": {
+    "revision": 1,
+    "relocked_at": "2026-08-06T10:22:00+03:00",
+    "reason": "accept convergent strong remote text plus strong remote state plus medium acoustic evidence when local evidence is weak",
+    "prior_frozen_fingerprint": "df317c7774c56c19861e7902c07c84a66c47e279a9cac448337e6a6d28ebc5ba",
+    "further_discovery_threshold_revisions_allowed": false
+  },
+  "purpose": "explain material ASR-visible remote residual after the promoted Speaker-Preserving Neural Echo v2 without changing production audio or transcript",
+  "production_profile": "speaker_preserving_neural_echo_v2_16",
+  "selector_profile": "speaker-preserving-neural-echo-v2-15",
+  "production_policy": "policies/speaker-preserving-neural-echo-v2-16-evaluation.json",
+  "production_corpus": "policies/speaker-preserving-neural-echo-v2-16-corpus-set.json",
+  "analysis_use": "discovery_and_capability_requirements_only",
+  "training_use": "forbidden",
+  "threshold_tuning_use": "forbidden_after_freeze",
+  "promotion_use": "forbidden",
+  "unopened_hard_or_holdout_use": "forbidden",
+  "additional_discovery_sessions": [
+    {
+      "id": "2026-08-05_14-16-08",
+      "expected_mode": "speaker_playback",
+      "reason": "fresh_post_promotion_real_session"
+    },
+    {
+      "id": "2026-08-05_17-00-29",
+      "expected_mode": "speaker_playback",
+      "reason": "fresh_post_promotion_real_session"
+    }
+  ],
+  "material_event": {
+    "remote_state_ratio_min": 0.5,
+    "mic_context_padding_sec": 1.0,
+    "audio_context_padding_sec": 0.25,
+    "audio_analysis_max_sec": 8.0,
+    "matched_tokens_min": 2,
+    "matched_content_tokens_min": 1,
+    "content_token_min_chars": 3
+  },
+  "audio_calibration": {
+    "sample_rate": 16000,
+    "windows_per_state_max": 24,
+    "max_lag_ms": 250.0,
+    "lag_consistency_tolerance_ms": 80.0,
+    "xcorr_absolute_floor": 0.12,
+    "coherence_absolute_floor": 0.18,
+    "spectral_cosine_absolute_floor": 0.55,
+    "remote_rms_db_min": -58.0
+  },
+  "classification": {
+    "text_evidence_strong_min": 60,
+    "audio_remote_strong_min": 60,
+    "audio_remote_medium_min": 40,
+    "audio_remote_weak_max": 25,
+    "remote_state_strong_min": 0.75,
+    "local_evidence_strong_min": 60,
+    "local_evidence_weak_max": 40,
+    "boundary_distance_sec": 0.4,
+    "target_resemblyzer_similarity_guard": 0.55,
+    "target_wavlm_similarity_guard": 0.75,
+    "target_remote_margin_guard": -0.05
+  },
+  "capability_decision": {
+    "material_seconds_share_min": 0.25,
+    "dominant_seconds_share_min": 0.5,
+    "sessions_min": 3,
+    "unknown_seconds_share_max": 0.25
+  },
+  "allowed_decisions": [
+    "READY_FOR_TARGET_SPEAKER_MODEL_QUALIFICATION",
+    "READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3",
+    "READY_FOR_MULTI_COMPONENT_SEPARATOR",
+    "REMOTE_METRIC_REPAIR_REQUIRED",
+    "NEEDS_MORE_SUPERVISION",
+    "CURRENT_BASELINE_AT_MEASURED_CEILING"
+  ],
+  "safety": {
+    "raw_caf_immutable": true,
+    "production_v2_immutable": true,
+    "transcript_immutable": true,
+    "post_asr_cleanup_credit": 0,
+    "missing_evidence": "explicit_unknown",
+    "publication": "audit_only"
+  }
+}
