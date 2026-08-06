@@ -466,6 +466,28 @@ coverage is still a warning while Chunked/Resumable Processing v1 is being rolle
 The frozen Authoritative Incremental ASR report deliberately separates historical checkpoint/cache
 timing from live-origin evidence. Its result is `PROMOTE_BATCH_RESUME / DO_NOT_PROMOTE_LIVE_ORIGIN`:
 the strict consumer is active, while old live chunks with no exact proof always fall back to batch.
+Canonical Live ASR Producer v1 subsequently proved exact remote parity on `3/3` frozen historical
+replays, but closed with `DO_NOT_PROMOTE`: remote-only precomputation saves about `51%` aggregate ASR
+CPU work yet only `2.8651%..4.1040%` modeled wall time because post-Echo mic ASR remains parallel
+and critical. Ordinary `meeting` and Live Shadow do not start the producer.
+
+For an intentional evidence capture:
+
+```bash
+SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)-canonical-asr-lab"
+murmurmark record --out "$SESSION" --target-bundle system \
+  --experiment live-shadow-v1 \
+  --canonical-live-asr-evidence
+
+murmurmark process "$SESSION"
+scripts/materialize-live-asr-cache.py "$SESSION" \
+  --verify-only \
+  --allow-unpromoted-live-origin
+```
+
+The override validates evidence only; it does not change the frozen promotion decision. The next
+latency stage is Causal Canonical Mic ASR v1, which must prove exact selected mic PCM after Echo
+Guard rather than reuse raw mic approximately.
 It also reads `sessions/_reports/live-pipeline/live_corpus_gates_report.json`: live/near-realtime
 cache promotion must remain blocked. The live comparison records measurable capture-safety, order,
 local-recall, remote-leak, review-burden, notes-readiness and chunk-boundary gates. Boundary
@@ -2098,8 +2120,10 @@ derived/
 The same `raw/chunks/<track>/` shape can be materialized from live ASR only when every source row has
 `murmurmark.authoritative_live_asr_chunk/v1`. Post-stop validation recreates canonical batch PCM and
 requires an exact identity and completed JSON hash match. `raw/chunk_rebuild_check.json` must then
-prove byte-identical reconstruction. Existing live sessions have no such proofs, so the bridge
-writes `not_eligible` and normal batch ASR runs; Canonical Live ASR Producer v1 owns this gap.
+prove byte-identical reconstruction. Legacy live sessions have no such proofs, so the bridge writes
+`not_eligible` and normal batch ASR runs. Canonical Live ASR Producer v1 proved exact remote
+production but closed with `DO_NOT_PROMOTE`; Causal Canonical Mic ASR v1 owns the remaining measured
+wall-time gap.
 
 Initial role assignment is deliberately simple:
 

@@ -53,9 +53,14 @@ remain, while rebuildable media below `derived/` can be removed through
 
 ## Current Goal
 
-**Canonical Live ASR Producer v1** is current. The strict authoritative cache consumer is complete;
-the missing piece is a capture-safe producer that emits the same canonical 60s/5s windows and exact
-proof during recording. Failure remains a normal batch fallback.
+**Canonical Live ASR Producer v1** completed with `DO_NOT_PROMOTE`. The remote producer passes strict
+parity on `3/3` frozen sessions, but remote-only precomputation reduces modeled post-stop wall time
+by just `2.8651%..4.1040%` because mic and remote already decode in parallel. It remains an explicit
+evidence-only tool.
+
+**Causal Canonical Mic ASR v1** is current. It must make the selected post-Echo mic branch
+checkpointable and produce exact canonical mic windows before the normal batch decode reaches them.
+Approximate audio, provisional text and weaker Echo gates are not acceptable cache evidence.
 
 Its prerequisites are complete: One-Command Meeting Lifecycle owns the unattended product path;
 Speaker-Preserving Neural Echo v2 remains the guarded pre-ASR profile; Evidence Notes And Export v2
@@ -81,10 +86,11 @@ flowchart LR
     D["Done<br/>Release-quality CLI"]
     F["Done<br/>Reliable Final<br/>Handoff v1"]
     G["Done: split decision<br/>Authoritative<br/>Incremental ASR v1"]
-    C2["Current<br/>Canonical Live<br/>ASR Producer v1"]
+    C2["Done: DO_NOT_PROMOTE<br/>Canonical Live<br/>ASR Producer v1"]
+    M["Current<br/>Causal Canonical<br/>Mic ASR v1"]
     R["Next<br/>Remote Speaker<br/>Evidence Map v1"]
 
-    P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D --> F --> G --> C2 --> R
+    P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D --> F --> G --> C2 --> M --> R
 ```
 
 ### 0. Evidence-Backed Me Completion v2
@@ -207,12 +213,21 @@ required `authoritative_live_asr_chunk/v1` proofs. Every mismatch falls back to 
 
 ### 15. Canonical Live ASR Producer v1
 
-Current. Make capture-safe Live Shadow produce complete canonical mic/remote 60s/5s chunks and exact
-proofs accepted by the strict consumer. The producer remains best-effort and outside the capture
-callback. Three real sessions must show at least `50%` lower fresh post-stop ASR time without output,
-capture or stable-path regression, or the hypothesis closes with `DO_NOT_PROMOTE`.
+Completed with `DO_NOT_PROMOTE`. A capture-safe producer reconstructs canonical remote PCM from
+closed committed-PCM segments and emits exact `authoritative_live_asr_chunk/v1` proof. Strict remote
+parity passes `3/3`, but evidence is historical replay and the modeled wall reduction is only
+`2.8651%..4.1040%`. Ordinary Live Shadow does not start it; the evidence flag and cache promotion
+gate keep the extra work quarantined.
 
-### 16. Remote Speaker Evidence Map v1
+### 16. Causal Canonical Mic ASR v1
+
+Current. Make the exact selected mic preparation after Echo Guard checkpointable on immutable
+windows, then run authoritative whisper.cpp early enough to remove the mic critical path. Reuse
+requires byte-identical post-stop PCM and the complete existing chunk identity. Three fresh sessions
+must show at least `50%` lower post-stop ASR wall time without capture, local-speech or output
+regression, or the hypothesis closes with `DO_NOT_PROMOTE`.
+
+### 17. Remote Speaker Evidence Map v1
 
 Next. Split the authoritative remote track into stable anonymous speaker intervals, publish a
 shadow rich transcript with full provenance and make a corpus-wide decision. The stage does not
@@ -220,34 +235,13 @@ invent names, rewrite transcript text or change Evidence Handoff v2 and guarded 
 
 ## Dependent And Parallel Research
 
-```mermaid
-flowchart LR
-    Q["Controlled supervision decision"]
-    E["Speaker-Preserving Neural Echo v2"]
-    X["Reference-conditioned Target-Me separation v1"]
-    I["Target-Me identifiability corpus"]
-    C["Reference-conditioned Target-Me separation v2"]
-    R["Release-quality CLI"]
-    F["Reliable Final Handoff v1"]
-    A["Authoritative Incremental ASR v1"]
-    P["Canonical Live ASR Producer v1"]
-    D["Remote Speaker Evidence Map v1"]
-    S["Speaker map"]
-    T["transcript.rich.json"]
-    V["Heavy local validators"]
-    L["Evidence-guarded LLM"]
-
-    Q --> E --> X --> I --> C --> R --> F --> A --> P --> D
-    D --> S --> T --> L
-    Q -.-> V
-```
-
 Speaker-Preserving Neural Echo v2 remains production. Both Reference-Conditioned Target-Me
 Separation experiments are complete with `DO_NOT_PROMOTE`; v2 showed that paired enrollment is
 identifiable but the small scratch-trained separator is below the waveform-quality ceiling.
-Evidence Notes And Export v2, Release-quality CLI, Reliable Final Handoff v1 and the strict
-Authoritative Incremental ASR consumer are complete. Canonical Live ASR Producer v1 is current;
-Remote Speaker Evidence Map v1 follows its measured gate.
+Evidence Notes And Export v2, Release-quality CLI, Reliable Final Handoff v1, the strict
+Authoritative Incremental ASR consumer and remote-only canonical producer are complete. The latter
+is `DO_NOT_PROMOTE` because it removes CPU work without removing the parallel mic wall-time path.
+Causal Canonical Mic ASR v1 is current; Remote Speaker Evidence Map v1 follows its measured gate.
 
 Remote diarization works on authoritative `remote` and does not require complete Echo suppression.
 Its next stage produces anonymous stable speaker IDs and an audit-only rich transcript. Naming,

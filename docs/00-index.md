@@ -53,7 +53,8 @@ Read in this order:
 49. [Reference-Conditioned Target-Me Separation v2 result](research/2026-08-05-reference-conditioned-target-me-separation-v2.md)
 50. [Reference-Conditioned Target-Me Separation runbook](runbooks/reference-conditioned-target-me-separation.md)
 51. [Reliable Final Handoff v1 baseline](testing/2026-08-05-reliable-final-handoff-baseline.md)
-52. [Planning and development history](history/README.md)
+52. [Canonical Live ASR Producer v1 result](testing/2026-08-06-canonical-live-asr-producer-v1.md)
+53. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
@@ -71,8 +72,10 @@ remained unopened. Speaker-Preserving Neural Echo v2 remains production. Evidenc
 v2 passes its 110-session integrity and deterministic-replay gate. Release-quality CLI now adds
 deterministic archives, complete integrity metadata, transactional install/upgrade and packaged
 offline acceptance. Reliable Final Handoff v1 now passes its frozen cache/resume and actionability
-gate. The current goal is Authoritative Incremental ASR v1: reduce cold first-pass latency through
-exact chunk identities and fail-open replay. Remote Speaker Evidence Map v1 follows it.
+gate. Authoritative Incremental ASR v1 and the exact remote producer are complete; the latter is
+`DO_NOT_PROMOTE` because remote-only precomputation saves just `2.8651%..4.1040%` modeled wall time.
+The current goal is Causal Canonical Mic ASR v1: remove the post-Echo mic critical path through exact
+checkpointable mic windows. Remote Speaker Evidence Map v1 follows it.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

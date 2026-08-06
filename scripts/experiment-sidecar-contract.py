@@ -222,6 +222,10 @@ def build_contract(session: Path, experiment_id: str, event_reason: str) -> dict
     existing_manifest = read_json(experiment_dir / "experiment_manifest.json")
     existing_experiment_state = read_json(experiment_dir / "state.json")
     raw_commit_state = read_json(experiment_dir / "raw_commit_state.json")
+    canonical_asr_dir = experiment_dir / "authoritative-asr"
+    canonical_asr_state = read_json(canonical_asr_dir / "state.json")
+    canonical_asr_report = read_json(canonical_asr_dir / "report.json")
+    canonical_asr_chunks = read_jsonl(canonical_asr_dir / "chunks.jsonl")
     fallback_dir = experiment_dir / "fallback"
     fallback_state = read_json(fallback_dir / "state.json")
     fallback_report = read_json(fallback_dir / "live_pipeline_report.json")
@@ -250,6 +254,28 @@ def build_contract(session: Path, experiment_id: str, event_reason: str) -> dict
         float(((live_report or {}).get("progress") or {}).get("processed_sec") or 0.0)
         if isinstance((live_report or {}).get("progress"), dict)
         else 0.0,
+    )
+    canonical_progress = (
+        canonical_asr_report.get("progress")
+        if isinstance(canonical_asr_report, dict) and isinstance(canonical_asr_report.get("progress"), dict)
+        else (canonical_asr_state or {}).get("progress")
+    )
+    canonical_progress = canonical_progress if isinstance(canonical_progress, dict) else {}
+    canonical_origins = sorted(
+        {
+            str(row.get("provenance"))
+            for row in canonical_asr_chunks
+            if str(row.get("provenance") or "")
+        }
+    )
+    canonical_chunks_completed = int(canonical_progress.get("chunks_completed") or len(canonical_asr_chunks))
+    canonical_chunks_expected = int(canonical_progress.get("chunks_expected") or canonical_chunks_completed)
+    canonical_proven_sec = round(float(canonical_progress.get("proven_sec") or 0.0), 3)
+    canonical_remaining_sec = round(float(canonical_progress.get("remaining_sec") or 0.0), 3)
+    canonical_status = str(
+        (canonical_asr_report or {}).get("status")
+        or (canonical_asr_state or {}).get("status")
+        or "not_started"
     )
     existing_answers = (existing_experiment_state or {}).get("answers") if isinstance((existing_experiment_state or {}).get("answers"), dict) else {}
     existing_counters = (existing_experiment_state or {}).get("counters") if isinstance((existing_experiment_state or {}).get("counters"), dict) else {}
@@ -298,6 +324,10 @@ def build_contract(session: Path, experiment_id: str, event_reason: str) -> dict
         "draft_transcript": rel(live_dir / "transcript.draft.md", session),
         "worker_log": rel(live_dir / "live_worker.log", session),
         "raw_segment_commits": rel(experiment_dir / "raw_segment_commits.jsonl", session),
+        "canonical_asr_state": rel(canonical_asr_dir / "state.json", session),
+        "canonical_asr_report": rel(canonical_asr_dir / "report.json", session),
+        "canonical_asr_windows": rel(canonical_asr_dir / "chunks.jsonl", session),
+        "canonical_asr_worker_log": rel(canonical_asr_dir / "worker.log", session),
         "experiment_audio": rel(experiment_dir / "audio", session) or f"derived/experiments/{experiment_id}/audio",
         "live_pipeline_report": rel(live_dir / "live_pipeline_report.json", session),
         "live_batch_comparison": rel(live_dir / "live_batch_comparison.json", session),
@@ -335,6 +365,17 @@ def build_contract(session: Path, experiment_id: str, event_reason: str) -> dict
             "raw_capture_affected": affected,
             "batch_reproducible_from_raw": batch_reproducible,
             "batch_pipeline_status": batch_report_status,
+            "canonical_asr_status": canonical_status,
+            "canonical_asr_scope": str((canonical_asr_report or {}).get("scope") or "remote_only_v1"),
+            "canonical_asr_chunks_completed": canonical_chunks_completed,
+            "canonical_asr_chunks_expected": canonical_chunks_expected,
+            "canonical_asr_proven_sec": canonical_proven_sec,
+            "canonical_asr_remaining_sec": canonical_remaining_sec,
+            "canonical_asr_origins": canonical_origins,
+            "authoritative_live_remote_available": (
+                canonical_chunks_completed > 0
+                and canonical_origins == ["recording_time_committed_pcm"]
+            ),
         },
         "counters": {
             "segments_seen": len(segments),
@@ -422,6 +463,11 @@ def build_contract(session: Path, experiment_id: str, event_reason: str) -> dict
             "backpressure_detected": backpressure,
             "fallback_status": state["fallback"]["status"],
             "fallback_chunks": state["fallback"]["chunks_seen"],
+            "canonical_asr_status": canonical_status,
+            "canonical_asr_chunks_completed": canonical_chunks_completed,
+            "canonical_asr_chunks_expected": canonical_chunks_expected,
+            "canonical_asr_proven_sec": canonical_proven_sec,
+            "canonical_asr_remaining_sec": canonical_remaining_sec,
         },
         "machine_answers": state["answers"],
         "manifest": f"derived/experiments/{experiment_id}/experiment_manifest.json",
@@ -496,6 +542,10 @@ def write_report_md(path: Path, report: dict[str, Any]) -> None:
         f"- raw seconds: `{summary['raw_seconds_recorded']}`",
         f"- sidecar captured seconds: `{summary['sidecar_seconds_captured']}`",
         f"- sidecar processed seconds: `{summary['sidecar_seconds_processed']}`",
+        f"- canonical ASR: `{summary['canonical_asr_status']}`",
+        f"- canonical ASR chunks: `{summary['canonical_asr_chunks_completed']}/{summary['canonical_asr_chunks_expected']}`",
+        f"- canonical ASR proven seconds: `{summary['canonical_asr_proven_sec']}`",
+        f"- canonical ASR remaining seconds: `{summary['canonical_asr_remaining_sec']}`",
         f"- backpressure_detected: `{summary['backpressure_detected']}`",
         f"- sidecar_disabled: `{summary['sidecar_disabled']}`",
         f"- batch_pipeline_status: `{summary['batch_pipeline_status']}`",
@@ -535,6 +585,10 @@ def print_status(contract: dict[str, Any]) -> None:
     print(f"  raw_seconds_recorded: {answers['raw_seconds_recorded']}")
     print(f"  sidecar_seconds_captured: {answers['sidecar_seconds_captured']}")
     print(f"  sidecar_seconds_asr: {answers['sidecar_seconds_asr']}")
+    print(f"  canonical_asr_status: {answers['canonical_asr_status']}")
+    print(f"  canonical_asr_chunks: {answers['canonical_asr_chunks_completed']}/{answers['canonical_asr_chunks_expected']}")
+    print(f"  canonical_asr_proven_sec: {answers['canonical_asr_proven_sec']}")
+    print(f"  canonical_asr_remaining_sec: {answers['canonical_asr_remaining_sec']}")
     print(f"  sidecar_disabled: {str(answers['sidecar_disabled']).lower()}")
     print(f"  backpressure_detected: {str(answers['backpressure_detected']).lower()}")
     print(f"  fallback_status: {report['summary'].get('fallback_status') or 'not_run'}")

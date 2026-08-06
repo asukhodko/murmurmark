@@ -441,10 +441,11 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Authoritative Incremental ASR v1: сократить задержку свежего пути
-`first Ctrl-C -> authoritative transcript` через точное fail-open переиспользование завершённых
-ASR-окон. Cache принимается только при совпадении canonical PCM, window, model, prompt, language и
-decode fingerprints; provisional live text не становится authoritative.
+Causal Canonical Mic ASR v1: сократить задержку свежего пути
+`first Ctrl-C -> authoritative transcript` через точную checkpointable подготовку выбранного
+post-Echo mic и fail-open переиспользование завершённых ASR-окон. Cache принимается только при
+совпадении canonical PCM, window, model, prompt, language и decode fingerprints; provisional live
+text не становится authoritative.
 ```
 
 ## Consultation Prompt

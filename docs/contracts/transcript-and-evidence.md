@@ -5185,10 +5185,49 @@ Common `not_eligible` reasons:
 - `canonical_identity_mismatch:<index>`;
 - `live_pcm_mismatch:<index>`;
 - `live_json_hash_mismatch:<index>`;
-- `live_json_invalid:<index>`.
+- `live_json_invalid:<index>`;
+- `canonical_live_origin_not_promoted:<decision>`.
 
 Authoritative Incremental ASR v1 ended with `DO_NOT_PROMOTE_LIVE_ORIGIN`: three frozen real sessions
-contained `0/30` required proofs. Canonical Live ASR Producer v1 owns that producer-side gap.
+contained `0/30` required proofs. Canonical Live ASR Producer v1 then implemented the missing exact
+remote producer and passed strict parity on `3/3` historical replays, but completed with
+`DO_NOT_PROMOTE`: the modeled wall-time gain was only `2.8651%..4.1040%`, and no fresh
+recording-time corpus was available. Ordinary Live Shadow does not start the producer.
+
+The producer writes under:
+
+```text
+derived/experiments/live-shadow-v1/authoritative-asr/
+  state.json
+  report.json
+  chunks.jsonl
+  canonical/remote.wav
+  chunks/remote/<index>.wav
+  chunks/remote/<index>.json
+```
+
+`state.json` uses `murmurmark.canonical_live_asr_producer_state/v1`; `report.json` uses
+`murmurmark.canonical_live_asr_producer_report/v1`; every published chunk uses
+`murmurmark.authoritative_live_asr_window/v1` and embeds
+`murmurmark.authoritative_live_asr_chunk/v1`. Publication is atomic and binds the closed source
+segment fingerprints, canonical PCM hash and format, whisper binary/model, prompt, language, decode
+options and completed JSON hash. `historical_replay` is diagnostics-only and cannot masquerade as
+`recording_time_committed_pcm`.
+
+Evidence collection is explicit:
+
+```bash
+murmurmark record --target-bundle system \
+  --experiment live-shadow-v1 \
+  --canonical-live-asr-evidence
+
+scripts/materialize-live-asr-cache.py "$SESSION" \
+  --verify-only \
+  --allow-unpromoted-live-origin
+```
+
+The second flag is a lab override. Normal pipeline materialization reads the frozen corpus decision
+and stays on batch while it is `DO_NOT_PROMOTE`.
 
 ### Batch ASR Chunk Cache And Rebuild Check
 

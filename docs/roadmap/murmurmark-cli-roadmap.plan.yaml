@@ -33,7 +33,7 @@ nodes:
     title: "MurmurMark CLI"
     kind: summary
     status: current
-    effort: 174
+    effort: 182
     notes: |
       Активная CLI-first, local-first и evidence-backed программа. Batch transcript остаётся
       authoritative. В работе одновременно может быть только одна исполнимая продуктовая цель.
@@ -394,13 +394,26 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [product-authoritative-incremental-asr-v1, corpus-regression]
+    status: done
+    effort: 8
+    notes: |
+      Завершено DO_NOT_PROMOTE. Remote producer даёт exact canonical 60s/5s chunks и strict parity
+      3/3, но historical replay не заменяет recording-time evidence, а modeled wall reduction всего
+      2.8651%..4.1040% из-за параллельного mic critical-path. Обычный live не запускает producer;
+      evidence flag и promotion gate сохраняют quarantine и batch fallback.
+
+  product-causal-canonical-mic-asr-v1:
+    title: "Causal Canonical Mic ASR v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [product-canonical-live-asr-producer-v1, corpus-regression]
     status: current
     effort: 8
     notes: |
-      Производить capture-safe canonical 60s/5s mic/remote ASR chunks и exact
-      authoritative_live_asr_chunk/v1 proof во время записи. Sidecar остаётся best-effort, batch
-      authoritative; lag/corruption дают fallback. Gate: >=50% fresh post-stop ASR reduction на 3
-      real sessions без capture/output/stable-path regression либо reproducible DO_NOT_PROMOTE.
+      Сделать selected post-Echo mic preparation checkpointable на закрытых committed-PCM окнах и
+      выпускать exact canonical mic 60s/5s chunks только при byte-identical совпадении с post-stop
+      batch identity. Capture callback и raw CAF неизменны, lag/unsupported profile дают fallback.
+      Gate: >=50% fresh post-stop ASR wall reduction на 3 real sessions либо DO_NOT_PROMOTE.
 
   parallel-research:
     title: "Параллельные исследования"
@@ -416,7 +429,7 @@ nodes:
     title: "Remote Speaker Evidence Map v1"
     kind: task
     parent: murmurmark-cli
-    deps: [quality-operational-rebaseline-v1, corpus-regression, product-canonical-live-asr-producer-v1]
+    deps: [quality-operational-rebaseline-v1, corpus-regression, product-causal-canonical-mic-asr-v1]
     status: next
     effort: 6
     notes: |
@@ -519,9 +532,9 @@ views:
         nodes: [working-capabilities, corpus-regression]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [product-canonical-live-asr-producer-v1]
+        nodes: [product-causal-canonical-mic-asr-v1]
       dependent:
-        title: "После canonical live-ASR gate"
+        title: "После canonical mic-ASR gate"
         nodes: [research-remote-diarization, parallel-research, parking-lot]
 
   critical-path:
@@ -550,6 +563,7 @@ views:
           - product-reliable-final-handoff-v1
           - product-authoritative-incremental-asr-v1
           - product-canonical-live-asr-producer-v1
+          - product-causal-canonical-mic-asr-v1
           - research-remote-diarization
 
   parallel-research-view:
@@ -604,6 +618,7 @@ views:
           - product-reliable-final-handoff-v1
           - product-authoritative-incremental-asr-v1
           - product-canonical-live-asr-producer-v1
+          - product-causal-canonical-mic-asr-v1
           - research-remote-diarization
           - parallel-research
           - parking-lot
@@ -611,8 +626,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Canonical Live ASR Producer v1: снять измеренный blocker Authoritative Incremental ASR v1: научить capture-safe Live Shadow производить полностью завершённые canonical 60s/5s mic и remote chunks с exact PCM/model/prompt/decode identity и `authoritative_live_asr_chunk/v1`, чтобы post-stop batch мог безопасно переиспользовать их; сохранить raw CAF и batch authoritative, fail-open при lag/corruption и добиться не менее 50% сокращения свежего post-stop ASR на трёх реальных сессиях либо завершить воспроизводимым DO_NOT_PROMOTE."
-      success_by_next_sync: "Три frozen real sessions показывают exact live-origin acceptance, byte-identical authoritative replay и >=50% fresh post-stop ASR reduction либо точный DO_NOT_PROMOTE ceiling."
+      nearest_goal: "Causal Canonical Mic ASR v1: снять измеренный mic critical-path после Canonical Live ASR Producer v1: сделать Echo Guard и выбранную Speaker-Preserving mic-подготовку checkpointable на закрытых committed-PCM окнах, выпускать exact canonical 60s/5s mic ASR chunks только при полном совпадении PCM/model/prompt/decode identity с post-stop batch, сохранить raw CAF и batch authoritative, fail-open при lag или расхождении и добиться не менее 50% сокращения свежего post-stop ASR wall time на трёх реальных сессиях либо завершить воспроизводимым DO_NOT_PROMOTE."
+      success_by_next_sync: "Три fresh real sessions показывают byte-identical canonical mic acceptance и >=50% post-stop ASR wall reduction либо точный DO_NOT_PROMOTE ceiling без capture и transcript regression."
     defaults:
       status_progress:
         done: 1.0
@@ -633,13 +648,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle, batch transcript, review, notes/export и Live Shadow уже работают."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Текущий canonical live-ASR producer"
-        scope_nodes: [product-canonical-live-asr-producer-v1]
+        title: "Текущий canonical mic-ASR path"
+        scope_nodes: [product-causal-canonical-mic-asr-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Strict cache consumer продвинут; live-origin заблокирован отсутствием canonical proof producer."
-          next_sync_goal: "Выдать exact 60s/5s proofs из capture-safe sidecar и измерить свежий post-stop speedup."
+          sync_note: "Remote parity доказана, но remote-only wall ceiling равен 2.8651%..4.1040%; critical path остаётся в post-Echo mic."
+          next_sync_goal: "Выдать exact post-Echo mic proofs и измерить свежий end-to-end post-stop speedup."
       dependent-path:
         title: "Зависимый путь"
         scope_nodes:
@@ -659,12 +674,13 @@ x:
           - product-reliable-final-handoff-v1
           - product-authoritative-incremental-asr-v1
           - product-canonical-live-asr-producer-v1
+          - product-causal-canonical-mic-asr-v1
           - research-remote-diarization
         kind: main
         mgmt:
           health: neutral
-          sync_note: "После canonical live-ASR producer gate критический путь переходит к anonymous remote speaker evidence."
-          next_sync_goal: "Не начинать diarization и speaker naming до решения producer hypothesis."
+          sync_note: "После canonical mic-ASR gate критический путь переходит к anonymous remote speaker evidence."
+          next_sync_goal: "Не начинать diarization и speaker naming до решения mic critical-path hypothesis."
       research:
         title: "Параллельные исследования"
         scope_nodes: [parallel-research]

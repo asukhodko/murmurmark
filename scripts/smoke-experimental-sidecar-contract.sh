@@ -76,6 +76,36 @@ JSONL
   }
 }
 JSON
+  mkdir -p "$session/derived/experiments/live-shadow-v1/authoritative-asr"
+  cat >"$session/derived/experiments/live-shadow-v1/authoritative-asr/state.json" <<'JSON'
+{
+  "schema": "murmurmark.canonical_live_asr_producer_state/v1",
+  "status": "completed",
+  "scope": "remote_only_v1",
+  "progress": {
+    "chunks_completed": 1,
+    "chunks_expected": 1,
+    "proven_sec": 60,
+    "remaining_sec": 0
+  }
+}
+JSON
+  cat >"$session/derived/experiments/live-shadow-v1/authoritative-asr/report.json" <<'JSON'
+{
+  "schema": "murmurmark.canonical_live_asr_producer_report/v1",
+  "status": "completed",
+  "scope": "remote_only_v1",
+  "progress": {
+    "chunks_completed": 1,
+    "chunks_expected": 1,
+    "proven_sec": 60,
+    "remaining_sec": 0
+  }
+}
+JSON
+  cat >"$session/derived/experiments/live-shadow-v1/authoritative-asr/chunks.jsonl" <<'JSONL'
+{"schema":"murmurmark.authoritative_live_asr_window/v1","index":1,"provenance":"recording_time_committed_pcm"}
+JSONL
 }
 
 session="$workdir/session-ok"
@@ -110,6 +140,12 @@ jq -e '
   and .answers.sidecar_seconds_asr == 30
   and .answers.raw_capture_affected == false
   and .answers.batch_reproducible_from_raw == true
+  and .answers.canonical_asr_status == "completed"
+  and .answers.canonical_asr_chunks_completed == 1
+  and .answers.canonical_asr_chunks_expected == 1
+  and .answers.canonical_asr_proven_sec == 60
+  and .answers.canonical_asr_remaining_sec == 0
+  and .answers.authoritative_live_remote_available == true
 ' "$state" >/dev/null || fail "state machine answers are invalid"
 
 jq -e '

@@ -23,6 +23,7 @@ export MURMURMARK_RUNTIME_HOME="$repo_root"
 
 meeting_option_output="$(mktemp "${TMPDIR:-/tmp}/murmurmark-meeting-unsafe-option.XXXXXX")"
 "$bin" meeting -h | grep -q '^usage: murmurmark meeting'
+"$bin" meeting -h | grep -q -- '--canonical-live-asr-evidence'
 if "$bin" meeting --force-asr >"$meeting_option_output" 2>&1; then
   echo "expected meeting to reject --force-asr" >&2
   exit 1
@@ -33,6 +34,11 @@ if "$bin" meeting --sessions-root sessions >"$meeting_option_output" 2>&1; then
   exit 1
 fi
 grep -q 'unsupported meeting option --sessions-root' "$meeting_option_output"
+if "$bin" meeting --canonical-live-asr-evidence >"$meeting_option_output" 2>&1; then
+  echo "expected canonical live ASR evidence to require live-shadow-v1" >&2
+  exit 1
+fi
+grep -q -- '--canonical-live-asr-evidence requires --experiment live-shadow-v1' "$meeting_option_output"
 
 workdir="$(mktemp -d "${TMPDIR:-/tmp}/murmurmark-cli-handoff.XXXXXX")"
 trap 'rm -rf "$workdir"; rm -f "$meeting_option_output"' EXIT

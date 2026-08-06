@@ -1,0 +1,43 @@
+{
+  "schema": "murmurmark.canonical_live_asr_frozen_manifest/v1",
+  "producer_version": "0.2.0",
+  "scope": "remote_only_v1",
+  "sessions": [
+    {
+      "session_id": "2026-07-08_16-22-42",
+      "raw_sha256": {
+        "mic": "f13aae37c145fe24c5284513e793d46b155a7f3a7726d6494b6c03505d7886d7",
+        "remote": "1e7a5c7ffe74ec98f26676faf8af5040154fce26137db4c714535583e54d7fd0"
+      },
+      "canonical_chunks_sha256": "3717f61313e2fe28caea27dbca0b06a9e830b24fe45ba32d89244628c555cfe9",
+      "strict_remote_verified": true,
+      "evidence_origin": [
+        "historical_replay"
+      ]
+    },
+    {
+      "session_id": "2026-07-08_17-10-35",
+      "raw_sha256": {
+        "mic": "728fff03b8cd03ba50b9c57c5e00773187b3383f16c5fdf6a260012d5e7c2f4c",
+        "remote": "15b4ea567fc27cc2d3877886373fdea5d19b7d4c5be1868fd6aecbf0dbfbda41"
+      },
+      "canonical_chunks_sha256": "5002dde7d3e9a3d03e3e7e50ff64e29ecf2f091b8b772cb02daae01d10201397",
+      "strict_remote_verified": true,
+      "evidence_origin": [
+        "historical_replay"
+      ]
+    },
+    {
+      "session_id": "2026-07-21_15-11-15-live",
+      "raw_sha256": {
+        "mic": "c5f724c09daebacce5b4b6901b8a98824a04f9c7d9ff5326eb2d4da2cfdea7f3",
+        "remote": "72fb2a0e3d29d599520c85f5557acdc2e3df6fa48a111c39a48e00ddd880f154"
+      },
+      "canonical_chunks_sha256": "d1979aed80a701e0f76846099fe6adc5762d8d3b3a735474184b52ffe86a7c9c",
+      "strict_remote_verified": true,
+      "evidence_origin": [
+        "historical_replay"
+      ]
+    }
+  ]
+}

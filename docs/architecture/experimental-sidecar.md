@@ -157,8 +157,9 @@ eligible remote-active row
 The cheap pass may use committed current/past PCM, current/past live ASR, speaker state and past-only
 Target-Me enrollment. Batch text, future chunks and future enrollment remain evaluation-only.
 Measured route counts are `48 cheap_reject`, `159 expensive_candidate` and `576 unresolved`. A
-future persistent-ASR worker may test model reuse in this namespace, but current product work is the
-authoritative batch boundary/review route.
+quarantined canonical remote-ASR worker now proves exact model reuse in this namespace, but its
+remote-only wall-time ceiling is too small for promotion. Current product work is the exact
+post-Echo mic checkpoint boundary; the authoritative batch and review route remains unchanged.
 
 Implemented v1 contract:
 
@@ -337,11 +338,17 @@ model differ.
 Mitigation: live ASR cache bridge is strict and writes `not_eligible` unless metadata is compatible;
 batch ASR remains the fallback.
 
-The current default geometries are intentionally different: live preview uses `30s` segments while
-authoritative batch transcription uses `60s` windows. Therefore cache reuse is normally
-`not_eligible` with `window_duration_mismatch`; this is a safe refusal, not a cache lookup failure.
-Do not coerce reuse until a separate corpus comparison proves equivalent recognition and boundary
-behaviour.
+The current default geometries are intentionally different: live preview uses `30s` transport
+segments while authoritative batch transcription uses `60s/5s` windows. The quarantined canonical
+producer can reconstruct exact `60s/5s` remote windows from closed committed-PCM segments and bind
+them to the complete batch identity. It is enabled only by `--canonical-live-asr-evidence`; ordinary
+Live Shadow does not pay for a second remote decode.
+
+Canonical Live ASR Producer v1 closed with `DO_NOT_PROMOTE`. Strict remote parity passed `3/3`, but
+remote-only precomputation reduced modeled post-stop wall time by only `2.8651%..4.1040%` because
+mic and remote already decode in parallel. `materialize-live-asr-cache.py` therefore rejects even a
+valid recording-time proof unless the frozen corpus report says `PROMOTE` or a lab invocation uses
+`--allow-unpromoted-live-origin`. This is a safe refusal, not a cache lookup failure.
 
 Long-session `experiment compare` uses an adaptive timeout derived from recorded duration (bounded
 between 300 and 1800 seconds). `MURMURMARK_LIVE_BATCH_COMPARE_TIMEOUT_SEC` remains an explicit test

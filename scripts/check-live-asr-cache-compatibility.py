@@ -146,6 +146,7 @@ def build_session(
                 "identity": identity,
                 "identity_sha256": CACHE.content_sha256(identity),
                 "output_json": CACHE.output_fingerprint(raw_json),
+                "provenance": {"origin": "recording_time_committed_pcm"},
             }
             if invalid_track == track and index == 1:
                 if invalid_kind == "proof_missing":

@@ -667,6 +667,7 @@ enum Commands {
         let options = try Options(args)
         let livePipelineEnabled = options.flag("live-pipeline")
         let experimentID = options.string("experiment")
+        let canonicalLiveASREvidenceEnabled = options.flag("canonical-live-asr-evidence")
         if livePipelineEnabled && ProcessInfo.processInfo.environment["MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE"] != "1" {
             throw CLIError(
                 "--live-pipeline is disabled for real recordings until the async live path passes parity gates. " +
@@ -679,6 +680,12 @@ enum Commands {
         }
         if livePipelineEnabled && experimentID != nil {
             throw CLIError("--experiment cannot be combined with --live-pipeline")
+        }
+        if canonicalLiveASREvidenceEnabled && experimentID != "live-shadow-v1" {
+            throw CLIError("--canonical-live-asr-evidence requires --experiment live-shadow-v1")
+        }
+        if canonicalLiveASREvidenceEnabled && options.flag("live-no-worker") {
+            throw CLIError("--canonical-live-asr-evidence cannot be combined with --live-no-worker")
         }
         let out = try SessionPaths.outputDirectory(from: options)
         let duration = try options.optionalPositiveDouble("duration")
@@ -722,6 +729,7 @@ enum Commands {
             liveFinalizeEnabled: liveFinalizeEnabled,
             liveConsoleEnabled: liveConsoleEnabled,
             experimentID: experimentID,
+            canonicalLiveASREvidenceEnabled: canonicalLiveASREvidenceEnabled,
             handoffEnabled: handoffEnabled
         )
         return RecordingInvocation(outputDirectory: out, recorder: recorder)
@@ -733,6 +741,7 @@ enum Commands {
                                  [--mic default] [--mic-backend screencapturekit|voice-processing]
                                  [--remote-backend screencapturekit|audio-input] [--remote-device Device_UID]
                                  [--experiment live-shadow-v1]
+                                 [--canonical-live-asr-evidence]
                                  [--live-pipeline] [--live-segment-sec 30|60] [--live-overlap-sec 5]
                                  [--live-no-worker] [--live-no-console] [--live-no-finalize]
 
@@ -756,6 +765,9 @@ enum Commands {
         New live turns are shown in the recording terminal by default; use --live-no-console to
         disable that view or `murmurmark live watch SESSION` to watch from another terminal.
         The default segment size is 30s for --experiment and 60s for legacy --live-pipeline.
+
+        --canonical-live-asr-evidence additionally runs the quarantined remote-only canonical ASR
+        producer. It is for corpus evidence only; its cache is not promoted into normal batch work.
 
         `latest` is a mutable pointer to the newest session. For real meetings, especially with
         multiple terminals, set SESSION before recording and pass --out "$SESSION".
@@ -886,7 +898,7 @@ enum MeetingCommands {
             "channels",
         ]
         let flagOptions: Set<String> = [
-            "live-no-worker", "live-no-console", "live-no-finalize",
+            "live-no-worker", "live-no-console", "live-no-finalize", "canonical-live-asr-evidence",
         ]
         var index = 0
         while index < args.count {
@@ -915,7 +927,8 @@ enum MeetingCommands {
         usage: murmurmark meeting [--out ./session] [--duration 60] [--target-bundle system|com.example.App]
                                   [--mic default] [--mic-backend screencapturekit|voice-processing]
                                   [--remote-backend screencapturekit|audio-input] [--remote-device Device_UID]
-                                  [--experiment live-shadow-v1] [--keep-debug-artifacts]
+                                  [--experiment live-shadow-v1] [--canonical-live-asr-evidence]
+                                  [--keep-debug-artifacts]
                murmurmark meeting --resume ./session [--sessions-root ./sessions]
                                   [--keep-debug-artifacts]
 
@@ -1245,6 +1258,8 @@ enum DoctorChecks {
             "scripts/compare-live-batch.py",
             "scripts/report-live-replay-lab.py",
             "scripts/materialize-live-asr-cache.py",
+            "scripts/canonical-live-asr-producer.py",
+            "scripts/report-canonical-live-asr-corpus.py",
             "scripts/report-live-corpus-gates.py",
             "scripts/report-live-local-recall-hardening.py",
             "scripts/report-live-boundary-island-micro-asr-lab.py",
@@ -8919,6 +8934,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     let liveFinalizeEnabled: Bool
     let liveConsoleEnabled: Bool
     let experimentID: String?
+    let canonicalLiveASREvidenceEnabled: Bool
     let handoffEnabled: Bool
 
     private let fileManager = FileManager.default
@@ -8934,6 +8950,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     private var liveSegments: AsyncLiveSegmentCapture?
     private var experimentLivePreview: AsyncCommittedLiveSegmentCapture?
     private var liveWorker: LivePipelineWorker?
+    private var canonicalLiveASRWorker: CanonicalLiveASRWorker?
     private var liveConsole: LivePreviewConsole?
     private var rawSidecarCommits: RawSegmentCommitTracker?
     private var events: EventLog?
@@ -8972,6 +8989,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         liveFinalizeEnabled: Bool = false,
         liveConsoleEnabled: Bool = false,
         experimentID: String? = nil,
+        canonicalLiveASREvidenceEnabled: Bool = false,
         handoffEnabled: Bool = true
     ) {
         self.outputDirectory = outputDirectory
@@ -8990,6 +9008,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         self.liveFinalizeEnabled = liveFinalizeEnabled
         self.liveConsoleEnabled = liveConsoleEnabled
         self.experimentID = experimentID
+        self.canonicalLiveASREvidenceEnabled = canonicalLiveASREvidenceEnabled
         self.handoffEnabled = handoffEnabled
     }
 
@@ -9097,6 +9116,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                         "overlap_sec": liveOverlapSeconds,
                         "worker_enabled": liveWorkerEnabled,
                         "console_enabled": liveConsoleEnabled,
+                        "canonical_live_asr_evidence": canonicalLiveASREvidenceEnabled,
                         "writer_mode": "committed_pcm_queue_v1",
                         "fallback_writer_mode": "raw_segment_commit_log",
                         "callback_policy": "raw_write_then_nonblocking_committed_pcm_enqueue",
@@ -9292,6 +9312,34 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                     )
                 }
             }
+            if let worker = canonicalLiveASRWorker {
+                let workerWaitSeconds = livePipelineWorkerFinalizationWaitSeconds(
+                    capturedDuration: max(
+                        actualDuration,
+                        experimentLivePreview?.capturedDurationSeconds() ?? 0
+                    )
+                )
+                let exited = worker.wait(seconds: workerWaitSeconds)
+                try? eventLog.write(
+                    type: "canonical_live_asr.worker_waited",
+                    fields: [
+                        "exited": exited,
+                        "status": worker.terminationStatus.map { Int($0) } as Any? ?? NSNull(),
+                        "report": "derived/experiments/live-shadow-v1/authoritative-asr/report.json",
+                        "timeout_sec": Double((workerWaitSeconds * 1000).rounded() / 1000),
+                    ]
+                )
+                if !exited {
+                    appendWarning(
+                        "canonical live ASR producer still running after \(Int(workerWaitSeconds.rounded()))s; batch fallback remains available"
+                    )
+                    worker.terminate()
+                    try? eventLog.write(
+                        type: "canonical_live_asr.worker_terminated",
+                        fields: ["reason": "finalization_wait_timeout"]
+                    )
+                }
+            }
             finishLiveConsole(eventLog: eventLog)
             if liveFinalizeEnabled, !finalizedAsPartial {
                 runLiveFinalReconcile(eventLog: eventLog)
@@ -9312,6 +9360,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         } catch {
             liveConsole?.terminate()
             liveWorker?.terminate()
+            canonicalLiveASRWorker?.terminate()
             await stopScreenCaptureStream()
             try? remoteInputCapture?.stop()
             try? voiceProcessingMic?.stop()
@@ -9343,6 +9392,30 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                 "report": "derived/live/live_pipeline_report.json",
             ]
         )
+        guard experimentID != nil, canonicalLiveASREvidenceEnabled else { return }
+        do {
+            let canonicalWorker = try CanonicalLiveASRWorker(sessionDirectory: outputDirectory)
+            canonicalLiveASRWorker = canonicalWorker
+            try canonicalWorker.start()
+            try eventLog.write(
+                type: "canonical_live_asr.worker_started",
+                fields: [
+                    "log": "derived/experiments/live-shadow-v1/authoritative-asr/worker.log",
+                    "report": "derived/experiments/live-shadow-v1/authoritative-asr/report.json",
+                    "scope": "remote_only_v1",
+                    "batch_authoritative": true,
+                ]
+            )
+        } catch {
+            canonicalLiveASRWorker = nil
+            appendWarning(
+                "canonical live ASR producer unavailable: \(error.localizedDescription); batch fallback remains available"
+            )
+            try? eventLog.write(
+                type: "canonical_live_asr.worker_failed_open",
+                fields: ["error": error.localizedDescription]
+            )
+        }
     }
 
     private func startLiveConsole(eventLog: EventLog) {
@@ -11671,6 +11744,10 @@ final class LiveSegmentCapture {
                 "source": row.source,
                 "index": row.index,
                 "path": row.path,
+                "hard_start_frame": Int64(row.hardStartFrame),
+                "hard_end_frame": Int64(row.hardStartFrame + row.hardFrames),
+                "clip_start_frame": Int64(row.fileStartFrame),
+                "clip_end_frame": Int64(row.fileStartFrame + row.fileFrames),
                 "start_sec": rounded(startSec),
                 "end_sec": rounded(endSec),
                 "duration_sec": rounded(endSec - startSec),
@@ -11850,6 +11927,70 @@ final class LivePipelineWorker {
             return venv
         }
         return Tooling.which("python3") ?? "/usr/bin/python3"
+    }
+}
+
+final class CanonicalLiveASRWorker {
+    private let process = Process()
+    private var logHandle: FileHandle?
+
+    init(sessionDirectory: URL) throws {
+        let script = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("scripts/canonical-live-asr-producer.py")
+        guard FileManager.default.fileExists(atPath: script.path) else {
+            throw CLIError("canonical live ASR producer not found: \(script.path)")
+        }
+        let logURL = sessionDirectory
+            .appendingPathComponent("derived/experiments/live-shadow-v1/authoritative-asr/worker.log")
+        try FileManager.default.createDirectory(
+            at: logURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        FileManager.default.createFile(atPath: logURL.path, contents: Data())
+        let handle = try FileHandle(forWritingTo: logURL)
+        logHandle = handle
+        process.executableURL = try PythonRuntime.resolve()
+        process.arguments = [script.path, sessionDirectory.path]
+        process.standardInput = FileHandle.nullDevice
+        process.standardOutput = handle
+        process.standardError = handle
+        var environment = ProcessInfo.processInfo.environment
+        environment["PYTHONUNBUFFERED"] = "1"
+        process.environment = environment
+    }
+
+    func start() throws {
+        try process.run()
+    }
+
+    func wait(seconds: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(seconds)
+        while process.isRunning, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        if !process.isRunning {
+            try? logHandle?.close()
+            return true
+        }
+        return false
+    }
+
+    func terminate() {
+        if process.isRunning {
+            process.terminate()
+            let deadline = Date().addingTimeInterval(5)
+            while process.isRunning, Date() < deadline {
+                Thread.sleep(forTimeInterval: 0.1)
+            }
+            if process.isRunning {
+                process.interrupt()
+            }
+        }
+        try? logHandle?.close()
+    }
+
+    var terminationStatus: Int32? {
+        process.isRunning ? nil : process.terminationStatus
     }
 }
 
@@ -14943,6 +15084,20 @@ enum ReadinessPrinter {
             }
             if let commits = string(outputs["raw_segment_commits"]) {
                 print("    commits: \(PathDisplay.display(session.appendingPathComponent(commits)))")
+            }
+            let canonicalStateURL = experimentURL.appendingPathComponent("authoritative-asr/state.json")
+            if FileManager.default.fileExists(atPath: canonicalStateURL.path),
+               let canonical = try? JSONFiles.object(canonicalStateURL) {
+                let canonicalProgress = canonical["progress"] as? [String: Any] ?? [:]
+                print("    canonical_asr:")
+                print("      status: \(string(canonical["status"]) ?? "unknown")")
+                print("      stage: \(string(canonical["stage"]) ?? "unknown")")
+                print("      scope: \(string(canonical["scope"]) ?? "remote_only_v1")")
+                print("      chunks: \(int(canonicalProgress["chunks_completed"]) ?? 0)/\(int(canonicalProgress["chunks_expected"]) ?? 0)")
+                print(String(format: "      proven: %.1fs", double(canonicalProgress["proven_sec"]) ?? 0.0))
+                print(String(format: "      remaining: %.1fs", double(canonicalProgress["remaining_sec"]) ?? 0.0))
+                print(String(format: "      decode_elapsed: %.1fs", double(canonicalProgress["decode_elapsed_sec"]) ?? 0.0))
+                print("      report: \(PathDisplay.display(experimentURL.appendingPathComponent("authoritative-asr/report.json")))")
             }
             print("    state: \(PathDisplay.display(stateURL))")
         }

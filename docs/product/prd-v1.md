@@ -81,13 +81,15 @@ Current operating point, 2026-08-04:
   acceptance;
 - Reliable Final Handoff v1 completes bounded cache/resume convergence, sparse candidate ASR reuse
   and actionable terminal review;
-- the current goal is Authoritative Incremental ASR v1: exact fail-open reuse of completed chunks
-  to reduce cold first-pass latency without changing whisper.cpp or accepting provisional text;
+- Authoritative Incremental ASR and exact remote production are complete; remote-only work is
+  quarantined after a measured `2.8651%..4.1040%` wall-time ceiling;
+- the current goal is Causal Canonical Mic ASR v1: exact fail-open reuse of the selected post-Echo
+  mic path to reduce cold first-pass latency without accepting approximate audio or provisional text;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 
-Authoritative Incremental ASR v1 is the active critical-path stage after Reliable Final Handoff v1.
-Remote Speaker Evidence Map v1 follows it as the next audit-only semantic stage.
+Causal Canonical Mic ASR v1 is the active critical-path stage after the remote-only producer's
+`DO_NOT_PROMOTE`. Remote Speaker Evidence Map v1 follows it as the next audit-only semantic stage.
 The personalized Echo selector activates only with compatible local enrollment and promotion
 evidence; every unsupported acoustic mode or regression uses exact `local_fir_role_masked`.
 Any later separator remains isolated until a corpus-wide decision and cannot use exact remix or

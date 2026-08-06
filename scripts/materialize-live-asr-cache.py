@@ -17,8 +17,15 @@ import authoritative_asr_cache as authoritative_cache
 
 
 SCHEMA = "murmurmark.live_asr_cache_report/v2"
-SCRIPT_VERSION = "0.4.0"
+SCRIPT_VERSION = "0.6.0"
 LIVE_PROOF_SCHEMA = "murmurmark.authoritative_live_asr_chunk/v1"
+CANONICAL_PRODUCER_REPORT_SCHEMA = "murmurmark.canonical_live_asr_producer_report/v1"
+ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_PROMOTION_REPORT = (
+    ROOT
+    / "sessions/_reports/authoritative-incremental-asr-v1/canonical-live-asr-producer-v1"
+    / "canonical_live_asr_corpus_report.json"
+)
 DEFAULT_MODEL = Path.home() / ".local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
 
 
@@ -38,6 +45,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--remote-audio-prep", default="loudnorm")
     parser.add_argument("--whisper-cli", default="whisper-cli")
     parser.add_argument("--force", action="store_true", help="Replace an existing raw cache only after exact gates pass.")
+    parser.add_argument(
+        "--verify-only",
+        action="store_true",
+        help="Run all compatibility checks and write the report without modifying transcript ASR caches.",
+    )
+    parser.add_argument(
+        "--allow-historical-replay",
+        action="store_true",
+        help="Diagnostics only: permit proofs produced after capture from finalized raw audio.",
+    )
+    parser.add_argument(
+        "--allow-unpromoted-live-origin",
+        action="store_true",
+        help="Lab only: verify or materialize recording-time proofs before the corpus gate is PROMOTE.",
+    )
+    parser.add_argument("--promotion-report", type=Path, default=DEFAULT_PROMOTION_REPORT)
     return parser.parse_args()
 
 
@@ -247,6 +270,7 @@ def verify_track(
     window_sec: int,
     overlap_sec: int,
     staging: Path,
+    allow_historical_replay: bool,
 ) -> tuple[list[dict[str, Any]], list[str], dict[str, Any]]:
     specs = build_specs(prepared_audio, duration_ms=duration_ms, window_sec=window_sec, overlap_sec=overlap_sec)
     sorted_chunks = sorted(chunks, key=lambda row: int(row.get("index") or 0))
@@ -271,6 +295,13 @@ def verify_track(
         proof = source.get("batch_cache_compatibility")
         if not isinstance(proof, dict) or proof.get("schema") != LIVE_PROOF_SCHEMA:
             reasons.append(f"authoritative_proof_missing:{index}")
+            continue
+        provenance = proof.get("provenance") if isinstance(proof.get("provenance"), dict) else {}
+        proof_origin = str(provenance.get("origin") or "")
+        if proof_origin != "recording_time_committed_pcm" and not (
+            allow_historical_replay and proof_origin == "historical_replay"
+        ):
+            reasons.append(f"non_live_proof_origin:{index}:{proof_origin or 'missing'}")
             continue
         live_wav = source_wav_path(session, source)
         live_json = source_json_path(session, source)
@@ -467,12 +498,42 @@ def main() -> int:
     prompt = read_prompt(args.prompt_file)
     report_path = session / "derived/live/live_asr_cache_report.json"
     live_report = read_json(session / "derived/live/live_pipeline_report.json")
-    chunks = read_jsonl(session / "derived/live/chunks.jsonl")
+    canonical_root = session / "derived/experiments/live-shadow-v1/authoritative-asr"
+    canonical_report = read_json(canonical_root / "report.json")
+    canonical_chunks = read_jsonl(canonical_root / "chunks.jsonl")
+    promotion_report_path = args.promotion_report.expanduser().resolve()
+    promotion_report = read_json(promotion_report_path)
+    promotion_decision = (
+        str((promotion_report.get("decision") or {}).get("status") or "")
+        if isinstance(promotion_report, dict)
+        else ""
+    )
+    proof_source = "canonical_live_producer" if canonical_chunks else "legacy_live_chunks"
+    chunks = canonical_chunks or read_jsonl(session / "derived/live/chunks.jsonl")
     global_reasons: list[str] = []
-    if live_report is None:
-        global_reasons.append("live_report_missing")
-    elif live_report.get("status") != "completed":
-        global_reasons.append("live_pipeline_not_completed")
+    if canonical_chunks:
+        if canonical_report is None or canonical_report.get("schema") != CANONICAL_PRODUCER_REPORT_SCHEMA:
+            global_reasons.append("canonical_producer_report_missing_or_invalid")
+        else:
+            canonical_status = str(canonical_report.get("status") or "")
+            allowed_statuses = {"completed"}
+            if args.allow_historical_replay:
+                allowed_statuses.add("completed_replay")
+            if canonical_status not in allowed_statuses:
+                global_reasons.append(f"canonical_producer_not_completed:{canonical_status or 'missing'}")
+        if (
+            promotion_decision != "PROMOTE"
+            and not args.allow_unpromoted_live_origin
+            and not args.allow_historical_replay
+        ):
+            global_reasons.append(
+                f"canonical_live_origin_not_promoted:{promotion_decision or 'missing'}"
+            )
+    else:
+        if live_report is None:
+            global_reasons.append("live_report_missing")
+        elif live_report.get("status") != "completed":
+            global_reasons.append("live_pipeline_not_completed")
     if args.asr_mode != "windowed":
         global_reasons.append("only_windowed_mode_supported")
     if not model.exists():
@@ -488,12 +549,13 @@ def main() -> int:
     }
     compatibility: dict[str, dict[str, Any]] = {}
     materialized_tracks: list[str] = []
+    verified_tracks: list[str] = []
     outputs: dict[str, Any] = {}
     with tempfile.TemporaryDirectory(prefix="murmurmark-authoritative-live-cache-") as temporary:
         staging = Path(temporary)
         for track, settings in tracks.items():
             reasons = list(global_reasons)
-            if (raw_dir / f"{track}.json").exists() and not args.force:
+            if (raw_dir / f"{track}.json").exists() and not args.force and not args.verify_only:
                 reasons.append("raw_cache_already_exists")
             if not all_v2_proofs_present(chunks, track):
                 reasons.append("authoritative_live_chunk_proofs_missing")
@@ -529,6 +591,7 @@ def main() -> int:
                         window_sec=args.asr_window_sec,
                         overlap_sec=args.asr_overlap_sec,
                         staging=staging,
+                        allow_historical_replay=args.allow_historical_replay,
                     )
                     reasons.extend(track_reasons)
                     raw_config = authoritative_cache.build_raw_cache_config(
@@ -555,19 +618,28 @@ def main() -> int:
             }
             if eligible:
                 assert prepared is not None and raw_config is not None
-                outputs[track] = materialize_track(
-                    session=session,
-                    raw_dir=raw_dir,
-                    track=track,
-                    verified=verified,
-                    raw_config=raw_config,
-                    prepared_audio=prepared,
-                    window_sec=args.asr_window_sec,
-                    overlap_sec=args.asr_overlap_sec,
-                )
-                materialized_tracks.append(track)
-    fallback_tracks = [track for track in tracks if track not in materialized_tracks]
-    if len(materialized_tracks) == len(tracks):
+                verified_tracks.append(track)
+                if not args.verify_only:
+                    outputs[track] = materialize_track(
+                        session=session,
+                        raw_dir=raw_dir,
+                        track=track,
+                        verified=verified,
+                        raw_config=raw_config,
+                        prepared_audio=prepared,
+                        window_sec=args.asr_window_sec,
+                        overlap_sec=args.asr_overlap_sec,
+                    )
+                    materialized_tracks.append(track)
+    accepted_tracks = verified_tracks if args.verify_only else materialized_tracks
+    fallback_tracks = [track for track in tracks if track not in accepted_tracks]
+    if args.verify_only and len(verified_tracks) == len(tracks):
+        status = "verified"
+    elif args.verify_only and verified_tracks:
+        status = "partially_verified"
+    elif args.verify_only:
+        status = "not_eligible"
+    elif len(materialized_tracks) == len(tracks):
         status = "materialized"
     elif materialized_tracks:
         status = "partially_materialized"
@@ -586,6 +658,14 @@ def main() -> int:
         "status": status,
         "materialized": bool(materialized_tracks),
         "materialized_tracks": materialized_tracks,
+        "verified_tracks": verified_tracks,
+        "verify_only": args.verify_only,
+        "promotion_gate": {
+            "report": str(promotion_report_path),
+            "decision": promotion_decision or "missing",
+            "allow_unpromoted_live_origin": args.allow_unpromoted_live_origin,
+            "allow_historical_replay": args.allow_historical_replay,
+        },
         "fallback_tracks": fallback_tracks,
         "reasons": reasons,
         "track_compatibility": compatibility,
@@ -606,7 +686,12 @@ def main() -> int:
         },
         "inputs": {
             "live_report": "derived/live/live_pipeline_report.json" if live_report else None,
-            "chunks_jsonl": "derived/live/chunks.jsonl" if chunks else None,
+            "proof_source": proof_source,
+            "canonical_producer_report": rel(canonical_root / "report.json", session) if canonical_report else None,
+            "chunks_jsonl": rel(
+                canonical_root / "chunks.jsonl" if canonical_chunks else session / "derived/live/chunks.jsonl",
+                session,
+            ) if chunks else None,
         },
         "outputs": outputs,
         "notes": [

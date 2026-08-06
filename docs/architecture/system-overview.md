@@ -112,7 +112,10 @@ Reliable Final Handoff v1 makes the phase boundary explicit: unchanged candidate
 baseline ASR, expensive work has a machine-readable budget/deferred reason, and every terminal
 blocker has an executable next action or a bounded manual decision item. Authoritative Incremental
 ASR v1 extends exact-identity replay to completed baseline chunks from durable-capture or
-interrupted-run provenance; approximate text reuse remains forbidden.
+interrupted-run provenance; approximate text reuse remains forbidden. Canonical Live ASR Producer
+v1 proved exact remote parity but closed with `DO_NOT_PROMOTE` because the parallel mic branch limits
+wall-time benefit to `2.8651%..4.1040%`. Causal Canonical Mic ASR v1 now owns that measured critical
+path after Echo Guard.
 
 Target full-product path:
 

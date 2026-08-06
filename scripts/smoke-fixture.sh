@@ -3800,6 +3800,7 @@ EOF
   meeting_help="$("$bin" meeting --help)"
   echo "$meeting_help" | grep -q 'usage: murmurmark meeting'
   echo "$meeting_help" | grep -q -- '--keep-debug-artifacts'
+  echo "$meeting_help" | grep -q -- '--canonical-live-asr-evidence'
   finish_help="$("$bin" finish --help)"
   echo "$finish_help" | grep -q 'usage: murmurmark finish'
   echo "$finish_help" | grep -q 'retention plan and provider payload manifest'

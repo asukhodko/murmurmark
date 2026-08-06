@@ -191,6 +191,10 @@ damage raw capture. The inline console is a separate fail-open reader of
 `derived/live/transcript.preview.md`; it never receives audio and cannot block capture. The old
 `--live-pipeline` transport is unsafe and lab-only.
 
+The quarantined remote-ASR producer is enabled only by the lab flag
+`--canonical-live-asr-evidence`; ordinary Live Shadow does not run it. Its proofs remain blocked
+from automatic batch reuse while the frozen corpus decision is `DO_NOT_PROMOTE`.
+
 ## Review And Finish
 
 `meeting` automatically previews suggested review and applies only rows accepted by the existing
@@ -289,12 +293,18 @@ proves bounded recovery and handoff convergence, not cold first-pass whisper.cpp
 
 **Authoritative Incremental ASR v1** is complete. Strict v2 chunk identity, integrity checks,
 byte-identical replay and interrupted-batch reuse are promoted. Historical checkpoint evidence shows
-a median process-time reduction of `98.94%`. Live-origin reuse remains `DO_NOT_PROMOTE`: three frozen
-real sessions contain `0/30` required authoritative proofs, so they safely fall back to batch ASR.
+a median process-time reduction of `98.94%`.
 
-The current goal is **Canonical Live ASR Producer v1**. Live Shadow must produce the same complete
-canonical 60s/5s PCM windows and exact model/prompt/decode proof that authoritative batch accepts.
-Raw CAF and batch output remain authoritative; lag, corruption or missing proof only lose the speedup.
+**Canonical Live ASR Producer v1** is also complete with `DO_NOT_PROMOTE`. Exact remote parity passed
+on `3/3` frozen sessions, but remote-only precomputation reduced modeled post-stop wall time by only
+`2.8651%..4.1040%`: mic and remote ASR already run in parallel, and mic remains the critical path.
+The producer is quarantined behind `--canonical-live-asr-evidence`; ordinary meetings do not pay its
+cost, and unpromoted recording-time proofs cannot enter batch automatically.
+
+The current goal is **Causal Canonical Mic ASR v1**. It moves the exact mic preparation boundary
+through Echo Guard and the selected Speaker-Preserving profile into delayed, checkpointable windows.
+Only byte-identical canonical PCM and complete model/prompt/decode proof may be reused; every lag,
+unsupported profile or mismatch remains an ordinary batch fallback.
 
 The stable CLI supports durable capture, resumable processing, guarded profiles, evidence-backed
 review, export and retention. Exact experiment metrics live in the research documents and roadmap.
@@ -306,10 +316,11 @@ Meeting Lifecycle -> Echo evidence and controlled lab -> Speaker-Preserving Neur
 -> Reference-Conditioned v1 (done) -> Identifiability Corpus (done)
 -> Target-Me Separation v2 (done) -> Evidence Export v2 (done) -> Release-quality CLI (done)
 -> Reliable Final Handoff v1 (done) -> Authoritative Incremental ASR v1 (done)
--> Canonical Live ASR Producer v1 (current) -> Remote Speaker Evidence Map v1 (next)
+-> Canonical Live ASR Producer v1 (done: DO_NOT_PROMOTE)
+-> Causal Canonical Mic ASR v1 (current) -> Remote Speaker Evidence Map v1 (next)
 ```
 
-Remote Speaker Evidence Map v1 follows the canonical live-ASR producer gate. Speaker naming and
+Remote Speaker Evidence Map v1 follows the canonical mic-ASR gate. Speaker naming and
 `transcript.rich.json` promotion follow the anonymous evidence map. Heavy local validators, LLM
 synthesis and UI remain parallel or parked. Live promotion remains blocked; Live Shadow is advisory
 evidence only.
