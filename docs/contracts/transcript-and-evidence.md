@@ -1579,15 +1579,20 @@ local reliability are the strongest classes and all error classes stay below `60
 escalating expected group-call timing overlap to a stronger judge.
 
 `murmurmark.target_me_*` is the shadow Target-Me evidence layer. It reads the selected transcript
-profile, `speaker_state.jsonl` and the existing audio review pack. The pack includes transcript
-risks and open readiness review-plan rows, so Target-Me can audit candidate-only `local_recall_*`
-items that do not yet exist as transcript utterances. It does not edit audio, transcripts, cleanup
-profiles or raw capture.
+profile and `speaker_state.jsonl`, then builds an isolated audio-review pack under its own output
+directory. The pack includes transcript risks and open readiness review-plan rows, so Target-Me can
+audit candidate-only `local_recall_*` items that do not yet exist as transcript utterances. It must
+not rebuild the canonical `derived/audit/audio-review-pack/`; matching canonical audio-review or
+stronger-judge evidence may be reused only when its content fingerprint matches the isolated item.
+It does not edit audio, transcripts, cleanup profiles or raw capture.
 
 Current outputs:
 
 ```text
 derived/audit/target-me/
+  audio-review-pack/
+    review_pack_items.jsonl
+    clips/
   target_me_enrollment.json
   target_me_audit.jsonl
   target_me_summary.json
@@ -3609,9 +3614,9 @@ at least one row was closed and the remaining rows are intentionally left for la
 also expose `missing_review_seconds`, `pending_review_seconds` and `remaining_review_seconds`.
 Readiness must count those remaining seconds as review burden and must not treat partial review as a
 fully checked transcript.
-For `source: "local_recall"` rows, `drop_me` and `drop_remote` are invalid because the row points to a timeline-repair
-island, not a transcript utterance. `keep_me` and `skip` close that local-recall risk as checked;
-`needs_review` keeps it in the readiness burden. These rows are recorded in
+For `source: "local_recall"` rows, `drop_me`, `drop_remote` and `keep_me` are invalid because the row points to a
+timeline-repair island, not a transcript utterance. `skip` rejects a false audit candidate without
+editing the transcript; `needs_review` keeps it in the readiness burden. These rows are recorded in
 `review_decisions_applied.reviewed_v1.jsonl` with `review_effect: "audit_only_local_recall"`.
 For `source: "transcript_order"` rows, `drop_me` and `drop_remote` are also invalid. `keep_me` and `skip` close the
 chronology risk as checked; `needs_review` keeps it in the readiness burden. These rows are recorded
@@ -3716,7 +3721,7 @@ As of the 2026-06-30 corpus baseline, this queue is tracked separately from note
 is about `0.55 min`, remaining transcript/export review is about `3.05 min`, and actionable
 `review_actions` is `0`.
 Readiness inherits applied `local_recall` and `local_recall_repair` review decisions as well as
-audio-review decisions. Closed local-recall rows with `keep_me`, `drop_me` or `skip` do not re-enter
+audio-review decisions. Closed audit-only local-recall rows with `skip` do not re-enter
 `murmurmark next corpus`; unresolved possible lost speech remains visible in `check_local_recall`.
 In the current corpus snapshot, the raw local-recall queue is empty because the remaining islands are
 explained as harmless short/boundary/remote-covered cases.

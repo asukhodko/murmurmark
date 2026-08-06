@@ -13,7 +13,24 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.8.4"
+SCRIPT_VERSION = "0.8.5"
+REVIEW_STATE_FIELDS = {
+    "decision",
+    "status",
+    "reviewer",
+    "notes",
+    "reviewed_at",
+    "review_source",
+    "review_workspace_lane",
+    "review_lane_pack",
+    "review_lane_pack_index",
+    "review_lane_pack_group_size",
+    "review_reason",
+    "review_evidence",
+    "review_suggested_decision",
+    "review_suggested_decision_confidence",
+    "review_suggested_decision_reason",
+}
 SCHEMA = "murmurmark.review_lane_pack/v1"
 KNOWN_REVIEW_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip"}
 DEFAULT_ALLOWED_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip"}
@@ -361,6 +378,13 @@ def obsolete_audit_only_local_recall_keep(row: dict[str, Any]) -> bool:
     return str(row.get("source") or "") == "local_recall" and str(row.get("decision") or "") == "keep_me"
 
 
+def merge_review_state(template: dict[str, Any], existing: dict[str, Any] | None) -> dict[str, Any]:
+    merged = dict(template)
+    if existing:
+        merged.update({key: existing[key] for key in REVIEW_STATE_FIELDS if key in existing})
+    return merged
+
+
 def merge_existing(template_rows: list[dict[str, Any]], existing_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     existing_rows = [row for row in existing_rows if not obsolete_audit_only_local_recall_keep(row)]
     existing_by_key = {
@@ -368,7 +392,7 @@ def merge_existing(template_rows: list[dict[str, Any]], existing_rows: list[dict
         for row in existing_rows
         if str(row.get("decision") or "todo") not in {"", "todo"}
     }
-    return [{**row, **existing_by_key.get(review_row_key(row), {})} for row in template_rows]
+    return [merge_review_state(row, existing_by_key.get(review_row_key(row))) for row in template_rows]
 
 
 def undecided(row: dict[str, Any]) -> bool:
@@ -1150,11 +1174,17 @@ def review_hint_for_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
     elif lane == "check_local_recall":
         focus = "Check whether the candidate recovered a real missing Me phrase."
         short_focus = "possible missing Me phrase"
-        guide = [
-            {"decision": "keep_me", "when": "The inserted Me phrase is audible and belongs in the transcript."},
-            {"decision": "drop_me", "when": "The phrase is not local speech or is ASR noise."},
-            {"decision": "needs_review", "when": "The phrase is real but the wording/timing is uncertain."},
-        ]
+        if all(str(row.get("source") or "") == "local_recall" for row in rows):
+            guide = [
+                {"decision": "skip", "when": "The audit candidate is false; reject it without editing the transcript."},
+                {"decision": "needs_review", "when": "The missing phrase may be real but is not safely materialized."},
+            ]
+        else:
+            guide = [
+                {"decision": "keep_me", "when": "The inserted Me phrase is audible and belongs in the transcript."},
+                {"decision": "drop_me", "when": "The inserted phrase is not local speech or is ASR noise."},
+                {"decision": "needs_review", "when": "The phrase is real but the wording/timing is uncertain."},
+            ]
     elif lane == "fast_confirm_drop":
         focus = "Confirm that the suggested drop is a whole-utterance duplicate or ASR noise."
         short_focus = "confirm safe drop"

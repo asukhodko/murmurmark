@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import importlib.util
+import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 
@@ -73,6 +75,35 @@ def main() -> int:
         "arp_000001",
     )
     assert module.evidence_rows_by_item_id([current], [stale_profile]) == {}
+
+    with tempfile.TemporaryDirectory(prefix="murmurmark-target-me-pack-") as value:
+        session = Path(value) / "fixture-session"
+        canonical = session / "derived/audit/audio-review-pack"
+        canonical.mkdir(parents=True)
+        sentinel = canonical / "review_pack_items.jsonl"
+        sentinel.write_text('{"id":"canonical"}\n', encoding="utf-8")
+        args = SimpleNamespace(
+            skip_build_pack=False,
+            out_dir_name="target-me",
+            max_items=17,
+            write_clips=False,
+        )
+        commands: list[list[str]] = []
+        original_run = module.run
+        module.run = lambda command: commands.append(command)
+        try:
+            isolated = module.ensure_audio_pack(session, "reviewed_v1", args)
+        finally:
+            module.run = original_run
+        assert isolated == session / "derived/audit/target-me/audio-review-pack", isolated
+        assert commands and commands[0][commands[0].index("--out-dir") + 1] == str(isolated), commands
+        assert sentinel.read_text(encoding="utf-8") == '{"id":"canonical"}\n'
+
+        skip_args = SimpleNamespace(**{**vars(args), "skip_build_pack": True})
+        assert module.ensure_audio_pack(session, "reviewed_v1", skip_args) == canonical
+        isolated.mkdir(parents=True)
+        (isolated / "review_pack_items.jsonl").write_text("", encoding="utf-8")
+        assert module.ensure_audio_pack(session, "reviewed_v1", skip_args) == isolated
 
     print("Target-Me evidence matching checks passed")
     return 0

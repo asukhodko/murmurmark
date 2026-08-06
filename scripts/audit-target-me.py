@@ -26,7 +26,7 @@ SCHEMA_ENROLLMENT = "murmurmark.target_me_enrollment/v1"
 SCHEMA_ROW = "murmurmark.target_me_audit/v1"
 SCHEMA_SUMMARY = "murmurmark.target_me_summary/v1"
 SCHEMA_CORPUS = "murmurmark.target_me_corpus_report/v1"
-SCRIPT_VERSION = "0.2.1"
+SCRIPT_VERSION = "0.2.2"
 SAMPLE_RATE = 16000
 EPS = 1e-9
 DEFAULT_WAVLM_MODEL = Path.home() / ".local/share/murmurmark/models/target-me/wavlm-base-plus-sv"
@@ -917,15 +917,24 @@ def build_enrollment(
     return enrollment, target_model
 
 
-def ensure_audio_pack(session: Path, profile: str, args: argparse.Namespace) -> None:
+def target_me_pack_dir(session: Path, args: argparse.Namespace) -> Path:
+    return session / "derived/audit" / args.out_dir_name / "audio-review-pack"
+
+
+def ensure_audio_pack(session: Path, profile: str, args: argparse.Namespace) -> Path:
+    isolated_pack_dir = target_me_pack_dir(session, args)
     if args.skip_build_pack:
-        return
+        if (isolated_pack_dir / "review_pack_items.jsonl").exists():
+            return isolated_pack_dir
+        return session / "derived/audit/audio-review-pack"
     script = Path(__file__).resolve().parent / "build-audio-review-pack.py"
     command = [
         str(script),
         str(session),
         "--profile",
         profile,
+        "--out-dir",
+        str(isolated_pack_dir),
         "--max-items",
         str(args.max_items),
     ]
@@ -934,6 +943,7 @@ def ensure_audio_pack(session: Path, profile: str, args: argparse.Namespace) -> 
     else:
         command.append("--no-write-clips")
     run(command)
+    return isolated_pack_dir
 
 
 def utterance_texts(item: dict[str, Any]) -> tuple[str, str]:
@@ -1563,17 +1573,20 @@ def audit_session(session: Path, args: argparse.Namespace) -> dict[str, Any]:
         return summary
 
     progress(args, f"{session.name}: ensure audio review pack")
-    ensure_audio_pack(session, profile, args)
-    pack_dir = session / "derived/audit/audio-review-pack"
+    pack_dir = ensure_audio_pack(session, profile, args)
     items = read_jsonl(pack_dir / "review_pack_items.jsonl")
     selected = select_pack_items(items, args.max_items)
+    evidence_dirs = [pack_dir]
+    canonical_pack_dir = session / "derived/audit/audio-review-pack"
+    if canonical_pack_dir != pack_dir:
+        evidence_dirs.append(canonical_pack_dir)
     audio_review_by_id = evidence_rows_by_item_id(
         selected,
-        read_jsonl(pack_dir / "audio_review_audit.jsonl"),
+        [row for directory in evidence_dirs for row in read_jsonl(directory / "audio_review_audit.jsonl")],
     )
     stronger_by_id = evidence_rows_by_item_id(
         selected,
-        read_jsonl(pack_dir / "faster_whisper_judge.jsonl"),
+        [row for directory in evidence_dirs for row in read_jsonl(directory / "faster_whisper_judge.jsonl")],
     )
     calibration = enrollment.get("calibration") if isinstance(enrollment.get("calibration"), dict) else {}
     rows: list[dict[str, Any]] = []
@@ -1581,6 +1594,7 @@ def audit_session(session: Path, args: argparse.Namespace) -> dict[str, Any]:
         progress(args, f"{session.name}: audit {index}/{len(selected)} {item.get('id')}")
         rows.append(audit_item(item, target_model, calibration, backend, state_rows, audio_review_by_id, stronger_by_id))
     summary = summarize_session(session=session, profile=profile, out_dir=out_dir, enrollment=enrollment, rows=rows)
+    summary["source_review_pack"] = str(pack_dir)
     write_jsonl(out_dir / "target_me_audit.jsonl", rows)
     write_json(out_dir / "target_me_summary.json", summary)
     write_session_report(out_dir / "target_me_report.md", summary, rows)

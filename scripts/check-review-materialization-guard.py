@@ -100,6 +100,9 @@ def main() -> int:
         load_module("report-review-decisions-progress.py", "murmurmark_review_progress_fresh_todo"),
         load_module("review-decisions-cli.py", "murmurmark_review_cli_fresh_todo"),
     ]
+    plan = load_module("build-review-plan.py", "murmurmark_review_plan_local_recall_choices")
+    assert plan.output_allowed_decisions(raw) == ["needs_review", "skip"]
+    assert plan.output_allowed_decisions(materialized) == raw["allowed_decisions"]
     fresh_template = {
         "session_id": "session",
         "cluster_id": "fresh_1",
@@ -117,6 +120,7 @@ def main() -> int:
         "decision": "keep_me",
         "status": "reviewed",
         "reviewer": "test",
+        "review_suggested_decision": "keep_me",
     }
     for merge_module in merge_modules:
         refreshed = merge_module.merge_existing([fresh_template], [stale_todo])
@@ -127,6 +131,18 @@ def main() -> int:
         preserved = merge_module.merge_existing([fresh_template], [reviewed])
         assert preserved[0]["decision"] == "keep_me", (merge_module.__name__, preserved)
         assert preserved[0]["reviewer"] == "test", (merge_module.__name__, preserved)
+        assert preserved[0]["review_suggested_decision"] == "keep_me", (
+            merge_module.__name__,
+            preserved,
+        )
+        assert preserved[0]["source_audit_id"] == "fresh_audit_id", (
+            merge_module.__name__,
+            preserved,
+        )
+        assert preserved[0]["interval"] == fresh_template["interval"], (
+            merge_module.__name__,
+            preserved,
+        )
 
     with tempfile.TemporaryDirectory(prefix="murmurmark-empty-review-scope-") as temp_dir:
         empty_template = Path(temp_dir) / "review_decisions.template.jsonl"

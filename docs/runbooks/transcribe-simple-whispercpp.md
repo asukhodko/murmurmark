@@ -1854,7 +1854,9 @@ historical persistent Target-Me classifications into a session with insufficient
 enrollment, but those rows never create rescue policy candidates by themselves.
 
 Target-Me now audits open readiness review-plan rows as well as older transcript/audit rows. The
-audio-review pack stores those rows with `review_plan:*` reasons and `source_audit_id`, and
+isolated `derived/audit/target-me/audio-review-pack/` stores those rows with `review_plan:*` reasons
+and `source_audit_id`; the canonical `derived/audit/audio-review-pack/` is not rebuilt. Matching
+canonical judge evidence is reused only by content fingerprint. Then
 `target_me_audit.jsonl` echoes that ID in `source_audit_ids`. This lets review suggestions close a
 lost-`Me`, local-recall, uncertain-audio or transcript-order row when the local speaker evidence
 matches the same review queue item. In the 2026-07-01 corpus pass this closed two safe `keep_me`

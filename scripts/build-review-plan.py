@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.5.1"
+SCRIPT_VERSION = "0.5.2"
 SCHEMA = "murmurmark.review_plan/v1"
 GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
 CROSS_LANE_RELATED_LANES = {"check_unique_me_content", "classify_audio"}
@@ -267,6 +267,10 @@ def has_remote_utterance(item: dict[str, Any]) -> bool:
 
 
 def output_allowed_decisions(item: dict[str, Any]) -> list[str]:
+    if item.get("source") == "local_recall":
+        return ["needs_review", "skip"]
+    if item.get("source") == "transcript_order":
+        return ["keep_me", "needs_review", "skip"]
     values = item.get("allowed_decisions")
     if isinstance(values, list) and values:
         decisions = [str(value) for value in values]
@@ -274,10 +278,6 @@ def output_allowed_decisions(item: dict[str, Any]) -> list[str]:
             insert_at = decisions.index("drop_me") + 1 if "drop_me" in decisions else 0
             decisions.insert(insert_at, "drop_remote")
         return decisions
-    if item.get("source") == "local_recall":
-        return ["drop_me", "keep_me", "needs_review", "skip"]
-    if item.get("source") == "transcript_order":
-        return ["keep_me", "needs_review", "skip"]
     decisions = ["drop_me", "keep_me", "needs_review", "skip"]
     if has_remote_utterance(item):
         decisions.insert(1, "drop_remote")
@@ -596,6 +596,7 @@ def build_plan(report: dict[str, Any], args: argparse.Namespace) -> dict[str, An
             "If remote contains a duplicate of the local speaker, mark drop_remote.",
             "If the duplicate covers only part of a longer Me utterance, do not drop it blindly; check unique local content.",
             "If Me contains real local speech or intentional repeat, mark keep_me.",
+            "For audit-only local recall, skip rejects a false candidate without editing the transcript.",
             "If the case is unclear, keep the transcript item and mark needs_review.",
         ],
     }

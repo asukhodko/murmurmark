@@ -11,7 +11,24 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.6.1"
+SCRIPT_VERSION = "0.6.2"
+REVIEW_STATE_FIELDS = {
+    "decision",
+    "status",
+    "reviewer",
+    "notes",
+    "reviewed_at",
+    "review_source",
+    "review_workspace_lane",
+    "review_lane_pack",
+    "review_lane_pack_index",
+    "review_lane_pack_group_size",
+    "review_reason",
+    "review_evidence",
+    "review_suggested_decision",
+    "review_suggested_decision_confidence",
+    "review_suggested_decision_reason",
+}
 SCHEMA = "murmurmark.review_decision/v1"
 VALID_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip", "todo", ""}
 SHORTCUTS = {
@@ -111,6 +128,13 @@ def review_row_key(row: dict[str, Any]) -> str:
     )
 
 
+def merge_review_state(template: dict[str, Any], existing: dict[str, Any] | None) -> dict[str, Any]:
+    merged = dict(template)
+    if existing:
+        merged.update({key: existing[key] for key in REVIEW_STATE_FIELDS if key in existing})
+    return merged
+
+
 def merge_existing(template_rows: list[dict[str, Any]], existing_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     existing_by_key = {
         review_row_key(row): row
@@ -121,7 +145,7 @@ def merge_existing(template_rows: list[dict[str, Any]], existing_rows: list[dict
     for row in template_rows:
         existing = existing_by_key.get(review_row_key(row))
         if existing:
-            merged.append({**row, **existing})
+            merged.append(merge_review_state(row, existing))
         else:
             merged.append(dict(row))
     return merged

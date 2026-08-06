@@ -9,13 +9,30 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.2"
+SCRIPT_VERSION = "0.3.3"
 SCHEMA = "murmurmark.review_decisions_progress/v1"
 VALID_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip", "todo", ""}
 KNOWN_REVIEW_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip"}
 DEFAULT_ALLOWED_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip"}
 GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
 CROSS_LANE_RELATED_LANES = {"check_unique_me_content", "classify_audio"}
+REVIEW_STATE_FIELDS = {
+    "decision",
+    "status",
+    "reviewer",
+    "notes",
+    "reviewed_at",
+    "review_source",
+    "review_workspace_lane",
+    "review_lane_pack",
+    "review_lane_pack_index",
+    "review_lane_pack_group_size",
+    "review_reason",
+    "review_evidence",
+    "review_suggested_decision",
+    "review_suggested_decision_confidence",
+    "review_suggested_decision_reason",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -92,6 +109,13 @@ def obsolete_audit_only_local_recall_keep(row: dict[str, Any]) -> bool:
     return str(row.get("source") or "") == "local_recall" and str(row.get("decision") or "") == "keep_me"
 
 
+def merge_review_state(template: dict[str, Any], existing: dict[str, Any] | None) -> dict[str, Any]:
+    merged = dict(template)
+    if existing:
+        merged.update({key: existing[key] for key in REVIEW_STATE_FIELDS if key in existing})
+    return merged
+
+
 def merge_existing(template_rows: list[dict[str, Any]], existing_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     existing_rows = [row for row in existing_rows if not obsolete_audit_only_local_recall_keep(row)]
     existing_by_key = {
@@ -100,7 +124,7 @@ def merge_existing(template_rows: list[dict[str, Any]], existing_rows: list[dict
         if is_reviewed(row)
     }
     template_keys = {review_row_key(row) for row in template_rows}
-    merged = [{**row, **existing_by_key.get(review_row_key(row), {})} for row in template_rows]
+    merged = [merge_review_state(row, existing_by_key.get(review_row_key(row))) for row in template_rows]
     merged.extend(row for row in existing_rows if review_row_key(row) not in template_keys and is_reviewed(row))
     return merged
 
