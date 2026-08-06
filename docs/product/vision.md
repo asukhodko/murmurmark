@@ -80,7 +80,9 @@ Remote Speaker Evidence Map v1, Anonymous Rich Transcript Handoff v1 and explici
 now provide promoted optional speaker views over authoritative remote audio. The bounded Pre-ASR
 Target-Me frontier is closed after SepFormer failed reliable presence/absence separation before dev;
 production v2.17 remains the exact plateau. Reviewed Speaker-Aware Meeting Memory v1 now connects
-explicit session-local labels to evidence-backed notes and export through an opt-in handoff.
+explicit session-local labels to evidence-backed notes and export through a promoted opt-in
+handoff. The current bounded qualification asks whether a pinned local model can improve meeting
+memory while every generated claim remains independently tied to exact evidence IDs.
 Voice similarity never assigns a person's identity;
 cross-meeting matching and external writes remain separate gates.
 

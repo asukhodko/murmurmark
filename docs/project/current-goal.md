@@ -5,63 +5,70 @@ Status: current
 Updated: 2026-08-07
 
 The supported path remains `murmurmark meeting -> first Ctrl-C -> authoritative result`. Plain
-transcript, notes and export stay authoritative. Optional speaker-aware artifacts may use only
-explicit session-local review decisions and must fail open to anonymous or aggregate evidence.
+transcript, extractive notes and guarded export stay authoritative. Optional generated memory may
+advance only through frozen local evidence gates and must fail open to those exact outputs.
 
 Roadmap status and dependencies live in `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`.
 `scripts/check-planning-consistency.py` keeps the README, roadmap and OpsKarta wording aligned.
 
-## Reviewed Speaker-Aware Meeting Memory v1
+## Evidence-Guarded Local Synthesis Qualification v1
 
-OpsKarta nearest goal: Reviewed Speaker-Aware Meeting Memory v1: после закрытия bounded pre-ASR audio frontier с DO_NOT_ADVANCE_STRONGER_SEPARATOR связать explicit session-local reviewed remote labels с evidence-backed notes и guarded export через отдельный opt-in fingerprinted handoff; сохранять exact utterance/evidence IDs, aggregate/anonymous fallback при stale или partial review и обычные notes/export без изменений; не добавлять voice identity, cross-session roster, LLM claims или external writes; завершить corpus-wide deterministic/stale/fallback gates, актуализировать документацию, roadmap и OpsKarta, закоммитить и отправить в origin/main.
+OpsKarta nearest goal: Evidence-Guarded Local Synthesis Qualification v1: квалифицировать локальный LLM как необязательный consumer current Reviewed Speaker-Aware Meeting Memory v1; заморозить model/revision, prompt и six-session corpus, требовать exact utterance/evidence IDs для каждого generated claim, отклонять unsupported claims и сохранять extractive notes как byte-identical fallback; сравнить factual support, coverage, review burden, replay и resource cost, завершить PROMOTE_OPTIONAL_LOCAL_SYNTHESIS либо DO_NOT_PROMOTE; не менять transcript selection/default notes/export, не использовать cloud, external writes, cross-session identity или UI; добавить tests/report, согласовать документацию, roadmap и OpsKarta, закоммитить и отправить в origin/main.
 
 ## Why Now
 
-The remote-speaker evidence map, anonymous rich transcript and explicit reviewed naming are already
-promoted optional. The bounded pre-ASR audio frontier is now closed: SepFormer assigned a present
-Target-Me stem accurately on train, but presence and absence distributions overlapped by `0.253397`,
-so it stopped before dev with `DO_NOT_ADVANCE_STRONGER_SEPARATOR`. Production v2.17 remains the exact
-audio plateau.
+Reviewed Speaker-Aware Meeting Memory v1 is complete with
+`PROMOTE_OPTIONAL_REVIEWED_SPEAKER_MEMORY`: 6/6 frozen sessions, 2319 utterances, 726 exact evidence
+statements and byte-identical ordinary outputs. Explicit names now have session-local decision
+provenance, while stale or partial decisions return the ordinary Evidence Handoff v2 bundle.
 
-The next user-visible value is to let reviewed names flow into meeting memory without weakening the
-evidence contract or pretending that a voice embedding proves identity.
+The bounded pre-ASR frontier is also closed. SepFormer assigned present Target-Me stems correctly
+on train but could not separate presence from absence, so it stopped before dev. The next useful
+question is whether a local model can turn the verified evidence into better meeting memory without
+inventing claims or weakening the extractive fallback.
 
 ## Objective
 
-Create an opt-in, fingerprinted notes/export handoff that renders explicit session-local reviewed
-remote labels while preserving exact utterance and evidence references. Missing, stale or partial
-review must return the existing anonymous or aggregate result.
+Qualify one pinned local language model and deterministic prompt as an optional consumer of the
+current speaker-aware handoff. Every published statement must be supported by exact current-session
+utterance IDs and pass an independent support check.
 
 ## Required Work
 
-1. Freeze selected dialogue, anonymous rich references, reviewed label decisions, notes and export
-   inputs for the existing six-session remote-speaker corpus.
-2. Define a versioned speaker-aware memory manifest binding every rendered label to its session-local
-   anonymous speaker ID, decision row and exact utterance/evidence IDs.
-3. Add explicit CLI read/export options without changing default `notes`, transcript or export.
-4. Preserve aggregate `Colleagues` where anonymous attribution is absent and anonymous IDs where a
-   reviewed label is missing.
-5. Reject stale fingerprints, partial review, unknown anonymous IDs and unsupported labels before
-   publication; publish the ordinary handoff as exact fallback.
-6. Prove deterministic replay, referential integrity, no text mutation and no unsupported
-   attribution across the frozen corpus.
-7. Document privacy boundaries and finish with a corpus decision, tests, documentation, roadmap,
-   OpsKarta, commit and push.
+1. Inventory the available local runtime and choose one pinned model/revision under a compatible
+   redistribution policy; missing model support must remain a clean fail-open state.
+2. Freeze the prompt, decoding parameters, speaker-aware input manifest and six-session corpus.
+3. Generate only bounded summary, decision, action, risk and open-question candidates with explicit
+   evidence IDs; do not rewrite transcript truth.
+4. Reject missing, stale, unknown or semantically unsupported references before publication.
+5. Compare factual support, useful coverage, review burden, deterministic replay, latency, memory
+   and energy cost against the current extractive notes.
+6. Publish an isolated immutable bundle only after corpus-wide promotion; otherwise record a precise
+   `DO_NOT_PROMOTE` and keep extractive notes unchanged.
+7. Finish with tests, corpus report, documentation, roadmap, OpsKarta, commit and push.
 
 ## Acceptance Gates
 
-- every displayed name has an explicit current-session review decision;
-- every note/export statement retains exact source utterance and evidence IDs;
-- selected text, role, order and timestamps are unchanged;
-- stale, missing or partial review produces exact anonymous/aggregate fallback;
-- default notes/export bytes do not change;
-- replay is deterministic and all manifest/input hashes verify;
-- no cross-session identity, voice-only naming, external write or unsupported LLM claim appears.
+- every generated claim has one or more exact current-session evidence utterance IDs;
+- an independent verifier rejects unsupported or contradicted claims;
+- no speaker label escapes its current reviewed session provenance;
+- stale/missing model, prompt, handoff or decisions returns byte-identical extractive notes;
+- repeated runs with frozen inputs and decoding parameters are deterministic;
+- default transcript, notes, Evidence Handoff v2 and export bytes do not change;
+- the corpus decision is explicit: `PROMOTE_OPTIONAL_LOCAL_SYNTHESIS` or `DO_NOT_PROMOTE`.
 
 ## Safety Boundary
 
-- capture, raw CAF, Echo Guard, production v2.17, ASR and transcript selection do not change;
-- Target-Me enrollment is never reused as a remote participant identity system;
-- reviewed names remain local to one session unless a future explicit roster contract is approved;
-- the closed SepFormer dev/future-hard sets remain unopened;
-- UI and automatic external integrations remain outside this goal.
+- no cloud request or external write;
+- no voice-only identity, cross-session roster or Target-Me enrollment reuse;
+- no capture, Echo Guard, ASR, transcript selection, default notes/export or UI change;
+- no promotion based only on fluent wording or model self-confidence;
+- the closed SepFormer dev/future-hard sets remain unopened.
+
+## Completed Checkpoint
+
+Reviewed Speaker-Aware Meeting Memory v1 introduced
+`murmurmark notes SESSION --reviewed-speakers` and
+`murmurmark export SESSION --reviewed-speakers`. Its policy and frozen corpus bind every displayed
+reviewed name to an anonymous speaker ID, decision row and exact statement evidence IDs. Missing,
+partial or stale review falls back to ordinary Evidence Handoff v2 artifacts.

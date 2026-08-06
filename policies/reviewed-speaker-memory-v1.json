@@ -1,0 +1,30 @@
+{
+  "constraints": {
+    "cross_session_identity_allowed": false,
+    "default_notes_export_unchanged": true,
+    "external_writes_allowed": false,
+    "generated_claims_allowed": false,
+    "voice_identity_inference_allowed": false
+  },
+  "decision": "PROMOTE_OPTIONAL_REVIEWED_SPEAKER_MEMORY",
+  "schema": "murmurmark.reviewed_speaker_memory_policy/v1",
+  "scope": "optional_explicit_session_local_speaker_memory",
+  "source": {
+    "frozen_manifest": {
+      "bytes": 9559,
+      "sha256": "c789b1b8662b9ffe1e024ff4a0171f16e5b33f6f60bece2fdafc1b7fd3517e32"
+    },
+    "frozen_manifest_path": "docs/testing/reviewed-speaker-memory-v1-manifest.json",
+    "materializer": {
+      "fingerprint": {
+        "bytes": 41988,
+        "path": "scripts/materialize-reviewed-speaker-memory.py",
+        "scope": "repository",
+        "sha256": "9f2e4b03947164c00d7d7a8ec916361b2d918779e4b8ebfd297f14cb0a5a55f6"
+      },
+      "script": "materialize-reviewed-speaker-memory.py",
+      "version": "0.1.0"
+    }
+  },
+  "version": 1
+}

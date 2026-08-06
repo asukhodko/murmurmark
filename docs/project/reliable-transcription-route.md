@@ -3,7 +3,8 @@
 Status: active product route; durable capture, one-command processing, evidence handoff and guarded
 export are complete. Speaker-Preserving Neural Echo v2.17 is the compatible production pre-ASR
 plateau. The bounded pre-ASR frontier is complete after SepFormer stopped before dev on unreliable
-Target-Me presence evidence. Reviewed Speaker-Aware Meeting Memory v1 is the current product step.
+Target-Me presence evidence. Reviewed Speaker-Aware Meeting Memory v1 is promoted optional;
+Evidence-Guarded Local Synthesis Qualification v1 is the current product step.
 Date: 2026-08-07
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
@@ -457,10 +458,10 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Reviewed Speaker-Aware Meeting Memory v1: связать explicit session-local reviewed remote labels с
-evidence-backed notes и guarded export через отдельный opt-in fingerprinted handoff; сохранять
-exact utterance/evidence IDs и anonymous/aggregate fallback; не менять обычные notes/export и не
-добавлять voice identity, cross-session roster, LLM claims или external writes.
+Evidence-Guarded Local Synthesis Qualification v1: квалифицировать pinned local model и prompt над
+speaker-aware memory; требовать exact utterance/evidence IDs и independent support для каждого
+generated claim; сохранять byte-identical extractive fallback и завершить PROMOTE либо честным
+DO_NOT_PROMOTE без cloud, external writes, cross-session identity или default-output changes.
 ```
 
 ## Consultation Prompt
@@ -468,8 +469,8 @@ exact utterance/evidence IDs и anonymous/aggregate fallback; не менять 
 Use this prompt if external consultation is needed:
 
 ```text
-Мы строим MurmurMark: локальный macOS CLI-пайплайн для рабочих созвонов. Текущая цель — безопасно
-добавить reviewed session-local имена удалённых участников в evidence-backed notes и export.
+Мы строим MurmurMark: локальный macOS CLI-пайплайн для рабочих созвонов. Текущая цель — проверить,
+может ли pinned local model создавать более полезную meeting memory без unsupported claims.
 
 Имеется:
 - authoritative selected dialogue и Evidence Handoff v2;

@@ -98,14 +98,12 @@ The current Echo path has a session-end causal boundary. Remote Speaker Evidence
 with `PROMOTE_AUDIT_ONLY`: it publishes high-precision session-local evidence for roughly half of
 remote speech and leaves the rest aggregate. Anonymous rich and explicit reviewed naming are now
 promoted optional read surfaces. The current technical North Star now returns to the pre-ASR audio
-boundary: retain every confirmed `Me` word while removing recognizable authoritative remote. The
-current goal is Pre-ASR Target-Me Isolation Limit v1. Its residual map and Alignment/Echo-Path v3
-are complete. Multi-Component Residual Separator v1 then preserved exact reconstruction and
-speaker-query use but missed four locked dev quality gates, ending in
-`READY_FOR_STRONGER_LOCAL_SEPARATOR`. Stronger Offline Prerequisites then pinned Apache-2.0
-SepFormer, expanded split-disjoint supervision to `12/4/4` speaker identities and passed two
-offline resource probes with about `687 MB` peak RSS, ending in
-`READY_FOR_STRONGER_SEPARATOR_QUALIFICATION`. Hard/sealed and direct ASR stayed closed; production
+boundary: retain every confirmed `Me` word while removing recognizable authoritative remote. That
+bounded frontier is now closed after SepFormer failed reliable Target-Me presence separation before
+dev. Reviewed Speaker-Aware Meeting Memory v1 is promoted optional on 6/6 sessions. The current
+goal is Evidence-Guarded Local Synthesis Qualification v1: improve meeting memory only when every
+generated claim retains exact current-session evidence and passes an independent support gate.
+Hard/sealed and direct ASR stayed closed; production
 v2 stayed unchanged. The nearest bounded stage is train/dev four-stem qualification. Reviewed
 Speaker-Aware Meeting Memory v1 remains ready but deferred until that frontier closes.
 

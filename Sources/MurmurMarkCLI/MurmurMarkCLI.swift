@@ -299,7 +299,8 @@ struct MurmurMark {
           murmurmark review next [SESSION|latest]
           murmurmark review --help
           murmurmark synthesize ./session|latest [--transcript-profile auto] [--sessions-root ./sessions]
-          murmurmark notes ./session|latest [--kind notes|verdict|review-items|evidence] [--profile auto|current|NAME] [--path-only|--cat]
+          murmurmark notes ./session|latest [--kind notes|verdict|review-items|evidence]
+                             [--profile auto|current|NAME] [--reviewed-speakers] [--path-only|--cat]
           murmurmark transcript ./session|latest [--profile auto] [--rich [--reviewed-speakers]] [--path-only|--cat]
                                 [--sessions-root ./sessions]
           murmurmark speakers template|apply|status ./session|latest [--decisions PATH]
@@ -310,7 +311,7 @@ struct MurmurMark {
           murmurmark echo-lab inspect ./session [--sessions-root ./sessions]
           murmurmark finish [./session|latest] [--format markdown|obsidian] [--profile auto] [--out-dir exports/private]
                              [--force-export] [--skip-retention] [--sessions-root ./sessions]
-          murmurmark export ./session|latest [--format markdown|obsidian] [--profile auto] [--out-dir exports/private]
+          murmurmark export ./session|latest [--format markdown|obsidian] [--profile auto] [--reviewed-speakers] [--out-dir exports/private]
                              [--include-json] [--force] [--sessions-root ./sessions]
           murmurmark retention plan|apply ./session|latest [--policy examples/retention-policy.local-first.json]
                              [--export-manifest ./exports/private/session/export_manifest.json]
@@ -1295,6 +1296,7 @@ enum DoctorChecks {
             "scripts/audit-remote-speaker-evidence.py",
             "scripts/materialize-anonymous-rich-transcript.py",
             "scripts/review-remote-speaker-labels.py",
+            "scripts/materialize-reviewed-speaker-memory.py",
             "scripts/authoritative-boundary.py",
             "scripts/mixed-utterance-span-separation.py",
             "scripts/run-asr-positive-echo-candidate.py",
@@ -5521,6 +5523,7 @@ enum NotesCommands {
         let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
         let kind = ArgumentEditing.takeOption("kind", from: &remaining) ?? "notes"
         let profile = ArgumentEditing.takeOption("profile", from: &remaining) ?? "auto"
+        let reviewedSpeakers = ArgumentEditing.takeFlag("reviewed-speakers", from: &remaining)
         let pathOnly = ArgumentEditing.takeFlag("path-only", from: &remaining)
         let cat = ArgumentEditing.takeFlag("cat", from: &remaining)
         guard remaining.isEmpty else {
@@ -5528,6 +5531,9 @@ enum NotesCommands {
         }
 
         let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
+        if reviewedSpeakers, profile != "auto" {
+            throw CLIError("--reviewed-speakers uses the current Evidence Handoff v2 selection and cannot be combined with --profile")
+        }
         let resolvedProfile = try selectedProfile(profile, session: session)
         var paths = artifactPaths(session: session, profile: resolvedProfile)
         if profile == "auto" {
@@ -5543,11 +5549,28 @@ enum NotesCommands {
                 paths["evidence"] = evidence
             }
         }
+        var speakerMemoryFallbackReason: String?
+        if reviewedSpeakers {
+            let selection = try SpeakerAwareMemoryState.selection(session: session)
+            if let notes = selection.artifacts["notes"], let memory = selection.artifacts["memory_json"] {
+                paths["notes"] = notes
+                paths["evidence"] = memory
+            } else {
+                speakerMemoryFallbackReason = selection.fallbackReason ?? "missing_or_stale_speaker_memory"
+            }
+        }
         guard let url = paths[kind] else {
             throw CLIError("unknown notes kind: \(kind)")
         }
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw CLIError("notes artifact not found: \(PathDisplay.display(url)); run `murmurmark synthesize \(PathDisplay.display(session))`")
+        }
+
+        if let speakerMemoryFallbackReason, cat || pathOnly {
+            fputs(
+                "warning: reviewed speaker memory unavailable (\(speakerMemoryFallbackReason)); using ordinary Evidence Handoff v2 artifact\n",
+                stderr
+            )
         }
 
         if cat {
@@ -5564,6 +5587,10 @@ enum NotesCommands {
         print("")
         print("notes:")
         print("  profile: \(resolvedProfile)")
+        print("  speaker_mode: \(reviewedSpeakers && speakerMemoryFallbackReason == nil ? "reviewed_session_labels" : "ordinary")")
+        if let speakerMemoryFallbackReason {
+            print("  fallback_reason: \(speakerMemoryFallbackReason)")
+        }
         for key in ["verdict", "notes", "review-items", "evidence"] {
             if let item = paths[key], FileManager.default.fileExists(atPath: item.path) {
                 print("  \(key): \(PathDisplay.display(item))")
@@ -5631,10 +5658,70 @@ enum NotesCommands {
     private static func printHelp() {
         print("""
         usage: murmurmark notes ./session|latest [--kind notes|verdict|review-items|evidence]
-                                [--profile auto|current|NAME] [--path-only|--cat] [--sessions-root ./sessions]
+                                [--profile auto|current|NAME] [--reviewed-speakers]
+                                [--path-only|--cat] [--sessions-root ./sessions]
 
         Prints paths to local synthesis artifacts. Use --cat to stream one artifact to stdout.
+        --reviewed-speakers reads the verified opt-in speaker-aware notes/evidence bundle. Missing or
+        stale review decisions fail open to the ordinary Evidence Handoff v2 artifact.
         """)
+    }
+}
+
+enum SpeakerAwareMemoryState {
+    struct Selection {
+        let artifacts: [String: URL]
+        let fallbackReason: String?
+    }
+
+    static func selection(session: URL) throws -> Selection {
+        let script = PathURLs.fileURL("scripts/materialize-reviewed-speaker-memory.py")
+        guard FileManager.default.fileExists(atPath: script.path) else {
+            return Selection(artifacts: [:], fallbackReason: "speaker_memory_helper_missing")
+        }
+        let status = try Tooling.runPathQuietAllowingExitCodes(
+            try PythonRuntime.resolve(),
+            [script.path, session.path, "--verify-only"],
+            allowedExitCodes: [0, 2]
+        )
+        let manifestURL = session.appendingPathComponent(
+            "derived/meeting-memory/reviewed-speakers-v1/handoff_manifest.json"
+        )
+        guard status == 0,
+              let payload = try? JSONFiles.object(manifestURL),
+              payload["schema"] as? String == "murmurmark.reviewed_speaker_memory_handoff/v1",
+              payload["state"] as? String == "ready",
+              let bundle = payload["bundle"] as? [String: Any],
+              let files = bundle["files"] as? [String: Any]
+        else {
+            let payload = try? JSONFiles.object(manifestURL)
+            let reasons = payload?["reasons"] as? [String]
+            return Selection(
+                artifacts: [:],
+                fallbackReason: reasons?.first ?? "missing_or_stale_speaker_memory"
+            )
+        }
+        var artifacts: [String: URL] = [:]
+        for (key, value) in files {
+            guard let row = value as? [String: Any],
+                  let raw = row["path"] as? String,
+                  let url = safeSessionPath(raw, session: session)
+            else {
+                return Selection(artifacts: [:], fallbackReason: "speaker_memory_bundle_path_invalid")
+            }
+            artifacts[key] = url
+        }
+        return Selection(artifacts: artifacts, fallbackReason: nil)
+    }
+
+    private static func safeSessionPath(_ raw: String, session: URL) -> URL? {
+        guard !raw.hasPrefix("/"), !raw.split(separator: "/").contains("..") else { return nil }
+        let root = session.standardizedFileURL.path + "/"
+        let url = session.appendingPathComponent(raw).standardizedFileURL
+        guard url.path.hasPrefix(root), FileManager.default.fileExists(atPath: url.path) else {
+            return nil
+        }
+        return url
     }
 }
 
@@ -6069,6 +6156,17 @@ enum SpeakerCommands {
         )
         if command == "status", status == 2 {
             FinalNextPrinter.print("murmurmark speakers template \(PathDisplay.display(session))")
+        }
+        if command == "apply", status == 0 {
+            let memoryScript = PathURLs.fileURL("scripts/materialize-reviewed-speaker-memory.py")
+            guard FileManager.default.fileExists(atPath: memoryScript.path) else {
+                throw CLIError("reviewed speaker memory helper not found: \(memoryScript.path)")
+            }
+            _ = try Tooling.runPathAllowingExitCodes(
+                try PythonRuntime.resolve(),
+                [memoryScript.path, session.path],
+                allowedExitCodes: [0, 2]
+            )
         }
     }
 
@@ -7926,10 +8024,12 @@ enum ExportCommands {
     private static func printHelp() {
         print("""
         usage: murmurmark export ./session|latest [--format markdown|obsidian] [--profile auto]
-                               [--out-dir exports/private] [--include-json] [--force]
+                               [--reviewed-speakers] [--out-dir exports/private] [--include-json] [--force]
                                [--sessions-root ./sessions]
 
         Creates a local user-facing Markdown or Obsidian bundle from a verified Evidence Handoff v2.
+        --reviewed-speakers uses the verified opt-in speaker-aware memory bundle and otherwise falls
+        back to the ordinary Evidence Handoff v2 bundle with an explicit warning.
         --force is retained for compatibility and cannot bypass handoff review or integrity gates.
         """)
     }

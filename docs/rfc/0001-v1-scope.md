@@ -41,11 +41,11 @@ Current implementation status, 2026-08-07:
 - Pre-ASR Target-Me Isolation Limit v1 is complete with `DO_NOT_ADVANCE_STRONGER_SEPARATOR` after
   train presence/absence evidence failed; dev, hard, sealed and direct ASR stayed closed while
   production v2.17 remained exact fallback;
-- Reviewed Speaker-Aware Meeting Memory v1 is current as a separate opt-in reviewed notes/export
+- Reviewed Speaker-Aware Meeting Memory v1 is promoted as a separate opt-in reviewed notes/export
   handoff; ordinary outputs remain authoritative fallback;
 - committed-PCM live preview exists as an advisory shadow, while batch remains authoritative;
-- authoritative speaker identity, cross-session matching, evidence-guarded LLM synthesis and UI
-  remain future or optional work.
+- Evidence-Guarded Local Synthesis Qualification v1 is current; authoritative cross-session
+  identity, cloud/external writes and UI remain future or optional work.
 
 ## Goals
 

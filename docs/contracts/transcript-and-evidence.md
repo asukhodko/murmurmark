@@ -6237,6 +6237,65 @@ guarded export and retention remain unchanged. The frozen decision is
 `PROMOTE_OPTIONAL_REVIEWED_NAMING` on 6/6 sessions, covering 14 anonymous speaker IDs and all 1235
 remote utterance references. Notes/export consumption requires a separate promotion decision.
 
+## Reviewed Speaker-Aware Meeting Memory v1
+
+Speaker-aware memory is a separate opt-in publication over a current Evidence Handoff v2,
+Anonymous Rich Transcript Handoff v1 and complete Reviewed Remote Speaker Naming v1 decision:
+
+```text
+derived/meeting-memory/reviewed-speakers-v1/
+  handoff_manifest.json
+  report.json
+  report.md
+  bundles/<semantic-fingerprint>/
+    handoff_manifest.json
+    speaker_aware_memory.json
+    handoff_evidence.json
+    meeting.md
+    notes.md
+    transcript.md
+    quality_verdict.md
+```
+
+The versioned schemas are:
+
+- `murmurmark.reviewed_speaker_memory_policy/v1`;
+- `murmurmark.reviewed_speaker_memory_handoff/v1`;
+- `murmurmark.reviewed_speaker_memory/v1`;
+- `murmurmark.reviewed_speaker_memory_report/v1`;
+- `murmurmark.reviewed_speaker_memory_frozen_manifest/v1`.
+
+`speaker_aware_memory.json` is the provenance source of truth. It binds each selected outline,
+decision, action, risk, open-question and review statement to its exact Evidence Handoff v2
+utterance IDs. Each remote utterance binding keeps the anonymous speaker ID, attribution-row index,
+display mode and, when a reviewed name is rendered, the exact decision-row index and decision-file
+fingerprint. `Me` remains `Me`; remote rows without anonymous evidence remain aggregate
+`Colleagues`; `keep_anonymous` decisions render the session-local anonymous ID.
+
+The transcript text, roles, order and timestamps must equal the selected dialogue. Claim and
+outline text must equal Evidence Handoff v2. Speaker labels are presentation metadata and cannot be
+used to add, remove, merge or rewrite a statement. The semantic fingerprint binds all source and
+output hashes, including the current decision file and implementation. Publication uses the same
+fsynced immutable-bundle and atomic-pointer pattern as the rich transcript handoffs.
+
+The normal read and export surfaces do not consume this bundle. Explicit use is:
+
+```bash
+murmurmark speakers apply "$SESSION"
+murmurmark notes "$SESSION" --reviewed-speakers
+murmurmark export "$SESSION" --format markdown --include-json --reviewed-speakers
+```
+
+`speakers apply` publishes naming first and then materializes memory. The read and export commands
+verify current fingerprints only. Missing, partial or stale decisions, unknown speaker or evidence
+IDs, broken references, unsafe labels or interrupted publication fail open to the exact ordinary
+Evidence Handoff v2 notes/export and print a fallback reason. No voice-only identity, cross-session
+roster, generated claim or external write is permitted.
+
+The frozen decision is `PROMOTE_OPTIONAL_REVIEWED_SPEAKER_MEMORY`: 6/6 sessions, 2319 utterances,
+726 exact evidence statements and 14 anonymous speaker IDs. The policy pins both this corpus
+manifest and the materializer SHA-256; changed code cannot reuse the prior promotion silently.
+
 Schema:
 
 ```json

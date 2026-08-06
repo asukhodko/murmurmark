@@ -55,9 +55,13 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-remote-speaker-evidence.py
 "$python_bin" scripts/check-anonymous-rich-transcript.py
 "$python_bin" scripts/check-reviewed-remote-speaker-naming.py
+"$python_bin" scripts/check-reviewed-speaker-memory.py
 "$python_bin" scripts/report-reviewed-remote-speaker-naming-corpus.py \
   --strict \
   --frozen-manifest docs/testing/reviewed-remote-speaker-naming-v1-manifest.json
+"$python_bin" scripts/report-reviewed-speaker-memory-corpus.py \
+  --strict \
+  --frozen-manifest docs/testing/reviewed-speaker-memory-v1-manifest.json
 "$python_bin" scripts/check-authoritative-incremental-asr.py
 "$python_bin" scripts/check-authoritative-handoff.py
 "$python_bin" scripts/check-authoritative-handoff-corpus.py

@@ -91,8 +91,8 @@ Current operating point, 2026-08-07:
   read surfaces; labels come only from an explicit fingerprint-bound session review;
 - Pre-ASR Target-Me Isolation Limit v1 is complete. SepFormer preserved exact accounting and paired
   train assignment but failed Target-Me presence separation, ending in
-  `DO_NOT_ADVANCE_STRONGER_SEPARATOR` before dev. Reviewed Speaker-Aware Meeting Memory v1 is the
-  current opt-in notes/export handoff over explicit session-local labels;
+  `DO_NOT_ADVANCE_STRONGER_SEPARATOR` before dev. Reviewed Speaker-Aware Meeting Memory v1 is
+  promoted optional on 6/6 sessions; Evidence-Guarded Local Synthesis Qualification v1 is current;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 

@@ -295,20 +295,21 @@ murmurmark transcript "$SESSION" --rich
 ```
 
 Anonymous Rich Transcript Handoff v1 passed all `1235` references on 6/6 sessions. Reviewed Remote
-Speaker Naming v1 adds only explicit session-local labels:
+Speaker Naming v1 and Reviewed Speaker-Aware Meeting Memory v1 add only explicit session-local
+labels and optional evidence-backed notes/export:
 
 ```bash
 murmurmark speakers template "$SESSION"
 # Edit review/remote-speaker-labels.v1.json: resolve every row, then set review_completed to true.
 murmurmark speakers apply "$SESSION"
 murmurmark transcript "$SESSION" --rich --reviewed-speakers
+murmurmark notes "$SESSION" --reviewed-speakers
+murmurmark export "$SESSION" --format markdown --include-json --reviewed-speakers
 ```
-
-Missing or stale decisions fall back to anonymous `--rich`; plain outputs stay unchanged. The
-bounded pre-ASR frontier is complete. SepFormer assigned present Target-Me stems correctly on train,
-but presence/absence evidence overlapped and stopped before dev with
-`DO_NOT_ADVANCE_STRONGER_SEPARATOR`. The current goal is **Reviewed Speaker-Aware Meeting Memory v1**:
-an opt-in evidence-backed notes/export handoff over explicit session-local labels.
+Speaker-aware memory passed 6/6 frozen sessions, 2319 utterances and 726 exact evidence statements.
+Missing or stale decisions fall back to ordinary artifacts; default bytes stay unchanged. The
+bounded pre-ASR frontier is complete with `DO_NOT_ADVANCE_STRONGER_SEPARATOR`. The current goal is
+**Evidence-Guarded Local Synthesis Qualification v1** over this verified memory.
 
 The dependent critical path is:
 
@@ -319,11 +320,11 @@ Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental 
 -> Residual Echo Ceiling Map (done: READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3)
 -> Alignment and Echo-Path Model v3 (done: READY_FOR_MULTI_COMPONENT_SEPARATOR)
 -> Multi-Component v1 (done) -> Stronger Offline Prerequisites (done) -> SepFormer Qualification (done: DO_NOT_ADVANCE)
--> Reviewed Speaker-Aware Meeting Memory v1 (current)
+-> Reviewed Speaker-Aware Meeting Memory v1 (done: PROMOTE) -> Evidence-Guarded Local Synthesis Qualification v1 (current)
 ```
 
-Speaker-aware memory remains opt-in and is now current. LLM synthesis and UI stay parallel or
-parked; Live promotion remains blocked and Live Shadow stays advisory.
+Speaker-aware memory and future local synthesis remain opt-in. UI stays parked; Live promotion
+remains blocked and Live Shadow stays advisory.
 
 See the [current goal](docs/project/current-goal.md), [readable roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 
@@ -331,8 +332,8 @@ See the [current goal](docs/project/current-goal.md), [readable roadmap](docs/ro
 
 - Ordinary selected transcripts use `Me` and aggregate `Colleagues`; `--rich` is an optional,
   fingerprint-verified anonymous-speaker view and is not an export source.
-- `--rich --reviewed-speakers` uses only explicit labels from the current session decision file.
-  It is an optional read surface; ordinary notes and export do not consume those labels yet.
+- `--reviewed-speakers` uses only explicit labels from the current session decision file; ordinary
+  transcript, notes and export never consume those labels implicitly.
 - The personalized pre-ASR profile removes independently supported remote leakage on compatible
   speaker-playback sessions; it does not promise waveform-perfect echo removal on every room/device.
 - Alignment/Echo-Path v3 is audit-only after `READY_FOR_MULTI_COMPONENT_SEPARATOR`; it is not a

@@ -2186,13 +2186,23 @@ unique `display_label`, or `keep_anonymous` with `display_label: null`; then set
 murmurmark speakers apply "$SESSION"
 murmurmark speakers status "$SESSION"
 murmurmark transcript "$SESSION" --rich --reviewed-speakers
+murmurmark notes "$SESSION" --reviewed-speakers
+murmurmark export "$SESSION" --format markdown --include-json --reviewed-speakers
 ```
 
 The template contains no transcript text. Labels are accepted only from this explicit file and are
 bound to the current anonymous handoff fingerprint and speaker evidence. MurmurMark never infers a
 person from voice, text, contacts, calendar or another session. Missing, partial or stale decisions
 fall back to the anonymous rich transcript; aggregate evidence stays `Colleagues`. This reviewed
-view is not consumed by ordinary notes or export.
+view is not consumed by ordinary notes or export. The two explicit `--reviewed-speakers` commands
+verify a separate immutable speaker-aware memory bundle created by `speakers apply`. Every rendered
+name is linked to its anonymous speaker ID, review row and exact note evidence IDs. If that bundle
+is missing or stale, both commands print the reason and use the byte-identical ordinary Evidence
+Handoff v2 notes/export instead.
+
+The promoted corpus decision is `PROMOTE_OPTIONAL_REVIEWED_SPEAKER_MEMORY`: 6/6 sessions, 2319
+utterances and 726 evidence statements passed deterministic replay, exact-reference, partial-review
+fallback and ordinary-output identity gates.
 
 The bridge then runs a small reconciliation layer:
 

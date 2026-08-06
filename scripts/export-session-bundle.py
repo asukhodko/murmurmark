@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import shlex
@@ -33,7 +34,22 @@ def parse_args() -> argparse.Namespace:
         help="Compatibility flag; never bypasses Evidence Handoff v2 gates.",
     )
     parser.add_argument("--include-json", action="store_true", help="Copy evidence JSON files into the export bundle.")
+    parser.add_argument(
+        "--reviewed-speakers",
+        action="store_true",
+        help="Use the verified opt-in reviewed speaker memory bundle; fail open to ordinary handoff artifacts.",
+    )
     return parser.parse_args()
+
+
+def load_speaker_memory_module() -> Any:
+    path = Path(__file__).resolve().with_name("materialize-reviewed-speaker-memory.py")
+    spec = importlib.util.spec_from_file_location("reviewed_speaker_memory_for_export", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("reviewed speaker memory helper cannot be loaded")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
@@ -337,6 +353,8 @@ def export_commands(args: argparse.Namespace, session: Path) -> dict[str, str]:
     ]
     if args.include_json:
         base.append("--include-json")
+    if args.reviewed_speakers:
+        base.append("--reviewed-speakers")
     rerun = " ".join(base)
     return {
         "rerun": rerun,
@@ -1041,6 +1059,8 @@ def export_session(args: argparse.Namespace) -> dict[str, Any]:
             blockers.append("handoff_export_not_allowed")
     if args.profile != "auto" and args.profile != selected_profile:
         blockers.append("requested_profile_mismatch")
+    if args.reviewed_speakers and args.profile != "auto":
+        blockers.append("reviewed_speakers_requires_auto_profile")
     if args.force:
         warnings.append("force_cannot_bypass_handoff_v2")
     blockers = sorted(set(blockers))
@@ -1075,23 +1095,64 @@ def export_session(args: argparse.Namespace) -> dict[str, Any]:
         raise SystemExit(2)
 
     assert handoff is not None
+    speaker_memory: Any | None = None
+    speaker_memory_manifest: dict[str, Any] | None = None
+    speaker_memory_reason: str | None = None
+    if args.reviewed_speakers:
+        try:
+            speaker_memory = load_speaker_memory_module()
+            memory_root = session / speaker_memory.DEFAULT_OUTPUT
+            decision_path = session / speaker_memory.naming.DEFAULT_DECISIONS
+            speaker_memory_manifest, reasons = speaker_memory.verify_handoff(
+                session,
+                decision_path,
+                memory_root,
+            )
+            if speaker_memory_manifest is None:
+                speaker_memory_reason = reasons[0] if reasons else "missing_or_stale_speaker_memory"
+        except Exception as error:  # fail open to the already verified ordinary handoff
+            speaker_memory = None
+            speaker_memory_manifest = None
+            speaker_memory_reason = f"speaker_memory_verification_failed:{type(error).__name__}"
+        if speaker_memory_manifest is None:
+            warnings.append(f"reviewed_speakers_fallback:{speaker_memory_reason}")
+    speaker_mode = "reviewed_session_labels" if speaker_memory_manifest is not None else "ordinary"
+
     destination = args.out_dir / session.name
     staging = Path(
         tempfile.mkdtemp(prefix=f".{session.name}.staging.", dir=args.out_dir)
     )
     files: dict[str, Any] = {}
     try:
-        source_map = {
-            "transcript_md": ("transcript", "transcript.md"),
-            "notes_md": ("notes", "notes.md"),
-            "quality_verdict_md": ("quality_verdict", "quality_verdict.md"),
-        }
+        source_map: dict[str, tuple[Path, str, str]] = {}
+        for key, artifact, filename in (
+            ("transcript_md", "transcript", "transcript.md"),
+            ("notes_md", "notes", "notes.md"),
+            ("quality_verdict_md", "quality_verdict", "quality_verdict.md"),
+        ):
+            source = (
+                speaker_memory.artifact_path(speaker_memory_manifest, session, artifact)
+                if speaker_memory_manifest is not None
+                else handoff_v2.artifact_path(handoff, session, artifact)
+            )
+            if source is None or not source.is_file():
+                raise handoff_v2.HandoffError(f"handoff artifact missing: {artifact}")
+            source_map[key] = (source, artifact, filename)
         if args.format == "markdown":
-            source_map["index"] = ("meeting", "index.md")
+            meeting_filename = "index.md"
+            meeting_key = "index"
         else:
-            source_map["obsidian_note"] = ("meeting", f"{sid}.md")
-        for key, (artifact, filename) in source_map.items():
-            source = handoff_v2.artifact_path(handoff, session, artifact)
+            meeting_filename = f"{sid}.md"
+            meeting_key = "obsidian_note"
+        meeting_source = (
+            speaker_memory.artifact_path(speaker_memory_manifest, session, "meeting")
+            if speaker_memory_manifest is not None
+            else handoff_v2.artifact_path(handoff, session, "meeting")
+        )
+        if meeting_source is None or not meeting_source.is_file():
+            raise handoff_v2.HandoffError("handoff artifact missing: meeting")
+        source_map[meeting_key] = (meeting_source, "meeting", meeting_filename)
+        for key, (source, artifact, filename) in source_map.items():
             if source is None or not source.is_file():
                 raise handoff_v2.HandoffError(f"handoff artifact missing: {artifact}")
             target = staging / filename
@@ -1099,6 +1160,11 @@ def export_session(args: argparse.Namespace) -> dict[str, Any]:
             files[key] = {
                 **file_identity(target),
                 "source_handoff_artifact": artifact,
+                "source_surface": (
+                    "reviewed_speaker_memory_v1"
+                    if speaker_memory_manifest is not None
+                    else "evidence_handoff_v2"
+                ),
             }
 
         if args.include_json:
@@ -1119,13 +1185,40 @@ def export_session(args: argparse.Namespace) -> dict[str, Any]:
                     **file_identity(target),
                     "source_handoff_artifact": artifact or "manifest",
                 }
+            if speaker_memory_manifest is not None:
+                assert speaker_memory is not None
+                for key, source, filename in (
+                    (
+                        "speaker_memory_manifest_json",
+                        session / speaker_memory.DEFAULT_OUTPUT / "handoff_manifest.json",
+                        "speaker_memory_manifest.json",
+                    ),
+                    (
+                        "speaker_aware_memory_json",
+                        speaker_memory.artifact_path(speaker_memory_manifest, session, "memory_json"),
+                        "speaker_aware_memory.json",
+                    ),
+                ):
+                    if source is None or not source.is_file():
+                        raise handoff_v2.HandoffError(f"speaker memory JSON missing: {key}")
+                    target = staging / filename
+                    shutil.copyfile(source, target)
+                    files[key] = {
+                        **file_identity(target),
+                        "source_handoff_artifact": key,
+                        "source_surface": "reviewed_speaker_memory_v1",
+                    }
 
         next_command = f'murmurmark retention plan "sessions/{session.name}"'
         manifest = {
             "schema": SCHEMA_MANIFEST,
             "generator": {"name": "export-session-bundle", "version": SCRIPT_VERSION},
-            "bundle_quality": "handoff_v2",
-            "status": "exported",
+            "bundle_quality": (
+                "reviewed_speaker_memory_v1"
+                if speaker_memory_manifest is not None
+                else "handoff_v2"
+            ),
+            "status": "exported_with_warnings" if warnings else "exported",
             "session_id": sid,
             "requested_profile": args.profile,
             "selected_profile": selected_profile,
@@ -1134,6 +1227,12 @@ def export_session(args: argparse.Namespace) -> dict[str, Any]:
             "use_gate": handoff.get("use_gate"),
             "handoff_state": state,
             "handoff_fingerprint": fingerprint,
+            "speaker_mode": speaker_mode,
+            "speaker_memory_fingerprint": (
+                speaker_memory_manifest.get("semantic_fingerprint")
+                if speaker_memory_manifest is not None
+                else None
+            ),
             "blockers": [],
             "warnings": warnings,
             "files": files,

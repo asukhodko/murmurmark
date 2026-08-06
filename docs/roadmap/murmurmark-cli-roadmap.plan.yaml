@@ -533,14 +533,14 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-pre-asr-target-me-isolation-limit-v1, research-speaker-map, product-evidence-export-v2]
-    status: current
+    status: done
     effort: 6
     notes: |
-      Создать отдельный opt-in notes/export handoff только из current explicit session-local labels
-      и exact utterance/evidence IDs. Stale или partial review возвращает aggregate/anonymous
-      fallback; обычные notes/export не меняются. Corpus gates должны доказать deterministic replay,
-      referential integrity и zero unsupported attribution. External writes, voice identity,
-      cross-session roster и LLM claims вне цели.
+      Завершено PROMOTE_OPTIONAL_REVIEWED_SPEAKER_MEMORY на 6/6 frozen sessions: 2319 utterances,
+      726 evidence statements, 14 anonymous speaker IDs и exact ordinary-output hashes. Отдельные
+      `notes|export --reviewed-speakers` используют только complete fingerprint-bound decisions;
+      stale/partial review возвращает byte-identical Evidence Handoff v2 fallback. Voice identity,
+      cross-session roster, generated claims и external writes не добавлены.
 
   research-rich-transcript:
     title: "Anonymous Rich Transcript Handoff v1"
@@ -572,13 +572,18 @@ nodes:
       factor 0.524864. Headphones, missing/stale evidence и regressions остаются на exact local_fir.
 
   research-evidence-guarded-llm:
-    title: "Evidence-guarded LLM synthesis"
+    title: "Evidence-Guarded Local Synthesis Qualification v1"
     kind: task
     parent: parallel-research
-    deps: [research-rich-transcript, product-evidence-export-v2]
-    status: idea
-    effort: 4
-    notes: "Generated claims обязаны ссылаться на evidence IDs; unsupported claims отклоняются."
+    deps: [product-reviewed-speaker-memory-v1]
+    status: current
+    effort: 8
+    notes: |
+      Квалифицировать локальный LLM как opt-in consumer current speaker-aware memory. Заморозить
+      model/revision и prompt; каждый generated claim обязан иметь exact utterance/evidence IDs,
+      unsupported claims отклоняются, extractive notes остаются byte-identical fallback. Итогом
+      будет PROMOTE_OPTIONAL_LOCAL_SYNTHESIS либо воспроизводимый DO_NOT_PROMOTE; default notes,
+      export, cloud, external writes, cross-session identity и UI не меняются.
 
   parking-lot:
     title: "Parking lot"
@@ -619,7 +624,7 @@ views:
         nodes: [quality-pre-asr-target-me-isolation-limit-v1]
       dependent:
         title: "После audio frontier"
-        nodes: [product-reviewed-speaker-memory-v1, parallel-research, parking-lot]
+        nodes: [product-reviewed-speaker-memory-v1, research-evidence-guarded-llm, parallel-research, parking-lot]
 
   critical-path:
     title: "Критический CLI-путь"
@@ -654,6 +659,7 @@ views:
           - quality-pre-asr-target-me-isolation-limit-v1
           - quality-sepformer-four-stem-target-me-qualification-v1
           - product-reviewed-speaker-memory-v1
+          - research-evidence-guarded-llm
 
   echo-frontier:
     title: "Пред-ASR отделение Me от remote"
@@ -740,14 +746,15 @@ views:
           - quality-stronger-offline-target-speaker-separator-prerequisites-v1
           - quality-sepformer-four-stem-target-me-qualification-v1
           - product-reviewed-speaker-memory-v1
+          - research-evidence-guarded-llm
           - parallel-research
           - parking-lot
 
 x:
   exec:
     program:
-      nearest_goal: "Reviewed Speaker-Aware Meeting Memory v1: после закрытия bounded pre-ASR audio frontier с DO_NOT_ADVANCE_STRONGER_SEPARATOR связать explicit session-local reviewed remote labels с evidence-backed notes и guarded export через отдельный opt-in fingerprinted handoff; сохранять exact utterance/evidence IDs, aggregate/anonymous fallback при stale или partial review и обычные notes/export без изменений; не добавлять voice identity, cross-session roster, LLM claims или external writes; завершить corpus-wide deterministic/stale/fallback gates, актуализировать документацию, roadmap и OpsKarta, закоммитить и отправить в origin/main."
-      success_by_next_sync: "Reviewed speaker labels дают отдельные проверяемые notes/export artifacts с exact evidence references; stale, partial или missing review возвращает anonymous/aggregate fallback без изменения обычного handoff."
+      nearest_goal: "Evidence-Guarded Local Synthesis Qualification v1: квалифицировать локальный LLM как необязательный consumer current Reviewed Speaker-Aware Meeting Memory v1; заморозить model/revision, prompt и six-session corpus, требовать exact utterance/evidence IDs для каждого generated claim, отклонять unsupported claims и сохранять extractive notes как byte-identical fallback; сравнить factual support, coverage, review burden, replay и resource cost, завершить PROMOTE_OPTIONAL_LOCAL_SYNTHESIS либо DO_NOT_PROMOTE; не менять transcript selection/default notes/export, не использовать cloud, external writes, cross-session identity или UI; добавить tests/report, согласовать документацию, roadmap и OpsKarta, закоммитить и отправить в origin/main."
+      success_by_next_sync: "Есть frozen local-model/prompt qualification с claim-level evidence verification и честным PROMOTE_OPTIONAL_LOCAL_SYNTHESIS либо DO_NOT_PROMOTE; extractive fallback и обычные outputs неизменны."
     defaults:
       status_progress:
         done: 1.0
@@ -800,19 +807,20 @@ x:
           - research-speaker-map
           - quality-pre-asr-target-me-isolation-limit-v1
           - product-reviewed-speaker-memory-v1
+          - research-evidence-guarded-llm
         kind: main
         mgmt:
-          health: yellow
-          sync_note: "Reviewed Speaker-Aware Meeting Memory v1 теперь current: explicit session-local labels должны войти в отдельный evidence-backed notes/export handoff."
-          next_sync_goal: "Доказать exact references, stale fallback и zero unsupported attribution без cross-session identity."
+          health: green
+          sync_note: "Reviewed speaker memory promoted optional на 6/6. Current: bounded local synthesis qualification поверх exact speaker/evidence handoff."
+          next_sync_goal: "Получить claim-level support decision без изменения extractive fallback или default outputs."
       research:
         title: "Параллельные исследования"
         scope_nodes: [parallel-research]
         kind: context
         mgmt:
           health: neutral
-          sync_note: "Heavy validators и synthesis остаются параллельными; reviewed speaker memory поставлен после текущего audio frontier."
-          next_sync_goal: "Не смешивать remote participant naming с Target-Me supervision corpus."
+          sync_note: "Локальный synthesis стал текущей bounded qualification; heavy audio validators остаются закрыты доказанным пределом."
+          next_sync_goal: "Не смешивать generated claims с transcript truth и не открывать cloud/external writes."
       parked:
         title: "Parking lot"
         scope_nodes: [parking-lot]
@@ -846,7 +854,7 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: production v2 как закрытый audio plateau, текущий speaker-aware memory handoff и неблокирующие ветки."
+        caption: "Короткая карта: production v2 как закрытый audio plateau, promoted speaker-aware memory и текущая local synthesis qualification."
         blocks:
           - working-now
           - current-quality

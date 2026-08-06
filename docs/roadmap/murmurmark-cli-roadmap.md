@@ -48,7 +48,7 @@ Speaker-Preserving Neural Echo v2 is the safe production plateau: `5/12` candida
 hard `3/3`, corpus `12/12` and unchanged utility. **Pre-ASR Target-Me Isolation Limit v1** is done.
 SepFormer reached perfect paired train assignment but failed Target-Me presence separation and
 stopped before dev with `DO_NOT_ADVANCE_STRONGER_SEPARATOR`. **Reviewed Speaker-Aware Meeting
-Memory v1** is current: reviewed session-local labels enter an opt-in notes/export handoff.
+Memory v1** is promoted optional. **Evidence-Guarded Local Synthesis Qualification v1** is current.
 ## Critical Path
 ```mermaid
 flowchart LR
@@ -74,9 +74,10 @@ flowchart LR
     Q["Done: PROMOTE<br/>Reviewed Remote<br/>Speaker Naming v1"]
     Z["Done: READY<br/>Residual Map +<br/>Alignment/Echo v3"]
     Y["Done: DO_NOT_ADVANCE<br/>Pre-ASR Target-Me<br/>Isolation Limit v1"]
-    W["Current<br/>Reviewed Speaker-Aware<br/>Meeting Memory v1"]
+    W["Done: PROMOTE<br/>Reviewed Speaker-Aware<br/>Meeting Memory v1"]
+    U["Current<br/>Evidence-Guarded Local<br/>Synthesis Qualification v1"]
 
-    P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D --> F --> G --> C2 --> M --> R --> T --> Q --> Z --> Y --> W
+    P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D --> F --> G --> C2 --> M --> R --> T --> Q --> Z --> Y --> W --> U
 ```
 
 ### 0. Evidence-Backed Me Completion v2
@@ -248,15 +249,21 @@ abstaining Target-Me presence detector and stronger residual preservation.
 
 ### 21. Reviewed Speaker-Aware Meeting Memory v1
 
-Current. Build a separate opt-in notes/export handoff over explicit session-local labels and exact
-evidence IDs. Missing, stale or partial review returns the anonymous/aggregate fallback; ordinary
-notes/export, voice identity, cross-session roster and external writes remain unchanged.
+Completed with `PROMOTE_OPTIONAL_REVIEWED_SPEAKER_MEMORY`: 6/6 frozen sessions, 2319 utterances and
+726 exact evidence statements. Explicit `notes|export --reviewed-speakers` uses complete
+fingerprint-bound decisions; stale or partial review returns byte-identical ordinary artifacts.
+
+### 22. Evidence-Guarded Local Synthesis Qualification v1
+Current. Qualify one pinned local model and prompt over speaker-aware memory. Every generated claim
+must retain exact evidence IDs and pass an independent support check; extractive notes remain the
+immutable fallback and the result may be a reproducible `DO_NOT_PROMOTE`.
 
 ## Dependent And Parallel Research
 
 Speaker-Preserving Neural Echo v2 remains the exact production plateau after the closed audio
-frontier. Reviewed naming is promoted optional; speaker-aware memory is current. Cross-session
-mapping, external integrations, heavy validators and LLM synthesis wait behind separate gates.
+frontier. Reviewed naming and speaker-aware memory are promoted optional. Cross-session
+mapping, external integrations and heavy audio validators remain closed or parked. Local synthesis
+is the current bounded qualification; cloud and external writes remain outside it.
 
 ## Parking Lot
 
