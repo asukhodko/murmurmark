@@ -33,7 +33,10 @@ similarity alone is not success.
 
 Speaker-Preserving Neural Echo v2 is the guarded production plateau: its sealed decision selected
 candidate audio in `5/12` sessions, removed `41.940s` and 90 remote-supported tokens with local-token
-retention `1.0`; the other `7/12` sessions used exact fallback.
+retention `1.0`; the other `7/12` sessions used exact fallback. Production Requalification v2.17
+then proved the unchanged selector against the current incremental-ASR/cache runtime: hard `3/3`,
+corpus `12/12`, the same utility and exact fallbacks, and maximum corpus runtime factor `0.524864`.
+The active policy now pins v2.17; incompatible future runtimes remain visible exact FIR fallbacks.
 
 Residual Echo Ceiling Map v1 measured `6869.306s` actionable evidence. Alignment/echo-path represented
 `2443.222s` (`35.567%`), multi-component separation `2124.220s` (`30.923%`) and Target-Me modeling

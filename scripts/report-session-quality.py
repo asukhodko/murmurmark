@@ -2212,6 +2212,22 @@ def use_gate_reasons(row: dict[str, Any]) -> list[dict[str, Any]]:
                     "value": round(guarded_seconds, 3),
                 }
             )
+    if (
+        row.get("pre_asr_echo_selection_status") == "fallback"
+        and row.get("pre_asr_echo_selection_reason")
+        == "production_policy_not_promoted_or_incompatible"
+    ):
+        reasons.append(
+            {
+                "id": "pre_asr_echo_policy_incompatible_fallback",
+                "severity": "warning",
+                "message": (
+                    "The promoted pre-ASR echo profile is incompatible with the current runtime; "
+                    "the exact local-FIR fallback remains authoritative."
+                ),
+                "value": row.get("pre_asr_echo_selected_profile"),
+            }
+        )
     return reasons
 
 
@@ -2308,6 +2324,35 @@ def authoritative_handoff_profile(session: Path) -> str | None:
         return None
     profile = payload.get("selected_transcript_profile")
     return profile if isinstance(profile, str) and profile else None
+
+
+def pre_asr_echo_selection_metrics(session: Path) -> dict[str, Any]:
+    report = read_json(
+        session
+        / "derived/preprocess/speaker-preserving-neural-echo-v2"
+        / "production_selection_report.json"
+    )
+    if not isinstance(report, dict):
+        return {
+            "pre_asr_echo_selection_status": "missing",
+            "pre_asr_echo_selection_reason": "selection_report_missing",
+            "pre_asr_echo_selected_profile": None,
+            "pre_asr_echo_policy_compatible": None,
+            "pre_asr_echo_exact_fallback": None,
+        }
+    checks = report.get("policy_checks")
+    compatible = (
+        isinstance(checks, dict)
+        and bool(checks)
+        and all(value is True for value in checks.values())
+    )
+    return {
+        "pre_asr_echo_selection_status": report.get("status"),
+        "pre_asr_echo_selection_reason": report.get("reason"),
+        "pre_asr_echo_selected_profile": report.get("selected_profile"),
+        "pre_asr_echo_policy_compatible": compatible,
+        "pre_asr_echo_exact_fallback": report.get("exact_fallback"),
+    }
 
 
 def collect_session(
@@ -2486,6 +2531,7 @@ def collect_session(
         },
     }
     row.update(echo_metrics(local_fir))
+    row.update(pre_asr_echo_selection_metrics(session))
     row.update(group_metrics(group_summary))
     row.update(cleanup_metrics(quality, cleanup_report))
     row.update(review_decision_metrics(review_report))
@@ -3527,6 +3573,12 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
             "remote_forbidden_needs_review_seconds": row.get("remote_forbidden_needs_review_seconds"),
             "remote_forbidden_token_leak_delta": row.get("remote_forbidden_token_leak_delta"),
             "remote_forbidden_local_word_recall_delta": row.get("remote_forbidden_local_word_recall_delta"),
+            "remote_duplicate_in_me_seconds": row.get("remote_duplicate_in_me_seconds"),
+            "pre_asr_echo_selection_status": row.get("pre_asr_echo_selection_status"),
+            "pre_asr_echo_selection_reason": row.get("pre_asr_echo_selection_reason"),
+            "pre_asr_echo_selected_profile": row.get("pre_asr_echo_selected_profile"),
+            "pre_asr_echo_policy_compatible": row.get("pre_asr_echo_policy_compatible"),
+            "pre_asr_echo_exact_fallback": row.get("pre_asr_echo_exact_fallback"),
             "needs_review_count": row.get("needs_review_count"),
             "needs_review_ratio": row.get("needs_review_ratio"),
             "notes_evidence_utterance_count": row.get("notes_evidence_utterance_count"),

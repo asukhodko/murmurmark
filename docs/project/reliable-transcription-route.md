@@ -1,9 +1,10 @@
 # Reliable Transcription Route
 
 Status: active product route; durable capture, one-command processing, evidence handoff and guarded
-export are complete. Speaker-Preserving Neural Echo v2 is the production pre-ASR plateau.
-Alignment/Echo-Path v3 is complete with `READY_FOR_MULTI_COMPONENT_SEPARATOR`; the current bounded
-audio step is Multi-Component Residual Separator Qualification v1.
+export are complete. Speaker-Preserving Neural Echo v2.17 is the compatible production pre-ASR
+plateau. Alignment/Echo-Path v3, Multi-Component Residual Separator v1 and the stronger-separator
+prerequisites are complete; the current bounded audio step is SepFormer Four-Stem Target-Me
+Qualification v1.
 Date: 2026-08-06
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
@@ -173,6 +174,12 @@ candidate local tokens. The other `7/12` sessions used exact fallback. The candi
 transcribed directly and downstream deletion receives zero suppression credit. Missing enrollment,
 headphones, stale fingerprints or any preservation regression keep `local_fir_role_masked`.
 
+Production Requalification v2.17 subsequently replayed the unchanged selector against the current
+incremental transcriber and authoritative ASR cache. Hard passed `3/3`, corpus passed `12/12`, and
+the same five candidate sessions retained all local tokens while removing `41.940s` and 90
+remote-supported tokens. The active policy now pins v2.17; an incompatible runtime remains a visible
+exact FIR fallback.
+
 Reference-Conditioned Target-Me Separation v1 completed with `DO_NOT_PROMOTE`. Oracle and overfit
 passed, but two train/dev candidates missed locked source gates. More importantly, one fixed
 enrollment and zero independently labelled non-target local-speech rows could not prove semantic
@@ -203,7 +210,12 @@ Neural Echo v2 as the exact production plateau. Its completed residual map selec
 model work. Alignment/Echo-Path v3 then reached `READY_FOR_MULTI_COMPONENT_SEPARATOR`: it safely
 changed 11/32 controlled remote items instead of the required 12 and retained 156/156 protected
 items exactly; the required low-leak control changed instead of exact fallback. Hard/sealed data
-stayed closed. Cold first-pass ASR latency and failed live-recovery
+stayed closed. Multi-Component Residual Separator v1 preserved reconstruction and speaker-query
+use but missed four locked dev gates. Stronger Offline Target-Speaker Separator Prerequisites v1
+then pinned Apache-2.0 SepFormer, froze a `12/4/4` speaker-disjoint identity plan and passed two
+offline resource probes. The current train/dev qualification must establish WavLM stem assignment,
+source-scale recovery, exact four-stem accounting and production fallback before hard, sealed or
+direct-ASR access. Cold first-pass ASR latency and failed live-recovery
 profiles remain secondary constraints, not reasons to accept remote leakage or lose local speech.
 
 ## Route To Reliability

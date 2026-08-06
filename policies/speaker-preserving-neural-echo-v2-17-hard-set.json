@@ -1,0 +1,23 @@
+{
+  "schema": "murmurmark.speaker_preserving_neural_echo_hard_set/v2.17",
+  "status": "frozen_before_v2_17_requalification",
+  "frozen_at": "2026-08-06T19:24:51+03:00",
+  "purpose": "compatibility hard gate for the unchanged v2.15 audio selector under the current authoritative chunked ASR runtime",
+  "selection_rule": "reuse the immutable v2.16 hard IDs as regression evidence; no threshold tuning, training or new algorithm selection is allowed",
+  "training_use": "forbidden",
+  "threshold_tuning_use": "forbidden",
+  "sessions": [
+    {
+      "id": "2026-07-14_15-01-19-live",
+      "expected_mode": "speaker_playback"
+    },
+    {
+      "id": "2026-07-16_14-01-26-live",
+      "expected_mode": "speaker_playback"
+    },
+    {
+      "id": "2026-07-20_14-00-54-live",
+      "expected_mode": "no_speech_control"
+    }
+  ]
+}

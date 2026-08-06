@@ -44,16 +44,11 @@ advisory; its promotion remains blocked by quality and runtime evidence.
 ## North Star And Current Goal
 The technical North Star is an ASR input that retains every confirmed `Me` word, contains no recognizable authoritative remote and keeps nearby non-target speech out of `Me`, with exact fallback.
 Speaker-Preserving Neural Echo v2 is the safe production plateau: `5/12` candidate sessions,
-`41.940s` and 90 remote-supported tokens removed, local retention `1.0`; the other `7/12` fell back.
-**Pre-ASR Target-Me Isolation Limit v1** is current. Its residual map completed with
-`READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3`: the largest measured actionable class is alignment and
-echo-path work (`2443.222s`, `35.567%`, 9 sessions), followed by multi-component separation
-(`2124.220s`, `30.923%`). Alignment/Echo-Path v3 then ended in
-`READY_FOR_MULTI_COMPONENT_SEPARATOR`: 11/32 controlled remote items changed safely versus the
-required 12, with 156/156 protected items exact, but the required low-leak control changed.
-Multi-Component v1 ended in `READY_FOR_STRONGER_LOCAL_SEPARATOR` after four dev gates failed.
-Stronger Offline Prerequisites then pinned Apache-2.0 SepFormer, froze a `12/4/4` identity expansion
-and completed `READY_FOR_STRONGER_SEPARATOR_QUALIFICATION`. Train/dev qualification is next.
+`41.940s` and 90 tokens removed, local retention `1.0`; v2.17 requalified it on current ASR with
+hard `3/3`, corpus `12/12` and unchanged utility. **Pre-ASR Target-Me Isolation Limit v1** is
+current. Residual mapping, Alignment/Echo-Path v3 and Multi-Component v1 are complete. Stronger
+Offline Prerequisites pinned Apache-2.0 SepFormer, froze `12/4/4` identities and completed
+`READY_FOR_STRONGER_SEPARATOR_QUALIFICATION`; train/dev qualification is next.
 ## Critical Path
 ```mermaid
 flowchart LR
@@ -145,6 +140,9 @@ Target-Me enrollment, WavLM/Resemblyzer, authoritative remote evidence, bounded 
 direct whisper.cpp checks with per-window rollback. The immutable hard test proved fail-open safety;
 the sealed corpus proved utility. Candidate publication is transactional and every incompatibility,
 headphones session or regression restores the exact `local_fir` fallback.
+
+Production Requalification v2.17 replayed the same membership on current incremental ASR. Hard
+`3/3`, corpus `12/12` and unchanged utility passed; production now pins v2.17.
 
 ### 8. Reference-Conditioned Target-Me Separation v1
 
@@ -242,18 +240,12 @@ utterances and anonymous attributions; stale or missing decisions fall back to a
 Voice-only identity, cross-session matching and ordinary notes/export remain untouched.
 
 ### 20. Pre-ASR Target-Me Isolation Limit v1
-Current umbrella goal. Residual mapping and Alignment/Echo-Path v3 are complete. Multi-Component v1
-then tested an explicit four-stem FiLM-GRU on 320 train and 85 dev mixtures. It preserved exact
-reconstruction and speaker-query use, but missed Target-Me (`5.561 dB`), other-local (`4.443 dB`),
-absent-query (`6.803 dB`) and residual (`-1.545 dB`) gates. It completed
-`READY_FOR_STRONGER_LOCAL_SEPARATOR`; hard/sealed, direct ASR, production v2, raw CAF and transcripts
-remained unchanged.
-
-Stronger Offline Prerequisites then completed `READY_FOR_STRONGER_SEPARATOR_QUALIFICATION`: pinned
-Apache-2.0 SepFormer, a `12/4/4` identity plan and two offline probes at about `687 MB` peak RSS.
-Next, SepFormer Four-Stem Target-Me Qualification v1 materializes train/dev, assigns anonymous stems
-through WavLM and preserves exact residual remainder. Future-hard, sealed and direct ASR stay closed
-unless every immutable dev gate passes.
+Current umbrella goal. Residual mapping, Alignment/Echo-Path v3 and Multi-Component v1 are complete;
+the last preserved reconstruction but missed four dev quality gates. Stronger Offline Prerequisites
+then pinned Apache-2.0 SepFormer, a `12/4/4` identity plan and two local resource probes. SepFormer
+Four-Stem Target-Me Qualification v1 now materializes train/dev, assigns anonymous stems through
+WavLM and preserves exact residual remainder. Future-hard, sealed and direct ASR stay closed unless
+every immutable dev gate passes.
 
 ### 21. Reviewed Speaker-Aware Meeting Memory v1
 

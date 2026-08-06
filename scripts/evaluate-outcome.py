@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.3"
+SCRIPT_VERSION = "0.1.4"
 OUTCOME_SCHEMA = "murmurmark.outcome/v1"
 REVIEW_PLAN_SCHEMA = "murmurmark.outcome_review_plan/v1"
 RUN_SCHEMA = "murmurmark.pipeline_run/v1"
@@ -119,6 +119,7 @@ def compact_metrics(metrics: dict[str, Any]) -> dict[str, Any]:
         "audio_review_stronger_judge_seconds",
         "audio_review_remote_leak_probable_error_seconds",
         "audit_harmful_seconds_after",
+        "remote_duplicate_in_me_seconds",
         "audit_review_seconds",
         "local_only_island_recall",
         "local_recall_missing_island_count",
@@ -126,6 +127,12 @@ def compact_metrics(metrics: dict[str, Any]) -> dict[str, Any]:
         "transcript_order_review_seconds",
         "transcript_order_probable_order_risk_count",
         "remote_forbidden_review_burden_seconds",
+        "remote_forbidden_status",
+        "pre_asr_echo_selection_status",
+        "pre_asr_echo_selection_reason",
+        "pre_asr_echo_selected_profile",
+        "pre_asr_echo_policy_compatible",
+        "pre_asr_echo_exact_fallback",
         "needs_review_count",
         "notes_needs_review_count",
     ]
@@ -265,10 +272,46 @@ def outcome_from_gates(base_outcome: str, gates: list[dict[str, Any]]) -> str:
         gate
         for gate in gates
         if gate.get("status") in {"review", "unknown"} and gate.get("severity") != "export"
+        and gate.get("blocking") is not False
     ]
     if base_outcome == "ready_for_notes" and review_or_unknown:
         return "review_first"
     return base_outcome
+
+
+def harmful_remote_evidence(metrics: dict[str, Any]) -> dict[str, Any]:
+    sources = {
+        key: safe_float(metrics.get(key))
+        for key in (
+            "audit_harmful_seconds_after",
+            "remote_duplicate_in_me_seconds",
+            "audio_review_remote_leak_probable_error_seconds",
+            "audio_review_probable_error_seconds",
+        )
+    }
+    observed = {key: value for key, value in sources.items() if value is not None}
+    remote_forbidden_status = str(metrics.get("remote_forbidden_status") or "missing")
+    remote_forbidden_complete = remote_forbidden_status == "ok"
+    observed_max_seconds = max(observed.values()) if observed else None
+    seconds = observed_max_seconds
+    coverage = "complete" if remote_forbidden_complete else "partial"
+    if seconds is None:
+        status = "unknown"
+    elif not remote_forbidden_complete and seconds <= 0:
+        status = "unknown"
+        seconds = None
+    elif not remote_forbidden_complete:
+        status = "review"
+    else:
+        status = "pass" if seconds <= 5 else "review"
+    return {
+        "seconds": seconds,
+        "observed_max_seconds": observed_max_seconds,
+        "status": status,
+        "coverage": coverage,
+        "remote_forbidden_status": remote_forbidden_status,
+        "sources": observed,
+    }
 
 
 def evaluate_gates(
@@ -406,17 +449,59 @@ def evaluate_gates(
         }
     )
 
-    harmful_seconds = safe_float(metrics.get("audit_harmful_seconds_after"))
-    if harmful_seconds is None:
-        harmful_seconds = safe_float(metrics.get("audio_review_probable_error_seconds"))
+    harmful = harmful_remote_evidence(metrics)
+    harmful_seconds = harmful["seconds"]
     gates.append(
         {
             "id": "harmful_remote_in_me",
-            "status": "unknown" if harmful_seconds is None else "pass" if harmful_seconds <= 5 else "review",
-            "severity": "review" if harmful_seconds and harmful_seconds > 5 else "info",
-            "message": "probable harmful remote/ASR noise left in Me",
+            "status": harmful["status"],
+            "severity": "review" if harmful["status"] == "review" else "info",
+            "message": (
+                "probable harmful remote/ASR noise left in Me; evidence coverage is incomplete"
+                if harmful["coverage"] != "complete"
+                else "probable harmful remote/ASR noise left in Me"
+            ),
             "seconds": harmful_seconds,
             "threshold": 5,
+            "coverage": harmful["coverage"],
+            "remote_forbidden_status": harmful["remote_forbidden_status"],
+            "sources": harmful["sources"],
+            "observed_max_seconds": harmful["observed_max_seconds"],
+            "blocking": harmful["status"] != "unknown",
+        }
+    )
+
+    echo_status = str(metrics.get("pre_asr_echo_selection_status") or "missing")
+    echo_reason = str(metrics.get("pre_asr_echo_selection_reason") or "selection_report_missing")
+    echo_exact_fallback = metrics.get("pre_asr_echo_exact_fallback") is True
+    echo_policy_compatible = metrics.get("pre_asr_echo_policy_compatible") is True
+    echo_available = echo_status != "missing"
+    echo_safe = (
+        not echo_available
+        or (echo_status == "candidate" and echo_policy_compatible)
+        or (echo_status == "fallback" and echo_exact_fallback)
+    )
+    gates.append(
+        {
+            "id": "pre_asr_echo_selection",
+            "status": "pass" if echo_safe else "review",
+            "severity": "info" if echo_safe else "risk",
+            "message": (
+                "pre-ASR echo candidate selected"
+                if echo_status == "candidate" and echo_policy_compatible
+                else "exact local-FIR fallback preserved"
+                if echo_status == "fallback" and echo_exact_fallback
+                else "pre-ASR echo selection is not safely resolved"
+                if echo_available
+                else "pre-ASR echo selection report is unavailable for this session"
+            ),
+            "available": echo_available,
+            "value": echo_status,
+            "reason": echo_reason,
+            "selected_profile": metrics.get("pre_asr_echo_selected_profile"),
+            "policy_compatible": echo_policy_compatible if echo_available else None,
+            "exact_fallback": metrics.get("pre_asr_echo_exact_fallback"),
+            "degraded": echo_reason == "production_policy_not_promoted_or_incompatible",
         }
     )
 
@@ -873,6 +958,13 @@ def main() -> int:
         or f"murmurmark process {shell_path(session, Path.cwd())}"
     )
     metrics = compact_metrics(merged_metrics(readiness, session))
+    harmful_gate = next(
+        (gate for gate in gates if gate.get("id") == "harmful_remote_in_me"),
+        None,
+    )
+    if isinstance(harmful_gate, dict):
+        metrics["harmful_remote_in_me_seconds"] = harmful_gate.get("seconds")
+        metrics["harmful_remote_in_me_coverage"] = harmful_gate.get("coverage")
     outputs = readiness.get("outputs") if isinstance(readiness, dict) and isinstance(readiness.get("outputs"), dict) else {}
     export_blockers = (readiness or {}).get("export_blockers") or []
     export_status = "allowed" if outcome == "ready_for_notes" and not export_blockers else "blocked_until_review"

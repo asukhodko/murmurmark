@@ -15896,8 +15896,19 @@ enum ReadinessPrinter {
             if !hasSummary, let review = double(metrics["review_burden_sec"]) {
                 print(String(format: "  review_burden: %.2f min", review / 60.0))
             }
-            if let harmful = double(metrics["audit_harmful_seconds_after"]) {
+            if let harmful = double(metrics["harmful_remote_in_me_seconds"])
+                ?? double(metrics["audit_harmful_seconds_after"]) {
                 print(String(format: "  harmful_remote_in_me: %.2fs", harmful))
+            }
+            if let coverage = string(metrics["harmful_remote_in_me_coverage"]), !coverage.isEmpty {
+                print("  harmful_remote_evidence: \(coverage)")
+            }
+            if let echoStatus = string(metrics["pre_asr_echo_selection_status"]), !echoStatus.isEmpty {
+                let echoProfile = string(metrics["pre_asr_echo_selected_profile"]) ?? "unknown"
+                print("  pre_asr_echo: \(echoStatus) (\(echoProfile))")
+            }
+            if let echoReason = string(metrics["pre_asr_echo_selection_reason"]), !echoReason.isEmpty {
+                print("  pre_asr_echo_reason: \(echoReason)")
             }
             if let localRecall = double(metrics["local_only_island_recall"]) {
                 print(String(format: "  local_recall: %.3f", localRecall))

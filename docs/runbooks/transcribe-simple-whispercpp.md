@@ -2429,12 +2429,46 @@ murmurmark doctor
 ```
 
 The optional personalized path requires local WavLM/transformers support, Controlled Echo
-Supervision enrollment and matching local v2.16 hard/corpus reports. Their absence is safe: normal
-transcription continues on exact `local_fir_role_masked`.
+Supervision enrollment and the fingerprint-compatible hard/corpus reports named by the active
+production policy. Their absence is safe: normal transcription continues on exact
+`local_fir_role_masked`.
 
 Repeated processing is supported. The pipeline restores the exact baseline before primary ASR and
 then either republishes the same compatible candidate or keeps fallback. `publication_transaction.json`
 records snapshots and recovers an interrupted publication on the next run.
+
+### Current-ASR Requalification v2.17
+
+The v2.16 promotion evidence stays immutable when the primary transcriber changes. The separate
+v2.17 qualification pins both `transcribe-simple-whispercpp.py` and
+`authoritative_asr_cache.py`, reuses the same disjoint hard/corpus membership and changes no audio
+threshold. Inspect its public contract with:
+
+```bash
+.venv/bin/python scripts/speaker-preserving-neural-echo-v2-17.py verify-policy
+.venv/bin/python scripts/check-speaker-preserving-neural-echo-v2.py
+```
+
+The one-shot evaluator is for the frozen local corpus, not for an ordinary meeting:
+
+```bash
+.venv/bin/python scripts/evaluate-speaker-preserving-neural-echo-v2-17.py verify-hard
+.venv/bin/python scripts/evaluate-speaker-preserving-neural-echo-v2-17.py verify-corpus
+```
+
+Do not rerun `run-hard` or `run-corpus` manually after their attempt/decision files exist. A failed
+or incomplete requalification does not modify production. `murmurmark status` and
+`murmurmark outcome` expose the active pre-ASR profile and exact fallback reason.
+
+The completed v2.17 decision is `PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2`: hard `3/3`, corpus
+`12/12`, five candidate sessions, seven exact fallbacks, `41.940s` and 90 remote-supported tokens
+removed, local-token retention `1.0`, and maximum corpus runtime factor `0.524864`. The tracked
+production policy now pins this evidence and the current ASR runtimes.
+
+When checking residual remote risk, do not trust `audit_harmful_seconds_after` alone. The outcome
+uses the maximum available overlap-audit, transcript-duplicate and audio-review duration. Missing
+or skipped remote-forbidden evidence marks coverage `partial`; zero under partial coverage is
+unknown rather than proof that `Me` is clean.
 
 ## Alignment/Echo-Path v3 Research Audit
 

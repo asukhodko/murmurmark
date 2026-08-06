@@ -101,9 +101,18 @@ removing `41.940s` and `90` remote-supported tokens with local-token retention `
 missing private evidence, stale hashes, no useful leakage and any safety regression select exact
 `local_fir_role_masked`. Post-ASR duplicate deletion contributes zero promotion credit.
 
+The active production policy is v2.17. Its frozen compatibility run passed hard `3/3` and corpus
+`12/12` under the current incremental-ASR/cache runtime, reproducing the same five candidates and
+utility with maximum corpus runtime factor `0.524864`. This was runtime requalification, not a new
+audio algorithm.
+
 Publication is recoverable. Fresh preprocessing invalidates stale baseline snapshots; a repeated
 ASR run restores the exact baseline before comparison; interrupted publication rolls back on the
-next run. See the [frozen result](../research/2026-08-04-speaker-preserving-neural-echo-v2.md).
+next run. The production policy also pins the primary transcriber and authoritative ASR-cache
+runtime. A changed runtime cannot inherit the old decision by replacing a hash: it must pass a
+separate frozen requalification, otherwise selection remains on exact FIR and reports the reason.
+See the [frozen result](../research/2026-08-04-speaker-preserving-neural-echo-v2.md) and the
+[v2.17 compatibility contract](../research/2026-08-06-speaker-preserving-neural-echo-production-requalification-v2-17.md).
 
 ## Current North Star And Frontier
 

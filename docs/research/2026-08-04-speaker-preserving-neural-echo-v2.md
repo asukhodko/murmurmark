@@ -54,6 +54,12 @@ corpus report:
   819a8ce2e00df8f59f83fe99e0de30cad367e886b253930e6b6555a42031a7e3
 ```
 
+The later v2.17 compatibility requalification repeated the same hard/corpus membership after
+authoritative incremental ASR and the non-speech caption filter were added. It passed with the
+same `5/12` candidate sessions, `41.940s`, 90 tokens and local retention `1.0`; the maximum corpus
+runtime factor was `0.524864`. The active production policy now pins that v2.17 evidence while the
+v2.16 reports above remain immutable historical proof.
+
 ## Production Contract
 
 The normal batch order is:

@@ -21,10 +21,13 @@ WHISPER_MODEL = (
 )
 OUTPUT_NAME = "speaker-preserving-neural-echo-v2"
 PROMOTION_DECISION = "PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2"
-PRODUCTION_SCHEMA = "murmurmark.speaker_preserving_neural_echo_production_policy/v2.16"
-SELECTION_SCHEMA = "murmurmark.speaker_preserving_neural_echo_production_selection/v2.16"
+PRODUCTION_SCHEMAS = {
+    "murmurmark.speaker_preserving_neural_echo_production_policy/v2.16",
+    "murmurmark.speaker_preserving_neural_echo_production_policy/v2.17",
+}
+SELECTION_SCHEMA = "murmurmark.speaker_preserving_neural_echo_production_selection/v2.17"
 TRANSACTION_SCHEMA = (
-    "murmurmark.speaker_preserving_neural_echo_publication_transaction/v2.16"
+    "murmurmark.speaker_preserving_neural_echo_publication_transaction/v2.17"
 )
 SHADOW_FILES = (
     "clean_dialogue.shadow_v2.json",
@@ -53,10 +56,7 @@ def load_module(path: Path, name: str) -> Any:
     return module
 
 
-SELECTOR = load_module(
-    ROOT / "scripts/speaker-preserving-neural-echo-v2-15.py",
-    "murmurmark_spne_v2_production_selector",
-)
+_SELECTORS: dict[str, Any] = {}
 
 
 def parser() -> argparse.ArgumentParser:
@@ -124,10 +124,27 @@ def policy_path(policy: dict[str, Any], key: str) -> Path:
     return (ROOT / str(policy[key])).resolve()
 
 
+def selector_for_policy(policy: dict[str, Any]) -> Any:
+    runtime = policy_path(policy, "selector_runtime")
+    expected = str(policy.get("selector_runtime_sha256") or "")
+    if not runtime.is_file() or not expected or sha256(runtime) != expected:
+        raise RuntimeError("selector runtime is missing or changed")
+    selector = _SELECTORS.get(expected)
+    if selector is None:
+        selector = load_module(
+            runtime,
+            f"murmurmark_spne_v2_production_selector_{expected[:12]}",
+        )
+        _SELECTORS[expected] = selector
+    return selector
+
+
 def verify_policy(path: Path) -> tuple[dict[str, Any], dict[str, bool]]:
     policy = read_json(path)
+    schema = str(policy.get("schema") or "")
+    is_v217 = schema == "murmurmark.speaker_preserving_neural_echo_production_policy/v2.17"
     checks: dict[str, bool] = {
-        "schema": policy.get("schema") == PRODUCTION_SCHEMA,
+        "schema": schema in PRODUCTION_SCHEMAS,
         "promoted": policy.get("decision") == PROMOTION_DECISION,
         "fallback": policy.get("fallback") == "local_fir_role_masked",
         "candidate_primary_asr": policy.get("candidate_audio_is_primary_whisper_input")
@@ -153,6 +170,24 @@ def verify_policy(path: Path) -> tuple[dict[str, Any], dict[str, bool]]:
             and isinstance(policy.get(hash_key), str)
             and sha256(artifact) == policy[hash_key]
         )
+    if is_v217:
+        artifact = (
+            policy_path(policy, "authoritative_asr_cache_runtime")
+            if "authoritative_asr_cache_runtime" in policy
+            else Path("/")
+        )
+        checks["authoritative_asr_cache_runtime"] = (
+            artifact.is_file()
+            and isinstance(policy.get("authoritative_asr_cache_runtime_sha256"), str)
+            and sha256(artifact)
+            == policy["authoritative_asr_cache_runtime_sha256"]
+        )
+        checks["v2_17_candidate"] = (
+            policy.get("candidate") == "speaker_preserving_neural_echo_v2_17"
+        )
+        checks["v2_17_hard_decision_contract"] = (
+            policy.get("hard_pass_decision") == "HARD_TEST_PASSED_V2_17"
+        )
     hard_report = (
         read_json(policy_path(policy, "hard_report")) if checks["hard_report"] else {}
     )
@@ -167,9 +202,12 @@ def verify_policy(path: Path) -> tuple[dict[str, Any], dict[str, bool]]:
         if checks["corpus_decision"]
         else {}
     )
+    hard_pass_decision = (
+        "HARD_TEST_PASSED_V2_17" if is_v217 else "HARD_TEST_PASSED_V2_16"
+    )
     checks["hard_passed"] = (
         hard_report.get("passed") is True
-        and hard_decision.get("decision") == "HARD_TEST_PASSED_V2_16"
+        and hard_decision.get("decision") == hard_pass_decision
         and hard_decision.get("report_sha256") == policy.get("hard_report_sha256")
         and hard_report.get("hard_fingerprint") == policy.get("hard_fingerprint")
     )
@@ -204,7 +242,9 @@ def verify_policy(path: Path) -> tuple[dict[str, Any], dict[str, bool]]:
     )
     if checks["selector_policy"]:
         try:
-            SELECTOR.verify_policy(policy_path(policy, "selector_policy"))
+            selector_for_policy(policy).verify_policy(
+                policy_path(policy, "selector_policy")
+            )
         except Exception:
             checks["selector_policy_contract"] = False
         else:
@@ -386,6 +426,21 @@ def safely_restore_committed_publication(
         return False, {"type": type(error).__name__, "message": str(error)}
 
 
+def selected_audio_path(session: Path, selection: dict[str, Any]) -> Path:
+    selected = selection.get("selected_audio")
+    raw_path = selected.get("path") if isinstance(selected, dict) else None
+    if not isinstance(raw_path, str) or not raw_path:
+        raise RuntimeError("selected candidate has no audio path")
+    path = Path(raw_path)
+    candidate = path if path.is_absolute() else session / path
+    resolved = candidate.resolve()
+    try:
+        resolved.relative_to(session.resolve())
+    except ValueError as error:
+        raise RuntimeError("selected candidate audio escapes the session") from error
+    return resolved
+
+
 def publish_candidate(session: Path, selection: dict[str, Any]) -> dict[str, Any]:
     stage_value = selection.get("full_shadow", {}).get("stage")
     if not isinstance(stage_value, str) or not stage_value:
@@ -411,14 +466,10 @@ def publish_candidate(session: Path, selection: dict[str, Any]) -> dict[str, Any
     published["repair_comparison.json"] = fingerprint(
         resolved / "repair_comparison.json", session
     )
-    selected_audio = (
-        session
-        / "derived/preprocess/speaker-preserving-neural-echo-v2-15/"
-        "selected_clean_mic_pcm16.wav"
-    )
+    selected_audio = selected_audio_path(session, selection)
     expected_selected = selection.get("selected_audio", {}).get("sha256")
     if not selected_audio.is_file() or sha256(selected_audio) != expected_selected:
-        raise RuntimeError("selected v2.15 audio is missing or changed")
+        raise RuntimeError("selected candidate audio is missing or changed")
     destination_audio = (
         session
         / "derived/preprocess/audio/"
@@ -535,7 +586,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
     transaction_started = False
     try:
-        selection = SELECTOR.run(
+        selector = selector_for_policy(policy)
+        selection = selector.run(
             SimpleNamespace(
                 session=session,
                 policy=policy_path(policy, "selector_policy"),
@@ -589,6 +641,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "audio_baseline_snapshot": audio_baseline_snapshot,
             "published": published,
             "post_asr_cleanup_promotion_credit": 0,
+            "production_policy_schema": policy.get("schema"),
         }
         payload["selection_fingerprint"] = stable_digest(
             {
@@ -633,7 +686,7 @@ def main() -> int:
     if args.verify_only:
         policy, checks = verify_policy(args.policy)
         payload = {
-            "schema": "murmurmark.speaker_preserving_neural_echo_production_policy_verification/v2.16",
+            "schema": "murmurmark.speaker_preserving_neural_echo_production_policy_verification/v2.17",
             "decision": policy.get("decision"),
             "checks": checks,
             "passed": all(checks.values()),

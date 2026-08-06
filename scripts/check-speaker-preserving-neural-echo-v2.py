@@ -81,6 +81,14 @@ V216_EVALUATION = load_module(
     ROOT / "scripts/evaluate-speaker-preserving-neural-echo-v2-16.py",
     "murmurmark_check_spne_v216_evaluation",
 )
+V217 = load_module(
+    ROOT / "scripts/speaker-preserving-neural-echo-v2-17.py",
+    "murmurmark_check_spne_v217",
+)
+V217_EVALUATION = load_module(
+    ROOT / "scripts/evaluate-speaker-preserving-neural-echo-v2-17.py",
+    "murmurmark_check_spne_v217_evaluation",
+)
 CACHE_SEED = load_module(
     ROOT / "scripts/seed-speaker-preserving-neural-echo-v2-16-cache.py",
     "murmurmark_check_spne_v216_cache_seed",
@@ -96,6 +104,14 @@ SYNTHESIS = load_module(
 PRODUCTION = load_module(
     ROOT / "scripts/apply-speaker-preserving-neural-echo-v2.py",
     "murmurmark_check_spne_v2_production",
+)
+QUALITY = load_module(
+    ROOT / "scripts/report-session-quality.py",
+    "murmurmark_check_spne_quality",
+)
+OUTCOME = load_module(
+    ROOT / "scripts/evaluate-outcome.py",
+    "murmurmark_check_spne_outcome",
 )
 
 
@@ -1331,6 +1347,256 @@ def v216_cache_seed_checks() -> None:
         )
 
 
+def v217_contract_and_visibility_checks() -> None:
+    selector_policy = ROOT / "policies/speaker-preserving-neural-echo-v2-17.json"
+    evaluation_policy = (
+        ROOT / "policies/speaker-preserving-neural-echo-v2-17-evaluation.json"
+    )
+    selector = V217.verify_policy(selector_policy)
+    evaluation = V217_EVALUATION.read_json(evaluation_policy)
+    public_evaluation_artifacts = (
+        "selector_policy",
+        "selector_runtime",
+        "selector_audio_runtime",
+        "shadow_runtime",
+        "transcriber_runtime",
+        "authoritative_asr_cache_runtime",
+        "hard_set",
+        "corpus_set",
+        "evaluator",
+    )
+    require(
+        all(
+            V217_EVALUATION.sha256(
+                V217_EVALUATION.policy_artifact(evaluation, key)
+            )
+            == evaluation.get(f"{key}_sha256")
+            for key in public_evaluation_artifacts
+        ),
+        "v2.17 public evaluation contract changed",
+    )
+    private_evidence = tuple(
+        V217_EVALUATION.policy_artifact(evaluation, key)
+        for key in (
+            "prior_v2_16_hard_report",
+            "prior_v2_16_hard_decision",
+            "prior_v2_16_corpus_report",
+            "prior_v2_16_corpus_decision",
+        )
+    )
+    if all(path.is_file() for path in private_evidence):
+        evaluation = V217_EVALUATION.verify_policy(evaluation_policy)
+    require(
+        selector.get("threshold_changes") == 0
+        and evaluation.get("threshold_changes") == 0,
+        "v2.17 requalification changed the promoted audio thresholds",
+    )
+    require(
+        evaluation.get("prior_v2_16_hard_report_sha256")
+        and evaluation.get("prior_v2_16_corpus_report_sha256"),
+        "v2.17 did not freeze the immutable v2.16 evidence",
+    )
+    dynamic_selector = PRODUCTION.selector_for_policy(
+        {
+            "selector_runtime": "scripts/speaker-preserving-neural-echo-v2-17.py",
+            "selector_runtime_sha256": PRODUCTION.sha256(
+                ROOT / "scripts/speaker-preserving-neural-echo-v2-17.py"
+            ),
+        }
+    )
+    require(
+        dynamic_selector.verify_policy(selector_policy).get("threshold_changes") == 0,
+        "production did not load the selector pinned by the v2.17 policy",
+    )
+
+    production_policy = ROOT / "policies/speaker-preserving-neural-echo-production-v2.json"
+    production, current_checks = PRODUCTION.verify_policy(production_policy)
+    incomplete_v217 = dict(production)
+    incomplete_v217.update(
+        {
+            "schema": "murmurmark.speaker_preserving_neural_echo_production_policy/v2.17",
+            "candidate": "speaker_preserving_neural_echo_v2_17",
+            "hard_pass_decision": "HARD_TEST_PASSED_V2_17",
+        }
+    )
+    incomplete_v217.pop("authoritative_asr_cache_runtime", None)
+    incomplete_v217.pop("authoritative_asr_cache_runtime_sha256", None)
+    with tempfile.TemporaryDirectory(prefix="murmurmark-spne-v217-policy-") as temporary:
+        incomplete_path = Path(temporary) / "production.json"
+        incomplete_path.write_text(
+            json.dumps(incomplete_v217, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        _, incomplete_checks = PRODUCTION.verify_policy(incomplete_path)
+        require(
+            incomplete_checks.get("authoritative_asr_cache_runtime") is False,
+            "production accepted v2.17 without the authoritative ASR cache runtime",
+        )
+    if str(production.get("schema") or "").endswith("/v2.16"):
+        require(
+            current_checks.get("transcriber_runtime") is False
+            and current_checks.get("selector_policy_contract") is False,
+            "the stale v2.16 production contract no longer fails open",
+        )
+    else:
+        private_production_evidence = tuple(
+            PRODUCTION.policy_path(production, key)
+            for key in (
+                "hard_report",
+                "hard_decision",
+                "corpus_report",
+                "corpus_decision",
+            )
+        )
+        if all(path.is_file() for path in private_production_evidence):
+            production_consistent = all(current_checks.values())
+        else:
+            public_checks = {
+                key: value
+                for key, value in current_checks.items()
+                if key
+                not in {
+                    "hard_report",
+                    "hard_decision",
+                    "hard_passed",
+                    "corpus_report",
+                    "corpus_decision",
+                    "promotion_summary",
+                }
+            }
+            production_consistent = all(public_checks.values()) and not all(
+                current_checks.values()
+            )
+        require(
+            str(production.get("schema") or "").endswith("/v2.17")
+            and production_consistent,
+            "the v2.17 production contract is not safely self-consistent",
+        )
+
+    with tempfile.TemporaryDirectory(prefix="murmurmark-spne-v217-path-") as temporary:
+        session = Path(temporary) / "session"
+        candidate = session / "derived/candidate.wav"
+        candidate.parent.mkdir(parents=True)
+        candidate.write_bytes(b"candidate")
+        require(
+            PRODUCTION.selected_audio_path(
+                session,
+                {"selected_audio": {"path": "derived/candidate.wav"}},
+            )
+            == candidate.resolve(),
+            "production did not resolve the selector-provided candidate path",
+        )
+        try:
+            PRODUCTION.selected_audio_path(
+                session,
+                {"selected_audio": {"path": "../outside.wav"}},
+            )
+        except RuntimeError:
+            pass
+        else:
+            raise SystemExit("production accepted candidate audio outside the session")
+
+        report_dir = (
+            session / "derived/preprocess/speaker-preserving-neural-echo-v2"
+        )
+        report_dir.mkdir(parents=True)
+        (report_dir / "production_selection_report.json").write_text(
+            json.dumps(
+                {
+                    "status": "fallback",
+                    "reason": "production_policy_not_promoted_or_incompatible",
+                    "selected_profile": "local_fir_role_masked",
+                    "exact_fallback": True,
+                    "policy_checks": {
+                        "schema": True,
+                        "transcriber_runtime": False,
+                    },
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        visible = QUALITY.pre_asr_echo_selection_metrics(session)
+        require(
+            visible["pre_asr_echo_selection_status"] == "fallback"
+            and visible["pre_asr_echo_policy_compatible"] is False
+            and visible["pre_asr_echo_exact_fallback"] is True,
+            "readiness hid the incompatible exact pre-ASR fallback",
+        )
+        (session / "session.json").write_text("{}\n", encoding="utf-8")
+        for track in ("mic", "remote"):
+            raw = session / "audio" / track / "000001.caf"
+            raw.parent.mkdir(parents=True)
+            raw.write_bytes(b"raw")
+        readiness = {
+            "selected_profile": "shadow_v2",
+            "pipeline_status": "complete",
+            "verdict": "good",
+            "use_gate": "ready_for_notes",
+            "metrics": {
+                "meeting_duration_sec": 10.0,
+                "review_burden_sec": 0.0,
+                "review_burden_ratio": 0.0,
+                "local_only_island_recall": 1.0,
+                "audit_harmful_seconds_after": 0.0,
+                "remote_forbidden_status": "ok",
+                "pre_asr_echo_selection_status": "candidate",
+                "pre_asr_echo_policy_compatible": False,
+                "pre_asr_echo_exact_fallback": False,
+            },
+            "outputs": {
+                key: {"exists": True, "path": f"derived/{key}"}
+                for key in (
+                    "clean_dialogue",
+                    "quality_report",
+                    "notes",
+                    "quality_verdict",
+                )
+            },
+            "risk_flags": [],
+            "export_blockers": [],
+        }
+        gates = OUTCOME.evaluate_gates(
+            session,
+            readiness,
+            {"status": "passed"},
+        )
+        echo_gate = next(
+            gate for gate in gates if gate.get("id") == "pre_asr_echo_selection"
+        )
+        require(
+            echo_gate["status"] == "review"
+            and echo_gate["policy_compatible"] is False,
+            "outcome accepted an incompatible pre-ASR candidate",
+        )
+
+    harmful = OUTCOME.harmful_remote_evidence(
+        {
+            "audit_harmful_seconds_after": 0.0,
+            "remote_duplicate_in_me_seconds": 4.25,
+            "audio_review_remote_leak_probable_error_seconds": 14.42,
+            "audio_review_probable_error_seconds": 18.96,
+            "remote_forbidden_status": "skipped",
+        }
+    )
+    require(
+        harmful["seconds"] == 18.96
+        and harmful["status"] == "review"
+        and harmful["coverage"] == "partial",
+        "outcome collapsed residual remote evidence to a false zero",
+    )
+    uncovered_zero = OUTCOME.harmful_remote_evidence(
+        {
+            "audit_harmful_seconds_after": 0.0,
+            "remote_forbidden_status": "skipped",
+        }
+    )
+    require(
+        uncovered_zero["status"] == "unknown",
+        "outcome treated an uncovered zero as proof of clean Me audio",
+    )
+
+
 def micro_reasr_content_cache_checks() -> None:
     with tempfile.TemporaryDirectory(prefix="murmurmark-micro-cache-") as temporary:
         root = Path(temporary)
@@ -1477,6 +1743,7 @@ def main() -> int:
     v215_applicability_gate_checks()
     v216_safety_fallback_credit_checks()
     v216_cache_seed_checks()
+    v217_contract_and_visibility_checks()
     micro_reasr_content_cache_checks()
     production_publication_rollback_checks()
     production_pipeline_order_checks()

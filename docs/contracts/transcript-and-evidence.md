@@ -8309,12 +8309,13 @@ files without a difference. Coverage is five train captures (`620s` local-only, 
 `1804s` synthetic), one dev capture (`124s`, `128s`, `352s`) and one hard-test capture (`68s`
 double-talk). This decision permits a separate training goal; it does not select production audio.
 
-## Speaker-Preserving Neural Echo Production v2.16
+## Speaker-Preserving Neural Echo Production v2.16/v2.17
 
 The tracked production policy is
-`policies/speaker-preserving-neural-echo-production-v2.json`, schema
-`murmurmark.speaker_preserving_neural_echo_production_policy/v2.16`. It pins the selector, audio,
-shadow, transcriber and evaluator hashes plus local hard/corpus decision hashes. Its decision is
+`policies/speaker-preserving-neural-echo-production-v2.json`. Historical v2.16 and current v2.17
+schemas pin the selector, audio, shadow, transcriber and evaluator hashes plus local hard/corpus
+decision hashes. v2.17 additionally requires the authoritative ASR-cache runtime and the exact
+`HARD_TEST_PASSED_V2_17` decision. Its promotion decision is
 `PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2`; `post_asr_cleanup_promotion_credit` must equal zero.
 
 Private enrollment and promotion reports remain under ignored `sessions/_reports/`. If those files,
@@ -8343,8 +8344,9 @@ before primary ASR. Failure to prove either a committed candidate or its baselin
 
 ### Selection Report
 
-`production_selection_report.json` uses
-`murmurmark.speaker_preserving_neural_echo_production_selection/v2.16`.
+New `production_selection_report.json` writes use
+`murmurmark.speaker_preserving_neural_echo_production_selection/v2.17`. Historical v2.16 reports
+remain evidence, but are never rewritten to claim compatibility with a newer ASR runtime.
 
 Candidate result:
 
@@ -8382,8 +8384,8 @@ full-shadow stage. The direct candidate ASR, not later text deletion, establishe
 
 ### Publication Transaction
 
-`publication_transaction.json` uses
-`murmurmark.speaker_preserving_neural_echo_publication_transaction/v2.16` and moves through:
+New `publication_transaction.json` writes use
+`murmurmark.speaker_preserving_neural_echo_publication_transaction/v2.17` and move through:
 
 ```text
 baseline_prepared_from_fresh_local_fir
@@ -8401,6 +8403,61 @@ The sealed v2.16 evidence is `HARD_TEST_PASSED_V2_16` plus
 `PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2`. Its corpus selected candidate audio in `5/12` sessions,
 exact fallback in `7/12`, removed `41.940s` and `90` remote-supported tokens, retained local tokens
 at `1.0`, and gave post-ASR cleanup no credit.
+
+## Speaker-Preserving Neural Echo Requalification v2.17
+
+v2.16 evidence is immutable. A changed primary transcriber hash is an incompatibility, not an
+invitation to edit the promoted policy in place. v2.17 therefore uses separate tracked policies,
+runtimes and generated report roots:
+
+```text
+policies/speaker-preserving-neural-echo-v2-17.json
+policies/speaker-preserving-neural-echo-v2-17-evaluation.json
+policies/speaker-preserving-neural-echo-v2-17-hard-set.json
+policies/speaker-preserving-neural-echo-v2-17-corpus-set.json
+scripts/speaker-preserving-neural-echo-v2-17.py
+scripts/speaker-preserving-neural-echo-v2-17-audio.py
+scripts/speaker-preserving-echo-full-shadow-v2-17.py
+scripts/evaluate-speaker-preserving-neural-echo-v2-17.py
+```
+
+The selector and evaluator policies use `/v2.17` schemas and pin both the current transcriber and
+`scripts/authoritative_asr_cache.py`. `algorithm_revision` remains
+`speaker_preserving_neural_echo_v2_15`, `threshold_changes` is zero and the existing hard/corpus
+membership is reused without overlap or tuning. Generated manifests, reports and decisions use
+their corresponding `/v2.17` schemas under
+`sessions/_reports/speaker-preserving-neural-echo-v2-17-{hard,corpus}/`.
+
+Production migration accepts policy schemas v2.16 and v2.17. It loads the selector from the pinned
+`selector_runtime` rather than a global implementation. A selected candidate must provide a signed
+audio path inside the current session. Any path escape, hash mismatch, missing current-ASR runtime,
+failed gate or publication failure returns exact `local_fir_role_masked`.
+
+Historical research contracts retain the v2.16 production-policy SHA they originally observed.
+Where those contracts verify the current production pointer, v2.17 is accepted only as a semantic
+successor with the same promoted profile, base selector hashes, algorithm revision, zero threshold
+change and exact fallback. Historical manifests are never rewritten to the new SHA.
+
+The immutable decision is `HARD_TEST_PASSED_V2_17` plus
+`PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2`. Hard passed `3/3`; corpus passed `12/12` with five
+candidates, seven exact fallbacks, `41.940s`, 90 removed remote-supported tokens, local retention
+`1.0` and maximum runtime factor `0.524864`. Production policy v2.17 pins both reports and decisions.
+
+`session_readiness.json.metrics` additionally carries:
+
+```text
+pre_asr_echo_selection_status
+pre_asr_echo_selection_reason
+pre_asr_echo_selected_profile
+pre_asr_echo_policy_compatible
+pre_asr_echo_exact_fallback
+remote_duplicate_in_me_seconds
+```
+
+`outcome.json` exposes `harmful_remote_in_me_seconds` and
+`harmful_remote_in_me_coverage`. The value is the maximum available duration from audit-harmful,
+remote-duplicate and audio-review evidence because those intervals may overlap. If remote-forbidden
+evidence is missing or skipped, a positive value requires review and a zero remains unknown.
 
 ## Alignment and Echo-Path Model v3 Qualification
 

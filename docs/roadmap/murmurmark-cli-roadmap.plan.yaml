@@ -70,6 +70,8 @@ nodes:
       Personalized Speaker-Preserving Neural Echo v2 продвинут для совместимых speaker-playback
       сессий. Он подаёт candidate audio напрямую в whisper.cpp и транзакционно публикует результат;
       headphones, stale/missing evidence и любые regressions выбирают exact local_fir fallback.
+      Production Requalification v2.17 прошёл hard 3/3 и corpus 12/12 под текущим incremental ASR:
+      те же 5/12 candidates, 41.940s, 90 tokens, retention 1.0; runtime mismatch виден в outcome.
 
   capability-authoritative-transcript:
     title: "Authoritative batch transcript"
@@ -563,7 +565,9 @@ nodes:
       personalized WavLM/Resemblyzer и remote evidence выбирают bounded attenuation, direct
       whisper.cpp и window/full-shadow gates откатывают небезопасные места. Sealed corpus v2.16:
       5/12 candidate, 7/12 exact fallback, 41.940s и 90 remote tokens удалены, local retention 1.0,
-      post-ASR credit 0. Headphones, missing/stale evidence и regressions остаются на exact local_fir.
+      post-ASR credit 0. Requalification v2.17 повторила hard 3/3 и corpus 12/12 с теми же
+      utility/fallback outcomes под current transcriber и authoritative ASR cache, max runtime
+      factor 0.524864. Headphones, missing/stale evidence и regressions остаются на exact local_fir.
 
   research-evidence-guarded-llm:
     title: "Evidence-guarded LLM synthesis"

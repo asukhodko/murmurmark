@@ -287,11 +287,26 @@ def run() -> None:
             "publication with an omitted file was accepted",
         )
 
-    production = ROOT / "policies/speaker-preserving-neural-echo-production-v2.json"
+    production_path = ROOT / "policies/speaker-preserving-neural-echo-production-v2.json"
+    production = json.loads(production_path.read_text(encoding="utf-8"))
+    selector_path = ROOT / str(production.get("selector_policy") or "")
+    selector = json.loads(selector_path.read_text(encoding="utf-8"))
     require(
-        CORE.sha256(production)
-        == "68f9abab1197035c76a936b97cca6fba05d3992e7a0ccce82de4d8ec0959a425",
-        "production Speaker-Preserving Neural Echo v2 policy changed",
+        production.get("decision") == "PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2"
+        and production.get("selected_profile") == "speaker_preserving_neural_echo_v2"
+        and production.get("fallback") == "local_fir_role_masked"
+        and production.get("post_asr_cleanup_promotion_credit") == 0
+        and selector_path.is_file()
+        and CORE.sha256(selector_path) == production.get("selector_policy_sha256")
+        and selector.get("algorithm_revision")
+        == "speaker_preserving_neural_echo_v2_15"
+        and selector.get("threshold_changes") == 0
+        and selector.get("fallback") == "local_fir_role_masked"
+        and CORE.sha256(ROOT / str(selector.get("base_selector_policy")))
+        == selector.get("base_selector_policy_sha256")
+        and CORE.sha256(ROOT / str(selector.get("base_selector_runtime")))
+        == selector.get("base_selector_runtime_sha256"),
+        "production requalification changed the frozen v2 audio algorithm or fallback contract",
     )
     print("target-me identifiability corpus fixture ok")
 

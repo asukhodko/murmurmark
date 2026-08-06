@@ -5,6 +5,11 @@ public release tag exists; development builds also carry the source commit in th
 
 ## Unreleased
 
+- Added a fingerprint-bound v2.17 compatibility qualification for the personalized pre-ASR echo
+  selector after authoritative incremental ASR changes. Incompatible policies now expose their
+  exact FIR fallback in readiness, status and outcome instead of degrading silently.
+- Fixed residual remote-in-`Me` reporting to preserve positive transcript/audio-review evidence
+  when an overlap audit reports zero or the remote-forbidden audit is incomplete.
 - Added a fingerprint-bound optional anonymous-speaker transcript with deterministic corpus gates
   and the explicit `murmurmark transcript SESSION --rich` read path.
 - Added explicit session-local reviewed speaker labels, transactional immutable publication and

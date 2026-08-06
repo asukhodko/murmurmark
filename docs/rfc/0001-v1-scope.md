@@ -23,8 +23,9 @@ Current implementation status, 2026-08-06:
 - `local_speech_completion_v2` is promoted for its frozen two-session scope; it safely materializes
   independently confirmed local speech and exposes every unresolved local/text defect through an
   executable review lane. `residual_local_recall_v1` remains the fallback outside that scope;
-- Speaker-Preserving Neural Echo v2 is the guarded pre-ASR production selector for compatible
-  speaker-playback sessions, with exact `local_fir_role_masked` fallback;
+- Speaker-Preserving Neural Echo v2.17 is the guarded pre-ASR production selector for compatible
+  speaker-playback sessions and the pinned current ASR runtime, with exact
+  `local_fir_role_masked` fallback;
 - reference-conditioned three-stem separation v1 and v2 completed with `DO_NOT_PROMOTE`; the
   speaker-disjoint Target-Me corpus proved query identity, but the bounded separator missed locked
   waveform-quality gates and production remained unchanged;
@@ -37,10 +38,10 @@ Current implementation status, 2026-08-06:
   for optional evidence;
 - anonymous rich transcript and explicit session-local reviewed naming are promoted optional read
   surfaces with fingerprint verification and anonymous fail-open behavior;
-- the current bounded goal is Pre-ASR Target-Me Isolation Limit v1. Its completed residual map
-  selected Alignment and Echo-Path Model v3, which completed with
-  `READY_FOR_MULTI_COMPONENT_SEPARATOR`; production v2 remains exact fallback while the bounded
-  multi-component separator stage seeks corpus-wide audio and direct-ASR evidence;
+- the current bounded goal is Pre-ASR Target-Me Isolation Limit v1. Alignment/Echo-Path v3 and
+  Multi-Component Residual Separator v1 are complete; stronger-separator prerequisites pinned
+  SepFormer and a `12/4/4` split-disjoint identity plan. Production v2.17 remains exact fallback
+  while frozen train/dev four-stem qualification runs before any hard, sealed or direct-ASR access;
 - Reviewed Speaker-Aware Meeting Memory v1 remains technically ready but deferred until that audio
   frontier closes;
 - committed-PCM live preview exists as an advisory shadow, while batch remains authoritative;

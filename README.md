@@ -256,6 +256,8 @@ sessions/<session-id>/
   derived/
     outcome/
     preprocess/
+      speaker-preserving-neural-echo-v2/
+        production_selection_report.json
     transcript-simple/whisper-cpp/
     synthesis-simple/extractive/
       no_speech_evidence.json  # only for an empty selected dialogue
@@ -281,6 +283,9 @@ The one-command lifecycle, Speaker-Preserving Neural Echo v2, Evidence Handoff v
 release-quality CLI, bounded resume and authoritative incremental ASR are promoted. The normal path
 is one command plus `Ctrl-C`; diagnostic commands remain available for recovery.
 
+Speaker-Preserving Neural Echo v2.17 requalified the unchanged selector after ASR changes: the
+12-session corpus retained `5/12` candidates, `41.940s`, 90 removed tokens and local retention `1.0`.
+
 Remote Speaker Evidence Map v1 and its anonymous rich handoff are promoted optional read surfaces.
 Generate or inspect that evidence with:
 
@@ -289,9 +294,8 @@ murmurmark audit remote-speakers "$SESSION" --profile auto
 murmurmark transcript "$SESSION" --rich
 ```
 
-Anonymous Rich Transcript Handoff v1 completed with `PROMOTE_OPTIONAL_RICH`: all `1235` remote references passed on 6/6 sessions; 629 utterances received anonymous IDs and 606 remained aggregate.
-Reviewed Remote Speaker Naming v1 completed with `PROMOTE_OPTIONAL_REVIEWED_NAMING`. It adds only
-explicit session-local display labels over current anonymous IDs:
+Anonymous Rich Transcript Handoff v1 passed all `1235` references on 6/6 sessions. Reviewed Remote
+Speaker Naming v1 adds only explicit session-local labels:
 
 ```bash
 murmurmark speakers template "$SESSION"
@@ -300,15 +304,10 @@ murmurmark speakers apply "$SESSION"
 murmurmark transcript "$SESSION" --rich --reviewed-speakers
 ```
 
-Missing, partial or stale decisions fall back to the anonymous `--rich` view. No name is inferred from voice, text, contacts, calendar or another meeting. Plain Markdown, notes and guarded export stay unchanged. Speaker-aware meeting memory is ready but deliberately deferred.
-The current goal is **Pre-ASR Target-Me Isolation Limit v1**. Its residual map first selected alignment/echo-path work as `35.567%` of actionable evidence. Alignment and Echo-Path Model v3 then
-closed that physical-model ladder with `READY_FOR_MULTI_COMPONENT_SEPARATOR`: 11/32 controlled
-remote items changed safely versus the required 12, median reduction was `2.552124 dB`, and all 156
-protected items stayed sample-exact. The required low-leak control changed instead of falling back;
-hard/sealed data remained closed and production v2 unchanged.
-Multi-Component v1 completed `READY_FOR_STRONGER_LOCAL_SEPARATOR`: reconstruction held, but
-Target-Me (`5.561 dB`), other-local (`4.443 dB`), absent-query (`6.803 dB`) and residual (`-1.545 dB`)
-failed. Stronger Offline Prerequisites then pinned Apache-2.0 SepFormer, froze `12/4/4` split-disjoint identities and passed offline resource gates with about `687 MB` peak RSS, ending in
+Missing or stale decisions fall back to anonymous `--rich`; plain outputs stay unchanged. The
+current goal is **Pre-ASR Target-Me Isolation Limit v1**. Alignment/Echo-Path v3 and Multi-Component
+v1 are complete. Stronger Offline Prerequisites pinned Apache-2.0 SepFormer, froze `12/4/4`
+split-disjoint identities and passed local resource gates, ending in
 `READY_FOR_STRONGER_SEPARATOR_QUALIFICATION`; see the [result](docs/research/2026-08-06-stronger-offline-target-speaker-separator-prerequisites-v1.md).
 
 The dependent critical path is:
@@ -347,8 +346,8 @@ See the [current goal](docs/project/current-goal.md), [readable roadmap](docs/ro
   selected transcript.
 - `echo_suppression_promotion_v1` remains historical audit evidence after `DO_NOT_PROMOTE`.
 - `speaker_preserving_neural_echo_v2` is the guarded personalized production selector. It runs only
-  with matching local enrollment/model/promotion evidence and speaker playback; otherwise it
-  returns to exact `local_fir_role_masked`.
+  with compatible local enrollment, model, promotion evidence and pinned ASR runtime; otherwise it
+  visibly returns to exact `local_fir_role_masked`. The current production contract is v2.17.
 - `reference_conditioned_target_me_separation_v1` is frozen research after `DO_NOT_PROMOTE`; its
   Target-Me, remote-echo and other-local stems never replace production.
 - `reference_conditioned_target_me_separation_v2` is frozen research after `DO_NOT_PROMOTE`; it

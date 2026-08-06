@@ -61,18 +61,22 @@ Read in this order:
 57. [Stronger Offline Separator Prerequisites result](research/2026-08-06-stronger-offline-target-speaker-separator-prerequisites-v1.md)
 58. [Stronger Offline Separator Prerequisites contract](contracts/stronger-offline-target-speaker-separator-prerequisites.md)
 59. [Stronger Offline Separator Prerequisites runbook](runbooks/stronger-offline-target-speaker-separator-prerequisites.md)
-60. [Reliable Final Handoff v1 baseline](testing/2026-08-05-reliable-final-handoff-baseline.md)
-61. [Canonical Live ASR Producer v1 result](testing/2026-08-06-canonical-live-asr-producer-v1.md)
-62. [Causal Canonical Mic ASR v1 result](testing/2026-08-06-causal-canonical-mic-asr-v1.md)
-63. [Remote Speaker Evidence Map v1 result](testing/2026-08-06-remote-speaker-evidence-map-v1.md)
-64. [Planning and development history](history/README.md)
+60. [Speaker-Preserving production requalification v2.17](research/2026-08-06-speaker-preserving-neural-echo-production-requalification-v2-17.md)
+61. [Reliable Final Handoff v1 baseline](testing/2026-08-05-reliable-final-handoff-baseline.md)
+62. [Canonical Live ASR Producer v1 result](testing/2026-08-06-canonical-live-asr-producer-v1.md)
+63. [Causal Canonical Mic ASR v1 result](testing/2026-08-06-causal-canonical-mic-asr-v1.md)
+64. [Remote Speaker Evidence Map v1 result](testing/2026-08-06-remote-speaker-evidence-map-v1.md)
+65. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
 Planning snapshot: 2026-08-06. Speaker-Preserving Neural Echo v2 completed with guarded
 `PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2`: the sealed corpus selected candidate audio in `5/12`
 sessions, exact fallback in `7/12`, removed `41.940s` and `90` remote-supported tokens, and retained
-all candidate local tokens. Reference-Conditioned Target-Me Separation v1 then completed with
+all candidate local tokens. Production Requalification v2.17 then passed hard `3/3` and corpus
+`12/12` against the current incremental-ASR/cache runtime with the same utility and maximum runtime
+factor `0.524864`; the active policy now pins v2.17. Reference-Conditioned Target-Me Separation v1
+then completed with
 `DO_NOT_PROMOTE`: oracle and overfit passed, but two train/dev attempts missed the locked gates and
 the corpus had no labelled non-target local speech. Target-Me Identifiability Corpus v1 then
 completed with `READY_FOR_TARGET_CONDITIONED_TRAINING`: `4/2/2` split-disjoint non-target speakers,

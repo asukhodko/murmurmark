@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import re
+import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -44,6 +45,28 @@ def main() -> int:
     require(policy["post_asr_cleanup_promotion_credit"] == 0, "post-ASR credit changed")
     require(policy["four_stem_adapter"]["direct_asr_before_dev_pass"] is False, "direct ASR opened early")
     require(policy["production_publication"] == "forbidden", "production publication opened")
+    production_check = module.verify_production_policy_descriptor(
+        policy["sources"]["production_policy"]
+    )
+    require(production_check["passed"], "compatible production successor was rejected")
+    require(
+        production_check["compatibility"]
+        in {"exact_frozen_input", "contract_only_v2_17_successor"},
+        "production compatibility reason is not explicit",
+    )
+    with tempfile.TemporaryDirectory(prefix="murmurmark-production-successor-") as temporary:
+        tampered_path = Path(temporary) / "production.json"
+        tampered = json.loads(
+            (ROOT / policy["sources"]["production_policy"]["path"]).read_text(
+                encoding="utf-8"
+            )
+        )
+        tampered["candidate"] = "unsafe_candidate"
+        tampered_path.write_text(json.dumps(tampered), encoding="utf-8")
+        tampered_check = module.verify_production_policy_descriptor(
+            {"path": str(tampered_path), "sha256": "0" * 64}
+        )
+        require(not tampered_check["passed"], "unsafe production successor was accepted")
 
     sha_pattern = re.compile(r"^[0-9a-f]{64}$")
     for expected in policy["selected_backbone"]["model_files"].values():

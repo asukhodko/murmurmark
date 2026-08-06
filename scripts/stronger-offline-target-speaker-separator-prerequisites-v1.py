@@ -151,6 +151,76 @@ def verify_source_descriptor(descriptor: dict[str, Any]) -> dict[str, Any]:
     return row
 
 
+def verify_production_policy_descriptor(descriptor: dict[str, Any]) -> dict[str, Any]:
+    row = verify_source_descriptor(descriptor)
+    if row["passed"]:
+        row["compatibility"] = "exact_frozen_input"
+        return row
+
+    path = resolve_path(str(descriptor["path"]))
+    try:
+        production = read_json(path)
+        selector_path = resolve_path(str(production["selector_policy"]))
+        selector = read_json(selector_path)
+        evaluation_path = resolve_path(str(production["evaluation_policy"]))
+        evaluation = read_json(evaluation_path)
+        compatible = (
+            production.get("schema")
+            == "murmurmark.speaker_preserving_neural_echo_production_policy/v2.17"
+            and production.get("decision")
+            == "PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2"
+            and production.get("selected_profile")
+            == "speaker_preserving_neural_echo_v2"
+            and production.get("fallback") == "local_fir_role_masked"
+            and production.get("candidate")
+            == "speaker_preserving_neural_echo_v2_17"
+            and production.get("candidate_audio_is_primary_whisper_input") is True
+            and production.get("hard_pass_decision") == "HARD_TEST_PASSED_V2_17"
+            and production.get("post_asr_cleanup_promotion_credit") == 0
+            and selector_path.is_file()
+            and sha256(selector_path) == production.get("selector_policy_sha256")
+            and evaluation_path.is_file()
+            and sha256(evaluation_path)
+            == production.get("evaluation_policy_sha256")
+            and selector.get("algorithm_revision")
+            == "speaker_preserving_neural_echo_v2_15"
+            and selector.get("threshold_changes") == 0
+            and selector.get("fallback") == "local_fir_role_masked"
+            and verify_file(
+                resolve_path(str(selector["base_selector_policy"])),
+                str(selector["base_selector_policy_sha256"]),
+            )["passed"]
+            and verify_file(
+                resolve_path(str(selector["base_selector_runtime"])),
+                str(selector["base_selector_runtime_sha256"]),
+            )["passed"]
+            and evaluation.get("algorithm_revision")
+            == "speaker_preserving_neural_echo_v2_15"
+            and evaluation.get("threshold_changes") == 0
+            and evaluation.get("post_asr_cleanup_promotion_credit") == 0
+            and verify_file(
+                resolve_path(str(production["selector_runtime"])),
+                str(production["selector_runtime_sha256"]),
+            )["passed"]
+            and verify_file(
+                resolve_path(str(production["transcriber_runtime"])),
+                str(production["transcriber_runtime_sha256"]),
+            )["passed"]
+            and verify_file(
+                resolve_path(str(production["authoritative_asr_cache_runtime"])),
+                str(production["authoritative_asr_cache_runtime_sha256"]),
+            )["passed"]
+        )
+    except (KeyError, OSError, ValueError) as error:
+        compatible = False
+        row["error"] = str(error)
+    row["passed"] = compatible
+    row["compatibility"] = (
+        "contract_only_v2_17_successor" if compatible else "incompatible_successor"
+    )
+    return row
+
+
 def verify_selected_backbone(policy: dict[str, Any]) -> tuple[list[dict[str, Any]], int]:
     selected = policy["selected_backbone"]
     model_dir = resolve_path(str(selected["model_dir"]))
@@ -326,7 +396,12 @@ def build_supervision_plan(policy: dict[str, Any]) -> dict[str, Any]:
 
 def run_freeze(*, policy_path: Path, output_dir: Path) -> dict[str, Any]:
     policy = load_policy(policy_path)
-    source_checks = [verify_source_descriptor(item) for item in policy["sources"].values()]
+    source_checks = [
+        verify_production_policy_descriptor(item)
+        if name == "production_policy"
+        else verify_source_descriptor(item)
+        for name, item in policy["sources"].items()
+    ]
     corpus_root = resolve_path(policy["target_corpus"]["root"])
     corpus_checks = [
         verify_file(corpus_root / name, expected)
@@ -764,7 +839,12 @@ def run_verify(*, policy_path: Path, output_dir: Path) -> dict[str, Any]:
         decision_value == RESOURCE_LIMIT
         and bool(artifacts["decision.json"].get("blockers"))
     )
-    source_checks = [verify_source_descriptor(item) for item in policy["sources"].values()]
+    source_checks = [
+        verify_production_policy_descriptor(item)
+        if name == "production_policy"
+        else verify_source_descriptor(item)
+        for name, item in policy["sources"].items()
+    ]
     model_checks, _ = verify_selected_backbone(policy)
     input_checks = source_checks + model_checks
     input_integrity_passed = all(row["passed"] for row in input_checks)
