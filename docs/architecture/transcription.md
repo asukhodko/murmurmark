@@ -161,6 +161,18 @@ Track hints:
 - mic track may contain room leakage if the user is not wearing headphones;
 - remote track may contain multiple participants mixed by the meeting platform.
 
+## Current Anonymous Remote Evidence
+
+Remote Speaker Evidence Map v1 uses the selected remote utterance boundaries and a local
+Resemblyzer d-vector model to publish conservative session-local anonymous clusters. It covers only
+major, stable clusters; unsupported intervals remain aggregate `Colleagues`. The frozen corpus
+decision is `PROMOTE_AUDIT_ONLY`, so this evidence does not replace the selected transcript.
+
+Anonymous Rich Transcript Handoff v1 is the current integration step. It will bind current passing
+speaker evidence to unchanged utterances and expose an optional CLI read path. Participant names,
+cross-session identity, frame-level splitting and the heavier pyannote/Sortformer architecture below
+remain separate future gates.
+
 ## Heavy-Local v1 Profile
 
 Status: target architecture, not the current implementation.

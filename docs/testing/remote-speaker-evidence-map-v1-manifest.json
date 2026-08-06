@@ -1,0 +1,649 @@
+{
+  "generator": {
+    "fingerprint": {
+      "bytes": 26372,
+      "exists": true,
+      "sha256": "f5f6c841cac33fad9cc7ec6aafe0ce40949ea44501e5edd1f432a7515bebdd07"
+    },
+    "script": "report-remote-speaker-evidence-corpus.py",
+    "version": "0.1.0"
+  },
+  "reference": {
+    "bytes": 96424,
+    "session_id": "2026-07-14_15-01-19-live",
+    "sha256": "9049d4bea55cabe370a55fe844243aed29f81499bf8e04fa5e82105da694d56a"
+  },
+  "schema": "murmurmark.remote_speaker_evidence_frozen_manifest/v1",
+  "sessions": [
+    {
+      "expected_speakers": {
+        "max": 1,
+        "min": 1
+      },
+      "inputs": {
+        "dialogue": {
+          "bytes": 899690,
+          "exists": true,
+          "sha256": "53c3423358ff7c84a4564c36f8d93410a0030beb6a0179dd6de0624c077da57a"
+        },
+        "implementation": {
+          "fingerprint": {
+            "bytes": 46252,
+            "exists": true,
+            "sha256": "97f3abc4fbed2bbcdb527ddec19e8e37e0651629797ddf11095c6f04d99ac47d"
+          },
+          "script": "audit-remote-speaker-evidence.py",
+          "version": "0.1.0"
+        },
+        "model": {
+          "license": "Apache-2.0",
+          "method": "resemblyzer_dvector",
+          "model": {
+            "bytes": 17090379,
+            "exists": true,
+            "sha256": "39373b86598fa3da9fcddee6142382efe09777e8d37dc9c0561f41f0070f134e"
+          },
+          "package_version": "0.1.4",
+          "runtime": {
+            "numpy": "2.4.6",
+            "python": "3.12.13"
+          }
+        },
+        "parameters": {
+          "chunk_merge_distance": 0.1,
+          "chunk_sec": 600.0,
+          "cluster_distance": 0.2,
+          "max_unit_sec": 12.0,
+          "max_units": 400,
+          "min_assignment_margin": 0.02,
+          "min_assignment_similarity": 0.72,
+          "min_chunk_consistency": 0.8,
+          "min_cluster_cohesion": 0.85,
+          "min_cluster_sec": 60.0,
+          "min_cluster_span_sec": 60.0,
+          "min_cluster_units": 10,
+          "min_published_speech_ratio": 0.55,
+          "min_unit_sec": 1.0,
+          "overlap_ambiguity_sec": 0.5
+        },
+        "source": {
+          "dialogue": {
+            "bytes": 899690,
+            "exists": true,
+            "sha256": "53c3423358ff7c84a4564c36f8d93410a0030beb6a0179dd6de0624c077da57a"
+          },
+          "profile": "order_repair_v1",
+          "raw_remote_after": {
+            "bytes": 930098176,
+            "exists": true,
+            "sha256": "0631d243ab97045e401df8ae85ca16ce2ad08743df70e6160f9af3e7f3609232"
+          },
+          "raw_remote_before": {
+            "bytes": 930098176,
+            "exists": true,
+            "sha256": "0631d243ab97045e401df8ae85ca16ce2ad08743df70e6160f9af3e7f3609232"
+          },
+          "remote_audio": {
+            "bytes": 77507918,
+            "exists": true,
+            "sha256": "ddbe21a9611671ed19ca715aeba29c785aca860afd44bcaa84098bdfd4af1252"
+          },
+          "session_id": "2026-06-23_14-04-37"
+        }
+      },
+      "outputs": {
+        "attribution": {
+          "bytes": 80829,
+          "exists": true,
+          "sha256": "d8a6d53105eef5002c7301e678e5d9285c23c50f3389d851ee9fedd4c0fd5b70"
+        },
+        "manifest": {
+          "bytes": 804,
+          "exists": true,
+          "sha256": "77e16d6031615c973321d659bde5bd791bb81c326be467ca41de9cc20e52bc52"
+        },
+        "map": {
+          "bytes": 1363,
+          "exists": true,
+          "sha256": "bcf1c61baf82480f5f89cc6e65df55c3f646ae1398c27321ebdb3dd690bb7fd7"
+        },
+        "report": {
+          "bytes": 11135,
+          "exists": true,
+          "sha256": "a182ceb3fba433b440bbc81e111c8fd4f4938c85d8c2d51b3e7ee43fb51a568f"
+        },
+        "rich": {
+          "bytes": 1002888,
+          "exists": true,
+          "sha256": "a1e6817418a55638915303e91dfcf79779116d727bd195caa286c47097a4ad30"
+        }
+      },
+      "session_id": "2026-06-23_14-04-37"
+    },
+    {
+      "expected_speakers": {
+        "max": 1,
+        "min": 1
+      },
+      "inputs": {
+        "dialogue": {
+          "bytes": 693617,
+          "exists": true,
+          "sha256": "77a3a437b0fc3052a8fb96741bcc9db73a391c929405893ee0fb6a7b369c7455"
+        },
+        "implementation": {
+          "fingerprint": {
+            "bytes": 46252,
+            "exists": true,
+            "sha256": "97f3abc4fbed2bbcdb527ddec19e8e37e0651629797ddf11095c6f04d99ac47d"
+          },
+          "script": "audit-remote-speaker-evidence.py",
+          "version": "0.1.0"
+        },
+        "model": {
+          "license": "Apache-2.0",
+          "method": "resemblyzer_dvector",
+          "model": {
+            "bytes": 17090379,
+            "exists": true,
+            "sha256": "39373b86598fa3da9fcddee6142382efe09777e8d37dc9c0561f41f0070f134e"
+          },
+          "package_version": "0.1.4",
+          "runtime": {
+            "numpy": "2.4.6",
+            "python": "3.12.13"
+          }
+        },
+        "parameters": {
+          "chunk_merge_distance": 0.1,
+          "chunk_sec": 600.0,
+          "cluster_distance": 0.2,
+          "max_unit_sec": 12.0,
+          "max_units": 400,
+          "min_assignment_margin": 0.02,
+          "min_assignment_similarity": 0.72,
+          "min_chunk_consistency": 0.8,
+          "min_cluster_cohesion": 0.85,
+          "min_cluster_sec": 60.0,
+          "min_cluster_span_sec": 60.0,
+          "min_cluster_units": 10,
+          "min_published_speech_ratio": 0.55,
+          "min_unit_sec": 1.0,
+          "overlap_ambiguity_sec": 0.5
+        },
+        "source": {
+          "dialogue": {
+            "bytes": 693617,
+            "exists": true,
+            "sha256": "77a3a437b0fc3052a8fb96741bcc9db73a391c929405893ee0fb6a7b369c7455"
+          },
+          "profile": "order_repair_v1",
+          "raw_remote_after": {
+            "bytes": 1095402496,
+            "exists": true,
+            "sha256": "7396fd722b1db890ac152e153cc4bd03b5ef65772ee6f87b54130240bad60b3d"
+          },
+          "raw_remote_before": {
+            "bytes": 1095402496,
+            "exists": true,
+            "sha256": "7396fd722b1db890ac152e153cc4bd03b5ef65772ee6f87b54130240bad60b3d"
+          },
+          "remote_audio": {
+            "bytes": 1095402496,
+            "exists": true,
+            "sha256": "7396fd722b1db890ac152e153cc4bd03b5ef65772ee6f87b54130240bad60b3d"
+          },
+          "session_id": "2026-06-24_15-03-52"
+        }
+      },
+      "outputs": {
+        "attribution": {
+          "bytes": 45880,
+          "exists": true,
+          "sha256": "5cf75073f8e25884e3697e44de3c74005eaec7f475246a691968c85645e562ea"
+        },
+        "manifest": {
+          "bytes": 804,
+          "exists": true,
+          "sha256": "32fc5739de62b737cb3c180f7c568508e8d0cab9ff953977e6037b8198b936b7"
+        },
+        "map": {
+          "bytes": 1362,
+          "exists": true,
+          "sha256": "d98cdf0289959030830ca27eef8f6de113aba0a2b59d7b0b1467d8e62e368398"
+        },
+        "report": {
+          "bytes": 7434,
+          "exists": true,
+          "sha256": "ff6ad88baa7c804b213c406336af8ed1b4fd073c2118db9be7bd20fb77ce3474"
+        },
+        "rich": {
+          "bytes": 752428,
+          "exists": true,
+          "sha256": "25c6cb07ec85aebe9329d244e771216f7626c27fe9e0d7f8e0624162d08ca5f0"
+        }
+      },
+      "session_id": "2026-06-24_15-03-52"
+    },
+    {
+      "expected_speakers": {
+        "max": 8,
+        "min": 2
+      },
+      "inputs": {
+        "dialogue": {
+          "bytes": 712843,
+          "exists": true,
+          "sha256": "ec63f119a107e0ab9547fadd1aef38789a4174ee5d2541432d10331268286279"
+        },
+        "implementation": {
+          "fingerprint": {
+            "bytes": 46252,
+            "exists": true,
+            "sha256": "97f3abc4fbed2bbcdb527ddec19e8e37e0651629797ddf11095c6f04d99ac47d"
+          },
+          "script": "audit-remote-speaker-evidence.py",
+          "version": "0.1.0"
+        },
+        "model": {
+          "license": "Apache-2.0",
+          "method": "resemblyzer_dvector",
+          "model": {
+            "bytes": 17090379,
+            "exists": true,
+            "sha256": "39373b86598fa3da9fcddee6142382efe09777e8d37dc9c0561f41f0070f134e"
+          },
+          "package_version": "0.1.4",
+          "runtime": {
+            "numpy": "2.4.6",
+            "python": "3.12.13"
+          }
+        },
+        "parameters": {
+          "chunk_merge_distance": 0.1,
+          "chunk_sec": 600.0,
+          "cluster_distance": 0.2,
+          "max_unit_sec": 12.0,
+          "max_units": 400,
+          "min_assignment_margin": 0.02,
+          "min_assignment_similarity": 0.72,
+          "min_chunk_consistency": 0.8,
+          "min_cluster_cohesion": 0.85,
+          "min_cluster_sec": 60.0,
+          "min_cluster_span_sec": 60.0,
+          "min_cluster_units": 10,
+          "min_published_speech_ratio": 0.55,
+          "min_unit_sec": 1.0,
+          "overlap_ambiguity_sec": 0.5
+        },
+        "source": {
+          "dialogue": {
+            "bytes": 712843,
+            "exists": true,
+            "sha256": "ec63f119a107e0ab9547fadd1aef38789a4174ee5d2541432d10331268286279"
+          },
+          "profile": "reviewed_v1",
+          "raw_remote_after": {
+            "bytes": 1065872896,
+            "exists": true,
+            "sha256": "425cfbb4989de6893d90a128d46a778f3de6ce584abc260b7ad1a4bd8fd1f735"
+          },
+          "raw_remote_before": {
+            "bytes": 1065872896,
+            "exists": true,
+            "sha256": "425cfbb4989de6893d90a128d46a778f3de6ce584abc260b7ad1a4bd8fd1f735"
+          },
+          "remote_audio": {
+            "bytes": 1065872896,
+            "exists": true,
+            "sha256": "425cfbb4989de6893d90a128d46a778f3de6ce584abc260b7ad1a4bd8fd1f735"
+          },
+          "session_id": "2026-06-26_11-15-50"
+        }
+      },
+      "outputs": {
+        "attribution": {
+          "bytes": 98303,
+          "exists": true,
+          "sha256": "fed912a412d72075609eff5a3a221d457e055a8220597c2ef2b0cc8dcc3f8fdf"
+        },
+        "manifest": {
+          "bytes": 804,
+          "exists": true,
+          "sha256": "b32483bc40906d25258ae9e304871e6256cab5205ba4e28e55b91a768843eece"
+        },
+        "map": {
+          "bytes": 2613,
+          "exists": true,
+          "sha256": "733342a020250461008ab8934321dfaf795b112c3ae0238d53e3e41a10aa6d30"
+        },
+        "report": {
+          "bytes": 12430,
+          "exists": true,
+          "sha256": "a6c4905356700821bab3e1a80a994d178babf3548c169d2e8401a07d91d4c9fc"
+        },
+        "rich": {
+          "bytes": 839190,
+          "exists": true,
+          "sha256": "2cedd0a833f0a7b755532dd91c968c2c1a56d1e8b61bda6b7a9443b262877d60"
+        }
+      },
+      "session_id": "2026-06-26_11-15-50"
+    },
+    {
+      "expected_speakers": {
+        "max": 8,
+        "min": 2
+      },
+      "inputs": {
+        "dialogue": {
+          "bytes": 446998,
+          "exists": true,
+          "sha256": "5b796ea89a3d473ea7204272ecbb29cdde71a5573a24515a220843b352f74b43"
+        },
+        "implementation": {
+          "fingerprint": {
+            "bytes": 46252,
+            "exists": true,
+            "sha256": "97f3abc4fbed2bbcdb527ddec19e8e37e0651629797ddf11095c6f04d99ac47d"
+          },
+          "script": "audit-remote-speaker-evidence.py",
+          "version": "0.1.0"
+        },
+        "model": {
+          "license": "Apache-2.0",
+          "method": "resemblyzer_dvector",
+          "model": {
+            "bytes": 17090379,
+            "exists": true,
+            "sha256": "39373b86598fa3da9fcddee6142382efe09777e8d37dc9c0561f41f0070f134e"
+          },
+          "package_version": "0.1.4",
+          "runtime": {
+            "numpy": "2.4.6",
+            "python": "3.12.13"
+          }
+        },
+        "parameters": {
+          "chunk_merge_distance": 0.1,
+          "chunk_sec": 600.0,
+          "cluster_distance": 0.2,
+          "max_unit_sec": 12.0,
+          "max_units": 400,
+          "min_assignment_margin": 0.02,
+          "min_assignment_similarity": 0.72,
+          "min_chunk_consistency": 0.8,
+          "min_cluster_cohesion": 0.85,
+          "min_cluster_sec": 60.0,
+          "min_cluster_span_sec": 60.0,
+          "min_cluster_units": 10,
+          "min_published_speech_ratio": 0.55,
+          "min_unit_sec": 1.0,
+          "overlap_ambiguity_sec": 0.5
+        },
+        "source": {
+          "dialogue": {
+            "bytes": 446998,
+            "exists": true,
+            "sha256": "5b796ea89a3d473ea7204272ecbb29cdde71a5573a24515a220843b352f74b43"
+          },
+          "profile": "reviewed_v1",
+          "raw_remote_after": {
+            "bytes": 610925056,
+            "exists": true,
+            "sha256": "2417d5dae41493365e596abca451cb1efa611a0234efaef48309608091a0dfdc"
+          },
+          "raw_remote_before": {
+            "bytes": 610925056,
+            "exists": true,
+            "sha256": "2417d5dae41493365e596abca451cb1efa611a0234efaef48309608091a0dfdc"
+          },
+          "remote_audio": {
+            "bytes": 610925056,
+            "exists": true,
+            "sha256": "2417d5dae41493365e596abca451cb1efa611a0234efaef48309608091a0dfdc"
+          },
+          "session_id": "2026-06-26_12-04-04"
+        }
+      },
+      "outputs": {
+        "attribution": {
+          "bytes": 58043,
+          "exists": true,
+          "sha256": "73ec8130d29efcd53bdea484bcddeeb269c67bc9a80a54650d821309831e6953"
+        },
+        "manifest": {
+          "bytes": 804,
+          "exists": true,
+          "sha256": "413a8c74de1767a87dfa5d89457b7427c75228d35a507a7753c9ed43ad6be2a3"
+        },
+        "map": {
+          "bytes": 1675,
+          "exists": true,
+          "sha256": "006c7331145b9440b7f433618099c2ff8430ddffd5f041e84312ce0f8a0c73d4"
+        },
+        "report": {
+          "bytes": 11594,
+          "exists": true,
+          "sha256": "513783b8912b47309c33add2142e5c566b7ef701c0ccc6230692acbf91bcfb46"
+        },
+        "rich": {
+          "bytes": 521666,
+          "exists": true,
+          "sha256": "b61e7c4c75431fac8b24ab7b7b8a4b1267427fdfa4064f30e457da4a79ab5a82"
+        }
+      },
+      "session_id": "2026-06-26_12-04-04"
+    },
+    {
+      "expected_speakers": {
+        "max": 4,
+        "min": 3
+      },
+      "inputs": {
+        "dialogue": {
+          "bytes": 1488346,
+          "exists": true,
+          "sha256": "8d2703ae3f76d8d52c1bdcd83c58f5269278494e4178c7019488d4c7914e13e0"
+        },
+        "implementation": {
+          "fingerprint": {
+            "bytes": 46252,
+            "exists": true,
+            "sha256": "97f3abc4fbed2bbcdb527ddec19e8e37e0651629797ddf11095c6f04d99ac47d"
+          },
+          "script": "audit-remote-speaker-evidence.py",
+          "version": "0.1.0"
+        },
+        "model": {
+          "license": "Apache-2.0",
+          "method": "resemblyzer_dvector",
+          "model": {
+            "bytes": 17090379,
+            "exists": true,
+            "sha256": "39373b86598fa3da9fcddee6142382efe09777e8d37dc9c0561f41f0070f134e"
+          },
+          "package_version": "0.1.4",
+          "runtime": {
+            "numpy": "2.4.6",
+            "python": "3.12.13"
+          }
+        },
+        "parameters": {
+          "chunk_merge_distance": 0.1,
+          "chunk_sec": 600.0,
+          "cluster_distance": 0.2,
+          "max_unit_sec": 12.0,
+          "max_units": 400,
+          "min_assignment_margin": 0.02,
+          "min_assignment_similarity": 0.72,
+          "min_chunk_consistency": 0.8,
+          "min_cluster_cohesion": 0.85,
+          "min_cluster_sec": 60.0,
+          "min_cluster_span_sec": 60.0,
+          "min_cluster_units": 10,
+          "min_published_speech_ratio": 0.55,
+          "min_unit_sec": 1.0,
+          "overlap_ambiguity_sec": 0.5
+        },
+        "source": {
+          "dialogue": {
+            "bytes": 1488346,
+            "exists": true,
+            "sha256": "8d2703ae3f76d8d52c1bdcd83c58f5269278494e4178c7019488d4c7914e13e0"
+          },
+          "profile": "reviewed_v1",
+          "raw_remote_after": {
+            "bytes": 1592343312,
+            "exists": true,
+            "sha256": "c3eff1ab9cde83d8a5dca1ebfb4e7b39c77b8e1b1e477391772142c1b5052b19"
+          },
+          "raw_remote_before": {
+            "bytes": 1592343312,
+            "exists": true,
+            "sha256": "c3eff1ab9cde83d8a5dca1ebfb4e7b39c77b8e1b1e477391772142c1b5052b19"
+          },
+          "remote_audio": {
+            "bytes": 132695012,
+            "exists": true,
+            "sha256": "78feb4d9528319db2ceaf9a956dd358a10d702d9fc63e37b98f59c1015403408"
+          },
+          "session_id": "2026-07-14_15-01-19-live"
+        }
+      },
+      "outputs": {
+        "attribution": {
+          "bytes": 111916,
+          "exists": true,
+          "sha256": "2b348fe497ffe8d3d7b8b8316b471ce8ef4e9b3d925e5316d6dcf76f3ff4363d"
+        },
+        "manifest": {
+          "bytes": 809,
+          "exists": true,
+          "sha256": "0a41760ffb202a102a090b8764f1cb92bf0ced68ccffd229e5f907376390f92a"
+        },
+        "map": {
+          "bytes": 1992,
+          "exists": true,
+          "sha256": "616b58740e8073362521dc2fa87944ad61ee044723b6228203957b9819f8f766"
+        },
+        "report": {
+          "bytes": 13927,
+          "exists": true,
+          "sha256": "47dab56869b8c76ca0d0260a46edcdea976a72622e05aaaa3029ad9e6f0f984d"
+        },
+        "rich": {
+          "bytes": 1631508,
+          "exists": true,
+          "sha256": "8405b0ce09cc6755cc763f1e30a721ebd0d9f3332e187a201b9dfe5761772ac0"
+        }
+      },
+      "session_id": "2026-07-14_15-01-19-live"
+    },
+    {
+      "expected_speakers": {
+        "max": 3,
+        "min": 2
+      },
+      "inputs": {
+        "dialogue": {
+          "bytes": 750135,
+          "exists": true,
+          "sha256": "33f5a12198c91cfbd62174e187877c47de345559b9c42abf32d2128255c5fa81"
+        },
+        "implementation": {
+          "fingerprint": {
+            "bytes": 46252,
+            "exists": true,
+            "sha256": "97f3abc4fbed2bbcdb527ddec19e8e37e0651629797ddf11095c6f04d99ac47d"
+          },
+          "script": "audit-remote-speaker-evidence.py",
+          "version": "0.1.0"
+        },
+        "model": {
+          "license": "Apache-2.0",
+          "method": "resemblyzer_dvector",
+          "model": {
+            "bytes": 17090379,
+            "exists": true,
+            "sha256": "39373b86598fa3da9fcddee6142382efe09777e8d37dc9c0561f41f0070f134e"
+          },
+          "package_version": "0.1.4",
+          "runtime": {
+            "numpy": "2.4.6",
+            "python": "3.12.13"
+          }
+        },
+        "parameters": {
+          "chunk_merge_distance": 0.1,
+          "chunk_sec": 600.0,
+          "cluster_distance": 0.2,
+          "max_unit_sec": 12.0,
+          "max_units": 400,
+          "min_assignment_margin": 0.02,
+          "min_assignment_similarity": 0.72,
+          "min_chunk_consistency": 0.8,
+          "min_cluster_cohesion": 0.85,
+          "min_cluster_sec": 60.0,
+          "min_cluster_span_sec": 60.0,
+          "min_cluster_units": 10,
+          "min_published_speech_ratio": 0.55,
+          "min_unit_sec": 1.0,
+          "overlap_ambiguity_sec": 0.5
+        },
+        "source": {
+          "dialogue": {
+            "bytes": 750135,
+            "exists": true,
+            "sha256": "33f5a12198c91cfbd62174e187877c47de345559b9c42abf32d2128255c5fa81"
+          },
+          "profile": "audit_cleanup_v2",
+          "raw_remote_after": {
+            "bytes": 728372720,
+            "exists": true,
+            "sha256": "a9e31460593a929e808de346ebfed668b401a9eaf9fba33d1da87f5a6440f2ff"
+          },
+          "raw_remote_before": {
+            "bytes": 728372720,
+            "exists": true,
+            "sha256": "a9e31460593a929e808de346ebfed668b401a9eaf9fba33d1da87f5a6440f2ff"
+          },
+          "remote_audio": {
+            "bytes": 60697464,
+            "exists": true,
+            "sha256": "40398931d6fe45998d7af031b79d54d2cb193f1e14658e4f3d4dbd88e9826af4"
+          },
+          "session_id": "2026-07-20_15-15-26-live"
+        }
+      },
+      "outputs": {
+        "attribution": {
+          "bytes": 44217,
+          "exists": true,
+          "sha256": "6a56ddd8eaaf4e84d750cb57370eeabf75eff9ac542a065a465fc1f2e7bfd1ed"
+        },
+        "manifest": {
+          "bytes": 809,
+          "exists": true,
+          "sha256": "d97d682d54af2c534c3b4ea2bd7029a027969d7728b61571cb5b6dd31685b948"
+        },
+        "map": {
+          "bytes": 1680,
+          "exists": true,
+          "sha256": "35f8ee65fddb1f5cbcae170eef4fc4112bb596af146f1c1060c8d79a7e06c2da"
+        },
+        "report": {
+          "bytes": 7406,
+          "exists": true,
+          "sha256": "ee5e446e25f5c71b4b798268a017b66695f93466a6e78683fad689a35830e383"
+        },
+        "rich": {
+          "bytes": 807086,
+          "exists": true,
+          "sha256": "dfab62c10543d5e800827fe544b4437bbbb56eee460eec8dfc5b0849467b1d38"
+        }
+      },
+      "session_id": "2026-07-20_15-15-26-live"
+    }
+  ]
+}

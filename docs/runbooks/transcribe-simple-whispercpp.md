@@ -2151,9 +2151,21 @@ mic.wav    -> Me
 remote.wav -> Colleagues
 ```
 
-The selected transcript does not perform remote diarization. Remote Speaker Evidence Map v1 is the
-current isolated audit stage; until its own corpus decision, all remote text remains aggregate
-`Colleagues` in production.
+The selected transcript does not perform remote diarization. Remote Speaker Evidence Map v1 passed
+its frozen corpus as optional audit evidence; all ordinary remote text still remains aggregate
+`Colleagues` in production. Generate the map explicitly with:
+
+```bash
+murmurmark audit remote-speakers "$SESSION" --profile auto
+
+less "$SESSION/derived/audit/remote-speaker-evidence-v1/report.md"
+less "$SESSION/derived/audit/remote-speaker-evidence-v1/transcript.rich.shadow.md"
+```
+
+The command is local and fail-open. Missing Resemblyzer/model/audio, weak clusters, conflicting
+overlap or failed replay consistency produce aggregate `Colleagues`; they do not fail the meeting
+pipeline. Anonymous IDs are valid only inside the session. The shadow file is not selected by
+`murmurmark transcript`, notes, handoff or export.
 
 The bridge then runs a small reconciliation layer:
 

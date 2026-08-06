@@ -85,20 +85,22 @@ Current operating point, 2026-08-04:
   quarantined after a measured `2.8651%..4.1040%` wall-time ceiling;
 - Causal Canonical Mic ASR v1 completed with `DO_NOT_PROMOTE`: `0/147` candidate mic windows matched
   final canonical PCM because current Echo and branch selection have a session-end causal boundary;
-- the current goal is Remote Speaker Evidence Map v1: anonymous, stable speaker intervals over the
-  authoritative remote track with an audit-only rich transcript and no selected-text mutation;
+- Remote Speaker Evidence Map v1 completed with promoted audit-only anonymous evidence over the
+  authoritative remote track and no selected-text mutation;
+- the current goal is Anonymous Rich Transcript Handoff v1: a fingerprint-bound optional rich
+  artifact and CLI read path over the passing anonymous subset;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 
-Remote Speaker Evidence Map v1 is the active critical-path stage after the exact mic latency
-hypothesis closed with `DO_NOT_PROMOTE`.
+Anonymous Rich Transcript Handoff v1 is the active critical-path stage after Remote Speaker
+Evidence Map v1 completed with `PROMOTE_AUDIT_ONLY`.
 The personalized Echo selector activates only with compatible local enrollment and promotion
 evidence; every unsupported acoustic mode or regression uses exact `local_fir_role_masked`.
 Any later separator remains isolated until a corpus-wide decision and cannot use exact remix or
 audio quality alone as evidence of correct word attribution. Post-ASR duplicate cleanup receives no
-promotion credit. Speaker naming and authoritative `transcript.rich.json` follow the anonymous
-remote evidence map. Heavy validators, LLM synthesis, reviewed external integrations and UI remain
-research or optional work outside the current stage.
+promotion credit. Reviewed speaker naming follows the optional anonymous rich handoff. Heavy
+validators, LLM synthesis, reviewed external integrations and UI remain research or optional work
+outside the current stage.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.
 
@@ -208,7 +210,8 @@ Current MVP transcription is narrower:
 - one local `whisper.cpp` model for both tracks;
 - `remote` is treated as authoritative `Colleagues`;
 - `mic` is treated as candidate `Me`;
-- no per-person diarization inside `Colleagues`;
+- no per-person labels in the selected plain `Colleagues` transcript; optional anonymous evidence
+  remains separate;
 - short overlapping ASR windows are reconciled into a global timeline;
 - timeline repair and micro-ASR recover local islands when Whisper glues `Me` and `remote` turns together;
 - `transcript.shadow_v2.md` is the best candidate only when `repair_comparison.json` passes.

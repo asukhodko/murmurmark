@@ -53,24 +53,17 @@ remain, while rebuildable media below `derived/` can be removed through
 
 ## Current Goal
 
-**Canonical Live ASR Producer v1** completed with `DO_NOT_PROMOTE`. The remote producer passes strict
-parity on `3/3` frozen sessions, but remote-only precomputation reduces modeled post-stop wall time
-by just `2.8651%..4.1040%` because mic and remote already decode in parallel. It remains an explicit
-evidence-only tool.
+Canonical Live ASR Producer v1 and Causal Canonical Mic ASR v1 completed with `DO_NOT_PROMOTE`:
+speedup was only `2.8651%..4.1040%` and `0/147` mic windows matched final PCM. Batch stays authoritative.
 
-**Causal Canonical Mic ASR v1** completed with `DO_NOT_PROMOTE`. The frozen corpus produced `0/147`
-exact candidate windows and `0/8743.1315s` exact hard audio. Prefix replays with `5s`, `30s` and
-`120s` lookahead all differed from final local-FIR PCM. Current Echo statistics and guarded branch
-selection require the complete session, so the exact mic boundary remains at session end.
+**Remote Speaker Evidence Map v1** completed with `PROMOTE_AUDIT_ONLY`: 14 clusters covered
+`4490.170s`; `4420.800s` stayed aggregate. Reference ARI is `0.865804`, B-cubed F1 `0.913884`.
 
-**Remote Speaker Evidence Map v1** is current. It will add stable anonymous speaker intervals over
-authoritative remote audio and an audit-only shadow rich transcript. It cannot invent names or
-change selected text, Evidence Handoff v2 or guarded export.
+**Anonymous Rich Transcript Handoff v1** is current. It binds only current passing anonymous evidence
+to a versioned optional rich artifact and CLI read surface. Plain text, notes and export stay intact.
 
-Its prerequisites are complete: One-Command Meeting Lifecycle owns the unattended product path;
-Speaker-Preserving Neural Echo v2 remains the guarded pre-ASR profile; Evidence Notes And Export v2
-passes the 110-session integrity/replay gate; Release-quality CLI provides deterministic archives,
-transactional install/upgrade and packaged offline acceptance.
+Its prerequisites are complete: lifecycle owns the unattended path, Neural Echo v2 owns guarded
+pre-ASR, and the evidence/export and release CLI gates pass on the frozen corpus.
 
 ## Critical Path
 
@@ -93,9 +86,10 @@ flowchart LR
     G["Done: split decision<br/>Authoritative<br/>Incremental ASR v1"]
     C2["Done: DO_NOT_PROMOTE<br/>Canonical Live<br/>ASR Producer v1"]
     M["Done: DO_NOT_PROMOTE<br/>Causal Canonical<br/>Mic ASR v1"]
-    R["Current<br/>Remote Speaker<br/>Evidence Map v1"]
+    R["Done: PROMOTE_AUDIT_ONLY<br/>Remote Speaker<br/>Evidence Map v1"]
+    T["Current<br/>Anonymous Rich<br/>Transcript Handoff v1"]
 
-    P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D --> F --> G --> C2 --> M --> R
+    P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D --> F --> G --> C2 --> M --> R --> T
 ```
 
 ### 0. Evidence-Backed Me Completion v2
@@ -236,12 +230,17 @@ causal Echo architecture; approximate precomputation is closed.
 
 ### 17. Remote Speaker Evidence Map v1
 
-Current. Split the authoritative remote track into stable anonymous speaker intervals, publish an
-audit-only shadow rich transcript with model/audio provenance and make a frozen corpus-wide
-decision. Measure deterministic replay, chunk/whole-file cluster consistency, single-speaker false
-splits, overlap uncertainty and lossless text attribution. Missing or weak evidence falls back to
-aggregate `Colleagues`. The stage does not invent names, rewrite transcript text or change Evidence
-Handoff v2 and guarded export.
+Completed with `PROMOTE_AUDIT_ONLY`. Resemblyzer evidence, conservative major-cluster gates,
+reverse-order replay and chunk replay produce stable session-local IDs while every weak interval
+remains aggregate. Both 1x1 controls publish exactly one remote speaker; four group controls publish
+`5`, `2`, `3` and `2`. Selected dialogue, raw remote, Evidence Handoff v2 and export remain exact.
+
+### 18. Anonymous Rich Transcript Handoff v1
+
+Current. Materialize a fingerprint-bound optional rich artifact over unchanged selected utterances
+and expose it explicitly through the CLI. Stale, unavailable or non-promoted speaker evidence must
+fail open without affecting the plain transcript. Names, cross-session identity, notes and export
+integration remain outside this stage.
 
 ## Dependent And Parallel Research
 
@@ -252,11 +251,12 @@ Evidence Notes And Export v2, Release-quality CLI, Reliable Final Handoff v1, th
 Authoritative Incremental ASR consumer and remote-only canonical producer are complete. The latter
 is `DO_NOT_PROMOTE` because it removes CPU work without removing the parallel mic wall-time path.
 Causal Canonical Mic ASR v1 then proved the selected mic path is session-end causal and also closed
-with `DO_NOT_PROMOTE`. Remote Speaker Evidence Map v1 is now current.
+with `DO_NOT_PROMOTE`. Remote Speaker Evidence Map v1 promoted optional anonymous audit evidence;
+Anonymous Rich Transcript Handoff v1 is now current.
 
-Remote diarization works on authoritative `remote` and does not require complete Echo suppression.
-Its next stage produces anonymous stable speaker IDs and an audit-only rich transcript. Naming,
-cross-session speaker mapping and authoritative rich transcript promotion remain later gates.
+Remote speaker evidence works on authoritative `remote` and does not require complete Echo
+suppression. The current stage makes its passing subset discoverable and verifiable without naming
+people. Reviewed naming, cross-session mapping and notes/export integration remain later gates.
 
 Heavy local models begin as bounded validators and require their own corpus gates.
 

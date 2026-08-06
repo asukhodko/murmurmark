@@ -6035,6 +6035,49 @@ Illustrative schema shape follows. Counts, statuses and `objective_next_focus` v
 are non-authoritative snapshots; the generated corpus report and opskarta `nearest_goal` define the
 current execution state.
 
+## Remote Speaker Evidence Map v1
+
+Remote-speaker evidence is isolated under:
+
+```text
+derived/audit/remote-speaker-evidence-v1/
+  speaker_intervals.jsonl
+  speaker_map.json
+  utterance_attribution.jsonl
+  transcript.rich.shadow.json
+  transcript.rich.shadow.md
+  artifact_manifest.json
+  report.json
+  report.md
+```
+
+The versioned schemas are:
+
+- `murmurmark.remote_speaker_interval/v1`;
+- `murmurmark.remote_speaker_map/v1`;
+- `murmurmark.remote_utterance_attribution/v1`;
+- `murmurmark.transcript_rich_shadow/v1`;
+- `murmurmark.remote_speaker_evidence_report/v1`;
+- `murmurmark.remote_speaker_evidence_artifact_manifest/v1`;
+- `murmurmark.remote_speaker_evidence_corpus_report/v1`;
+- `murmurmark.remote_speaker_evidence_frozen_manifest/v1`.
+
+`transcript.rich.shadow.json.utterances` is an exact logical copy of the selected
+`clean_dialogue*.json.utterances` array. Speaker evidence lives in a separate
+`remote_speaker_attributions` array keyed by `utterance_id`; implementations must not rewrite text,
+IDs, role, order or timestamps while adding evidence.
+
+Published speaker IDs use `remote_speaker_NN`, are ordered by first confident interval and have
+session-local scope. They are not identities and cannot be compared across sessions. An attribution
+with insufficient model, cluster, margin, overlap or stability evidence has `speaker_id: null`,
+`speaker_label: Colleagues`, `status: aggregate` and a machine-readable `reason`.
+
+The v1 promotion scope is `optional_anonymous_remote_speaker_evidence`. It does not change the
+selected transcript, Evidence Handoff v2, notes, verdict or guarded export. Consumers must verify
+the source dialogue, remote audio, model, parameter and implementation-script fingerprints before
+using a map. The frozen corpus manifest also fingerprints its reporter. Stale or missing evidence
+fails open to aggregate `Colleagues`.
+
 Schema:
 
 ```json

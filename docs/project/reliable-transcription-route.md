@@ -441,10 +441,10 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Remote Speaker Evidence Map v1: разделить authoritative remote на стабильные анонимные speaker
-intervals и выпустить audit-only shadow rich transcript. Исходные remote utterance IDs, текст,
-порядок и timestamps сохраняются; слабая кластеризация остаётся aggregate Colleagues. Имена,
-cross-session identity, selected transcript и guarded export не меняются без отдельного gate.
+Anonymous Rich Transcript Handoff v1: связать promoted anonymous remote evidence с unchanged
+selected dialogue в versioned optional rich artifact и явном CLI read path. Stale/weak evidence
+остаётся aggregate Colleagues; имена, cross-session identity, plain transcript, notes и guarded
+export не меняются.
 ```
 
 ## Consultation Prompt

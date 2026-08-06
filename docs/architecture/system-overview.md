@@ -117,8 +117,9 @@ v1 proved exact remote parity but closed with `DO_NOT_PROMOTE` because the paral
 wall-time benefit to `2.8651%..4.1040%`. Causal Canonical Mic ASR v1 then measured the selected
 post-Echo path and closed with `DO_NOT_PROMOTE`: `0/147` candidate windows matched and bounded
 prefixes through `120s` remained different from final PCM. The current exact mic boundary is
-session end. Remote Speaker Evidence Map v1 is the active isolated semantic stage over the already
-authoritative remote track.
+session end. Remote Speaker Evidence Map v1 has promoted optional anonymous evidence over the
+already authoritative remote track. Anonymous Rich Transcript Handoff v1 is the active isolated
+semantic stage; it cannot alter the plain authoritative path.
 
 Target full-product path:
 

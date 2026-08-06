@@ -57,6 +57,7 @@ CRITICAL_PATH = (
     "product-canonical-live-asr-producer-v1",
     "product-causal-canonical-mic-asr-v1",
     "research-remote-diarization",
+    "research-rich-transcript",
 )
 
 EXPECTED_STATUSES = {"done", "current", "next", "later", "idea", "optional", "blocked"}
@@ -226,12 +227,12 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
         "remote diarization must follow base quality closure",
     )
     require(
-        "research-remote-diarization" in nodes["research-speaker-map"].get("deps", []),
-        "speaker map must follow remote diarization",
+        "research-remote-diarization" in nodes["research-rich-transcript"].get("deps", []),
+        "anonymous rich transcript must follow remote speaker evidence",
     )
     require(
-        "research-speaker-map" in nodes["research-rich-transcript"].get("deps", []),
-        "rich transcript must follow speaker mapping",
+        "research-rich-transcript" in nodes["research-speaker-map"].get("deps", []),
+        "reviewed speaker naming must follow anonymous rich transcript",
     )
     require(nodes["parked-live-promotion"].get("status") == "blocked", "live promotion must stay blocked")
     require("parked-ui" not in nodes, "UI must not occupy the active CLI roadmap")

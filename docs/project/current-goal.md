@@ -12,73 +12,69 @@ Roadmap status and dependencies live in
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`. `scripts/check-planning-consistency.py` keeps the
 README, roadmap and OpsKarta wording aligned.
 
-## Remote Speaker Evidence Map v1
+## Anonymous Rich Transcript Handoff v1
 
-OpsKarta nearest goal: Remote Speaker Evidence Map v1: разделить authoritative remote на стабильные анонимные speaker intervals на замороженном корпусе реальных 1x1 и групповых встреч; построить audit-only speaker map и shadow rich transcript с полной provenance, измерить boundary и cluster consistency и сохранить весь исходный текст, не присваивать имена и не менять selected transcript, Evidence Handoff v2 или guarded export без отдельного corpus-wide PROMOTE; missing model, слабая кластеризация и конфликт evidence должны давать fail-open aggregate Colleagues; завершить PROMOTE или воспроизводимым DO_NOT_PROMOTE, добавить тесты и актуализировать документацию, roadmap и OpsKarta.
+OpsKarta nearest goal: Anonymous Rich Transcript Handoff v1: превратить promoted Remote Speaker Evidence Map v1 в versioned optional rich transcript и CLI/read surface, сохраняя selected dialogue byte-identical; публиковать session-local anonymous speaker IDs только при текущих input/model/output fingerprints и passing per-session/corpus gates, оставлять abstain как aggregate Colleagues, не присваивать имена и не менять обычный Markdown, notes, verdict, Evidence Handoff v2 или guarded export; доказать referential integrity, stale/fail-open/replay и corpus no-regression; завершить PROMOTE или воспроизводимым DO_NOT_PROMOTE, добавить тесты, актуализировать документацию, roadmap и OpsKarta, закоммитить и отправить изменения.
 
 ## Why This Is Next
 
-The stable pipeline already distinguishes `Me` from aggregate `Colleagues`, but a group meeting
-still collapses every remote participant into one role. This weakens chronology review, decisions,
-actions and future rich notes even when the words themselves are correct.
+Remote Speaker Evidence Map v1 completed with `PROMOTE_AUDIT_ONLY`. Six frozen real sessions
+produced `14` stable anonymous clusters and attributed `4490.170s` of remote speech while retaining
+`4420.800s` as explicit aggregate fallback. On `66` attributed private-reference rows, ARI was
+`0.865804` and B-cubed F1 was `0.913884`.
 
-The prerequisite audio boundary is now clear. Causal Canonical Mic ASR v1 closed with
-`DO_NOT_PROMOTE`: current Echo preparation is session-end causal and should not be weakened for
-latency. Remote diarization is independent of that boundary because it consumes the already
-authoritative remote track. It can add useful structure without touching capture, Echo Guard or the
-selected transcript.
+The evidence is useful but still hidden under a research directory. The next bounded step is to
+make it a stable optional artifact that normal CLI consumers can find and verify. This does not
+make speaker labels authoritative and does not require names.
 
 ## Objective
 
-Produce a deterministic, local and evidence-backed map of anonymous remote speakers. The first
-version is audit-only: it annotates existing remote utterances and emits a shadow rich transcript,
-while the ordinary `Colleagues` transcript remains authoritative.
+Publish a deterministic rich transcript handoff that binds an unchanged selected dialogue to a
+current passing anonymous speaker map. Expose it through an explicit CLI read path while preserving
+the existing plain transcript and guarded export behavior.
 
 ## Required Work
 
-1. Freeze a corpus containing known 1x1, group, noisy-office, overlap and long-session examples,
-   including raw remote, selected dialogue and all evaluation metadata by SHA-256.
-2. Define versioned contracts for diarization segments, anonymous session-local speaker IDs,
-   utterance attribution, uncertainty and provenance.
-3. Add a local model adapter with pinned model/runtime fingerprints and fail-open behavior. Missing
-   model or incompatible runtime must produce an explicit unavailable report, not break processing.
-4. Normalize model output into non-overlapping and overlap-aware remote intervals. Keep timing in
-   the authoritative session clock and preserve every selected remote utterance and character.
-5. Attribute existing remote utterances to anonymous speakers using bounded overlap evidence.
-   Ambiguous or multi-speaker utterances remain aggregate `Colleagues` with explicit review flags.
-6. Publish an isolated `remote_speaker_evidence_v1` report and a shadow rich transcript. Do not
-   assign names, infer identity across meetings or mutate the selected transcript.
-7. Measure deterministic replay, split/rejoin consistency, boundary stability, speaker-count
-   plausibility, single-speaker false splits, overlap handling and text/timestamp preservation.
-8. Decide `PROMOTE` or `DO_NOT_PROMOTE` on the frozen corpus. Promotion may expose the map as
-   optional evidence, but cannot make it authoritative or alter export without a separate goal.
+1. Define a versioned rich-handoff contract that references the selected dialogue, anonymous map,
+   attribution rows, corpus decision, model and parameter fingerprints.
+2. Materialize the handoff transactionally only when every source fingerprint is current and the
+   per-session map plus frozen corpus permit optional publication.
+3. Keep the original utterance array logically exact. Add speaker evidence by utterance ID rather
+   than rewriting text, role, order or timestamps.
+4. Add `murmurmark transcript SESSION --rich` and `--path-only` behavior for the optional artifact.
+   Missing or stale rich evidence must explain the fallback and leave ordinary transcript reads
+   untouched.
+5. Keep anonymous IDs session-local. Do not accept names, voice identity across meetings or
+   implicit identity inference in this stage.
+6. Prove referential integrity, stale-input rejection, missing-model fail-open, deterministic
+   replay, interrupted publication recovery and selected-output non-regression.
+7. Freeze a real corpus decision. `PROMOTE` may expose the optional rich CLI artifact only; notes,
+   Evidence Handoff v2 and guarded export require later goals.
 
 ## Acceptance Gates
 
-- every published speaker interval has source-audio, model and parameter provenance;
-- repeated runs over unchanged inputs are byte-identical after timestamp normalization;
-- selected remote text, utterance IDs, order and timestamps remain lossless;
-- known 1x1 controls do not fragment one remote speaker without explicit uncertainty;
-- group sessions produce stable session-local clusters under chunked and whole-file replay;
-- overlap and low-confidence regions remain explicit instead of forcing a speaker assignment;
-- raw CAF, Echo outputs, selected transcript, notes, verdict, review burden and guarded export do
-  not change;
-- missing model, model failure, stale artifacts or weak consistency return to aggregate
-  `Colleagues` without failing the normal meeting pipeline;
-- the frozen corpus ends in a reproducible `PROMOTE` or `DO_NOT_PROMOTE` decision with a measured
-  evidence ceiling.
+- every rich attribution references an existing selected utterance ID exactly once;
+- the selected utterance list, text, role, order and timestamps are unchanged;
+- source dialogue, map, model, parameters and corpus decision have verified SHA-256 lineage;
+- stale, missing, weak or non-promoted evidence yields an explicit unavailable/fallback result;
+- repeated runs over unchanged inputs are byte-identical after excluding runtime-only telemetry;
+- plain `murmurmark transcript`, notes, verdict, Evidence Handoff v2 and guarded export are
+  byte-identical before and after rich publication;
+- no names or cross-session identity links appear in tracked or generated rich artifacts;
+- raw CAF and all existing selected profiles remain unchanged;
+- the frozen corpus ends in reproducible `PROMOTE` or `DO_NOT_PROMOTE`.
 
 ## Safety Boundary
 
-- no names, personal identity inference or cross-session voice linking;
-- no cloud audio upload and no second capture or primary ASR;
-- no text correction, timestamp movement or selected-profile mutation;
-- no Evidence Handoff v2, notes, export or retention changes in v1;
-- no UI work and no promotion based only on a visually plausible diarization.
+- no changes to capture, Echo Guard, primary ASR or selected transcript profiles;
+- no speaker naming, roster inference or identity matching from voice;
+- no automatic notes/synthesis changes and no export promotion;
+- no cloud audio and no UI work;
+- no fallback that silently presents aggregate `Colleagues` as a named or distinct person.
 
 ## Completed Predecessor
 
-Causal Canonical Mic ASR v1 completed on 2026-08-06 with `DO_NOT_PROMOTE`. The frozen corpus had
-`0/147` exact candidate windows and `0/8743.1315s` exact hard audio; `5/30/120s` prefix probes all
-differed from final local-FIR PCM. Raw capture integrity and frozen-input replay passed. See
-`docs/testing/2026-08-06-causal-canonical-mic-asr-v1.md`.
+Remote Speaker Evidence Map v1 completed on 2026-08-06 with `PROMOTE_AUDIT_ONLY`. The frozen corpus
+passed six-session count, integrity, boundary and chunk/replay gates. Optional evidence covers
+`50.3892%` of remote speech; unsupported speech remains aggregate. See
+`docs/testing/2026-08-06-remote-speaker-evidence-map-v1.md`.

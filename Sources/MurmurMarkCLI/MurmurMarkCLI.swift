@@ -324,6 +324,7 @@ struct MurmurMark {
                                                         [--quick] [--max-computed-items N]
                                                         [--review-lane-pack PATH] [--sessions-root ./sessions]
           murmurmark audit target-me ./session|latest [--profile auto] [--max-items 80] [--sessions-root ./sessions]
+          murmurmark audit remote-speakers ./session|latest [--profile auto] [--sessions-root ./sessions]
           murmurmark cleanup ./session|latest [--input-profile shadow_v2] [--output-profile audit_cleanup_v1]
                              [--mode conservative] [--sessions-root ./sessions]
           murmurmark repair order ./session|latest [--input-profile auto] [--output-profile order_repair_v1]
@@ -4492,6 +4493,13 @@ enum AuditCommands {
             }
             try Tooling.runPath(python, auditArgs)
             try AuditPrinter.printTargetMe(session: session, args: auditArgs)
+        case "remote-speakers", "remote_speakers":
+            var auditArgs = [try script("audit-remote-speaker-evidence.py").path, session.path] + remaining
+            if !ArgumentEditing.hasOption("profile", in: auditArgs) {
+                auditArgs += ["--profile", "auto"]
+            }
+            try Tooling.runPath(python, auditArgs)
+            try AuditPrinter.printRemoteSpeakers(session: session, args: auditArgs)
         case "asr-positive-echo-candidate", "asr_positive_echo_candidate", "echo-candidate", "echo_candidate":
             if !ArgumentEditing.hasOption("candidate", in: remaining) {
                 remaining += ["--candidate", "coverage_v2_remote_gate_local_fir"]
@@ -4621,6 +4629,7 @@ enum AuditCommands {
           murmurmark audit stronger-audio-judge ./session|latest [--profile audit_cleanup_v2] [--max-items 80]
                                              [--quick] [--max-computed-items N] [--sessions-root ./sessions]
           murmurmark audit target-me ./session|latest [--profile auto] [--max-items 80] [--sessions-root ./sessions]
+          murmurmark audit remote-speakers ./session|latest [--profile auto] [--sessions-root ./sessions]
           murmurmark audit asr-positive-echo-candidate ./session|latest
                                              [--candidate coverage_v2_remote_gate_local_fir]
                                              [--skip-lab] [--sessions-root ./sessions]
@@ -4643,6 +4652,7 @@ enum AuditCommands {
                           runs build-audio-review-pack.py, then audit-stronger-audio-judge.py
                           with --review-lane-pack or --pack-item-id, reuses the existing audio-review pack
           target-me       runs audit-target-me.py as a shadow voice-evidence layer
+          remote-speakers builds an audit-only anonymous map over authoritative remote audio
           asr-positive-echo-candidate
                           runs/reuses offline_aec_v2 and writes an explicit shadow audio-candidate report
           echo-suppression-promotion
@@ -4889,6 +4899,36 @@ enum AuditPrinter {
         printAuditHandoff(
             session: session,
             report: outDir.appendingPathComponent("target_me_report.md"),
+            needsReview: false
+        )
+    }
+
+    static func printRemoteSpeakers(session: URL, args: [String]) throws {
+        let defaultURL = session.appendingPathComponent("derived/audit/remote-speaker-evidence-v1")
+        let outDir = PathURLs.fileURL(ArgumentEditing.peekOption("out-dir", in: args) ?? defaultURL.path)
+        let reportURL = outDir.appendingPathComponent("report.json")
+        guard FileManager.default.fileExists(atPath: reportURL.path) else {
+            printMissing(kind: "remote_speakers", expected: reportURL)
+            return
+        }
+        let payload = try JSONFiles.object(reportURL)
+        let summary = dict(payload["summary"])
+        let stability = dict(payload["stability"])
+
+        print("")
+        print("audit:")
+        print("  kind: remote_speakers")
+        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("report.md")))")
+        print("  status: \(string(payload["status"]) ?? "unknown")")
+        print("  decision: \(string(payload["decision"]) ?? "DO_NOT_PUBLISH")")
+        print("  profile: \(string(dict(payload["source"])["profile"]) ?? "unknown")")
+        print("  anonymous_speakers: \(int(summary["published_speakers"]))")
+        print(String(format: "  published_speech_ratio: %.3f", double(summary["published_speech_ratio"])))
+        print(String(format: "  chunk_replay_ari: %.3f", double(stability["chunk_replay_ari"])))
+        print("  authoritative: false")
+        printAuditHandoff(
+            session: session,
+            report: outDir.appendingPathComponent("report.md"),
             needsReview: false
         )
     }

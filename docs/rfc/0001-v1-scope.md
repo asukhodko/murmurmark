@@ -33,10 +33,13 @@ Current implementation status, 2026-08-06:
 - Authoritative Incremental ASR is promoted for exact batch resume. Remote-only and causal mic
   precomputation both completed with `DO_NOT_PROMOTE`; the current post-Echo mic has a measured
   session-end causal boundary;
-- the current bounded goal is an audit-only anonymous speaker map over authoritative remote audio;
+- the audit-only anonymous speaker map over authoritative remote audio is implemented and promoted
+  for optional evidence;
+- the current bounded goal is Anonymous Rich Transcript Handoff v1: a fingerprint-bound optional
+  anonymous rich transcript and explicit CLI read surface;
 - committed-PCM live preview exists as an advisory shadow, while batch remains authoritative;
-- speaker naming, authoritative rich transcript, evidence-guarded LLM synthesis and UI remain
-  future or optional work.
+- speaker naming, authoritative speaker labels, rich notes/export integration, evidence-guarded LLM
+  synthesis and UI remain future or optional work.
 
 ## Goals
 
@@ -46,7 +49,8 @@ Current implementation status, 2026-08-06:
 - CLI-first workflow with future menubar app on the same core.
 - Durable session package with `session.json` and `events.jsonl`.
 - Local transcription profile with ASR, `Me`/`Colleagues` reconciliation, correction and quality
-  report. Individual remote-speaker diarization remains a later capability.
+  report. Anonymous per-remote-speaker evidence is optional; the selected plain transcript remains
+  aggregate until a later gate.
 - Echo diagnostics so remote audio leaking into mic is not attributed to the user.
 - Long-meeting support through windowing and reconciliation.
 - Synthesis that cites transcript evidence.

@@ -276,30 +276,27 @@ murmurmark open "$SESSION" --kind transcript --command-only
 
 ## Current Development Direction
 
-**One-Command Meeting Lifecycle v1** is complete. The command, bounded supervisor, resume contract,
-automated regression coverage, fresh permission-capable capture soak and strict lifecycle acceptance
-all pass. The normal user path is now one command plus `Ctrl-C`; the older commands remain available
-for diagnostics and recovery.
+The one-command lifecycle, Speaker-Preserving Neural Echo v2, Evidence Handoff v2, guarded export,
+release-quality CLI, bounded resume and authoritative incremental ASR are promoted. The normal path
+is one command plus `Ctrl-C`; diagnostic commands remain available for recovery.
 
-Speaker-Preserving Neural Echo v2 is the guarded production echo profile. Target-Me separation
-experiments that missed locked gates remain isolated. Evidence Handoff v2, guarded export and the
-release-quality CLI are complete; detailed decisions and metrics live in the roadmap and research
-documents.
+Canonical Live ASR Producer v1 and Causal Canonical Mic ASR v1 ended with `DO_NOT_PROMOTE`: measured
+speedup was too small and no tested mic window matched final PCM. Ordinary meetings stay on the
+proven batch path; exact experiment metrics live in the roadmap and research documents.
 
-Reliable Final Handoff and Authoritative Incremental ASR are complete. Bounded resume, strict chunk
-identity, byte-identical replay and interrupted-batch reuse are promoted.
+Remote Speaker Evidence Map v1 completed with `PROMOTE_AUDIT_ONLY`. Across six frozen real sessions
+it published `14` session-local anonymous clusters over `4490.170s` (`50.3892%`) of remote speech;
+the rest stayed aggregate `Colleagues`. The private group reference reached attributed-only ARI
+`0.865804` and B-cubed F1 `0.913884`. Generate the optional evidence with:
 
-Canonical Live ASR Producer v1 is complete with `DO_NOT_PROMOTE`: exact remote parity passed, but
-remote-only precomputation saved only `2.8651%..4.1040%` modeled wall time. It remains quarantined.
+```bash
+murmurmark audit remote-speakers "$SESSION" --profile auto
+```
 
-Causal Canonical Mic ASR v1 is complete with `DO_NOT_PROMOTE`: `0/147` windows matched final PCM,
-and current Echo selection has a measured session-end causal boundary. Ordinary meetings stay on
-the proven batch path.
-
-The current goal is **Remote Speaker Evidence Map v1**. It will split authoritative `remote` audio
-into stable anonymous speaker intervals and publish an audit-only shadow rich transcript. It cannot
-invent names, rewrite selected text or affect Evidence Handoff v2 and guarded export without a
-separate corpus-wide promotion decision.
+The current goal is **Anonymous Rich Transcript Handoff v1**. It will bind only current, passing
+anonymous evidence to a versioned optional rich artifact and CLI surface. The selected dialogue,
+ordinary Markdown, notes, Evidence Handoff v2 and guarded export stay unchanged until their own
+promotion gate.
 
 The stable CLI supports durable capture, resumable processing, guarded profiles, evidence-backed
 review, export and retention. Exact experiment metrics live in the research documents and roadmap.
@@ -313,20 +310,21 @@ Meeting Lifecycle -> Echo evidence and controlled lab -> Speaker-Preserving Neur
 -> Reliable Final Handoff v1 (done) -> Authoritative Incremental ASR v1 (done)
 -> Canonical Live ASR Producer v1 (done: DO_NOT_PROMOTE)
 -> Causal Canonical Mic ASR v1 (done: DO_NOT_PROMOTE)
--> Remote Speaker Evidence Map v1 (current)
+-> Remote Speaker Evidence Map v1 (done: PROMOTE_AUDIT_ONLY)
+-> Anonymous Rich Transcript Handoff v1 (current)
 ```
 
-Speaker naming and authoritative `transcript.rich.json` promotion follow the anonymous evidence
-map. Heavy local validators, LLM synthesis and UI remain parallel or parked. Live promotion remains
-blocked; Live Shadow is advisory evidence only.
+Reviewed speaker naming follows the anonymous rich handoff and remains optional: voice similarity
+alone never assigns a person. Heavy local validators, LLM synthesis and UI remain parallel or
+parked. Live promotion remains blocked; Live Shadow is advisory evidence only.
 
 See the [current goal](docs/project/current-goal.md), [readable roadmap](docs/roadmap/murmurmark-cli-roadmap.md)
 and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 
 ## Scope And Limitations
 
-- Current selected transcripts use `Me` and aggregate `Colleagues`; anonymous remote-speaker
-  evidence is the current audit-only goal.
+- Current selected transcripts use `Me` and aggregate `Colleagues`; promoted anonymous
+  remote-speaker evidence remains an optional audit artifact until the rich-handoff gate passes.
 - The personalized pre-ASR profile removes independently supported remote leakage on compatible
   speaker-playback sessions; it does not promise waveform-perfect echo removal on every room/device.
 - Echo Guard records `speaker_playback`, `headphones_or_low_leak` or `uncertain` in

@@ -63,10 +63,11 @@ parallel mic critical path. Causal Canonical Mic ASR v1 then measured the exact 
 and closed with `DO_NOT_PROMOTE`: current local-FIR and Speaker-Preserving selection depend on the
 complete session, and `0/147` candidate mic windows matched final canonical PCM.
 
-The current product step is Remote Speaker Evidence Map v1. It starts with anonymous speaker
-intervals over authoritative remote audio, then an evidence-backed speaker map and
-`transcript.rich.json`. It does not wait for complete Echo suppression. Names and cross-meeting
-identity remain later reviewed capabilities.
+Remote Speaker Evidence Map v1 now provides promoted audit-only anonymous intervals over
+authoritative remote audio. The current product step is Anonymous Rich Transcript Handoff v1: bind
+the passing subset to a verifiable optional rich artifact and explicit CLI read path. It does not
+wait for complete Echo suppression. Names and cross-meeting identity remain later reviewed
+capabilities.
 
 ## Primary User
 

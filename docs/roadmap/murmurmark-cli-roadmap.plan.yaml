@@ -430,32 +430,33 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-operational-rebaseline-v1, corpus-regression, product-causal-canonical-mic-asr-v1]
+    status: done
+    effort: 6
+    notes: |
+      Завершено PROMOTE_AUDIT_ONLY на 6 frozen sessions: 14 anonymous clusters, 4490.170s
+      attributed remote speech, 4420.800s aggregate fallback. Private reference attributed-only
+      ARI 0.865804, B-cubed F1 0.913884. Selected transcript и guarded export не менялись.
+
+  research-speaker-map:
+    title: "Reviewed Remote Speaker Naming"
+    kind: task
+    parent: parallel-research
+    deps: [research-rich-transcript]
+    status: later
+    effort: 5
+    notes: "Optional reviewed names or roster evidence; voice similarity alone never assigns identity."
+
+  research-rich-transcript:
+    title: "Anonymous Rich Transcript Handoff v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [research-remote-diarization]
     status: current
     effort: 6
     notes: |
-      Разделить authoritative remote на стабильные anonymous speaker intervals и audit-only rich
-      transcript с полной provenance. Измерить deterministic replay, chunk/whole-file cluster
-      consistency, single-speaker false splits, overlap uncertainty и lossless text attribution.
-      Missing/weak evidence даёт aggregate Colleagues. Не присваивать имена, не менять selected
-      transcript, Evidence Handoff v2 и export до отдельного corpus-wide PROMOTE.
-
-  research-speaker-map:
-    title: "Speaker map"
-    kind: task
-    parent: parallel-research
-    deps: [research-remote-diarization]
-    status: idea
-    effort: 5
-    notes: "Привязывать устойчивые speaker clusters к именам только по evidence или review."
-
-  research-rich-transcript:
-    title: "transcript.rich.json"
-    kind: task
-    parent: parallel-research
-    deps: [research-speaker-map]
-    status: idea
-    effort: 5
-    notes: "Единый формат speaker IDs, confidence, alignment, evidence и review decisions."
+      Bind unchanged selected dialogue to current passing anonymous evidence in a versioned optional
+      rich handoff and explicit CLI read surface. Stale/weak evidence fails open. Plain transcript,
+      notes, Evidence Handoff v2 and guarded export remain byte-identical.
 
   research-heavy-local-validators:
     title: "Heavy local ASR/audio validators"
@@ -534,10 +535,10 @@ views:
         nodes: [working-capabilities, corpus-regression]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [research-remote-diarization]
+        nodes: [research-rich-transcript]
       dependent:
-        title: "После anonymous remote evidence"
-        nodes: [research-speaker-map, research-rich-transcript, parallel-research, parking-lot]
+        title: "После anonymous rich handoff"
+        nodes: [research-speaker-map, parallel-research, parking-lot]
 
   critical-path:
     title: "Критический CLI-путь"
@@ -567,6 +568,7 @@ views:
           - product-canonical-live-asr-producer-v1
           - product-causal-canonical-mic-asr-v1
           - research-remote-diarization
+          - research-rich-transcript
 
   parallel-research-view:
     title: "Параллельные исследования"
@@ -622,14 +624,15 @@ views:
           - product-canonical-live-asr-producer-v1
           - product-causal-canonical-mic-asr-v1
           - research-remote-diarization
+          - research-rich-transcript
           - parallel-research
           - parking-lot
 
 x:
   exec:
     program:
-      nearest_goal: "Remote Speaker Evidence Map v1: разделить authoritative remote на стабильные анонимные speaker intervals на замороженном корпусе реальных 1x1 и групповых встреч; построить audit-only speaker map и shadow rich transcript с полной provenance, измерить boundary и cluster consistency и сохранить весь исходный текст, не присваивать имена и не менять selected transcript, Evidence Handoff v2 или guarded export без отдельного corpus-wide PROMOTE; missing model, слабая кластеризация и конфликт evidence должны давать fail-open aggregate Colleagues; завершить PROMOTE или воспроизводимым DO_NOT_PROMOTE, добавить тесты и актуализировать документацию, roadmap и OpsKarta."
-      success_by_next_sync: "Frozen 1x1/group corpus имеет deterministic anonymous speaker map, lossless shadow rich transcript и измеренные boundary/cluster gates; обычный aggregate Colleagues path остаётся byte-identical, решение PROMOTE или DO_NOT_PROMOTE воспроизводимо."
+      nearest_goal: "Anonymous Rich Transcript Handoff v1: превратить promoted Remote Speaker Evidence Map v1 в versioned optional rich transcript и CLI/read surface, сохраняя selected dialogue byte-identical; публиковать session-local anonymous speaker IDs только при текущих input/model/output fingerprints и passing per-session/corpus gates, оставлять abstain как aggregate Colleagues, не присваивать имена и не менять обычный Markdown, notes, verdict, Evidence Handoff v2 или guarded export; доказать referential integrity, stale/fail-open/replay и corpus no-regression; завершить PROMOTE или воспроизводимым DO_NOT_PROMOTE, добавить тесты, актуализировать документацию, roadmap и OpsKarta, закоммитить и отправить изменения."
+      success_by_next_sync: "Passing anonymous evidence имеет current fingerprint-bound rich handoff и explicit CLI read path; stale/missing evidence fails open, ordinary transcript/handoff/export остаются byte-identical, corpus decision воспроизводим."
     defaults:
       status_progress:
         done: 1.0
@@ -650,13 +653,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle, batch transcript, review, notes/export и Live Shadow уже работают."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Текущий anonymous remote evidence path"
-        scope_nodes: [research-remote-diarization]
+        title: "Текущий anonymous rich handoff path"
+        scope_nodes: [research-rich-transcript]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Exact mic latency hypothesis закрыта DO_NOT_PROMOTE: 0/147 окон, causal boundary session_end. Текущий фокус — anonymous remote speakers без text mutation."
-          next_sync_goal: "Заморозить 1x1/group corpus, выпустить deterministic speaker evidence и измерить boundary/cluster consistency."
+          sync_note: "Remote Speaker Evidence Map v1 promoted audit-only: 14 clusters, 50.3892% speech coverage, attributed ARI 0.865804. Текущий фокус — безопасный optional rich handoff."
+          next_sync_goal: "Связать rich artifact с текущими fingerprints и CLI read path без изменения plain authoritative path."
       dependent-path:
         title: "Зависимый путь"
         scope_nodes:
@@ -678,11 +681,12 @@ x:
           - product-canonical-live-asr-producer-v1
           - product-causal-canonical-mic-asr-v1
           - research-remote-diarization
+          - research-rich-transcript
         kind: main
         mgmt:
           health: neutral
-          sync_note: "После anonymous remote evidence идут reviewed speaker naming и authoritative rich transcript gates."
-          next_sync_goal: "Не смешивать anonymous clustering с именами, cross-session identity и export promotion."
+          sync_note: "После optional anonymous rich handoff идёт только reviewed naming; notes/export integration требует отдельного gate."
+          next_sync_goal: "Не смешивать anonymous rich publication с именами, cross-session identity и export promotion."
       research:
         title: "Параллельные исследования"
         scope_nodes: [parallel-research]
