@@ -42,7 +42,6 @@ Raw CAF files and batch output are authoritative. Committed-PCM Live Shadow is c
 advisory; its promotion remains blocked by quality and runtime evidence.
 
 ## North Star And Current Goal
-
 The technical North Star is an ASR input that retains every confirmed `Me` word, contains no recognizable authoritative remote and keeps nearby non-target speech out of `Me`, with exact fallback.
 Speaker-Preserving Neural Echo v2 is the safe production plateau: `5/12` candidate sessions,
 `41.940s` and 90 remote-supported tokens removed, local retention `1.0`; the other `7/12` fell back.
@@ -52,10 +51,10 @@ echo-path work (`2443.222s`, `35.567%`, 9 sessions), followed by multi-component
 (`2124.220s`, `30.923%`). Alignment/Echo-Path v3 then ended in
 `READY_FOR_MULTI_COMPONENT_SEPARATOR`: 11/32 controlled remote items changed safely versus the
 required 12, with 156/156 protected items exact, but the required low-leak control changed.
-Multi-Component v1 then ended in `READY_FOR_STRONGER_LOCAL_SEPARATOR`: reconstruction and query
-identity held, but four dev gates failed. Stronger Offline Prerequisites is next; memory is deferred.
+Multi-Component v1 ended in `READY_FOR_STRONGER_LOCAL_SEPARATOR` after four dev gates failed.
+Stronger Offline Prerequisites then pinned Apache-2.0 SepFormer, froze a `12/4/4` identity expansion
+and completed `READY_FOR_STRONGER_SEPARATOR_QUALIFICATION`. Train/dev qualification is next.
 ## Critical Path
-
 ```mermaid
 flowchart LR
     P["Done<br/>Me Completion v2"]
@@ -79,7 +78,7 @@ flowchart LR
     T["Done: PROMOTE<br/>Anonymous Rich<br/>Transcript Handoff v1"]
     Q["Done: PROMOTE<br/>Reviewed Remote<br/>Speaker Naming v1"]
     Z["Done: READY<br/>Residual Map +<br/>Alignment/Echo v3"]
-    Y["Current umbrella<br/>Multi-Component done<br/>Stronger prerequisites next"]
+    Y["Current umbrella<br/>Prerequisites done<br/>SepFormer train/dev next"]
     W["Later<br/>Reviewed Speaker-Aware<br/>Meeting Memory v1"]
 
     P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D --> F --> G --> C2 --> M --> R --> T --> Q --> Z --> Y --> W
@@ -243,7 +242,6 @@ utterances and anonymous attributions; stale or missing decisions fall back to a
 Voice-only identity, cross-session matching and ordinary notes/export remain untouched.
 
 ### 20. Pre-ASR Target-Me Isolation Limit v1
-
 Current umbrella goal. Residual mapping and Alignment/Echo-Path v3 are complete. Multi-Component v1
 then tested an explicit four-stem FiLM-GRU on 320 train and 85 dev mixtures. It preserved exact
 reconstruction and speaker-query use, but missed Target-Me (`5.561 dB`), other-local (`4.443 dB`),
@@ -251,9 +249,11 @@ absent-query (`6.803 dB`) and residual (`-1.545 dB`) gates. It completed
 `READY_FOR_STRONGER_LOCAL_SEPARATOR`; hard/sealed, direct ASR, production v2, raw CAF and transcripts
 remained unchanged.
 
-Next, Stronger Offline Target-Speaker Separator Prerequisites v1 expands split-disjoint supervision,
-pins one licensed offline backbone and freezes its four-stem adapter and local resource budget. A new
-qualification cannot open hard/sealed before reproducible readiness; post-ASR cleanup receives zero credit.
+Stronger Offline Prerequisites then completed `READY_FOR_STRONGER_SEPARATOR_QUALIFICATION`: pinned
+Apache-2.0 SepFormer, a `12/4/4` identity plan and two offline probes at about `687 MB` peak RSS.
+Next, SepFormer Four-Stem Target-Me Qualification v1 materializes train/dev, assigns anonymous stems
+through WavLM and preserves exact residual remainder. Future-hard, sealed and direct ASR stay closed
+unless every immutable dev gate passes.
 
 ### 21. Reviewed Speaker-Aware Meeting Memory v1
 

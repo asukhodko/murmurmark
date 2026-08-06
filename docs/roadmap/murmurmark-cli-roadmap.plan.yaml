@@ -466,8 +466,9 @@ nodes:
       controlled remote items при требовании 12, 156/156 exact protected items и failed exact
       fallback на required low-leak control. Multi-Component v1 затем сохранил exact reconstruction
       и query identity, но завершился READY_FOR_STRONGER_LOCAL_SEPARATOR из-за слабых Target-Me,
-      other-local, absent-query и residual dev-метрик. Ближайший bounded этап готовит расширенные
-      split-disjoint данные и один pinned offline backbone. Post-ASR cleanup не получает credit.
+      other-local, absent-query и residual dev-метрик. Stronger Offline Prerequisites закрепил
+      Apache-2.0 SepFormer, 12/4/4 identity plan и завершился READY_FOR_STRONGER_SEPARATOR_QUALIFICATION.
+      Ближайший bounded этап — train/dev four-stem qualification. Post-ASR cleanup не получает credit.
 
   quality-pre-asr-residual-echo-ceiling-map-v1:
     title: "Pre-ASR Residual Echo Ceiling Map v1"
@@ -500,14 +501,28 @@ nodes:
     kind: task
     parent: quality-pre-asr-target-me-isolation-limit-v1
     deps: [quality-multi-component-residual-separator-v1, quality-target-me-identifiability-corpus-v1]
-    status: next
+    status: done
     effort: 6
     notes: |
-      До нового training/hard цикла заморозить gap map supervision, расширение split-disjoint
-      Target-Me/nearby-speaker данных, один лицензированно совместимый offline backbone с pinned
-      revision/hash и измеренный resource preflight. Зафиксировать four-stem adapter, query controls,
-      exact production fallback и immutable readiness manifest. Завершить
-      READY_FOR_STRONGER_SEPARATOR_QUALIFICATION либо CURRENT_RESOURCE_LIMIT_REACHED.
+      Завершено READY_FOR_STRONGER_SEPARATOR_QUALIFICATION. Заморожены gap map и расширение
+      non-target identities до 12/4/4, выбран Apache-2.0 SpeechBrain SepFormer с pinned revision и
+      SHA-256. Два network-blocked запуска дали exact output hash, около 687 MB peak RSS и прошли
+      background resource budget. Four-stem adapter сохраняет exact fallback; hard/sealed, direct
+      ASR и production не открывались.
+
+  quality-sepformer-four-stem-target-me-qualification-v1:
+    title: "SepFormer Four-Stem Target-Me Qualification v1"
+    kind: task
+    parent: quality-pre-asr-target-me-isolation-limit-v1
+    deps: [quality-stronger-offline-target-speaker-separator-prerequisites-v1]
+    status: next
+    effort: 10
+    notes: |
+      Материализовать frozen 12/4 train/dev supervision без future-hard, выполнить pinned offline
+      SepFormer inference, назначить anonymous stems через paired WavLM margin, восстановить масштаб
+      и exact four-stem remainder. Сначала измерить frozen-backbone control, затем один immutable dev
+      pass. Завершить READY_FOR_STRONGER_SEPARATOR_HARD_TEST, DO_NOT_ADVANCE_STRONGER_SEPARATOR либо
+      CURRENT_RESOURCE_LIMIT_REACHED; direct ASR и production остаются закрыты.
 
   product-reviewed-speaker-memory-v1:
     title: "Reviewed Speaker-Aware Meeting Memory v1"
@@ -578,15 +593,6 @@ nodes:
       Заблокировано воспроизводимыми quality/runtime DO_NOT_PROMOTE. Возобновлять только с новой
       гипотезой, которая проходит immutable corpus и live-vs-batch parity gates.
 
-  parked-reviewed-integrations:
-    title: "Docs and issue-tracker proposals"
-    kind: task
-    parent: parking-lot
-    deps: [product-evidence-export-v2]
-    status: optional
-    effort: 4
-    notes: "Только reviewed proposals; никаких автоматических внешних записей без подтверждения."
-
 views:
   roadmap-tree:
     title: "Полный активный roadmap"
@@ -640,6 +646,7 @@ views:
           - research-rich-transcript
           - research-speaker-map
           - quality-pre-asr-target-me-isolation-limit-v1
+          - quality-sepformer-four-stem-target-me-qualification-v1
           - product-reviewed-speaker-memory-v1
 
   echo-frontier:
@@ -656,11 +663,12 @@ views:
           - quality-pre-asr-residual-echo-ceiling-map-v1
           - quality-multi-component-residual-separator-v1
           - quality-stronger-offline-target-speaker-separator-prerequisites-v1
+          - quality-sepformer-four-stem-target-me-qualification-v1
       current:
         title: "Текущий предел"
         nodes:
           - quality-pre-asr-target-me-isolation-limit-v1
-          - quality-stronger-offline-target-speaker-separator-prerequisites-v1
+          - quality-sepformer-four-stem-target-me-qualification-v1
       fallback:
         title: "После решения"
         nodes:
@@ -687,7 +695,6 @@ views:
         title: "Parking lot"
         nodes:
           - parked-live-promotion
-          - parked-reviewed-integrations
 
   deps-map:
     title: "Зависимости активного плана"
@@ -725,6 +732,7 @@ views:
           - quality-pre-asr-residual-echo-ceiling-map-v1
           - quality-multi-component-residual-separator-v1
           - quality-stronger-offline-target-speaker-separator-prerequisites-v1
+          - quality-sepformer-four-stem-target-me-qualification-v1
           - product-reviewed-speaker-memory-v1
           - parallel-research
           - parking-lot
@@ -732,8 +740,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Pre-ASR Target-Me Isolation Limit v1: после завершённого Multi-Component Residual Separator v1 с READY_FOR_STRONGER_LOCAL_SEPARATOR подготовить Stronger Offline Target-Speaker Separator Prerequisites v1; заморозить расширение split-disjoint supervision для Target-Me и nearby speakers, выбрать один лицензированно совместимый offline backbone с зафиксированными hash, resource preflight и four-stem adapter plan; не открывать новый hard/sealed цикл до доказанной готовности данных и модели; завершить READY_FOR_STRONGER_SEPARATOR_QUALIFICATION либо CURRENT_RESOURCE_LIMIT_REACHED с тестами, актуальной документацией, roadmap и OpsKarta, коммитом и push."
-      success_by_next_sync: "Multi-Component v1 остаётся frozen; данные, один offline backbone, four-stem adapter и ресурсный бюджет готовы к отдельной qualification либо доказан текущий ресурсный предел."
+      nearest_goal: "Pre-ASR Target-Me Isolation Limit v1: после завершённого Stronger Offline Target-Speaker Separator Prerequisites v1 с READY_FOR_STRONGER_SEPARATOR_QUALIFICATION провести SepFormer Four-Stem Target-Me Qualification v1; материализовать замороженное расширение train/dev с 12/4 split-disjoint non-target speakers, проверить pinned offline SepFormer через WavLM paired-query assignment, scale recovery, exact four-stem reconstruction и production-v2 fallback; не открывать future-hard, sealed или direct ASR до immutable dev pass; завершить READY_FOR_STRONGER_SEPARATOR_HARD_TEST, DO_NOT_ADVANCE_STRONGER_SEPARATOR либо CURRENT_RESOURCE_LIMIT_REACHED с тестами, актуальными документами, roadmap и OpsKarta, коммитом и push."
+      success_by_next_sync: "Pinned SepFormer измерен на frozen expanded train/dev; anonymous stems получают доказательное WavLM assignment и exact four-stem accounting либо выпущен воспроизводимый stop без открытия future-hard, sealed и direct ASR."
     defaults:
       status_progress:
         done: 1.0
@@ -755,12 +763,12 @@ x:
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
         title: "Текущий pre-ASR audio frontier"
-        scope_nodes: [quality-pre-asr-target-me-isolation-limit-v1, quality-pre-asr-residual-echo-ceiling-map-v1, quality-multi-component-residual-separator-v1, quality-stronger-offline-target-speaker-separator-prerequisites-v1]
+        scope_nodes: [quality-pre-asr-target-me-isolation-limit-v1, quality-pre-asr-residual-echo-ceiling-map-v1, quality-multi-component-residual-separator-v1, quality-stronger-offline-target-speaker-separator-prerequisites-v1, quality-sepformer-four-stem-target-me-qualification-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Multi-Component v1 завершён READY_FOR_STRONGER_LOCAL_SEPARATOR: exact reconstruction и query identity сохранены, но четыре dev quality gate не пройдены. Hard/sealed и direct ASR закрыты; production v2 остаётся fallback."
-          next_sync_goal: "Заморозить достаточные split-disjoint данные и один pinned offline backbone до нового qualification cycle."
+          sync_note: "Stronger Offline Prerequisites завершён READY_FOR_STRONGER_SEPARATOR_QUALIFICATION: pinned SepFormer и 12/4/4 identity plan готовы, offline replay и resource budget прошли. Hard/sealed и direct ASR закрыты; production v2 остаётся fallback."
+          next_sync_goal: "Провести один frozen SepFormer train/dev qualification с WavLM assignment и exact four-stem remainder."
       dependent-path:
         title: "Зависимый путь"
         scope_nodes:

@@ -301,15 +301,15 @@ murmurmark transcript "$SESSION" --rich --reviewed-speakers
 ```
 
 Missing, partial or stale decisions fall back to the anonymous `--rich` view. No name is inferred from voice, text, contacts, calendar or another meeting. Plain Markdown, notes and guarded export stay unchanged. Speaker-aware meeting memory is ready but deliberately deferred.
-The current goal is **Pre-ASR Target-Me Isolation Limit v1**. Its residual map first selected alignment/echo-path
-work as `35.567%` of actionable evidence. Alignment and Echo-Path Model v3 then
+The current goal is **Pre-ASR Target-Me Isolation Limit v1**. Its residual map first selected alignment/echo-path work as `35.567%` of actionable evidence. Alignment and Echo-Path Model v3 then
 closed that physical-model ladder with `READY_FOR_MULTI_COMPONENT_SEPARATOR`: 11/32 controlled
 remote items changed safely versus the required 12, median reduction was `2.552124 dB`, and all 156
 protected items stayed sample-exact. The required low-leak control changed instead of falling back;
 hard/sealed data remained closed and production v2 unchanged.
 Multi-Component v1 completed `READY_FOR_STRONGER_LOCAL_SEPARATOR`: reconstruction held, but
 Target-Me (`5.561 dB`), other-local (`4.443 dB`), absent-query (`6.803 dB`) and residual (`-1.545 dB`)
-failed. Next, Stronger Offline Prerequisites expands data and pins one backbone; see the [result](docs/research/2026-08-06-multi-component-residual-separator-v1.md).
+failed. Stronger Offline Prerequisites then pinned Apache-2.0 SepFormer, froze `12/4/4` split-disjoint identities and passed offline resource gates with about `687 MB` peak RSS, ending in
+`READY_FOR_STRONGER_SEPARATOR_QUALIFICATION`; see the [result](docs/research/2026-08-06-stronger-offline-target-speaker-separator-prerequisites-v1.md).
 
 The dependent critical path is:
 
@@ -319,15 +319,14 @@ Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental 
 -> Remote Speaker Map -> Anonymous Rich -> Reviewed Naming (done)
 -> Residual Echo Ceiling Map (done: READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3)
 -> Alignment and Echo-Path Model v3 (done: READY_FOR_MULTI_COMPONENT_SEPARATOR)
--> Multi-Component v1 (done: READY_FOR_STRONGER_LOCAL_SEPARATOR) -> Stronger Offline Prerequisites (next)
+-> Multi-Component v1 (done) -> Stronger Offline Prerequisites (done) -> SepFormer Train/Dev Qualification (next)
 -> Reviewed Speaker-Aware Meeting Memory v1 (later)
 ```
 
 Speaker-aware memory remains optional and deferred. LLM synthesis and UI stay parallel or parked;
 Live promotion remains blocked and Live Shadow stays advisory.
 
-See the [current goal](docs/project/current-goal.md), [readable roadmap](docs/roadmap/murmurmark-cli-roadmap.md)
-and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
+See the [current goal](docs/project/current-goal.md), [readable roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 
 ## Scope And Limitations
 
@@ -339,6 +338,7 @@ and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
   speaker-playback sessions; it does not promise waveform-perfect echo removal on every room/device.
 - Alignment/Echo-Path v3 is audit-only after `READY_FOR_MULTI_COMPONENT_SEPARATOR`; it is not a
   production audio profile and its hard/sealed sets remain unopened.
+- Stronger Offline Prerequisites is readiness-only; SepFormer cannot enter direct ASR or production before a separate four-stem train/dev pass.
 - Echo Guard records `speaker_playback`, `headphones_or_low_leak` or `uncertain` in
   `local_fir_report.json`; no user acoustic-mode flag is required.
 - `local_speech_completion_v2` is selected only for sessions named by its passing frozen-corpus
@@ -368,7 +368,7 @@ and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 - [Mission and vision](docs/product/vision.md)
 - [Product requirements](docs/product/prd-v1.md)
 - [Current goal](docs/project/current-goal.md)
-- [Pre-ASR Residual Echo Ceiling Map v1](docs/research/2026-08-06-pre-asr-residual-echo-ceiling-map-v1.md)
+- [Stronger Offline Separator Prerequisites v1](docs/research/2026-08-06-stronger-offline-target-speaker-separator-prerequisites-v1.md)
 - [Reliable transcription route](docs/project/reliable-transcription-route.md)
 - [Readable roadmap](docs/roadmap/murmurmark-cli-roadmap.md)
 - [OpsKarta v3 roadmap](docs/roadmap/murmurmark-cli-roadmap.plan.yaml)

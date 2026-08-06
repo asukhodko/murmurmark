@@ -1,0 +1,212 @@
+{
+  "schema": "murmurmark.stronger_offline_target_speaker_separator_prerequisites_policy/v1",
+  "profile": "stronger_offline_target_speaker_separator_prerequisites_v1",
+  "status": "locked_before_qualification",
+  "locked_at": "2026-08-06T18:20:00+03:00",
+  "purpose": "prepare exactly one licensed, offline and resource-qualified speech-separation backbone for a later four-stem Target-Me qualification",
+  "production_publication": "forbidden",
+  "training_performed": false,
+  "hard_or_sealed_access": false,
+  "post_asr_cleanup_promotion_credit": 0,
+  "sources": {
+    "production_policy": {
+      "path": "policies/speaker-preserving-neural-echo-production-v2.json",
+      "sha256": "68f9abab1197035c76a936b97cca6fba05d3992e7a0ccce82de4d8ec0959a425"
+    },
+    "production_decision": {
+      "path": "sessions/_reports/speaker-preserving-neural-echo-v2-16-corpus/promotion_decision.json",
+      "sha256": "0e5be06cb7ea2368824d1e4a35a55f732753e1ec15c70b2ab7ceb29a39e10863",
+      "required_decision": "PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2"
+    },
+    "production_report": {
+      "path": "sessions/_reports/speaker-preserving-neural-echo-v2-16-corpus/corpus_report.json",
+      "sha256": "819a8ce2e00df8f59f83fe99e0de30cad367e886b253930e6b6555a42031a7e3"
+    },
+    "multi_component_policy": {
+      "path": "policies/multi-component-residual-separator-v1.json",
+      "sha256": "e1f6d2c7ced67091d33044aa22e13df32dd3dcd0769113a08ed0972231af178a"
+    },
+    "multi_component_decision": {
+      "path": "sessions/_reports/multi-component-residual-separator-v1/decision.json",
+      "sha256": "23692bf82fc780e7bbfbce9a984c6991de9bd5f2fd5dcf678516d5e3e213e052",
+      "required_decision": "READY_FOR_STRONGER_LOCAL_SEPARATOR"
+    },
+    "multi_component_verification": {
+      "path": "sessions/_reports/multi-component-residual-separator-v1/verification_report.json",
+      "sha256": "6141eb6c39d38c86a28beeab603c4faaee5adc8fdc2bd02d22fb2d22811bf801"
+    },
+    "multi_component_train_dev": {
+      "path": "sessions/_reports/multi-component-residual-separator-v1/train-dev/train_dev_report.json",
+      "sha256": "5ab1c0213a10990d2143a7a811d38ead7546e2390228c58adb1491c2c9bc8d98",
+      "required_decision": "MULTI_COMPONENT_DEV_CANDIDATE_REJECTED"
+    },
+    "target_corpus_current": {
+      "path": "sessions/_reports/target-me-identifiability-corpus-v1/current.json",
+      "sha256": "634cafc2cba6dc0df2814f010de2628fc89f163e19fd4ceb740a29698e10088d",
+      "required_decision": "READY_FOR_TARGET_CONDITIONED_TRAINING"
+    },
+    "controlled_frozen_corpus": {
+      "path": "sessions/_reports/controlled-echo-supervision-v1/frozen_corpus.json",
+      "sha256": "d8f977652c81f1ddeed40e9d77c84cd2dd3c246c7a40f9016a04337c8038f778"
+    },
+    "controlled_split_manifest": {
+      "path": "sessions/_reports/controlled-echo-supervision-v1/split_manifest.json",
+      "sha256": "6190dfe2040faba8985f4af4162348e6984d5a9742b97447c3537d3902a932d0"
+    },
+    "controlled_supervision_manifest": {
+      "path": "sessions/_reports/controlled-echo-supervision-v1/supervision_manifest.jsonl",
+      "sha256": "12a3162efcf1d0aec99744b755d30d0f38fb994b8126a7a94eeb44c9a1520c2a"
+    },
+    "controlled_corpus_decision": {
+      "path": "sessions/_reports/controlled-echo-supervision-v1/corpus_decision.json",
+      "sha256": "a6f76eb657e06f7e9b04e0c4a37254c161b1c99938a0fdbe3c4147eb2b2968d9",
+      "required_decision": "READY_FOR_ADAPTATION"
+    }
+  },
+  "target_corpus": {
+    "root": "sessions/_reports/target-me-identifiability-corpus-v1/published/530cb0fd23503884d438bc24be10fff45610da1fb8fe710aad1b6b6cd992b2ce",
+    "fingerprint": "530cb0fd23503884d438bc24be10fff45610da1fb8fe710aad1b6b6cd992b2ce",
+    "files": {
+      "split_manifest.json": "280b49e74fe2abaac8b78442fb60f713681e8e0245b214738f3660d37113deb2",
+      "item_manifest.jsonl": "0db427db488bf48117084997a540775ce53376b7426e3ae4ce6dfffef0dae8a0",
+      "query_manifest.jsonl": "cf0446a55cddc770dd790eee7d9d36d53d25e9ce2453c4053dcd03c385a69fa3",
+      "enrollment_manifest.jsonl": "468e4df836645e7970a9b31439ab9ef7dad5168b2d5d072c6b8ebbc3add6d447",
+      "replay_report.json": "2c8d56f21b6b09bf4dedfb2a7a33be9bd2e1a636cc2cf87bab35d74a81094c82"
+    },
+    "current_non_target_speakers": {
+      "train": ["slr31_163", "slr31_332", "slr31_460", "slr31_7367"],
+      "dev": ["slr31_1088", "slr31_2416"],
+      "hard": ["slr31_2035", "slr31_5895"]
+    }
+  },
+  "supervision_expansion": {
+    "status": "frozen_manifest_only",
+    "audio_rendering_in_this_stage": false,
+    "ordinary_meeting_labels": false,
+    "target_identity": "private_target_me_v1",
+    "target_sources": "reuse frozen session-disjoint controlled supervision only",
+    "non_target_source": {
+      "dataset": "OpenSLR SLR31 Mini LibriSpeech",
+      "license": "CC-BY-4.0",
+      "landing_page": "https://www.openslr.org/31/"
+    },
+    "splits": {
+      "train": {
+        "subset": "train-clean-5",
+        "speakers": ["slr31_19", "slr31_32", "slr31_118", "slr31_163", "slr31_226", "slr31_332", "slr31_460", "slr31_669", "slr31_1737", "slr31_1867", "slr31_1898", "slr31_7367"]
+      },
+      "dev": {
+        "subset": "train-clean-5",
+        "speakers": ["slr31_1088", "slr31_1970", "slr31_2136", "slr31_2416"]
+      },
+      "future_hard": {
+        "subset": "dev-clean-2",
+        "speakers": ["slr31_84", "slr31_174", "slr31_2035", "slr31_5895"],
+        "access_in_this_stage": false
+      }
+    },
+    "required_families": [
+      "ordinary_double_talk",
+      "quiet_target_me",
+      "quiet_other_local",
+      "target_absent_query",
+      "nearby_speaker",
+      "opening_backchannel",
+      "keyboard_background",
+      "office_noise",
+      "remote_only",
+      "target_only"
+    ]
+  },
+  "backbone_shortlist": [
+    {
+      "id": "speechbrain_sepformer_libri2mix",
+      "status": "selected",
+      "kind": "speaker_independent_two_source_separator",
+      "source_repository": "https://github.com/speechbrain/speechbrain",
+      "source_revision": "36c180c7bfad3bf5c48bd76a24799812952c4565",
+      "runtime_version": "1.1.0",
+      "model_repository": "https://huggingface.co/speechbrain/sepformer-libri2mix",
+      "model_revision": "eb43c5bfbb2aa654630adbf849373bcec0a20ed4",
+      "license": "Apache-2.0",
+      "sample_rate": 8000,
+      "target_conditioning": "external WavLM enrollment assignment",
+      "reason": "clear license, official checkpoint, bounded CPU footprint and deterministic offline tensor inference"
+    },
+    {
+      "id": "wesep",
+      "status": "rejected_prerequisite",
+      "source_repository": "https://github.com/wenet-e2e/wesep",
+      "source_revision": "99eca54b60300d39b9353d93cf285a14bba37854",
+      "reason": "native target extraction is attractive, but the pinned repository has no top-level license and its documented baseline runtime is Python 3.9 with PyTorch 1.12.1 and CUDA"
+    },
+    {
+      "id": "asteroid_convtasnet_libri2mix_sepclean_16k",
+      "status": "rejected_prerequisite",
+      "source_repository": "https://github.com/asteroid-team/asteroid",
+      "source_revision": "5fe95b74dfd53186e74ba7d9b85ca4c27f0d9c09",
+      "model_repository": "https://huggingface.co/JorisCos/ConvTasNet_Libri2Mix_sepclean_16k",
+      "model_revision": "188631e8337c9bee6517bfe115956f475d94f523",
+      "license": "CC-BY-SA-3.0",
+      "reason": "small and 16 kHz, but the current local runtime produced physically invalid output gain despite finite tensors"
+    }
+  ],
+  "selected_backbone": {
+    "id": "speechbrain_sepformer_libri2mix",
+    "model_dir": "~/.local/share/murmurmark/models/stronger-offline-target-speaker-v1/sepformer-libri2mix",
+    "runtime_dir": "~/.local/share/murmurmark/runtimes/stronger-offline-target-speaker-v1-speechbrain",
+    "model_files": {
+      "README.md": "f75ce1aed3d24c1d3b4df3760d778fbb31ce873f68deaf8b637b12a05f482ede",
+      "brain.ckpt": "d9e24193f36931b7f57932532efbdcf64971f42732383ba6808825f77db258f6",
+      "config.json": "02a8ddd39e0973f182c7f20ccc1efa48363cec4954e813cf0535b44513008707",
+      "counter.ckpt": "7f2253d7e228b22a08bda1f09c516f6fead81df6536eb02fa991a34bb38d9be8",
+      "decoder.ckpt": "05340634088efb00ec448f548af107d5d932057ea214dd64497f34106247e184",
+      "encoder.ckpt": "740d082e75b92370bc12f176d5b5554f6383cf8bc607da8ac8a550255987ed4a",
+      "hyperparams.yaml": "19b0c807be63a5767509c30adb5c0176688ff2d077fd9bb95d0cf188cbd4d4e5",
+      "masknet.ckpt": "f54762647082a8fe75a1cacc6c3d463b967223fc77c836cc4fb8ca2a272d9a75"
+    },
+    "runtime_wheels_dir": "~/.local/share/murmurmark/models/stronger-offline-target-speaker-v1/speechbrain-wheels",
+    "runtime_wheels": {
+      "hyperpyyaml-1.2.3-py3-none-any.whl": "0088c8ce97dc7c7d3460112b6ccc92dca46fade4d0320bc39f58b1fdda60f7f1",
+      "ruamel.yaml-0.18.16-py3-none-any.whl": "048f26d64245bae57a4f9ef6feb5b552a386830ef7a826f235ffb804c59efbba",
+      "ruamel.yaml.clib-0.2.14-cp312-cp312-macosx_14_0_arm64.whl": "5e56ac47260c0eed992789fa0b8efe43404a9adb608608631a948cee4fc2b052",
+      "sentencepiece-0.2.1-cp312-cp312-macosx_11_0_arm64.whl": "d9381351182ff9888cc80e41c632e7e274b106f450de33d67a9e8f6043da6f76",
+      "speechbrain-1.1.0-py3-none-any.whl": "0f1bc7d5c5ce07b9ed752a9d931a4858180f825f4d079b44035a0aed645f4dd2",
+      "torchaudio-2.11.0-cp312-cp312-macosx_11_0_arm64.whl": "a1cf1acc883bee9cb906a933572fed6a8a933f86ef34e9ea7d803f72317e8c1b"
+    }
+  },
+  "resource_budget": {
+    "device": "cpu",
+    "nice_min": 15,
+    "torch_threads_max": 4,
+    "peak_rss_mb_max": 2048.0,
+    "load_sec_max": 5.0,
+    "one_second_inference_sec_max": 5.0,
+    "model_bytes_max": 500000000,
+    "raw_output_peak_max": 10.0,
+    "probe_sample_rate": 8000,
+    "probe_samples": 8000,
+    "expected_output_shape": [1, 8000, 2],
+    "exact_replay_hash_required": true,
+    "offline_network_block_required": true
+  },
+  "four_stem_adapter": {
+    "input_sample_rate": 16000,
+    "backbone_sample_rate": 8000,
+    "inputs": ["production_v2_mic", "frozen_echo_hint", "target_me_enrollment"],
+    "stems": ["target_me", "remote_echo", "other_local", "unexplained_residual"],
+    "local_mixture": "production_v2_mic minus frozen_echo_hint",
+    "speaker_assignment": "score both separated speech stems against frozen WavLM enrollment and require a paired margin",
+    "scale_recovery": "least-squares stem scaling followed by exact residual remainder",
+    "mixture_consistency": "target_me + remote_echo + other_local + unexplained_residual equals the input sample-exactly",
+    "uncertain_query": "exact production_v2 fallback",
+    "unsupported_more_than_two_local_speakers": "retain unexplained_residual and use exact production_v2 fallback for ASR",
+    "outside_selected_windows": "sample-exact production_v2",
+    "direct_asr_before_dev_pass": false,
+    "production_publication_before_corpus_promotion": false
+  },
+  "terminal_decisions": [
+    "READY_FOR_STRONGER_SEPARATOR_QUALIFICATION",
+    "CURRENT_RESOURCE_LIMIT_REACHED"
+  ]
+}

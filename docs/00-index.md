@@ -58,11 +58,14 @@ Read in this order:
 54. [Multi-Component Residual Separator v1 result](research/2026-08-06-multi-component-residual-separator-v1.md)
 55. [Multi-Component Residual Separator contract](contracts/multi-component-residual-separator.md)
 56. [Multi-Component Residual Separator runbook](runbooks/multi-component-residual-separator.md)
-57. [Reliable Final Handoff v1 baseline](testing/2026-08-05-reliable-final-handoff-baseline.md)
-58. [Canonical Live ASR Producer v1 result](testing/2026-08-06-canonical-live-asr-producer-v1.md)
-59. [Causal Canonical Mic ASR v1 result](testing/2026-08-06-causal-canonical-mic-asr-v1.md)
-60. [Remote Speaker Evidence Map v1 result](testing/2026-08-06-remote-speaker-evidence-map-v1.md)
-61. [Planning and development history](history/README.md)
+57. [Stronger Offline Separator Prerequisites result](research/2026-08-06-stronger-offline-target-speaker-separator-prerequisites-v1.md)
+58. [Stronger Offline Separator Prerequisites contract](contracts/stronger-offline-target-speaker-separator-prerequisites.md)
+59. [Stronger Offline Separator Prerequisites runbook](runbooks/stronger-offline-target-speaker-separator-prerequisites.md)
+60. [Reliable Final Handoff v1 baseline](testing/2026-08-05-reliable-final-handoff-baseline.md)
+61. [Canonical Live ASR Producer v1 result](testing/2026-08-06-canonical-live-asr-producer-v1.md)
+62. [Causal Canonical Mic ASR v1 result](testing/2026-08-06-causal-canonical-mic-asr-v1.md)
+63. [Remote Speaker Evidence Map v1 result](testing/2026-08-06-remote-speaker-evidence-map-v1.md)
+64. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
@@ -92,9 +95,12 @@ boundary: retain every confirmed `Me` word while removing recognizable authorita
 current goal is Pre-ASR Target-Me Isolation Limit v1. Its residual map and Alignment/Echo-Path v3
 are complete. Multi-Component Residual Separator v1 then preserved exact reconstruction and
 speaker-query use but missed four locked dev quality gates, ending in
-`READY_FOR_STRONGER_LOCAL_SEPARATOR`. Hard/sealed and direct ASR stayed closed; production v2 stayed
-unchanged. The nearest bounded stage is Stronger Offline Target-Speaker Separator Prerequisites v1.
-Reviewed Speaker-Aware Meeting Memory v1 remains ready but deferred until that frontier closes.
+`READY_FOR_STRONGER_LOCAL_SEPARATOR`. Stronger Offline Prerequisites then pinned Apache-2.0
+SepFormer, expanded split-disjoint supervision to `12/4/4` speaker identities and passed two
+offline resource probes with about `687 MB` peak RSS, ending in
+`READY_FOR_STRONGER_SEPARATOR_QUALIFICATION`. Hard/sealed and direct ASR stayed closed; production
+v2 stayed unchanged. The nearest bounded stage is train/dev four-stem qualification. Reviewed
+Speaker-Aware Meeting Memory v1 remains ready but deferred until that frontier closes.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,
