@@ -48,7 +48,8 @@ Speaker-Preserving Neural Echo v2 is the safe production plateau: `5/12` candida
 hard `3/3`, corpus `12/12` and unchanged utility. **Pre-ASR Target-Me Isolation Limit v1** is done.
 SepFormer reached perfect paired train assignment but failed Target-Me presence separation and
 stopped before dev with `DO_NOT_ADVANCE_STRONGER_SEPARATOR`. **Reviewed Speaker-Aware Meeting
-Memory v1** is promoted optional. **Evidence-Guarded Local Synthesis Qualification v1** is current.
+Memory v1** is promoted optional. **Evidence-Guarded Local Synthesis Qualification v1** completed
+with `DO_NOT_PROMOTE`; **Evidence-Only Local Note Selection v1** is current.
 ## Critical Path
 ```mermaid
 flowchart LR
@@ -75,9 +76,10 @@ flowchart LR
     Z["Done: READY<br/>Residual Map +<br/>Alignment/Echo v3"]
     Y["Done: DO_NOT_ADVANCE<br/>Pre-ASR Target-Me<br/>Isolation Limit v1"]
     W["Done: PROMOTE<br/>Reviewed Speaker-Aware<br/>Meeting Memory v1"]
-    U["Current<br/>Evidence-Guarded Local<br/>Synthesis Qualification v1"]
+    U["Done: DO_NOT_PROMOTE<br/>Evidence-Guarded Local<br/>Synthesis v1"]
+    J["Current<br/>Evidence-Only Local<br/>Note Selection v1"]
 
-    P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D --> F --> G --> C2 --> M --> R --> T --> Q --> Z --> Y --> W --> U
+    P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D --> F --> G --> C2 --> M --> R --> T --> Q --> Z --> Y --> W --> U --> J
 ```
 
 ### 0. Evidence-Backed Me Completion v2
@@ -254,16 +256,26 @@ Completed with `PROMOTE_OPTIONAL_REVIEWED_SPEAKER_MEMORY`: 6/6 frozen sessions, 
 fingerprint-bound decisions; stale or partial review returns byte-identical ordinary artifacts.
 
 ### 22. Evidence-Guarded Local Synthesis Qualification v1
-Current. Qualify one pinned local model and prompt over speaker-aware memory. Every generated claim
-must retain exact evidence IDs and pass an independent support check; extractive notes remain the
-immutable fallback and the result may be a reproducible `DO_NOT_PROMOTE`.
+Completed with reproducible `DO_NOT_PROMOTE`. The pinned 14.8B model proposed 142 claims on 6/6
+sessions; 49 passed, 69 were safety-rejected and 24 were hidden as duplicates or output overflow.
+Replay, exact references, zero unsupported publication and byte-identical ordinary outputs passed,
+but safety rejection reached `0.485915` and peak RSS reached `13978.922 MB`. No generated-text CLI
+surface was activated.
+
+### 23. Evidence-Only Local Note Selection v1
+
+Current. Replace free-text generation with selection and ranking of known statement IDs. Published
+wording, speaker provenance and utterance IDs must be copied byte-for-byte from current
+speaker-aware evidence. The same frozen corpus must decide `PROMOTE_OPTIONAL_EVIDENCE_SELECTION` or
+`DO_NOT_PROMOTE` without changing ordinary notes/export.
 
 ## Dependent And Parallel Research
 
 Speaker-Preserving Neural Echo v2 remains the exact production plateau after the closed audio
-frontier. Reviewed naming and speaker-aware memory are promoted optional. Cross-session
-mapping, external integrations and heavy audio validators remain closed or parked. Local synthesis
-is the current bounded qualification; cloud and external writes remain outside it.
+frontier. Reviewed naming and speaker-aware memory are promoted optional. Cross-session mapping,
+external integrations and heavy audio validators remain closed or parked. Free-text local
+synthesis is closed; ID-only evidence selection is the current bounded qualification. Cloud and
+external writes remain outside it.
 
 ## Parking Lot
 
@@ -273,22 +285,9 @@ is the current bounded qualification; cloud and external writes remain outside i
 
 ## Promotion Gate
 
-```mermaid
-flowchart LR
-    H["Bounded hypothesis"]
-    I["Frozen inputs"]
-    P["Isolated profile"]
-    G["Per-session and corpus gates"]
-    D{"Decision"}
-    Y["PROMOTE"]
-    N["DO_NOT_PROMOTE"]
-    H --> I --> P --> G --> D
-    D --> Y
-    D --> N
-```
-
-No candidate may mutate raw capture or silently replace the selected profile. A negative result must
-record the evidence ceiling and leave the authoritative output unchanged.
+Every hypothesis freezes inputs, runs in an isolated profile and ends in `PROMOTE` or
+`DO_NOT_PROMOTE`. It cannot mutate raw capture or silently replace the selected profile; a negative
+result records the evidence ceiling and leaves authoritative output unchanged.
 
 ## Validation
 

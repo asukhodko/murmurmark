@@ -4,7 +4,8 @@ Status: active product route; durable capture, one-command processing, evidence 
 export are complete. Speaker-Preserving Neural Echo v2.17 is the compatible production pre-ASR
 plateau. The bounded pre-ASR frontier is complete after SepFormer stopped before dev on unreliable
 Target-Me presence evidence. Reviewed Speaker-Aware Meeting Memory v1 is promoted optional;
-Evidence-Guarded Local Synthesis Qualification v1 is the current product step.
+free-text local synthesis completed with `DO_NOT_PROMOTE`. Evidence-Only Local Note Selection v1 is
+the current product step.
 Date: 2026-08-07
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
@@ -458,10 +459,10 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Evidence-Guarded Local Synthesis Qualification v1: квалифицировать pinned local model и prompt над
-speaker-aware memory; требовать exact utterance/evidence IDs и independent support для каждого
-generated claim; сохранять byte-identical extractive fallback и завершить PROMOTE либо честным
-DO_NOT_PROMOTE без cloud, external writes, cross-session identity или default-output changes.
+Evidence-Only Local Note Selection v1: разрешить pinned local model выбирать и ранжировать только
+существующие statement IDs; копировать published text, speaker provenance и utterance IDs
+byte-for-byte из speaker-aware memory; сохранять exact extractive fallback и завершить PROMOTE либо
+честным DO_NOT_PROMOTE без cloud, external writes, cross-session identity или default-output changes.
 ```
 
 ## Consultation Prompt
@@ -469,8 +470,9 @@ DO_NOT_PROMOTE без cloud, external writes, cross-session identity или defa
 Use this prompt if external consultation is needed:
 
 ```text
-Мы строим MurmurMark: локальный macOS CLI-пайплайн для рабочих созвонов. Текущая цель — проверить,
-может ли pinned local model создавать более полезную meeting memory без unsupported claims.
+Мы строим MurmurMark: локальный macOS CLI-пайплайн для рабочих созвонов. Свободная генерация
+meeting memory завершилась DO_NOT_PROMOTE: independent verifier отклонил 69/142 claims. Текущая
+цель — проверить ID-only selection, при котором модель не пишет пользовательский текст.
 
 Имеется:
 - authoritative selected dialogue и Evidence Handoff v2;
@@ -479,19 +481,21 @@ Use this prompt if external consultation is needed:
 - deterministic extractive notes, quality verdict и guarded export;
 - closed pre-ASR frontier; production v2.17 remains exact audio plateau.
 
-North Star: каждое имя в meeting memory доказано explicit review текущей сессии, а каждое
-утверждение сохраняет exact utterance/evidence references.
+North Star: каждое имя в meeting memory доказано explicit review текущей сессии, а каждый
+показываемый пункт byte-for-byte взят из exact statement/utterance evidence.
 
 Ограничения:
 - default transcript, notes и export не менять;
 - stale, missing или partial review обязан вернуть anonymous/aggregate fallback;
 - voice-only identity и cross-session roster запрещены;
-- external writes и unsupported LLM claims вне цели.
+- модель возвращает только known statement IDs и ranking metadata;
+- external writes и generated factual wording вне цели.
 
 Вопросы:
-1. Какой минимальный versioned manifest связывает reviewed label, anonymous speaker ID, utterance и
-   evidence references без дублирования source of truth?
-2. Как доказать exact anonymous/aggregate fallback при stale и partial review?
-3. Какие corpus gates запрещают unsupported attribution и text mutation?
-4. Как дать opt-in CLI read/export path, не меняя обычный handoff и privacy boundary?
+1. Какой минимальный versioned manifest связывает выбранный statement ID с exact source text,
+   reviewed label и evidence utterances?
+2. Какие deterministic gates запрещают unknown IDs, category drift, duplicate selection и потерю
+   baseline high-confidence items?
+3. Как измерить полезное сжатие review-marked candidates без human labels и model self-grading?
+4. Как доказать exact extractive fallback при stale model, prompt, source или selection bundle?
 ```

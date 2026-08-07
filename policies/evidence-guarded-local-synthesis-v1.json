@@ -1,0 +1,101 @@
+{
+  "constraints": {
+    "capture_or_asr_changes_allowed": false,
+    "cloud_or_external_writes_allowed": false,
+    "cross_session_identity_allowed": false,
+    "default_outputs_must_remain_identical": true,
+    "model_pull_allowed": false,
+    "transcript_rewrite_allowed": false,
+    "voice_identity_inference_allowed": false
+  },
+  "corpus_gates": {
+    "max_peak_rss_mb": 13312,
+    "max_safety_rejected_ratio": 0.35,
+    "max_session_wall_sec": 300.0,
+    "min_accepted_claims": 12,
+    "min_category_coverage_ratio": 0.6,
+    "min_sessions": 6,
+    "min_sessions_with_accepted_claims": 5,
+    "published_unsupported_claims": 0,
+    "require_byte_identical_fallback": true,
+    "require_deterministic_replay": true,
+    "require_referential_integrity": true
+  },
+  "decision": "DO_NOT_PROMOTE",
+  "model": {
+    "architecture": "qwen2",
+    "blob_sha256": "6e9f90f02bb3b39b59e81916e8cfce9deb45aeaeb9a54a5be4414486b907dc1e",
+    "license": "MIT",
+    "license_sha256": "6e4c38e1172f42fdbff13edf9a7a017679fb82b0fde415a3e8b3c31c6ed4a4e4",
+    "name": "deepseek-r1:14b",
+    "parameter_size": "14.8B",
+    "quantization": "Q4_K_M"
+  },
+  "prompt": {
+    "path": "policies/prompts/evidence-guarded-local-synthesis-v1.txt",
+    "sha256": "8ac4df415a54077c3126465ff126d3426c723768a796b4130eb6096cf2d20cd7"
+  },
+  "runtime": {
+    "endpoint": "http://127.0.0.1:11434",
+    "name": "ollama",
+    "qualified_version": "0.32.1"
+  },
+  "schema": "murmurmark.evidence_guarded_local_synthesis_policy/v1",
+  "scope": "optional_local_evidence_guarded_meeting_memory",
+  "source": {
+    "corpus_reporter": {
+      "fingerprint": {
+        "bytes": 23983,
+        "path": "scripts/report-evidence-guarded-local-synthesis-corpus.py",
+        "scope": "repository",
+        "sha256": "822f5f085fca8a7b5024a9b458748f78002f0b4a20d9c401d626c0be334ca6c1"
+      },
+      "script": "report-evidence-guarded-local-synthesis-corpus.py",
+      "version": "0.1.0"
+    },
+    "frozen_manifest": {
+      "bytes": 16726,
+      "path": "docs/testing/evidence-guarded-local-synthesis-v1-manifest.json",
+      "scope": "repository",
+      "sha256": "4c48b01e7eecfe104a77182b730fd7bbfb1d3498b34510ddfa37270796d7baf9"
+    },
+    "frozen_manifest_path": "docs/testing/evidence-guarded-local-synthesis-v1-manifest.json",
+    "materializer": {
+      "fingerprint": {
+        "bytes": 59209,
+        "path": "scripts/materialize-evidence-guarded-local-synthesis.py",
+        "scope": "repository",
+        "sha256": "b38d993230ee4b704135adb1fc2c247b7adb9427c52e5d6f90365cfdce728179"
+      },
+      "script": "materialize-evidence-guarded-local-synthesis.py",
+      "version": "0.1.0"
+    }
+  },
+  "support_gates": {
+    "max_claim_chars": 320,
+    "min_content_token_coverage": 0.72,
+    "preserve_commitment_markers": true,
+    "preserve_names": true,
+    "preserve_negation": true,
+    "preserve_numbers": true
+  },
+  "generation": {
+    "keep_alive": "0s",
+    "num_ctx": 6144,
+    "num_predict": 2048,
+    "seed": 424242,
+    "temperature": 0
+  },
+  "prompt_chunking": {
+    "max_rendered_bytes": 28000,
+    "max_statements": 12
+  },
+  "limits": {
+    "actions": 8,
+    "decisions": 5,
+    "open_questions": 5,
+    "risks": 5,
+    "summary": 5
+  },
+  "version": 1
+}

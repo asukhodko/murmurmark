@@ -306,25 +306,22 @@ murmurmark transcript "$SESSION" --rich --reviewed-speakers
 murmurmark notes "$SESSION" --reviewed-speakers
 murmurmark export "$SESSION" --format markdown --include-json --reviewed-speakers
 ```
-Speaker-aware memory passed 6/6 frozen sessions, 2319 utterances and 726 exact evidence statements.
-Missing or stale decisions fall back to ordinary artifacts; default bytes stay unchanged. The
-bounded pre-ASR frontier is complete with `DO_NOT_ADVANCE_STRONGER_SEPARATOR`. The current goal is
-**Evidence-Guarded Local Synthesis Qualification v1** over this verified memory.
+Speaker-aware memory passed 6/6 frozen sessions and 726 exact evidence statements. The pre-ASR
+frontier is closed with `DO_NOT_ADVANCE_STRONGER_SEPARATOR`. Evidence-Guarded Local Synthesis v1
+then completed with `DO_NOT_PROMOTE`: 69/142 claims failed independent support checks, so no
+generated-text CLI mode was activated. **Evidence-Only Local Note Selection v1** is current.
 
 The dependent critical path is:
 
 ```text
 Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental ASR
--> Canonical Live and Causal Mic ASR (done: DO_NOT_PROMOTE)
--> Remote Speaker Map -> Anonymous Rich -> Reviewed Naming (done)
--> Residual Echo Ceiling Map (done: READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3)
--> Alignment and Echo-Path Model v3 (done: READY_FOR_MULTI_COMPONENT_SEPARATOR)
--> Multi-Component v1 (done) -> Stronger Offline Prerequisites (done) -> SepFormer Qualification (done: DO_NOT_ADVANCE)
--> Reviewed Speaker-Aware Meeting Memory v1 (done: PROMOTE) -> Evidence-Guarded Local Synthesis Qualification v1 (current)
+-> Speaker-aware memory (done: PROMOTE) -> Evidence-Guarded Local Synthesis (done: DO_NOT_PROMOTE)
+-> Evidence-Only Local Note Selection v1 (current)
 ```
 
-Speaker-aware memory and future local synthesis remain opt-in. UI stays parked; Live promotion
-remains blocked and Live Shadow stays advisory.
+Speaker-aware memory remains opt-in. Free-text local synthesis is not exposed; ID-only selection is
+the current bounded research path. UI stays parked, Live promotion remains blocked and Live Shadow
+stays advisory.
 
 See the [current goal](docs/project/current-goal.md), [readable roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 

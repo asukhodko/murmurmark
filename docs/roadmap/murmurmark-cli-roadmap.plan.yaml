@@ -33,7 +33,7 @@ nodes:
     title: "MurmurMark CLI"
     kind: summary
     status: current
-    effort: 214
+    effort: 221
     notes: |
       Активная CLI-first, local-first и evidence-backed программа. Batch transcript остаётся
       authoritative. Текущий технический North Star: сохранить всю подтверждённую локальную речь
@@ -501,32 +501,20 @@ nodes:
       other-local 4.443 dB, absent-query 6.803 dB и residual -1.545 dB. Единственная revision не
       сняла предел; hard/sealed и direct ASR не открывались, production v2 не изменён.
 
-  quality-stronger-offline-target-speaker-separator-prerequisites-v1:
-    title: "Stronger Offline Target-Speaker Separator Prerequisites v1"
-    kind: task
-    parent: quality-pre-asr-target-me-isolation-limit-v1
-    deps: [quality-multi-component-residual-separator-v1, quality-target-me-identifiability-corpus-v1]
-    status: done
-    effort: 6
-    notes: |
-      Завершено READY_FOR_STRONGER_SEPARATOR_QUALIFICATION. Заморожены gap map и расширение
-      non-target identities до 12/4/4, выбран Apache-2.0 SpeechBrain SepFormer с pinned revision и
-      SHA-256. Два network-blocked запуска дали exact output hash, около 687 MB peak RSS и прошли
-      background resource budget. Four-stem adapter сохраняет exact fallback; hard/sealed, direct
-      ASR и production не открывались.
-
   quality-sepformer-four-stem-target-me-qualification-v1:
     title: "SepFormer Four-Stem Target-Me Qualification v1"
     kind: task
     parent: quality-pre-asr-target-me-isolation-limit-v1
-    deps: [quality-stronger-offline-target-speaker-separator-prerequisites-v1]
+    deps: [quality-multi-component-residual-separator-v1, quality-target-me-identifiability-corpus-v1]
     status: done
     effort: 10
     notes: |
-      Завершено DO_NOT_ADVANCE_STRONGER_SEPARATOR. Frozen 12/4 corpus и 180 train items прошли exact
-      accounting; WavLM назначил присутствующий Target-Me без ошибок и с collapse 0.03125. Однако
-      positive p05 -0.186223 пересёк negative p95 0.067174, поэтому reliable absent-Target-Me gate
-      невозможен. Dev не открывался; production v2.17, future-hard, sealed и direct ASR неизменны.
+      Prerequisites заморозили Apache-2.0 SpeechBrain SepFormer, pinned revision, 12/4/4 identities,
+      network-blocked replay и resource budget. Qualification завершена DO_NOT_ADVANCE_STRONGER_SEPARATOR:
+      180 train items прошли exact accounting; WavLM назначил присутствующий Target-Me без ошибок и
+      с collapse 0.03125. Однако positive p05 -0.186223 пересёк negative p95 0.067174, поэтому
+      reliable absent-Target-Me gate невозможен. Dev не открывался; production v2.17, future-hard,
+      sealed и direct ASR неизменны.
 
   product-reviewed-speaker-memory-v1:
     title: "Reviewed Speaker-Aware Meeting Memory v1"
@@ -576,14 +564,29 @@ nodes:
     kind: task
     parent: parallel-research
     deps: [product-reviewed-speaker-memory-v1]
-    status: current
+    status: done
     effort: 8
     notes: |
-      Квалифицировать локальный LLM как opt-in consumer current speaker-aware memory. Заморозить
-      model/revision и prompt; каждый generated claim обязан иметь exact utterance/evidence IDs,
-      unsupported claims отклоняются, extractive notes остаются byte-identical fallback. Итогом
-      будет PROMOTE_OPTIONAL_LOCAL_SYNTHESIS либо воспроизводимый DO_NOT_PROMOTE; default notes,
-      export, cloud, external writes, cross-session identity и UI не меняются.
+      Завершено воспроизводимым DO_NOT_PROMOTE. На 6/6 frozen sessions pinned deepseek-r1:14b
+      предложил 142 claims: 49 accepted, 69 safety-rejected, 24 selection-hidden; safety rejection
+      0.485915 и peak RSS 13978.922 MB не прошли locked gates. Replay, exact references,
+      unsupported published claims = 0 и byte-identical ordinary outputs прошли. Generated-text
+      CLI surface не активирован.
+
+  research-evidence-only-local-note-selection-v1:
+    title: "Evidence-Only Local Note Selection v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [research-evidence-guarded-llm]
+    status: current
+    effort: 7
+    notes: |
+      Сохранить возможную ranking-пользу local model, но убрать text authorship. Модель возвращает
+      только known statement IDs и bounded ordering metadata; published text, speaker provenance и
+      utterance IDs копируются byte-for-byte из current Reviewed Speaker-Aware Meeting Memory v1.
+      Same six-session corpus, deterministic replay, baseline high-confidence retention, useful
+      review-candidate compression, latency/memory и exact fallback дают PROMOTE_OPTIONAL_EVIDENCE_SELECTION
+      либо DO_NOT_PROMOTE. Default notes/export, cloud, external writes и cross-session identity не меняются.
 
   parking-lot:
     title: "Parking lot"
@@ -621,7 +624,7 @@ views:
         nodes: [working-capabilities, corpus-regression]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-pre-asr-target-me-isolation-limit-v1]
+        nodes: [research-evidence-only-local-note-selection-v1]
       dependent:
         title: "После audio frontier"
         nodes: [product-reviewed-speaker-memory-v1, research-evidence-guarded-llm, parallel-research, parking-lot]
@@ -660,6 +663,7 @@ views:
           - quality-sepformer-four-stem-target-me-qualification-v1
           - product-reviewed-speaker-memory-v1
           - research-evidence-guarded-llm
+          - research-evidence-only-local-note-selection-v1
 
   echo-frontier:
     title: "Пред-ASR отделение Me от remote"
@@ -674,7 +678,6 @@ views:
           - research-reference-conditioned-target-me-separation-v2
           - quality-pre-asr-residual-echo-ceiling-map-v1
           - quality-multi-component-residual-separator-v1
-          - quality-stronger-offline-target-speaker-separator-prerequisites-v1
           - quality-sepformer-four-stem-target-me-qualification-v1
       current:
         title: "Текущий предел"
@@ -699,6 +702,7 @@ views:
         title: "Validators and synthesis"
         nodes:
           - research-evidence-guarded-llm
+          - research-evidence-only-local-note-selection-v1
 
   parking-lot-view:
     title: "Не держит критический путь"
@@ -743,18 +747,18 @@ views:
           - quality-pre-asr-target-me-isolation-limit-v1
           - quality-pre-asr-residual-echo-ceiling-map-v1
           - quality-multi-component-residual-separator-v1
-          - quality-stronger-offline-target-speaker-separator-prerequisites-v1
           - quality-sepformer-four-stem-target-me-qualification-v1
           - product-reviewed-speaker-memory-v1
           - research-evidence-guarded-llm
+          - research-evidence-only-local-note-selection-v1
           - parallel-research
           - parking-lot
 
 x:
   exec:
     program:
-      nearest_goal: "Evidence-Guarded Local Synthesis Qualification v1: квалифицировать локальный LLM как необязательный consumer current Reviewed Speaker-Aware Meeting Memory v1; заморозить model/revision, prompt и six-session corpus, требовать exact utterance/evidence IDs для каждого generated claim, отклонять unsupported claims и сохранять extractive notes как byte-identical fallback; сравнить factual support, coverage, review burden, replay и resource cost, завершить PROMOTE_OPTIONAL_LOCAL_SYNTHESIS либо DO_NOT_PROMOTE; не менять transcript selection/default notes/export, не использовать cloud, external writes, cross-session identity или UI; добавить tests/report, согласовать документацию, roadmap и OpsKarta, закоммитить и отправить в origin/main."
-      success_by_next_sync: "Есть frozen local-model/prompt qualification с claim-level evidence verification и честным PROMOTE_OPTIONAL_LOCAL_SYNTHESIS либо DO_NOT_PROMOTE; extractive fallback и обычные outputs неизменны."
+      nearest_goal: "Evidence-Only Local Note Selection v1: заменить свободную генерацию безопасным выбором и ранжированием только существующих statement IDs из current Reviewed Speaker-Aware Meeting Memory v1; публиковать текст, speaker provenance и evidence utterance IDs byte-for-byte из проверенного source, не разрешая модели создавать или редактировать claims; заморозить модель, ID-only prompt, selection policy и тот же six-session corpus, измерить сохранение baseline high-confidence items, полезное сжатие review-marked candidates, category/speaker coverage, deterministic replay, latency и memory, завершить PROMOTE_OPTIONAL_EVIDENCE_SELECTION либо DO_NOT_PROMOTE; default transcript/notes/export и existing handoffs оставить неизменными, fail open при любой stale/missing/malformed evidence, не использовать cloud, external writes, cross-session identity или UI; добавить tests/report, согласовать документацию, roadmap и OpsKarta, закоммитить и отправить в origin/main."
+      success_by_next_sync: "Есть frozen ID-only selection qualification с exact source-text publication и честным PROMOTE_OPTIONAL_EVIDENCE_SELECTION либо DO_NOT_PROMOTE; generated claims отсутствуют, extractive fallback и ordinary outputs неизменны."
     defaults:
       status_progress:
         done: 1.0
@@ -776,7 +780,7 @@ x:
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
         title: "Закрытый pre-ASR audio frontier"
-        scope_nodes: [quality-pre-asr-target-me-isolation-limit-v1, quality-pre-asr-residual-echo-ceiling-map-v1, quality-multi-component-residual-separator-v1, quality-stronger-offline-target-speaker-separator-prerequisites-v1, quality-sepformer-four-stem-target-me-qualification-v1]
+        scope_nodes: [quality-pre-asr-target-me-isolation-limit-v1, quality-pre-asr-residual-echo-ceiling-map-v1, quality-multi-component-residual-separator-v1, quality-sepformer-four-stem-target-me-qualification-v1]
         kind: main
         mgmt:
           health: green
@@ -808,19 +812,20 @@ x:
           - quality-pre-asr-target-me-isolation-limit-v1
           - product-reviewed-speaker-memory-v1
           - research-evidence-guarded-llm
+          - research-evidence-only-local-note-selection-v1
         kind: main
         mgmt:
           health: green
-          sync_note: "Reviewed speaker memory promoted optional на 6/6. Current: bounded local synthesis qualification поверх exact speaker/evidence handoff."
-          next_sync_goal: "Получить claim-level support decision без изменения extractive fallback или default outputs."
+          sync_note: "Free-text local synthesis завершён DO_NOT_PROMOTE: 69/142 safety-rejected и resource gate missed. Current: ID-only evidence selection без model-authored wording."
+          next_sync_goal: "Получить selection decision при exact source text и неизменном extractive fallback."
       research:
         title: "Параллельные исследования"
         scope_nodes: [parallel-research]
         kind: context
         mgmt:
           health: neutral
-          sync_note: "Локальный synthesis стал текущей bounded qualification; heavy audio validators остаются закрыты доказанным пределом."
-          next_sync_goal: "Не смешивать generated claims с transcript truth и не открывать cloud/external writes."
+          sync_note: "Свободная local generation закрыта DO_NOT_PROMOTE; текущая гипотеза разрешает модели только known statement IDs."
+          next_sync_goal: "Не разрешать generated factual wording и не открывать cloud/external writes."
       parked:
         title: "Parking lot"
         scope_nodes: [parking-lot]
@@ -854,7 +859,7 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: production v2 как закрытый audio plateau, promoted speaker-aware memory и текущая local synthesis qualification."
+        caption: "Короткая карта: production v2 как закрытый audio plateau, promoted speaker-aware memory и текущий ID-only evidence selector."
         blocks:
           - working-now
           - current-quality

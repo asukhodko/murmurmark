@@ -2,14 +2,17 @@
 
 Synthesis is the stage that turns transcript evidence into useful work artifacts. It must not be mixed into ASR.
 
-Status, 2026-06-24: MurmurMark has a first local extractive synthesis spike over the current `transcript-simple` artifacts. The richer LLM-assisted synthesis, docs patch plans and external export flows remain target architecture.
+Status, 2026-08-07: MurmurMark has a production local extractive synthesis path over the current
+transcript and Evidence Handoff v2 artifacts. A pinned local free-text synthesis qualification was
+completed with `DO_NOT_PROMOTE`; docs patch plans and external export flows remain future work.
 
 The current `transcript-simple` outputs are useful enough for evidence-backed extractive notes, but they are not the final evidence package:
 
 - `clean_dialogue*.json` can provide utterance text and IDs;
 - `quality_report*.json` and `overlaps*.json` can identify risky regions;
 - `timeline_audit_examples*.jsonl` can provide review clips and context;
-- `speaker_map.json`, chapter summaries, extracted decisions and action items are still future work.
+- anonymous/reviewed speaker handoffs and extractive decisions/actions are available;
+- generated chapter summaries and direct external writes remain future work.
 
 ## Current Extractive Spike
 
@@ -70,6 +73,18 @@ clean_dialogue.json
 
 `quality_verdict.json` is the first gate a user should read. It reports `good`, `usable_with_review`,
 `risky` or `failed` from transcript quality counters and risky intervals.
+
+## Local Model Qualification
+
+Evidence-Guarded Local Synthesis Qualification v1 tested a pinned `deepseek-r1:14b` over six
+speaker-aware sessions. All replays and references were deterministic, unsupported published claims
+stayed at zero and ordinary outputs remained byte-identical. The independent verifier rejected
+69/142 proposals for evidence or provenance failures, above the frozen `0.35` rejection limit; peak
+RSS also exceeded 13 GB. The result is `DO_NOT_PROMOTE`, so no generated-text CLI surface exists.
+
+The next bounded hypothesis is ID-only evidence selection. A model may choose or rank existing
+statement IDs, but displayed wording, speaker provenance and utterance IDs must be copied exactly
+from the source handoff.
 
 An empty selected dialogue is not always a pipeline failure. For a complete no-show or silent call,
 the synthesis layer may emit `session_classification: verified_no_speech` and a `good` verdict. This

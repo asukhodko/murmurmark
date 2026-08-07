@@ -6296,6 +6296,61 @@ The frozen decision is `PROMOTE_OPTIONAL_REVIEWED_SPEAKER_MEMORY`: 6/6 sessions,
 726 exact evidence statements and 14 anonymous speaker IDs. The policy pins both this corpus
 manifest and the materializer SHA-256; changed code cannot reuse the prior promotion silently.
 
+## Evidence-Guarded Local Synthesis v1
+
+Local synthesis was qualified as an isolated consumer of current Reviewed Speaker-Aware Meeting
+Memory v1. It never changes selected dialogue, Evidence Handoff v2, extractive notes or ordinary
+export. Qualification used this publication layout:
+
+```text
+derived/meeting-memory/local-synthesis-v1/
+  handoff_manifest.json
+  report.json
+  report.md
+  bundles/<semantic-fingerprint>/
+    handoff_manifest.json
+    local_synthesis.json
+    model_run.json
+    meeting.md
+    notes.md
+    transcript.md
+    quality_verdict.md
+```
+
+The versioned schemas are:
+
+- `murmurmark.evidence_guarded_local_synthesis_policy/v1`;
+- `murmurmark.evidence_guarded_local_synthesis_handoff/v1`;
+- `murmurmark.evidence_guarded_local_synthesis/v1`;
+- `murmurmark.evidence_guarded_local_synthesis_model_run/v1`;
+- `murmurmark.evidence_guarded_local_synthesis_report/v1`;
+- `murmurmark.evidence_guarded_local_synthesis_frozen_manifest/v1`.
+
+The input is a compact set of existing statement rows, exact evidence utterances and allowed
+session-local display labels. The model returns bounded `summary`, `decisions`, `actions`, `risks`
+and `open_questions` arrays. Every proposed item carries non-empty `source_statement_ids` and
+`evidence_utterance_ids`. A separate deterministic verifier requires known IDs, exact
+statement-to-utterance membership, supported content tokens, preserved names/numbers/negations and
+valid speaker provenance. Rejected proposals remain audit rows and never enter Markdown.
+Top-N overflow and duplicates use `selection_hidden`; evidence or provenance failures use
+`safety_rejected` and alone count toward the factual-support rejection ratio.
+
+The runtime is loopback-only Ollama with a pinned local model blob. The runner never pulls a model
+and does not contact a remote endpoint. Temperature, seed, context, output bound, prompt, policy,
+implementation and source handoff identities are part of the semantic fingerprint. Publication is
+an fsynced immutable bundle with an atomic current pointer. Inputs that exceed the frozen prompt
+budget are split deterministically by statement order; every chunk has its own prompt and raw
+response hash, and all proposals pass one verifier after merge.
+Missing category keys in a chunk response are normalized only to empty arrays; unknown keys,
+non-array categories and malformed JSON fail open.
+
+The frozen decision is `DO_NOT_PROMOTE`: 6/6 sessions and all deterministic integrity gates passed,
+but 69/142 proposals failed independent support checks and observed model RSS exceeded the frozen
+limit. No public read/export path was activated. Default commands never inspect or consume this
+bundle. Cloud requests, external writes, voice-only identity and cross-session participant memory
+remain forbidden. The policy pins the exact prompt, model blob, materializer, corpus reporter and
+frozen manifest; normal verification rejects the non-promoted bundle.
+
 Schema:
 
 ```json

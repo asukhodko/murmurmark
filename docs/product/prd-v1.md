@@ -92,7 +92,8 @@ Current operating point, 2026-08-07:
 - Pre-ASR Target-Me Isolation Limit v1 is complete. SepFormer preserved exact accounting and paired
   train assignment but failed Target-Me presence separation, ending in
   `DO_NOT_ADVANCE_STRONGER_SEPARATOR` before dev. Reviewed Speaker-Aware Meeting Memory v1 is
-  promoted optional on 6/6 sessions; Evidence-Guarded Local Synthesis Qualification v1 is current;
+  promoted optional on 6/6 sessions. Evidence-Guarded Local Synthesis v1 completed with
+  `DO_NOT_PROMOTE`; Evidence-Only Local Note Selection v1 is current;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 
@@ -105,8 +106,8 @@ regression uses exact `local_fir_role_masked`.
 Any later separator remains isolated until a corpus-wide decision and cannot use exact remix or
 audio quality alone as evidence of correct word attribution. Post-ASR duplicate cleanup receives no
 promotion credit. Reopening the audio frontier requires an independently qualified abstaining
-Target-Me presence detector. LLM synthesis, external writes and UI remain research or optional work
-outside the current stage.
+Target-Me presence detector. Free-text LLM synthesis remains unpromoted; ID-only evidence selection
+is the current bounded research stage. External writes and UI remain optional work.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.
 

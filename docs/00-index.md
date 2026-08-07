@@ -69,43 +69,25 @@ Read in this order:
 65. [Canonical Live ASR Producer v1 result](testing/2026-08-06-canonical-live-asr-producer-v1.md)
 66. [Causal Canonical Mic ASR v1 result](testing/2026-08-06-causal-canonical-mic-asr-v1.md)
 67. [Remote Speaker Evidence Map v1 result](testing/2026-08-06-remote-speaker-evidence-map-v1.md)
-68. [Planning and development history](history/README.md)
+68. [Evidence-Guarded Local Synthesis runbook](runbooks/evidence-guarded-local-synthesis.md)
+69. [Evidence-Guarded Local Synthesis result](research/2026-08-07-evidence-guarded-local-synthesis-v1.md)
+70. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
-Planning snapshot: 2026-08-06. Speaker-Preserving Neural Echo v2 completed with guarded
-`PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2`: the sealed corpus selected candidate audio in `5/12`
-sessions, exact fallback in `7/12`, removed `41.940s` and `90` remote-supported tokens, and retained
-all candidate local tokens. Production Requalification v2.17 then passed hard `3/3` and corpus
-`12/12` against the current incremental-ASR/cache runtime with the same utility and maximum runtime
-factor `0.524864`; the active policy now pins v2.17. Reference-Conditioned Target-Me Separation v1
-then completed with
-`DO_NOT_PROMOTE`: oracle and overfit passed, but two train/dev attempts missed the locked gates and
-the corpus had no labelled non-target local speech. Target-Me Identifiability Corpus v1 then
-completed with `READY_FOR_TARGET_CONDITIONED_TRAINING`: `4/2/2` split-disjoint non-target speakers,
-`1200/300/300s` full mixtures, `980` paired query controls, zero contamination and replay
-`2470/2470`. Reference-Conditioned Target-Me Separation v2 then learned speaker-query adherence but
-missed three immutable dev quality gates and completed with `DO_NOT_PROMOTE`; hard and sealed data
-remained unopened. Speaker-Preserving Neural Echo v2 remains production. Evidence Notes And Export
-v2 passes its 110-session integrity and deterministic-replay gate. Release-quality CLI now adds
-deterministic archives, complete integrity metadata, transactional install/upgrade and packaged
-offline acceptance. Reliable Final Handoff v1 now passes its frozen cache/resume and actionability
-gate. Authoritative Incremental ASR v1 and the exact remote producer are complete; the latter is
-`DO_NOT_PROMOTE` because remote-only precomputation saves just `2.8651%..4.1040%` modeled wall time.
-Causal Canonical Mic ASR v1 also completed with `DO_NOT_PROMOTE`: the frozen corpus produced `0/147`
-exact raw-fallback mic windows, and `5/30/120s` prefix probes all differed from final local-FIR PCM.
-The current Echo path has a session-end causal boundary. Remote Speaker Evidence Map v1 completed
-with `PROMOTE_AUDIT_ONLY`: it publishes high-precision session-local evidence for roughly half of
-remote speech and leaves the rest aggregate. Anonymous rich and explicit reviewed naming are now
-promoted optional read surfaces. The current technical North Star now returns to the pre-ASR audio
-boundary: retain every confirmed `Me` word while removing recognizable authoritative remote. That
-bounded frontier is now closed after SepFormer failed reliable Target-Me presence separation before
-dev. Reviewed Speaker-Aware Meeting Memory v1 is promoted optional on 6/6 sessions. The current
-goal is Evidence-Guarded Local Synthesis Qualification v1: improve meeting memory only when every
-generated claim retains exact current-session evidence and passes an independent support gate.
-Hard/sealed and direct ASR stayed closed; production
-v2 stayed unchanged. The nearest bounded stage is train/dev four-stem qualification. Reviewed
-Speaker-Aware Meeting Memory v1 remains ready but deferred until that frontier closes.
+Planning snapshot: 2026-08-07. Durable capture, authoritative batch transcription, guarded review,
+extractive notes/export and Speaker-Preserving Neural Echo v2.17 remain production. The bounded
+pre-ASR frontier is closed: SepFormer could assign present Target-Me stems but failed reliable
+presence/absence separation before dev. Anonymous rich transcript, explicit reviewed naming and
+Reviewed Speaker-Aware Meeting Memory v1 are promoted optional read surfaces.
+
+Evidence-Guarded Local Synthesis Qualification v1 is now complete with reproducible
+`DO_NOT_PROMOTE`. On six frozen sessions the pinned 14.8B model produced 142 claims; 49 passed, 69
+failed independent support checks and 24 were hidden as duplicates or output overflow. All replays
+and references were deterministic, unsupported published claims stayed at zero and ordinary output
+bytes did not change. The current goal is Evidence-Only Local Note Selection v1: preserve possible
+model ranking value while allowing the model to return only existing statement IDs. Published text,
+speaker provenance and utterance IDs must remain exact source evidence.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

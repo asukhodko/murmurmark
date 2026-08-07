@@ -81,8 +81,10 @@ now provide promoted optional speaker views over authoritative remote audio. The
 Target-Me frontier is closed after SepFormer failed reliable presence/absence separation before dev;
 production v2.17 remains the exact plateau. Reviewed Speaker-Aware Meeting Memory v1 now connects
 explicit session-local labels to evidence-backed notes and export through a promoted opt-in
-handoff. The current bounded qualification asks whether a pinned local model can improve meeting
-memory while every generated claim remains independently tied to exact evidence IDs.
+handoff. A pinned local free-text model then failed qualification: independent evidence checks
+rejected too many authored claims, so no generated-text mode was exposed. The current bounded step
+keeps model assistance behind an ID-only selector whose displayed text must remain exact source
+evidence.
 Voice similarity never assigns a person's identity;
 cross-meeting matching and external writes remain separate gates.
 

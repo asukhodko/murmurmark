@@ -1,0 +1,476 @@
+{
+  "constraints": {
+    "capture_or_asr_changes_allowed": false,
+    "cloud_or_external_writes_allowed": false,
+    "cross_session_identity_allowed": false,
+    "default_outputs_must_remain_identical": true,
+    "model_pull_allowed": false,
+    "transcript_rewrite_allowed": false,
+    "voice_identity_inference_allowed": false
+  },
+  "decision": "DO_NOT_PROMOTE",
+  "gates": {
+    "all_ordinary_outputs_unchanged": true,
+    "all_references_exact": true,
+    "all_replays_deterministic": true,
+    "all_sessions_passed": true,
+    "category_coverage": true,
+    "minimum_accepted_claims": true,
+    "minimum_frozen_sessions": true,
+    "minimum_sessions_with_accepted_claims": true,
+    "published_unsupported_claims_zero": true,
+    "safety_rejected_ratio_within_limit": false,
+    "synthetic_contract_checker": true
+  },
+  "generator": {
+    "fingerprint": {
+      "bytes": 23983,
+      "path": "scripts/report-evidence-guarded-local-synthesis-corpus.py",
+      "scope": "repository",
+      "sha256": "822f5f085fca8a7b5024a9b458748f78002f0b4a20d9c401d626c0be334ca6c1"
+    },
+    "script": "report-evidence-guarded-local-synthesis-corpus.py",
+    "version": "0.1.0"
+  },
+  "metrics": {
+    "accepted_categories": 19,
+    "accepted_claims": 49,
+    "accepted_evidence_utterances": 50,
+    "accepted_needs_review_claims": 22,
+    "available_categories": 25,
+    "available_evidence_utterances": 176,
+    "category_coverage_ratio": 0.76,
+    "proposed_claims": 142,
+    "published_unsupported_claims": 0,
+    "rejected_claims": 93,
+    "rejected_ratio": 0.65493,
+    "safety_rejected_claims": 69,
+    "safety_rejected_ratio": 0.485915,
+    "selection_hidden_claims": 24,
+    "sessions_passed": 6,
+    "sessions_total": 6,
+    "sessions_with_accepted_claims": 6,
+    "source_needs_review_statements": 47
+  },
+  "model": {
+    "architecture": "qwen2",
+    "endpoint_scope": "loopback",
+    "license": "MIT",
+    "license_sha256": "6e4c38e1172f42fdbff13edf9a7a017679fb82b0fde415a3e8b3c31c6ed4a4e4",
+    "model": "deepseek-r1:14b",
+    "model_blob_sha256": "6e9f90f02bb3b39b59e81916e8cfce9deb45aeaeb9a54a5be4414486b907dc1e",
+    "parameter_size": "14.8B",
+    "quantization": "Q4_K_M",
+    "runtime": "ollama",
+    "runtime_version": "0.32.1"
+  },
+  "qualification_complete": true,
+  "qualification_contract": {
+    "corpus_gates": {
+      "max_peak_rss_mb": 13312,
+      "max_safety_rejected_ratio": 0.35,
+      "max_session_wall_sec": 300.0,
+      "min_accepted_claims": 12,
+      "min_category_coverage_ratio": 0.6,
+      "min_sessions": 6,
+      "min_sessions_with_accepted_claims": 5,
+      "published_unsupported_claims": 0,
+      "require_byte_identical_fallback": true,
+      "require_deterministic_replay": true,
+      "require_referential_integrity": true
+    },
+    "corpus_reporter": {
+      "fingerprint": {
+        "bytes": 23983,
+        "path": "scripts/report-evidence-guarded-local-synthesis-corpus.py",
+        "scope": "repository",
+        "sha256": "822f5f085fca8a7b5024a9b458748f78002f0b4a20d9c401d626c0be334ca6c1"
+      },
+      "script": "report-evidence-guarded-local-synthesis-corpus.py",
+      "version": "0.1.0"
+    },
+    "generation": {
+      "keep_alive": "0s",
+      "num_ctx": 6144,
+      "num_predict": 2048,
+      "seed": 424242,
+      "temperature": 0
+    },
+    "limits": {
+      "actions": 8,
+      "decisions": 5,
+      "open_questions": 5,
+      "risks": 5,
+      "summary": 5
+    },
+    "materializer": {
+      "fingerprint": {
+        "bytes": 59209,
+        "path": "scripts/materialize-evidence-guarded-local-synthesis.py",
+        "scope": "repository",
+        "sha256": "b38d993230ee4b704135adb1fc2c247b7adb9427c52e5d6f90365cfdce728179"
+      },
+      "script": "materialize-evidence-guarded-local-synthesis.py",
+      "version": "0.1.0"
+    },
+    "prompt": {
+      "bytes": 2569,
+      "path": "policies/prompts/evidence-guarded-local-synthesis-v1.txt",
+      "scope": "repository",
+      "sha256": "8ac4df415a54077c3126465ff126d3426c723768a796b4130eb6096cf2d20cd7"
+    },
+    "prompt_chunking": {
+      "max_rendered_bytes": 28000,
+      "max_statements": 12
+    },
+    "source_manifest": {
+      "bytes": 9559,
+      "path": "docs/testing/reviewed-speaker-memory-v1-manifest.json",
+      "scope": "repository",
+      "sha256": "c789b1b8662b9ffe1e024ff4a0171f16e5b33f6f60bece2fdafc1b7fd3517e32"
+    },
+    "support_gates": {
+      "max_claim_chars": 320,
+      "min_content_token_coverage": 0.72,
+      "preserve_commitment_markers": true,
+      "preserve_names": true,
+      "preserve_negation": true,
+      "preserve_numbers": true
+    }
+  },
+  "schema": "murmurmark.evidence_guarded_local_synthesis_frozen_manifest/v1",
+  "scope": "frozen_six_session_local_synthesis_qualification",
+  "sessions": [
+    {
+      "gates": {
+        "deterministic_replay": true,
+        "handoff_ready": true,
+        "ordinary_outputs_unchanged": true,
+        "published_unsupported_claims_zero": true,
+        "referential_integrity": true,
+        "source_transcript_exact": true,
+        "source_verdict_exact": true
+      },
+      "metrics": {
+        "accepted_categories": 2,
+        "accepted_claims": 6,
+        "accepted_evidence_utterances": 6,
+        "accepted_needs_review_claims": 1,
+        "available_categories": 4,
+        "available_evidence_utterances": 21,
+        "category_coverage_ratio": 0.5,
+        "proposed_claims": 14,
+        "published_unsupported_claims": 0,
+        "referential_integrity": true,
+        "rejected_claims": 8,
+        "rejected_ratio": 0.571429,
+        "rejection_reason_counts": {
+          "category_limit_exceeded": 5,
+          "insufficient_content_token_support": 4
+        },
+        "safety_rejected_claims": 4,
+        "safety_rejected_ratio": 0.285714,
+        "selection_hidden_claims": 4,
+        "source_needs_review_statements": 4
+      },
+      "model_run": {
+        "eval_count": 1059,
+        "prompt_eval_count": 4983,
+        "prompt_rendered_sha256": "6aa4abbdd6abc4bda2ed78ac357157fd5e33747a5497bedf9639743ea091f423",
+        "raw_response_sha256": "e082cacfc6fa19db261efab577bfb4e736819da34d0056ead15e50ff7813a43d"
+      },
+      "reasons": [],
+      "session_id": "2026-06-23_14-04-37",
+      "source": {
+        "anonymous_handoff": {
+          "bytes": 13972,
+          "path": "derived/transcript-rich/anonymous-v1/handoff_manifest.json",
+          "sha256": "c73c77d2d54def2e3b1b125ffab84f39c277a9ba81c756265da4da7032f1147e"
+        },
+        "evidence_handoff": {
+          "bytes": 9035,
+          "path": "derived/handoff-v2/handoff_manifest.json",
+          "sha256": "6114fc67bc2e6595fddee0c0da1cd85e5908e8013618fc57e9438cec7cb6efc4"
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "gates": {
+        "deterministic_replay": true,
+        "handoff_ready": true,
+        "ordinary_outputs_unchanged": true,
+        "published_unsupported_claims_zero": true,
+        "referential_integrity": true,
+        "source_transcript_exact": true,
+        "source_verdict_exact": true
+      },
+      "metrics": {
+        "accepted_categories": 4,
+        "accepted_claims": 10,
+        "accepted_evidence_utterances": 10,
+        "accepted_needs_review_claims": 5,
+        "available_categories": 4,
+        "available_evidence_utterances": 32,
+        "category_coverage_ratio": 1.0,
+        "proposed_claims": 29,
+        "published_unsupported_claims": 0,
+        "referential_integrity": true,
+        "rejected_claims": 19,
+        "rejected_ratio": 0.655172,
+        "rejection_reason_counts": {
+          "category_limit_exceeded": 10,
+          "duplicate_claim": 1,
+          "insufficient_content_token_support": 7,
+          "source_category_mismatch": 8,
+          "unsupported_number": 1
+        },
+        "safety_rejected_claims": 13,
+        "safety_rejected_ratio": 0.448276,
+        "selection_hidden_claims": 6,
+        "source_needs_review_statements": 7
+      },
+      "model_run": {
+        "eval_count": 2532,
+        "prompt_eval_count": 8254,
+        "prompt_rendered_sha256": "c16ac376f79e529d78d30d36f6adb00d09886deb7958ff43eb92159c73675063",
+        "raw_response_sha256": "1e8dd2c8581c35b2523faec08c4c2dd869179aa75507ce96fbb94c08ad7bb932"
+      },
+      "reasons": [],
+      "session_id": "2026-06-24_15-03-52",
+      "source": {
+        "anonymous_handoff": {
+          "bytes": 13976,
+          "path": "derived/transcript-rich/anonymous-v1/handoff_manifest.json",
+          "sha256": "8e6ae9ab879c9780185c348aa298dfcd023df1773a124c1d561b40672235f5eb"
+        },
+        "evidence_handoff": {
+          "bytes": 8953,
+          "path": "derived/handoff-v2/handoff_manifest.json",
+          "sha256": "948a848012954e9535e7bbbb63c746be02c39f5ffe533477c2fe074292ae1b87"
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "gates": {
+        "deterministic_replay": true,
+        "handoff_ready": true,
+        "ordinary_outputs_unchanged": true,
+        "published_unsupported_claims_zero": true,
+        "referential_integrity": true,
+        "source_transcript_exact": true,
+        "source_verdict_exact": true
+      },
+      "metrics": {
+        "accepted_categories": 2,
+        "accepted_claims": 6,
+        "accepted_evidence_utterances": 6,
+        "accepted_needs_review_claims": 1,
+        "available_categories": 5,
+        "available_evidence_utterances": 36,
+        "category_coverage_ratio": 0.4,
+        "proposed_claims": 47,
+        "published_unsupported_claims": 0,
+        "referential_integrity": true,
+        "rejected_claims": 41,
+        "rejected_ratio": 0.87234,
+        "rejection_reason_counts": {
+          "category_limit_exceeded": 19,
+          "insufficient_content_token_support": 28,
+          "item_shape_invalid": 1,
+          "source_category_mismatch": 24
+        },
+        "safety_rejected_claims": 36,
+        "safety_rejected_ratio": 0.765957,
+        "selection_hidden_claims": 5,
+        "source_needs_review_statements": 17
+      },
+      "model_run": {
+        "eval_count": 3290,
+        "prompt_eval_count": 10037,
+        "prompt_rendered_sha256": "23cd79a8ee941a6326f082c5f0adbb2e9d6f2901a2f3e3e98f8f0f1882110c49",
+        "raw_response_sha256": "8a324661017f4cdcaa3e5a1a58c0f14e182e1e2b91bd88301336593575f84219"
+      },
+      "reasons": [],
+      "session_id": "2026-06-26_11-15-50",
+      "source": {
+        "anonymous_handoff": {
+          "bytes": 13959,
+          "path": "derived/transcript-rich/anonymous-v1/handoff_manifest.json",
+          "sha256": "164def7b915ea29f6dc6a124d6ee4b60722de36654bd689b7782ac9630d148ed"
+        },
+        "evidence_handoff": {
+          "bytes": 8941,
+          "path": "derived/handoff-v2/handoff_manifest.json",
+          "sha256": "09bce39776d9566330f5584444c23f6e79f22bc3f6a3703d8669349e000496ce"
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "gates": {
+        "deterministic_replay": true,
+        "handoff_ready": true,
+        "ordinary_outputs_unchanged": true,
+        "published_unsupported_claims_zero": true,
+        "referential_integrity": true,
+        "source_transcript_exact": true,
+        "source_verdict_exact": true
+      },
+      "metrics": {
+        "accepted_categories": 4,
+        "accepted_claims": 5,
+        "accepted_evidence_utterances": 5,
+        "accepted_needs_review_claims": 3,
+        "available_categories": 4,
+        "available_evidence_utterances": 20,
+        "category_coverage_ratio": 1.0,
+        "proposed_claims": 11,
+        "published_unsupported_claims": 0,
+        "referential_integrity": true,
+        "rejected_claims": 6,
+        "rejected_ratio": 0.545455,
+        "rejection_reason_counts": {
+          "category_limit_exceeded": 3,
+          "insufficient_content_token_support": 3
+        },
+        "safety_rejected_claims": 3,
+        "safety_rejected_ratio": 0.272727,
+        "selection_hidden_claims": 3,
+        "source_needs_review_statements": 3
+      },
+      "model_run": {
+        "eval_count": 965,
+        "prompt_eval_count": 4942,
+        "prompt_rendered_sha256": "aca07bec2ac830b9db5eb3356167b4ab1d8112cd4997247ad935d92ea807b7c4",
+        "raw_response_sha256": "e079914701ef45b38ede5f72c32c3a73b86b82b5bd09214af88496679e05a276"
+      },
+      "reasons": [],
+      "session_id": "2026-06-26_12-04-04",
+      "source": {
+        "anonymous_handoff": {
+          "bytes": 13894,
+          "path": "derived/transcript-rich/anonymous-v1/handoff_manifest.json",
+          "sha256": "5c35edb27d302f78932d26701f9dd9d7a8149922df9049d5400190fb0a377bc1"
+        },
+        "evidence_handoff": {
+          "bytes": 8941,
+          "path": "derived/handoff-v2/handoff_manifest.json",
+          "sha256": "113d9798ef9d1e948b760bdefe5d4b83a4ff7eba3493db6ffce7a88157b5917b"
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "gates": {
+        "deterministic_replay": true,
+        "handoff_ready": true,
+        "ordinary_outputs_unchanged": true,
+        "published_unsupported_claims_zero": true,
+        "referential_integrity": true,
+        "source_transcript_exact": true,
+        "source_verdict_exact": true
+      },
+      "metrics": {
+        "accepted_categories": 4,
+        "accepted_claims": 14,
+        "accepted_evidence_utterances": 15,
+        "accepted_needs_review_claims": 9,
+        "available_categories": 4,
+        "available_evidence_utterances": 43,
+        "category_coverage_ratio": 1.0,
+        "proposed_claims": 32,
+        "published_unsupported_claims": 0,
+        "referential_integrity": true,
+        "rejected_claims": 18,
+        "rejected_ratio": 0.5625,
+        "rejection_reason_counts": {
+          "category_limit_exceeded": 15,
+          "duplicate_claim": 2,
+          "source_category_mismatch": 7,
+          "statement_evidence_membership_mismatch": 7
+        },
+        "safety_rejected_claims": 12,
+        "safety_rejected_ratio": 0.375,
+        "selection_hidden_claims": 6,
+        "source_needs_review_statements": 11
+      },
+      "model_run": {
+        "eval_count": 3049,
+        "prompt_eval_count": 10645,
+        "prompt_rendered_sha256": "bc6475ded530d922159aef032b56d1785cea80204bce833e00b5384885f0e41f",
+        "raw_response_sha256": "97e07c6efdecec3102c555cf258d55f5ac50f2b8c1562a13992e8c8b566ef3c1"
+      },
+      "reasons": [],
+      "session_id": "2026-07-14_15-01-19-live",
+      "source": {
+        "anonymous_handoff": {
+          "bytes": 14075,
+          "path": "derived/transcript-rich/anonymous-v1/handoff_manifest.json",
+          "sha256": "8727d13c82844d9f6bf3a08fcced0c1a121b6e2ec29b1982fafcc8a4184f9fc1"
+        },
+        "evidence_handoff": {
+          "bytes": 9353,
+          "path": "derived/handoff-v2/handoff_manifest.json",
+          "sha256": "9690c043de6868c25d7e2a0f0c1ee20876f00836d739e9c9176172cffcd25fb4"
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "gates": {
+        "deterministic_replay": true,
+        "handoff_ready": true,
+        "ordinary_outputs_unchanged": true,
+        "published_unsupported_claims_zero": true,
+        "referential_integrity": true,
+        "source_transcript_exact": true,
+        "source_verdict_exact": true
+      },
+      "metrics": {
+        "accepted_categories": 3,
+        "accepted_claims": 8,
+        "accepted_evidence_utterances": 8,
+        "accepted_needs_review_claims": 3,
+        "available_categories": 4,
+        "available_evidence_utterances": 24,
+        "category_coverage_ratio": 0.75,
+        "proposed_claims": 9,
+        "published_unsupported_claims": 0,
+        "referential_integrity": true,
+        "rejected_claims": 1,
+        "rejected_ratio": 0.111111,
+        "rejection_reason_counts": {
+          "item_shape_invalid": 1
+        },
+        "safety_rejected_claims": 1,
+        "safety_rejected_ratio": 0.111111,
+        "selection_hidden_claims": 0,
+        "source_needs_review_statements": 5
+      },
+      "model_run": {
+        "eval_count": 901,
+        "prompt_eval_count": 5769,
+        "prompt_rendered_sha256": "388a8f2d33ad683d8e401fb5b540a2997ab3697988c3beb6a507a6a38a718549",
+        "raw_response_sha256": "3a7bc4bf9f67e70a6cd6ef0dfebb8fdafd19d14074dcb305dbd638e98211dc2b"
+      },
+      "reasons": [],
+      "session_id": "2026-07-20_15-15-26-live",
+      "source": {
+        "anonymous_handoff": {
+          "bytes": 14230,
+          "path": "derived/transcript-rich/anonymous-v1/handoff_manifest.json",
+          "sha256": "88df225e019542689b178e8b371f262c45c06210a5fd49d593e8e85ac51fb989"
+        },
+        "evidence_handoff": {
+          "bytes": 9539,
+          "path": "derived/handoff-v2/handoff_manifest.json",
+          "sha256": "70f09a9a5e012be37922f92bab26a809a999eac455a4ead560cb9958440342c2"
+        }
+      },
+      "status": "passed"
+    }
+  ],
+  "version": 1
+}

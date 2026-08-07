@@ -62,6 +62,7 @@ CRITICAL_PATH = (
     "quality-pre-asr-target-me-isolation-limit-v1",
     "product-reviewed-speaker-memory-v1",
     "research-evidence-guarded-llm",
+    "research-evidence-only-local-note-selection-v1",
 )
 
 EXPECTED_STATUSES = {"done", "current", "next", "later", "idea", "optional", "blocked"}
