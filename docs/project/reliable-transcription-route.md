@@ -5,9 +5,10 @@ export are complete. Speaker-Preserving Neural Echo v2.17 is the compatible prod
 plateau. The bounded pre-ASR frontier is complete after SepFormer stopped before dev on unreliable
 Target-Me presence evidence. Remote Speaker Coverage v3 is promoted with `93.9312%` attributable
 remote speech, strong private-reference precision and exact v2-label/word conservation. Residual
-Evidence v4 closed with a measured `DO_NOT_PROMOTE`; Speaker-Resolved Transcript Default v1 is current;
-notes, retrieval and work proposals are optional derivatives outside the critical route.
-Date: 2026-08-07
+Evidence v4 closed with a measured `DO_NOT_PROMOTE`; Speaker-Resolved Transcript Default v1 is
+promoted. Lexical Accuracy Reference Corpus v1 is current; notes, retrieval and work proposals are
+optional derivatives outside the critical route.
+Date: 2026-08-08
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
 corpus-calibrated gates and explicit review burden before broader repair. Outcome Contract v1,
@@ -460,15 +461,14 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Speaker-Resolved Transcript Default v1: сделать promoted Coverage v3 обычным transcript, meeting
-handoff и guarded export на совместимых сессиях; сохранить слова, таймкоды, Me/remote роли и порядок;
-unsupported remote words оставить Colleagues, а stale или missing evidence вернуть к byte-identical
-aggregate transcript с явной причиной.
+Lexical Accuracy Reference Corpus v1: заменить recognized_words.lexical_correctness_not_measured
+на private graded reference, воспроизводимые WER/CER и error classes либо точный
+REFERENCE_INSUFFICIENT; основной ASR до появления baseline не менять.
 ```
 
-Transcript Perfection Corpus v1 уже зафиксировал baseline и остаётся общим no-regression gate.
-Residual Evidence v4 закрылся `DO_NOT_PROMOTE` после безопасных 124 words / `83.640s`; теперь
-speaker-resolved transcript квалифицируется как normal read surface с exact aggregate fallback.
+Speaker-Resolved Transcript Default v1 завершён `PROMOTE`: ordinary read/handoff/export выбирают v3
+на совместимых сессиях и exact aggregate fallback в остальных. Transcript Perfection Corpus остаётся
+общим no-regression gate, но lexical correctness пока честно `not_measured`.
 Local mic multi-speaker остаётся условной веткой и открывается только после реального сценария и
 размеченного материала. Производные workflows остаются optional.
 
@@ -478,8 +478,8 @@ Use this prompt if external consultation is needed:
 
 ```text
 Мы строим MurmurMark: локальный macOS CLI-пайплайн для надёжной speaker-resolved транскрибации
-1x1 и групповых созвонов. Coverage v3 завершён с PROMOTE; Residual Evidence v4 завершён с
-DO_NOT_PROMOTE; текущая цель — Speaker-Resolved Transcript Default v1.
+1x1 и групповых созвонов. Coverage v3 и Speaker-Resolved Transcript Default v1 завершены PROMOTE;
+Residual Evidence v4 завершён DO_NOT_PROMOTE; текущая цель — Lexical Accuracy Reference Corpus v1.
 
 Имеется:
 - authoritative selected dialogue и Evidence Handoff v2;
@@ -487,7 +487,7 @@ DO_NOT_PROMOTE; текущая цель — Speaker-Resolved Transcript Default 
   B-cubed F1 0.962171, pairwise precision 0.961675, 5/5 internal boundaries;
 - corpus baseline проверяет 12/12 frozen sources; lexical correctness пока `not_measured`;
 - v4 безопасно восстановил 124 слова / 83.640 секунды, но не достиг 20% coverage gates;
-- продуктовый пробел: доказанный v3 доступен только через explicit `--rich`;
+- ordinary transcript/handoff/export уже выбирают fingerprint-verified v3 с exact aggregate fallback;
 - explicit fingerprint-bound reviewed naming with anonymous fail-open;
 - selected ASR words/order/timestamps должны оставаться неизменными;
 - closed pre-ASR frontier; production v2.17 remains exact audio plateau.
@@ -503,8 +503,8 @@ roles и speakers корректны, а предел доказательств
 - weak attribution не форсируется ради coverage.
 
 Вопросы:
-1. Где должен жить единый selector promoted v3, reviewed labels и exact aggregate fallback?
-2. Как доказать byte-identical слова, таймкоды, роли и порядок во всех read/export surfaces?
-3. Какие policy, implementation, manifest и session fingerprints обязательны до выбора v3?
-4. Как сделать fallback reason видимым в transcript, status, outcome и meeting handoff без лишнего UX?
+1. Как построить private lexical reference без утечки meeting text в tracked manifest?
+2. Какие trust grades допустимы для scripted, human-reviewed и independent-machine references?
+3. Как выровнять reference с authoritative words/timestamps и измерить WER/CER по ролям?
+4. Как выбрать крупнейший measured lexical defect, не подменяя truth согласием двух ASR?
 ```

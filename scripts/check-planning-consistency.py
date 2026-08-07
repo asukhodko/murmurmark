@@ -65,6 +65,7 @@ CRITICAL_PATH = (
     "quality-remote-speaker-coverage-v3",
     "quality-remote-speaker-residual-evidence-v4",
     "product-speaker-resolved-transcript-default-v1",
+    "quality-lexical-accuracy-reference-corpus-v1",
 )
 
 EXPECTED_STATUSES = {"done", "current", "next", "later", "idea", "optional", "blocked"}
@@ -298,12 +299,17 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
         "remote speaker residual evidence v4 must remain a completed measured ceiling",
     )
     require(
-        nodes["product-speaker-resolved-transcript-default-v1"].get("status") == "current",
-        "speaker-resolved default must be the current product goal",
+        nodes["product-speaker-resolved-transcript-default-v1"].get("status") == "done",
+        "speaker-resolved default must remain a completed promoted checkpoint",
     )
     require(
-        nodes["optional-derived-transcript-workflows"].get("status") == "optional",
-        "notes and work workflows must remain outside the critical transcript path",
+        "product-speaker-resolved-transcript-default-v1"
+        in nodes["quality-lexical-accuracy-reference-corpus-v1"].get("deps", []),
+        "lexical reference corpus must follow the promoted default transcript",
+    )
+    require(
+        nodes["quality-lexical-accuracy-reference-corpus-v1"].get("status") == "current",
+        "lexical reference corpus must be the current quality goal",
     )
     require(nodes["parking-lot"].get("status") == "optional", "parking lot must stay optional")
     require("parked-ui" not in nodes, "UI must not occupy the active CLI roadmap")

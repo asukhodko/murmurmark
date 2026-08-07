@@ -4,16 +4,21 @@ from __future__ import annotations
 import argparse
 import json
 import shlex
+import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.5"
+SCRIPT_VERSION = "0.1.6"
 OUTCOME_SCHEMA = "murmurmark.outcome/v1"
 REVIEW_PLAN_SCHEMA = "murmurmark.outcome_review_plan/v1"
 RUN_SCHEMA = "murmurmark.pipeline_run/v1"
 SUGGESTED_REVIEW_REPORT = Path("derived/readiness/review-plan/review_workspace_apply_report.json")
+ROOT = Path(__file__).resolve().parents[1]
+SPEAKER_SELECTOR = ROOT / "scripts/select-speaker-resolved-transcript.py"
+SPEAKER_SELECTION_SCHEMA = "murmurmark.speaker_resolved_transcript_selection/v1"
 
 
 def parse_args() -> argparse.Namespace:
@@ -41,6 +46,51 @@ def read_json(path: Path) -> dict[str, Any] | None:
     except (OSError, json.JSONDecodeError):
         return None
     return value if isinstance(value, dict) else None
+
+
+def speaker_resolution(session: Path, selected_profile: Any) -> dict[str, Any]:
+    fallback = {
+        "state": "fallback",
+        "selected_speaker_profile": "aggregate_colleagues",
+        "fallback_reason": "speaker_selector_unavailable",
+        "transcript_path": None,
+        "identity_scope": "session_local_anonymous",
+    }
+    if not SPEAKER_SELECTOR.is_file():
+        return fallback
+    completed = subprocess.run(
+        [sys.executable, str(SPEAKER_SELECTOR), str(session)],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        fallback["fallback_reason"] = "speaker_selector_failed"
+        return fallback
+    payload = read_json(
+        session / "derived/transcript-rich/speaker-resolved-default-v1/selection.json"
+    )
+    if not isinstance(payload, dict) or payload.get("schema") != SPEAKER_SELECTION_SCHEMA:
+        fallback["fallback_reason"] = "speaker_selection_invalid"
+        return fallback
+    if str(payload.get("selected_profile") or "") != str(selected_profile or ""):
+        fallback["fallback_reason"] = "speaker_selection_profile_mismatch"
+        return fallback
+    row = payload.get("selected_transcript") if isinstance(payload.get("selected_transcript"), dict) else {}
+    raw_path = row.get("path")
+    path = session / str(raw_path or "")
+    if not raw_path or not path.is_file():
+        fallback["fallback_reason"] = "speaker_selection_output_missing"
+        return fallback
+    return {
+        "state": payload.get("state"),
+        "selected_speaker_profile": payload.get("selected_speaker_profile"),
+        "fallback_reason": payload.get("fallback_reason"),
+        "transcript_path": str(raw_path),
+        "identity_scope": payload.get("identity_scope"),
+        "selection_fingerprint": payload.get("semantic_fingerprint"),
+    }
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -887,6 +937,7 @@ def build_outcome_summary(
     gates: list[dict[str, Any]],
     review_plan: dict[str, Any],
     outputs: dict[str, Any],
+    speaker: dict[str, Any],
 ) -> dict[str, Any]:
     review_seconds = safe_float(metrics.get("review_burden_sec")) or 0.0
     transcript_review_seconds = safe_float(metrics.get("transcript_review_burden_sec"))
@@ -930,6 +981,9 @@ def build_outcome_summary(
         "first_review_lane": lanes[0].get("id") if lanes and isinstance(lanes[0], dict) else None,
         "next_command": next_command,
         "selected_profile": (readiness or {}).get("selected_profile"),
+        "selected_speaker_profile": speaker.get("selected_speaker_profile"),
+        "speaker_resolution_state": speaker.get("state"),
+        "speaker_fallback_reason": speaker.get("fallback_reason"),
         "verdict": (readiness or {}).get("verdict"),
         "session_classification": (readiness or {}).get("session_classification"),
         "use_gate": (readiness or {}).get("use_gate"),
@@ -944,6 +998,7 @@ def markdown(outcome_payload: dict[str, Any], review_plan: dict[str, Any]) -> st
         "",
         f"Outcome: `{outcome_payload['outcome']}`",
         f"Selected profile: `{outcome_payload.get('selected_profile')}`",
+        f"Selected speaker profile: `{outcome_payload.get('selected_speaker_profile')}`",
         f"Verdict: `{outcome_payload.get('verdict')}`",
         f"Next command: `{outcome_payload.get('next_command')}`",
         "",
@@ -958,6 +1013,9 @@ def markdown(outcome_payload: dict[str, Any], review_plan: dict[str, Any]) -> st
         "review_burden_minutes",
         "transcript_review_burden_minutes",
         "open_review_lanes",
+        "selected_speaker_profile",
+        "speaker_resolution_state",
+        "speaker_fallback_reason",
         "first_review_lane",
         "notes_path",
         "transcript_path",
@@ -1026,7 +1084,13 @@ def main() -> int:
     if isinstance(harmful_gate, dict):
         metrics["harmful_remote_in_me_seconds"] = harmful_gate.get("seconds")
         metrics["harmful_remote_in_me_coverage"] = harmful_gate.get("coverage")
-    outputs = readiness.get("outputs") if isinstance(readiness, dict) and isinstance(readiness.get("outputs"), dict) else {}
+    outputs = dict(readiness.get("outputs")) if isinstance(readiness, dict) and isinstance(readiness.get("outputs"), dict) else {}
+    speaker = speaker_resolution(session, (readiness or {}).get("selected_profile"))
+    if speaker.get("state") == "selected" and speaker.get("transcript_path"):
+        outputs["transcript"] = {
+            "path": speaker["transcript_path"],
+            "exists": (session / str(speaker["transcript_path"])).is_file(),
+        }
     export_blockers = (readiness or {}).get("export_blockers") or []
     export_status = "allowed" if outcome == "ready_for_notes" and not export_blockers else "blocked_until_review"
     summary = build_outcome_summary(
@@ -1038,6 +1102,7 @@ def main() -> int:
         gates=gates,
         review_plan=review_plan,
         outputs=outputs,
+        speaker=speaker,
     )
     payload = {
         "schema": OUTCOME_SCHEMA,
@@ -1047,6 +1112,8 @@ def main() -> int:
         "outcome": outcome,
         "base_outcome": base_outcome,
         "selected_profile": (readiness or {}).get("selected_profile"),
+        "selected_speaker_profile": speaker.get("selected_speaker_profile"),
+        "speaker_resolution": speaker,
         "verdict": (readiness or {}).get("verdict"),
         "session_classification": (readiness or {}).get("session_classification"),
         "use_gate": (readiness or {}).get("use_gate"),

@@ -49,6 +49,9 @@ assert compatibility["runtime"]["python"]["version"] == ">=3.12,<3.14"
 assert compatibility["schemas"]["config"]["current"] == config["schema"]
 assert compatibility["schemas"]["session"]["current"] == "murmurmark.session/v1"
 assert compatibility["schemas"]["evidence_handoff"]["current"] == "murmurmark.evidence_handoff/v2"
+assert compatibility["schemas"]["speaker_resolved_transcript_selection"]["current"] == (
+    "murmurmark.speaker_resolved_transcript_selection/v1"
+)
 assert compatibility["schemas"]["reviewed_speaker_handoff"]["current"] == (
     "murmurmark.reviewed_speaker_handoff/v1"
 )

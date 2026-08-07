@@ -1,7 +1,7 @@
 # Remote Speaker Coverage v3 Runbook
 
-V3 is a promoted optional read profile. It improves anonymous remote-speaker coverage without
-changing the ordinary transcript.
+V3 is the promoted evidence source for the ordinary speaker-resolved transcript selector. It
+improves anonymous remote-speaker coverage without changing aggregate transcript bytes.
 
 ## One Session
 
@@ -9,7 +9,8 @@ changing the ordinary transcript.
 SESSION="sessions/<session-id>"
 
 murmurmark audit remote-coverage "$SESSION"
-murmurmark transcript "$SESSION" --rich
+murmurmark audit speaker-default "$SESSION"
+murmurmark transcript "$SESSION"
 ```
 
 `audit remote-coverage` builds v2 first when required, then writes v3 evidence. Verify an existing
@@ -28,13 +29,13 @@ murmurmark audit remote-diarization "$SESSION"
 murmurmark audit remote-coverage "$SESSION"
 ```
 
-`audit remote-speakers` defaults to the current Evidence Handoff profile. `transcript --rich`
-accepts v2/v3 only when `report.source.profile` equals the current selected profile; the algorithm
-name in `report.parameters.profile` is not a transcript profile.
+`audit remote-speakers` defaults to the current Evidence Handoff profile. The default selector and
+`transcript --rich` accept v2/v3 only when `report.source.profile` equals the current selected
+profile; the algorithm name in `report.parameters.profile` is not a transcript profile.
 
-If v3 is missing, stale or invalid, `transcript --rich` falls back to promoted v2 and then to the
-aggregate `Colleagues` transcript according to the existing rich-transcript chain. A v2 artifact
-from an older selected profile is stale too and is skipped rather than displayed.
+If v3 is missing, stale or invalid, the ordinary transcript uses the exact aggregate `Colleagues`
+Markdown. Explicit `transcript --rich` keeps its compatible diagnostic v3/v2/aggregate chain. A v2
+artifact from an older selected profile is stale too and is skipped rather than displayed.
 
 ## Frozen Corpus
 

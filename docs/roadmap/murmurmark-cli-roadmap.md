@@ -1,6 +1,6 @@
 # MurmurMark CLI Roadmap
 
-Updated: 2026-08-07
+Updated: 2026-08-08
 
 Это читаемое представление активного плана OpsKarta v3:
 
@@ -72,7 +72,8 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Remote speaker diarization v2 | `done` | Coverage `91.9071%`, B-cubed F1 `0.960690`, exact words |
 | Remote speaker coverage v3 | `done` | Coverage `93.9312%`, B-cubed F1 `0.962171`, exact v2 labels |
 | Remote speaker residual v4 | `done` | `DO_NOT_PROMOTE`: safe ceiling `14.57%` words / `13.98%` seconds |
-| Anonymous rich view | `done` | Exact optional handoff и explicit session-local naming |
+| Speaker-resolved default | `done` | 6/6 sessions, 14 expected speakers, exact aggregate fallback |
+| Lexical correctness | `current` | Построение private graded WER/CER reference |
 | Производные заметки | `done/optional` | Exact evidence memory и безопасный ID-only selector доступны |
 
 ## Актуальная Цепочка
@@ -85,14 +86,15 @@ flowchart LR
     P["Done<br/>Transcript Perfection<br/>Corpus v1"]
     R["Done<br/>Remote Speaker<br/>Coverage v3"]
     V["Done: DO_NOT_PROMOTE<br/>Remote Speaker<br/>Residual Evidence v4"]
-    H["Current<br/>Speaker-Resolved<br/>Default v1"]
+    H["Done: PROMOTE<br/>Speaker-Resolved<br/>Default v1"]
+    L["Current<br/>Lexical Accuracy<br/>Reference Corpus v1"]
     M["Idea<br/>Local Mic Multi-Speaker<br/>Diarization v1"]
     O["Optional<br/>Notes, retrieval,<br/>work proposals"]
 
-    B --> D --> P --> R --> V --> H
+    B --> D --> P --> R --> V --> H --> L
     F --> D
     P -. "real local scenario" .-> M
-    H -.-> O
+    L -.-> O
 ```
 
 ### 1. Remote Speaker Evidence Map v1 — `done`
@@ -109,8 +111,8 @@ Word/frame-level diarization работает по authoritative remote audio, �
 `PROMOTE`: coverage `0.919071`, attributed-only B-cubed F1 `0.960690`, pairwise precision
 `0.959564`, 5/5 boundary cases и zero selected-word loss/duplication.
 
-Результат: promoted optional speaker-resolved read surface. Plain transcript остаётся aggregate
-fallback до отдельной продуктовой квалификации; это не отменяет успешное завершение v2.
+Результат этапа v2: promoted optional speaker-resolved read surface. Отдельная продуктовая
+квалификация default была выполнена позже и не меняла v2 words или labels.
 
 ### 3. Transcript Perfection Corpus v1 — `done`
 
@@ -141,22 +143,32 @@ V4 проверил speech-aware bounded окна и независимые по
 727 words / `514.599s` сохраняют честный aggregate fallback. Повторять тот же speaker backend с
 пониженными порогами не нужно.
 
-### 6. Speaker-Resolved Transcript Default v1 — `current`
+### 6. Speaker-Resolved Transcript Default v1 — `done`
 
-Обычный CLI read surface, meeting handoff и guarded export начинают выбирать promoted v3 на
-совместимых сессиях. Слабая, отсутствующая или stale evidence возвращает exact aggregate
+Обычный CLI read surface, meeting handoff и guarded export выбирают promoted v3 на совместимых
+сессиях. Слабая, отсутствующая или stale evidence возвращает exact aggregate
 `Colleagues`; неподдержанные v3 words остаются aggregate внутри speaker-resolved результата.
 Voice-only имена и cross-session identity запрещены.
 
-Результат: миссия видна в стандартном пользовательском результате, а не только через `--rich`.
+Результат: `PROMOTE` на 6/6 sessions, две 1x1, четыре group, 14 expected speakers и 5/5 boundary
+cases. Words, roles, `Me`, timestamps, raw и deterministic replay сохранены.
 
-### 7. Local Mic Multi-Speaker Diarization v1 — `idea`
+### 7. Lexical Accuracy Reference Corpus v1 — `current`
+
+Transcript Perfection доказывает сохранность выбранных слов, но lexical correctness остаётся
+`not_measured`. Private graded corpus должен отделить exact scripted truth, human-reviewed evidence
+и weak machine references, посчитать WER/CER и типы ошибок без изменения ASR.
+
+Результат этапа: воспроизводимый lexical baseline с крупнейшим измеренным defect либо честный
+`REFERENCE_INSUFFICIENT`, если доступного ground truth пока недостаточно.
+
+### 8. Local Mic Multi-Speaker Diarization v1 — `idea`
 
 Когда появится реальный сценарий нескольких людей у одного ноутбука и размеченный материал, mic-речь
 будет разделяться на Target-Me, other local speakers и `unknown`. Этот этап зависит от remote v2 и
 Transcript Perfection Corpus, но не нужен для нынешнего основного сценария одного пользователя.
 
-### 8. Производные Возможности — `optional`
+### 9. Производные Возможности — `optional`
 
 Extractive notes, quality verdict, reviewed speaker memory, ID-only selection, локальный поиск и
 work proposals могут развиваться после достижения transcript gates или по отдельному явному запросу.

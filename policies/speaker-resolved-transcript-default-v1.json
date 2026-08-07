@@ -1,0 +1,52 @@
+{
+  "schema": "murmurmark.speaker_resolved_transcript_default_policy/v1",
+  "state": "promoted",
+  "profile": "remote_speaker_coverage_v3",
+  "scope": "default_local_transcript_read_handoff_and_guarded_export",
+  "required_evidence": {
+    "coverage_policy": {
+      "path": "policies/remote-speaker-coverage-v3.json",
+      "sha256": "41a40a4be53d7c9732165021900808a6a02c205601408aa9424f9d6ad476b8ff"
+    },
+    "coverage_corpus_manifest": {
+      "path": "docs/testing/remote-speaker-coverage-v3-manifest.json",
+      "sha256": "20b4073df90f98729cc29bc2ec8f3002e88155d9202afd72f6898f494cfd0a6c"
+    },
+    "coverage_implementation": {
+      "path": "scripts/audit-remote-speaker-coverage-v3.py",
+      "sha256": "6ac3716a2f6e0d9d49e822cbdaeea3c69321049697332e5e9cb9b6bad118b085"
+    },
+    "default_selector_implementation": {
+      "path": "scripts/select-speaker-resolved-transcript.py",
+      "sha256": "d073d641b8813052e23d14b3bb6fc3b50cf5905e1dce89eacf089d8f3d8dd5b7"
+    },
+    "default_corpus_implementation": {
+      "path": "scripts/report-speaker-resolved-transcript-default-corpus.py",
+      "sha256": "8f503b397e507a8355511e98a26b67210a9ad759a5775f023409664be7ea8b51"
+    },
+    "default_corpus_manifest": {
+      "path": "docs/testing/speaker-resolved-transcript-default-v1-manifest.json",
+      "sha256": "63e7d3b758075c698be9ebcb152ba2eb8bc4dfeadc4c53bc3d8cbef0cd3c0b84"
+    }
+  },
+  "required_session_gates": [
+    "baseline_attributions_preserved",
+    "me_unchanged",
+    "publish_session_evidence",
+    "remote_overlap_preserved",
+    "seeded_speakers_only",
+    "selected_text_unchanged",
+    "timestamp_order",
+    "v2_inputs_current",
+    "v2_policy_promoted",
+    "word_conservation",
+    "word_timestamps_unchanged"
+  ],
+  "selected_speaker_profile": "remote_speaker_coverage_v3",
+  "fallback_speaker_profile": "aggregate_colleagues",
+  "fallback": "exact_selected_aggregate_transcript",
+  "unsupported_remote_words": "aggregate_colleagues",
+  "identity_scope": "session_local_anonymous",
+  "human_names": "complete_fingerprint_bound_review_only",
+  "cross_session_identity": false
+}

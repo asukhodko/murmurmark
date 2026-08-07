@@ -69,7 +69,9 @@ human identity. Remote Speaker Coverage v3 is promoted with `93.9312%` attributa
 exact selected-word and v2-label conservation. Unsupported regions and a rare voice without enough
 enrollment remain explicit `unknown`. Transcript Perfection Corpus v1 remains the convergence
 baseline. Residual Evidence v4 measured a safe `14.57%` word / `13.98%` second ceiling and closed
-with `DO_NOT_PROMOTE`; Speaker-Resolved Transcript Default v1 is now active.
+with `DO_NOT_PROMOTE`; Speaker-Resolved Transcript Default v1 is promoted. The current gap is
+lexical truth: conservation is measured, but actual ASR word correctness still needs a graded
+private reference.
 
 ## Core User Jobs
 
@@ -108,8 +110,8 @@ met, unless an explicit product decision changes the priority.
 
 1. **Transcript Perfection Corpus v1:** maintain the completed 12-source benchmark for text,
    chronology, roles, speakers, overlap, acoustic modes and known residual defects.
-2. **Speaker-Resolved Transcript Default v1:** make promoted v3 the normal result after corpus-wide
-   word, role, order, speaker and exact-fallback gates pass.
+2. **Lexical Accuracy Reference Corpus v1:** measure WER/CER and error classes from graded private
+   references without treating agreement between ASR systems as truth.
 3. **Measured residual loop:** rerank after every bounded `PROMOTE` or evidence ceiling and close the
    next highest-impact class.
 4. **Independent remote evidence:** revisit the v4 residue only with a genuinely new pinned speaker

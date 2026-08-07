@@ -89,6 +89,13 @@
       ],
       "migration": "regenerate derived handoff only through the normal pipeline"
     },
+    "speaker_resolved_transcript_selection": {
+      "current": "murmurmark.speaker_resolved_transcript_selection/v1",
+      "accepted": [
+        "murmurmark.speaker_resolved_transcript_selection/v1"
+      ],
+      "migration": "regenerate derived selection; incompatible evidence falls back to the exact aggregate transcript"
+    },
     "anonymous_rich_handoff": {
       "current": "murmurmark.anonymous_rich_handoff/v1",
       "accepted": [

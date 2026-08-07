@@ -1241,6 +1241,12 @@ class MeetingLifecycle:
             "verdict": outcome.get("verdict") or readiness.get("verdict"),
             "verdict_path": display_path(verdict_path) if verdict_path and verdict_path.is_file() else None,
             "selected_profile": outcome.get("selected_profile") or readiness.get("selected_profile"),
+            "selected_speaker_profile": outcome.get("selected_speaker_profile") or "aggregate_colleagues",
+            "speaker_resolution": outcome.get("speaker_resolution") or {
+                "state": "fallback",
+                "selected_speaker_profile": "aggregate_colleagues",
+                "fallback_reason": "outcome_speaker_resolution_missing",
+            },
             "keep_debug_artifacts": bool(self.state.get("keep_debug_artifacts")),
             "unresolved_review": {
                 "count": int(unresolved_count or 0),
@@ -1619,6 +1625,8 @@ def report_freshness_key(report: dict[str, Any]) -> dict[str, Any]:
         "verdict": report.get("verdict"),
         "verdict_path": report.get("verdict_path"),
         "selected_profile": report.get("selected_profile"),
+        "selected_speaker_profile": report.get("selected_speaker_profile"),
+        "speaker_resolution": report.get("speaker_resolution"),
         "unresolved_review": report.get("unresolved_review"),
         "manual_decisions": report.get("manual_decisions"),
         "budgets": report.get("budgets"),
@@ -1649,6 +1657,10 @@ def print_summary(report: dict[str, Any]) -> None:
     print(f"  transcript: {report.get('transcript') or 'not_available'}")
     print(f"  notes: {report.get('notes') or 'not_available'}")
     print(f"  verdict: {report.get('verdict') or 'unknown'}")
+    print(f"  speaker_profile: {report.get('selected_speaker_profile') or 'aggregate_colleagues'}")
+    speaker = report.get("speaker_resolution") if isinstance(report.get("speaker_resolution"), dict) else {}
+    if speaker.get("fallback_reason"):
+        print(f"  speaker_fallback_reason: {speaker['fallback_reason']}")
     print(f"  unresolved: {int(unresolved.get('count') or 0)} items / {float(unresolved.get('seconds') or 0.0):.3f}s")
     manual = report.get("manual_decisions") if isinstance(report.get("manual_decisions"), dict) else {}
     next_step = report.get("next") if isinstance(report.get("next"), dict) else {}

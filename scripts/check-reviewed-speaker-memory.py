@@ -284,7 +284,9 @@ def main() -> int:
         fallback_manifest = json.loads(
             (fallback_export / session.name / "export_manifest.json").read_text(encoding="utf-8")
         )
-        assert fallback_manifest["speaker_mode"] == "ordinary"
+        assert fallback_manifest["speaker_mode"] == "aggregate_colleagues"
+        assert fallback_manifest["selected_speaker_profile"] == "aggregate_colleagues"
+        assert fallback_manifest["speaker_resolution_state"] == "fallback"
         assert fallback_manifest["status"] == "exported_with_warnings"
         assert (fallback_export / session.name / "notes.md").read_bytes() == (
             ordinary_export_after / session.name / "notes.md"

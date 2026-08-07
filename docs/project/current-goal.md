@@ -1,84 +1,77 @@
 # Current Goal
 
-Updated: 2026-08-07
+Updated: 2026-08-08
 
 This document expands the single executable goal from
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`.
 `scripts/check-planning-consistency.py` keeps the README, roadmap and OpsKarta wording aligned.
 
-## Speaker-Resolved Transcript Default v1
+## Lexical Accuracy Reference Corpus v1
 
-OpsKarta nearest goal: Speaker-Resolved Transcript Default v1: сделать promoted Remote Speaker Coverage v3 стандартным локальным результатом `murmurmark transcript`, meeting handoff и guarded export для совместимых сессий, сохранив authoritative selected words, текст, порядок, роли и timestamps без изменений; показывать доказанные session-local anonymous speaker IDs, а неподдержанные remote words оставлять aggregate `Colleagues`; принимать v3 только при совпадении policy, implementation, frozen corpus manifest и всех session input/artifact SHA-256, иначе автоматически и явно возвращать byte-identical aggregate transcript; сохранить явный `--rich` как совместимый диагностический путь и применять человеческие имена только из complete fingerprint-bound review; добавить selected-speaker-profile и fallback reason в status/outcome/handoff, проверить six-session corpus, 1x1/group, 5/5 boundaries, stale/missing/model fallback, deterministic replay, ordinary transcript/export и Transcript Perfection gates; capture, Echo Guard, основной ASR, local mic diarization, cross-session identity и optional derivatives не менять; актуализировать README, contracts, runbook, roadmap и OpsKarta, закоммитить и отправить в origin/main.
+OpsKarta nearest goal: Lexical Accuracy Reference Corpus v1: превратить `recognized_words.lexical_correctness_not_measured` в воспроизводимое локальное измерение, не меняя основной ASR: создать приватный reference contract с уровнями доверия, импортировать точные scripted Echo Lab references и доступные external transcripts только как явно graded evidence, выровнять их с authoritative utterance/word timestamps, считать WER/CER, omissions, insertions, substitutions, domain-term и role-specific accuracy; tracked manifest должен содержать только пути/sha/метрики без текста и имён, weak machine references не могут считаться ground truth; проверить deterministic replay, reference leakage, 1x1/group/acoustic modes и неизменность selected transcript/speaker default; обновить Transcript Perfection ranking и выбрать один крупнейший доказанный lexical defect либо честно завершить `REFERENCE_INSUFFICIENT`; capture, Echo Guard, primary ASR, speaker profiles и optional derivatives не менять; актуализировать README, contracts, runbook, roadmap и OpsKarta, закоммитить и отправить в origin/main.
 
 ## Why Now
 
-Remote Speaker Coverage v3 is already promoted and attributes `93.9312%` of frozen remote speech
-with B-cubed F1 `0.962171` and pairwise precision `0.961675`. The remaining evidence is honest:
-unsupported words stay `unknown` and can be rendered as aggregate `Colleagues`.
+Speaker-Resolved Transcript Default v1 уже продвинут: обычный transcript/handoff/export выбирает
+Coverage v3 на совместимых сессиях и возвращает exact aggregate Markdown при несовместимости.
+Transcript Perfection после этого всё ещё показывает одну принципиальную слепую зону:
+`recognized_words.lexical_correctness_not_measured`.
 
-Residual Evidence v4 tested the obvious bounded continuation. It recovered 124 words / `83.640s`,
-but reductions of `14.5711%` words and `13.9811%` seconds missed both `20%` gates. All safety gates
-passed, so v4 closed with `DO_NOT_PROMOTE`. More threshold tuning is not the shortest reliable path.
-
-The product value now exists behind explicit `--rich`; this goal moves the proven result into the
-normal user path without claiming identity where evidence is absent.
-
-A fresh 98-minute session debug cycle provides current-profile evidence for that transition. After
-review closure, Coverage v3 preserved all 6289 remote words, attributed 6067 (`94.6258%` of remote
-speech) to three anonymous speakers and left 222 unsupported words aggregate. All text, role, `Me`,
-timestamp, order and word-conservation gates passed. The result is recorded in
-[`docs/testing/2026-08-07-session-2026-08-07_16-03-37-debug.md`](../testing/2026-08-07-session-2026-08-07_16-03-37-debug.md).
+Сохранность выбранных слов доказана, но она не отвечает на вопрос, верно ли Whisper распознал
+произнесённое. Без эталона нельзя объективно выбирать между заменами, вставками, пропусками,
+ошибками терминов и новыми ASR-кандидатами.
 
 ## Objective
 
-Make the default transcript visibly speaker-resolved on eligible sessions. Keep aggregate output as
-an exact fail-open fallback and make the selected profile and fallback reason machine-readable.
+Создать приватный и воспроизводимый эталон лексической точности, который различает настоящую truth,
+контролируемый scripted reference и слабую независимую machine reference. Получить WER/CER и
+разложение ошибок либо точно доказать, какого reference evidence пока не хватает.
 
 ## Required Work
 
-1. Define one selector over promoted v3, reviewed session-local labels and exact aggregate fallback.
-2. Use it consistently in `transcript`, meeting final handoff, status/outcome and guarded export.
-3. Preserve `--rich` compatibility and never infer a human name from voice.
-4. Add stale policy, manifest, implementation, input, artifact and missing-runtime fallback tests.
-5. Replay six frozen sessions, 1x1/group and five internal boundaries; keep Transcript Perfection
-   green and ordinary selected words byte-exact.
-6. Publish the decision, refresh planning, commit and push.
+1. Зафиксировать private reference schema, trust grades и запрет считать machine agreement truth.
+2. Импортировать точные scripted Echo Lab фразы и доступные внешние транскрипты с явным grade.
+3. Выровнять reference с authoritative utterance/word timestamps без изменения selected transcript.
+4. Считать WER/CER, substitutions, omissions, insertions, domain terms и показатели по ролям.
+5. Хранить речь и имена только в ignored private data; tracked manifest содержит SHA-256 и метрики.
+6. Проверить 1x1/group/acoustic modes, replay, leakage и Speaker-Resolved Default non-regression.
+7. Обновить Transcript Perfection ranking и выбрать один измеренный ASR defect или выпустить
+   `REFERENCE_INSUFFICIENT` с точным пределом.
 
 ## Acceptance Gates
 
-- eligible sessions select promoted v3 without an extra user flag;
-- every supported remote word renders its session-local speaker; every unsupported word remains
-  `Colleagues` rather than receiving a guessed identity;
-- selected words, text, timestamps, `Me`, roles and order stay exact;
-- stale, missing or incompatible evidence returns the exact previous aggregate transcript;
-- status, outcome and handoff expose selected speaker profile and fallback reason;
-- reviewed names require a complete current-session decision with matching fingerprints;
-- 1x1, group, 5/5 boundaries, deterministic replay, export and Transcript Perfection gates pass.
+- reference rows имеют source grade, exact provenance и неизменяемые SHA-256;
+- scripted truth отделена от human-reviewed и independent-machine evidence;
+- weak references не повышают lexical correctness до `passed`;
+- WER/CER и error classes детерминированы и проверяются повторным прогоном;
+- tracked файлы не содержат transcript text, имена или абсолютные пользовательские пути;
+- selected transcript, speaker selection, raw CAF и текущие Perfection dimensions не изменены;
+- итогом является измеренный lexical baseline или воспроизводимый `REFERENCE_INSUFFICIENT`.
 
 ## Safety Boundary
 
-- no capture, Echo Guard, primary ASR, audio selection or raw retention change;
-- no cross-session voice identity and no voice-derived human names;
-- no local mic multi-speaker claim without a real labeled scenario;
-- no cloud dependency or implicit model download;
-- no new notes, summaries or work-system behavior.
+- no capture, Echo Guard, primary ASR or speaker-profile changes;
+- no cloud runtime, implicit upload or model download;
+- no tuning on test/hard references before a frozen split exists;
+- no synthetic aggregate quality score;
+- no optional notes, summaries, external writes or UI work.
 
 ## Previous Goal Result
 
-Remote Speaker Residual Evidence v4 completed with `DO_NOT_PROMOTE`:
+Speaker-Resolved Transcript Default v1 completed with `PROMOTE`:
 
-- recovered 124 words / `83.640207s` from 851 words / `598.239509s`;
-- reductions were `14.5711%` words and `13.9811%` seconds versus `20%` gates;
-- attributable speech reached an audit-only `0.947797`;
-- B-cubed F1 stayed `0.962171`, pairwise precision `0.961675`;
-- all conservation, existing-label, 1x1/group, 5/5 boundary, raw and fallback gates passed;
-- promoted v3 and the exact aggregate fallback remain unchanged.
+- 6/6 frozen sessions: two 1x1 and four group calls;
+- 14 expected anonymous session-local speakers and 5/5 internal boundaries;
+- exact selected words, text, roles, `Me`, timestamps, order, raw preservation and replay;
+- ordinary transcript, Evidence Handoff v2 and guarded export carry the selected speaker profile;
+- stale, missing and failed local evidence returns exact aggregate Markdown;
+- human names remain complete fingerprint-bound review only.
 
 ## After This Goal
 
-1. Re-run Transcript Perfection Corpus and take its largest remaining transcript defect.
-2. Open local mic multi-speaker diarization only after a real labeled scenario exists.
-3. Revisit remote residuals only with a genuinely independent pinned speaker backend or stronger
-   enrollment evidence, not lower v3 thresholds.
+1. Fix the largest measured lexical defect without changing unrelated pipeline stages.
+2. Revisit unknown remote speakers only with a genuinely independent pinned backend or stronger
+   enrollment evidence; v4 already closed the current Resemblyzer continuation.
+3. Open local mic multi-speaker diarization only after a real labelled scenario exists.
 
 Raw CAF and batch output remain authoritative. Live Shadow remains advisory.

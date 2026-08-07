@@ -122,6 +122,10 @@ STEP_COST_HINTS: dict[str, dict[str, str]] = {
         "cost": "light",
         "reason": "materializes remote-forbidden evidence rows when offline_aec_v2 ASR audit exists",
     },
+    "speaker_resolved_transcript_default": {
+        "cost": "heavy",
+        "reason": "refreshes local session speaker evidence only when promoted v3 is missing or stale",
+    },
 }
 
 
@@ -1179,6 +1183,18 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
             ],
             phase=DEFERRED_PHASE,
         ),
+        step(
+            "speaker_resolved_transcript_default",
+            [
+                py,
+                str(repo_root / "scripts/select-speaker-resolved-transcript.py"),
+                str(session),
+                "--refresh-evidence",
+            ],
+            enabled=not args.skip_audits,
+            reason="--skip-audits",
+            phase=DEFERRED_PHASE,
+        ),
     ]
 
 
@@ -1787,6 +1803,16 @@ def expected_output_specs(session: Path, report_path: Path) -> list[dict[str, st
             "path": rel(session / "derived/readiness/session_readiness.md", session),
             "produced_by": "session_readiness",
             "purpose": "final readiness gate and next commands",
+        },
+        {
+            "id": "speaker_resolved_transcript_selection",
+            "path": rel(
+                session
+                / "derived/transcript-rich/speaker-resolved-default-v1/selection.json",
+                session,
+            ),
+            "produced_by": "speaker_resolved_transcript_default",
+            "purpose": "promoted session-local speaker labels or exact aggregate fallback",
         },
         {
             "id": "pipeline_report",

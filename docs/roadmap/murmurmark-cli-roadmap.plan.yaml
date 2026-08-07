@@ -33,7 +33,7 @@ nodes:
     title: "MurmurMark CLI"
     kind: summary
     status: current
-    effort: 221
+    effort: 225
     notes: |
       Активная CLI-first, local-first и evidence-backed программа. Batch transcript остаётся
       authoritative. Текущий North Star: одной командой получить максимально надёжный transcript,
@@ -568,13 +568,28 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-remote-speaker-residual-evidence-v4, quality-remote-speaker-diarization-v2, product-reliable-final-handoff-v1]
-    status: current
+    status: done
     effort: 8
     notes: |
-      Перевести promoted v3 из explicit `--rich` в обычный CLI read surface, meeting handoff и
-      guarded export. Unsupported words остаются Colleagues; missing, stale, weak или incompatible
-      evidence возвращает byte-identical aggregate transcript. Имена только из complete
-      fingerprint-bound session review; voice identity и cross-session matching запрещены.
+      Завершено PROMOTE. Обычный transcript, Evidence Handoff v2 и guarded export выбирают current
+      Coverage v3; слабая или stale evidence возвращает exact aggregate Markdown. Six-session
+      corpus: 6/6, две 1x1, четыре group, 14 expected anonymous speakers, 5/5 boundaries, exact
+      words/roles/timestamps/Me/raw и deterministic replay. Имена остаются explicit review only.
+
+  quality-lexical-accuracy-reference-corpus-v1:
+    title: "Lexical Accuracy Reference Corpus v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [product-speaker-resolved-transcript-default-v1, quality-transcript-perfection-corpus-v1]
+    status: current
+    effort: 12
+    notes: |
+      Закрыть единственную полностью not_measured dimension Transcript Perfection: lexical
+      correctness. Создать private graded reference contract, начать с exact scripted Echo Lab и
+      импортировать доступные external transcripts только с явным уровнем доверия; считать WER/CER,
+      omissions/insertions/substitutions, domain-term и role-specific accuracy. Tracked manifest не
+      содержит речь или имена. Machine reference не считается truth; недостаток эталона завершает
+      этап честным REFERENCE_INSUFFICIENT, а не фиктивным pass.
 
   future-local-mic-diarization-v1:
     title: "Local Mic Multi-Speaker Diarization v1"
@@ -588,18 +603,6 @@ nodes:
       other local speakers и unknown внутри mic-потока. Не считать всю локальную речь владельцем
       ноутбука и не ослаблять текущие Target-Me protection gates.
 
-  optional-derived-transcript-workflows:
-    title: "Derived Notes, Retrieval And Workflows"
-    kind: task
-    parent: parking-lot
-    deps: [product-speaker-resolved-transcript-default-v1, product-evidence-export-v2]
-    status: optional
-    effort: 8
-    notes: |
-      Notes, summaries, reviewed meeting artifacts, local retrieval и work proposals остаются
-      полезными производными. Они могут потреблять только versioned transcript evidence, не меняют
-      authoritative transcript и не получают серьёзного roadmap priority до transcript convergence.
-
   parking-lot:
     title: "Parking lot"
     kind: phase
@@ -607,9 +610,9 @@ nodes:
     status: optional
     effort: 15
     notes: |
-      Полезные возможности без влияния на текущую сходимость CLI. Live promotion остаётся здесь
-      заблокированным после reproducible quality/runtime DO_NOT_PROMOTE; возвращаться к нему можно
-      только с новой гипотезой и immutable live-vs-batch gates.
+      Notes, summaries, reviewed artifacts, retrieval, work proposals, UI и Live promotion не
+      влияют на текущую сходимость CLI. Они могут потреблять только versioned transcript evidence.
+      Live возвращается только с новой гипотезой и immutable live-vs-batch gates.
 
 views:
   roadmap-tree:
@@ -628,7 +631,7 @@ views:
         nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [product-speaker-resolved-transcript-default-v1]
+        nodes: [quality-lexical-accuracy-reference-corpus-v1]
       dependent:
         title: "Завершённый evidence ceiling"
         nodes: [quality-remote-speaker-residual-evidence-v4]
@@ -672,6 +675,7 @@ views:
           - quality-remote-speaker-coverage-v3
           - quality-remote-speaker-residual-evidence-v4
           - product-speaker-resolved-transcript-default-v1
+          - quality-lexical-accuracy-reference-corpus-v1
 
   echo-frontier:
     title: "Пред-ASR отделение Me от remote"
@@ -707,11 +711,11 @@ views:
         title: "Доказанная speaker evidence"
         nodes: [research-remote-diarization, research-rich-transcript, quality-remote-speaker-diarization-v2]
       current:
-        title: "Стандартный speaker-resolved результат"
-        nodes: [product-speaker-resolved-transcript-default-v1]
+        title: "Измерение lexical correctness"
+        nodes: [quality-lexical-accuracy-reference-corpus-v1]
       closure:
         title: "Unified baseline"
-        nodes: [quality-transcript-perfection-corpus-v1]
+        nodes: [quality-transcript-perfection-corpus-v1, quality-lexical-accuracy-reference-corpus-v1]
       release:
         title: "Основной speaker-resolved result"
         nodes: [product-speaker-resolved-transcript-default-v1]
@@ -724,7 +728,7 @@ views:
     lanes:
       parked:
         title: "Parking lot"
-        nodes: [parking-lot, optional-derived-transcript-workflows]
+        nodes: [parking-lot]
 
   deps-map:
     title: "Зависимости активного плана"
@@ -765,15 +769,15 @@ views:
           - quality-remote-speaker-coverage-v3
           - quality-remote-speaker-residual-evidence-v4
           - product-speaker-resolved-transcript-default-v1
+          - quality-lexical-accuracy-reference-corpus-v1
           - future-local-mic-diarization-v1
-          - optional-derived-transcript-workflows
           - parking-lot
 
 x:
   exec:
     program:
-      nearest_goal: "Speaker-Resolved Transcript Default v1: сделать promoted Remote Speaker Coverage v3 стандартным локальным результатом `murmurmark transcript`, meeting handoff и guarded export для совместимых сессий, сохранив authoritative selected words, текст, порядок, роли и timestamps без изменений; показывать доказанные session-local anonymous speaker IDs, а неподдержанные remote words оставлять aggregate `Colleagues`; принимать v3 только при совпадении policy, implementation, frozen corpus manifest и всех session input/artifact SHA-256, иначе автоматически и явно возвращать byte-identical aggregate transcript; сохранить явный `--rich` как совместимый диагностический путь и применять человеческие имена только из complete fingerprint-bound review; добавить selected-speaker-profile и fallback reason в status/outcome/handoff, проверить six-session corpus, 1x1/group, 5/5 boundaries, stale/missing/model fallback, deterministic replay, ordinary transcript/export и Transcript Perfection gates; capture, Echo Guard, основной ASR, local mic diarization, cross-session identity и optional derivatives не менять; актуализировать README, contracts, runbook, roadmap и OpsKarta, закоммитить и отправить в origin/main."
-      success_by_next_sync: "Обычный CLI, meeting handoff и guarded export выбирают promoted v3 на совместимых сессиях и byte-identical aggregate fallback при любой слабой или stale evidence."
+      nearest_goal: "Lexical Accuracy Reference Corpus v1: превратить `recognized_words.lexical_correctness_not_measured` в воспроизводимое локальное измерение, не меняя основной ASR: создать приватный reference contract с уровнями доверия, импортировать точные scripted Echo Lab references и доступные external transcripts только как явно graded evidence, выровнять их с authoritative utterance/word timestamps, считать WER/CER, omissions, insertions, substitutions, domain-term и role-specific accuracy; tracked manifest должен содержать только пути/sha/метрики без текста и имён, weak machine references не могут считаться ground truth; проверить deterministic replay, reference leakage, 1x1/group/acoustic modes и неизменность selected transcript/speaker default; обновить Transcript Perfection ranking и выбрать один крупнейший доказанный lexical defect либо честно завершить `REFERENCE_INSUFFICIENT`; capture, Echo Guard, primary ASR, speaker profiles и optional derivatives не менять; актуализировать README, contracts, runbook, roadmap и OpsKarta, закоммитить и отправить в origin/main."
+      success_by_next_sync: "Lexical correctness имеет graded private reference, воспроизводимые WER/CER и error classes либо точный REFERENCE_INSUFFICIENT без ложного quality claim."
     defaults:
       status_progress:
         done: 1.0
@@ -794,13 +798,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle, batch transcript, review, notes/export и Live Shadow уже работают."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Speaker-Resolved Transcript Default v1"
-        scope_nodes: [product-speaker-resolved-transcript-default-v1]
+        title: "Lexical Accuracy Reference Corpus v1"
+        scope_nodes: [quality-lexical-accuracy-reference-corpus-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Coverage v3 promoted; residual v4 закрылся честным DO_NOT_PROMOTE после безопасных 14.57% words / 13.98% seconds. Доказанный speaker view готов к продуктовому default."
-          next_sync_goal: "Сделать promoted v3 обычным read surface с exact aggregate fail-open и видимым selection reason."
+          sync_note: "Speaker-Resolved Default promoted на 6/6 сессиях. Единственная полностью not_measured dimension теперь lexical correctness."
+          next_sync_goal: "Построить graded private lexical reference и измерить ошибки, не меняя ASR до появления baseline."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -811,11 +815,12 @@ x:
           - quality-remote-speaker-coverage-v3
           - quality-remote-speaker-residual-evidence-v4
           - product-speaker-resolved-transcript-default-v1
+          - quality-lexical-accuracy-reference-corpus-v1
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Unified perfection corpus выбирает ровно один residual; после каждого решения ranking пересчитывается до speaker-resolved default."
-          next_sync_goal: "Довести standard speaker-resolved transcript до corpus-qualified product handoff."
+          sync_note: "Speaker-resolved handoff готов; Perfection Corpus сохраняет lexical correctness как честное not_measured."
+          next_sync_goal: "Заменить not_measured воспроизводимым reference baseline и затем ранжировать реальные lexical defects."
       research:
         title: "Будущий local multi-speaker"
         scope_nodes: [future-local-mic-diarization-v1]
@@ -857,7 +862,7 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: Coverage v3 promoted, текущий residual — cause-specific unknown remote speaker; затем новый ranking и speaker-resolved default."
+        caption: "Короткая карта: speaker-resolved default promoted; текущий фокус — честный lexical reference и измеримые ASR defects."
         blocks:
           - working-now
           - current-quality

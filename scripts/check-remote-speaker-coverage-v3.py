@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PYTHON = ROOT / ".venv/bin/python"
 AUDIT = ROOT / "scripts/audit-remote-speaker-coverage-v3.py"
 CORPUS = ROOT / "scripts/report-remote-speaker-coverage-v3-corpus.py"
+SELECTOR = ROOT / "scripts/select-speaker-resolved-transcript.py"
 V2_AUDIT = ROOT / "scripts/audit-remote-speaker-diarization.py"
 V3_DIR = Path("derived/audit/remote-speaker-coverage-v3")
 CLI = ROOT / ".build/debug/murmurmark"
@@ -257,6 +258,82 @@ def check_auditor(root: Path) -> None:
     assert sha256(session / "dialogue.json") == dialogue_hash
     run([str(AUDIT), str(session), "--verify-only"])
     run([str(AUDIT), str(session), "--verify-only", "--require-promoted"])
+    aggregate = session / "derived/transcript-simple/whisper-cpp/resolved/transcript.fixture.md"
+    aggregate.parent.mkdir(parents=True, exist_ok=True)
+    aggregate.write_text("# Aggregate fixture\n\n## 00:00 Colleagues\n\nAlpha beta gamma delta\n", encoding="utf-8")
+    write_json(
+        session / "derived/readiness/session_readiness.json",
+        {
+            "schema": "murmurmark.session_readiness/v1",
+            "selected_profile": "fixture",
+            "outputs": {
+                "transcript": {"path": str(aggregate.relative_to(session)), "exists": True},
+                "clean_dialogue": {"path": "dialogue.json", "exists": True},
+            },
+        },
+    )
+    selected = run([str(SELECTOR), str(session), "--require-speaker-resolved"])
+    assert "state=selected" in selected.stdout
+    selection_path = session / "derived/transcript-rich/speaker-resolved-default-v1/selection.json"
+    selection_first = selection_path.read_bytes()
+    run([str(SELECTOR), str(session), "--require-speaker-resolved"])
+    assert selection_path.read_bytes() == selection_first
+    selection = read_json(selection_path)
+    assert selection["selected_speaker_profile"] == "remote_speaker_coverage_v3"
+    assert selection["selected_transcript"]["sha256"] == sha256(out / "transcript.rich.shadow.md")
+    assert selection["policy"]["path"] == "policies/speaker-resolved-transcript-default-v1.json"
+
+    policy = read_json(ROOT / "policies/speaker-resolved-transcript-default-v1.json")
+    policy["state"] = "development"
+    stale_policy = root / "stale-selector-policy.json"
+    write_json(stale_policy, policy)
+    policy_fallback_dir = session / "derived/transcript-rich/selector-policy-fallback"
+    run(
+        [
+            str(SELECTOR),
+            str(session),
+            "--policy",
+            str(stale_policy),
+            "--out-dir",
+            str(policy_fallback_dir),
+        ]
+    )
+    policy_fallback = read_json(policy_fallback_dir / "selection.json")
+    assert policy_fallback["state"] == "fallback"
+    assert policy_fallback["fallback_reason"] == "selector_policy_not_promoted"
+    assert policy_fallback["selected_transcript"]["sha256"] == sha256(aggregate)
+
+    missing_fallback_dir = session / "derived/transcript-rich/selector-missing-fallback"
+    run(
+        [
+            str(SELECTOR),
+            str(session),
+            "--coverage-dir",
+            str(session / "missing-v3"),
+            "--out-dir",
+            str(missing_fallback_dir),
+        ]
+    )
+    missing_fallback = read_json(missing_fallback_dir / "selection.json")
+    assert missing_fallback["state"] == "fallback"
+    assert missing_fallback["selected_transcript"]["sha256"] == sha256(aggregate)
+    runtime_fallback_dir = session / "derived/transcript-rich/selector-runtime-fallback"
+    run(
+        [
+            str(SELECTOR),
+            str(session),
+            "--coverage-dir",
+            str(session / "missing-v3"),
+            "--out-dir",
+            str(runtime_fallback_dir),
+            "--refresh-evidence",
+        ]
+    )
+    runtime_fallback = read_json(runtime_fallback_dir / "selection.json")
+    assert runtime_fallback["state"] == "fallback"
+    runtime_reason = str(runtime_fallback["fallback_reason"])
+    assert runtime_reason.startswith(("evidence_refresh_stage_", "refreshed_v3_invalid:")), runtime_reason
+    assert runtime_fallback["selected_transcript"]["sha256"] == sha256(aggregate)
     write_json(
         session / "derived/synthesis-simple/extractive/quality_verdict.json",
         {"selected_transcript_profile": "fixture"},
@@ -270,6 +347,15 @@ def check_auditor(root: Path) -> None:
     )
     assert cli.returncode == 0, cli.stderr
     assert "remote-speaker-coverage-v3/transcript.rich.shadow.md" in cli.stdout, cli.stdout
+    default_cli = subprocess.run(
+        [str(CLI), "transcript", str(session), "--path-only"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert default_cli.returncode == 0, default_cli.stderr
+    assert "remote-speaker-coverage-v3/transcript.rich.shadow.md" in default_cli.stdout
     replay = session / "derived/audit/remote-speaker-coverage-v3-replay"
     run([str(AUDIT), str(session), "--out-dir", str(replay)])
     for name in ("report.json", "word_attribution.jsonl", "recovery_decisions.jsonl", "transcript.rich.shadow.json"):
@@ -280,6 +366,19 @@ def check_auditor(root: Path) -> None:
     fallback = session / "derived/audit/remote-speaker-coverage-v3-fallback"
     run([str(AUDIT), str(session), "--out-dir", str(fallback)])
     assert read_json(fallback / "report.json")["decision"] == "FALLBACK_V2"
+    run([str(SELECTOR), str(session)])
+    stale_selection = read_json(selection_path)
+    assert stale_selection["state"] == "fallback"
+    assert stale_selection["selected_transcript"]["sha256"] == sha256(aggregate)
+    fallback_cli = subprocess.run(
+        [str(CLI), "transcript", str(session), "--path-only"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert fallback_cli.returncode == 0, fallback_cli.stderr
+    assert fallback_cli.stdout.strip().endswith("transcript.fixture.md")
 
 
 def corpus_words(uid: str, start: float, speakers: list[str | None]) -> tuple[str, list[dict[str, Any]]]:

@@ -1,6 +1,6 @@
 # Remote Speaker Coverage v3 Contract
 
-Status: `PROMOTE` for the optional session-local speaker-resolved read surface
+Status: `PROMOTE` as the evidence source for Speaker-Resolved Transcript Default v1
 
 Remote Speaker Coverage v3 is an isolated postprocessor over promoted Remote Speaker Diarization
 v2. It may assign selected v2 `unknown` words to an existing anonymous session-local speaker. It may
@@ -83,7 +83,8 @@ unknown seconds by `25.0113%`. Attributable remote speech reached `93.9312%`; B-
 ## Safety Boundary
 
 - no voice-derived human names or cross-session identity;
-- no capture, Echo Guard, ASR, selected-dialogue, export or retention change;
+- no capture, Echo Guard, ASR, selected-dialogue or retention change; export may consume v3 only
+  through the separately promoted default selector and Evidence Handoff v2;
 - no forced label from similarity alone or for coverage targets;
 - no local mic multi-speaker inference;
 - v2 remains the exact fallback when policy, implementation or inputs do not match.

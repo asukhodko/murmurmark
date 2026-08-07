@@ -672,7 +672,9 @@ jq -e '
   and .blockers == []
 ' "$manifest" >/dev/null
 grep -Fq '## Evidence Summary' "$workdir/exports/private/cli-handoff/index.md"
-grep -q '\[utt_cli_001\]' "$workdir/exports/private/cli-handoff/transcript.md"
+cmp -s \
+  "$session/derived/transcript-simple/whisper-cpp/resolved/transcript.md" \
+  "$workdir/exports/private/cli-handoff/transcript.md"
 grep -q '^## Potential Actions$' "$workdir/exports/private/cli-handoff/notes.md"
 
 retention_output="$("$bin" retention plan "$session" --export-manifest "$manifest")"

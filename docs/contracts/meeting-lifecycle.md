@@ -199,6 +199,8 @@ The final report contains:
 
 - `result`: `ready`, `ready_with_review`, `failed` or `interrupted`;
 - selected transcript, notes and verdict paths;
+- selected speaker profile, resolution state and exact fallback reason from Speaker-Resolved
+  Transcript Default v1;
 - unresolved review count, seconds and structured blockers;
 - export status, blockers and manifest path;
 - derived compaction status, removed byte count and debug-artifact preservation mode;

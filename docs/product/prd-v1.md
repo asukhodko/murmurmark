@@ -116,8 +116,9 @@ Any later separator remains isolated until a corpus-wide decision and cannot use
 audio quality alone as evidence of correct word attribution. Post-ASR duplicate cleanup receives no
 promotion credit. Reopening the audio frontier requires an independently qualified abstaining
 Target-Me presence detector. Free-text LLM synthesis remains unpromoted; ID-only evidence selection
-is an explicit opt-in view with exact source text. Transcript Perfection Corpus v1 remains the
-baseline; Speaker-Resolved Transcript Default v1 is the current product closure. Notes, retrieval,
+is an explicit opt-in view with exact source text. Speaker-Resolved Transcript Default v1 is
+promoted; Transcript Perfection Corpus now exposes lexical correctness as `not_measured`.
+Lexical Accuracy Reference Corpus v1 is the current quality-measurement goal. Notes, retrieval,
 external writes and UI remain optional work.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.
@@ -228,10 +229,11 @@ Current selected transcript is narrower:
 - one local `whisper.cpp` model for both tracks;
 - `remote` remains authoritative and the plain fallback is aggregate `Colleagues`;
 - `mic` is treated as candidate `Me`;
-- promoted Remote Speaker Coverage v3 provides an optional `--rich` view with `93.9312%`
-  attributable remote speech, exact selected-word and v2-label conservation and explicit `unknown`;
-- the rich view becomes the default or an export source only through Speaker-Resolved Transcript
-  Default v1 with exact aggregate fallback;
+- promoted Remote Speaker Coverage v3 provides `93.9312%` attributable remote speech, exact
+  selected-word and v2-label conservation and explicit `unknown`;
+- Speaker-Resolved Transcript Default v1 now selects that view for ordinary transcript/handoff/export
+  only with current policy, implementation, corpus and session fingerprints; otherwise the exact
+  aggregate transcript is returned;
 - short overlapping ASR windows are reconciled into a global timeline;
 - timeline repair and micro-ASR recover local islands when Whisper glues `Me` and `remote` turns together;
 - `transcript.shadow_v2.md` is the best candidate only when `repair_comparison.json` passes.

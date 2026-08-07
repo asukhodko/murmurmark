@@ -256,6 +256,8 @@ sessions/<session-id>/
       speaker-preserving-neural-echo-v2/
         production_selection_report.json
     transcript-simple/whisper-cpp/
+    transcript-rich/speaker-resolved-default-v1/
+      selection.json
     synthesis-simple/extractive/
       no_speech_evidence.json  # only for an empty selected dialogue
     handoff-v2/
@@ -279,19 +281,19 @@ murmurmark open "$SESSION" --kind transcript --command-only
 The one-command lifecycle, Speaker-Preserving Neural Echo v2.17, Evidence Handoff v2, guarded export,
 bounded resume and incremental ASR are promoted. The normal path is one command plus `Ctrl-C`.
 
-Remote Speaker Coverage v3 is the promoted optional read surface: it attributes `93.9312%` of remote
-speech and preserves every selected word. Residual Evidence v4 did not pass promotion. Rebuild the
-speaker chain after review or cleanup changes the selected profile, then inspect it with:
+Speaker-Resolved Transcript Default v1 promotes the fingerprint-verified Coverage v3 view into
+ordinary `transcript`, Evidence Handoff and guarded export. It preserves every selected word and
+uses exact aggregate `Colleagues` fallback when evidence is missing or stale. Refresh or verify it:
 
 ```bash
-murmurmark audit remote-speakers "$SESSION"
-murmurmark audit remote-diarization "$SESSION"
-murmurmark audit remote-coverage "$SESSION"
-murmurmark transcript "$SESSION" --rich
+murmurmark audit speaker-default "$SESSION"
+murmurmark audit speaker-default "$SESSION" --verify-only
+murmurmark transcript "$SESSION"
 ```
 
-`transcript --rich` refuses profile-stale evidence; aggregate `Me`/`Colleagues` remains available
-while the current speaker view is rebuilt. Use `audit remote-residual` only for the v4 audit ceiling.
+The normal pipeline runs this selector automatically. `status` and `outcome` show the selected
+speaker profile and fallback reason. `--rich` remains a compatible diagnostic view; use
+`audit remote-residual` only for the v4 measured ceiling.
 
 Anonymous Rich Transcript Handoff v1 passed all `1235` references on 6/6 sessions. Reviewed Remote
 Speaker Naming v1 and Reviewed Speaker-Aware Meeting Memory v1 add only explicit session-local
@@ -305,10 +307,8 @@ murmurmark transcript "$SESSION" --rich --reviewed-speakers
 murmurmark notes "$SESSION" --reviewed-speakers
 murmurmark export "$SESSION" --format markdown --include-json --reviewed-speakers
 ```
-Speaker-aware memory and the exact-text selector are completed optional derivatives. The pre-ASR
-frontier is closed with exact fallback. **Transcript Perfection Corpus v1** established its baseline:
-12/12 frozen sources pass, lexical correctness remains explicit `not_measured`, and unlike corpus
-scopes are never collapsed into a synthetic score.
+Speaker-aware memory and exact-text notes remain optional derivatives. Transcript Perfection Corpus
+keeps 12/12 frozen sources explicit and never collapses unlike quality dimensions into one score.
 
 The dependent critical path is:
 
@@ -318,24 +318,22 @@ Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental 
 -> Remote Speaker Diarization v2 (done: PROMOTE, 91.9% coverage)
 -> Remote Speaker Coverage v3 (done: PROMOTE, 93.9% coverage)
 -> Remote Speaker Residual Evidence v4 (done: DO_NOT_PROMOTE, measured ceiling)
--> Speaker-Resolved Transcript Default v1 (current)
+-> Speaker-Resolved Transcript Default v1 (done: PROMOTE, ordinary read/handoff/export)
 ```
 
-**Speaker-Resolved Transcript Default v1** now moves the promoted, fingerprint-verified v3 view into
-the ordinary CLI read surface while retaining exact aggregate fallback for unsupported evidence.
-V4 recovered 124 words / `83.640s`, below its `20%` promotion gates, and remains audit-only. See the [current goal](docs/project/current-goal.md),
-[roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
+The six-session default qualification passed for two 1x1 and four group calls.
+**Lexical Accuracy Reference Corpus v1** is now current: measure ASR correctness before changing it.
+See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 ## Scope And Limitations
 
-- Ordinary selected transcripts use `Me` and aggregate `Colleagues`; `--rich` is an optional,
-  fingerprint-verified anonymous-speaker view and is not an export source. It must reference the
-  exact currently selected dialogue profile; evidence from an older cleanup/review profile is never
-  returned as current.
+- Ordinary auto-selected transcripts use `Me`, fingerprint-verified session-local remote speaker
+  IDs and aggregate `Colleagues` for unsupported words. Incompatible evidence returns the exact
+  aggregate transcript; evidence from an older cleanup/review profile is never returned as current.
 - Promoted v3 anonymous remote evidence covers `93.9312%` of frozen-corpus speech and leaves the
   remaining `6.0688%` explicit `unknown`; a rare participant without enough enrollment is not forced
   into a known voice.
-- `--reviewed-speakers` uses only explicit labels from the current session decision file; ordinary
-  transcript, notes and export never consume those labels implicitly.
+- `--reviewed-speakers` uses only explicit labels from the current session decision file. Human
+  names are never inferred from voice or consumed implicitly by ordinary transcript/export.
 - The personalized pre-ASR profile removes independently supported remote leakage on compatible
   sessions; `status` distinguishes the active ASR input from the optional advanced selector.
 - Alignment/Echo-Path v3 is audit-only after `READY_FOR_MULTI_COMPONENT_SEPARATOR`; it is not a
@@ -377,6 +375,7 @@ V4 recovered 124 words / `83.640s`, below its `20%` promotion gates, and remains
 - [Transcription and review runbook](docs/runbooks/transcribe-simple-whispercpp.md)
 - [Transcript Perfection Corpus contract](docs/contracts/transcript-perfection-corpus.md)
 - [Remote Speaker Coverage v3](docs/contracts/remote-speaker-coverage-v3.md) and [Residual Evidence v4](docs/contracts/remote-speaker-residual-evidence-v4.md) contracts
+- [Speaker-Resolved Transcript Default v1](docs/contracts/speaker-resolved-transcript-default-v1.md)
 
 ## Development Checks
 
@@ -387,6 +386,7 @@ scripts/check-planning-consistency.py
 scripts/check-open-source-readiness.sh
 scripts/check.sh
 murmurmark corpus remote-coverage all --verify-existing && murmurmark corpus remote-residual all --verify-existing
+murmurmark corpus speaker-default all --verify-existing
 murmurmark corpus perfection all --verify-existing
 ```
 The active roadmap uses OpsKarta v3. Validate and render it with the adjacent OpsKarta repository:

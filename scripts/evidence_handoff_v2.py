@@ -9,12 +9,16 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any, Iterable
 
 
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.2.0"
+ROOT = Path(__file__).resolve().parents[1]
+SPEAKER_SELECTION_SCHEMA = "murmurmark.speaker_resolved_transcript_selection/v1"
+SPEAKER_SELECTOR = ROOT / "scripts/select-speaker-resolved-transcript.py"
 MANIFEST_SCHEMA = "murmurmark.handoff_manifest/v2"
 EVIDENCE_SCHEMA = "murmurmark.handoff_evidence/v2"
 READINESS_SCHEMA = "murmurmark.session_readiness/v1"
@@ -465,12 +469,15 @@ def render_meeting(
     review: dict[str, Any],
     outline: list[dict[str, Any]],
     claims: dict[str, list[dict[str, Any]]],
+    speaker_resolution: dict[str, Any] | None = None,
 ) -> str:
+    speaker_resolution = speaker_resolution or {}
     lines = [
         f"# {session_id}",
         "",
         f"- Handoff state: `{state}`",
         f"- Transcript profile: `{profile or 'unknown'}`",
+        f"- Speaker profile: `{speaker_resolution.get('selected_speaker_profile') or 'aggregate_colleagues'}`",
         f"- Quality verdict: `{verdict}`",
         f"- Mandatory review: `{review['mandatory_count']}` items / `{review['mandatory_seconds']:.2f}s`",
         "",
@@ -487,6 +494,84 @@ def render_meeting(
         "",
     ]
     return "\n".join(lines)
+
+
+def materialize_speaker_selection(session: Path) -> tuple[dict[str, Any] | None, str | None]:
+    if not SPEAKER_SELECTOR.is_file():
+        return None, "speaker_selector_missing"
+    completed = subprocess.run(
+        [os.sys.executable, str(SPEAKER_SELECTOR), str(session)],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        return None, "speaker_selector_failed"
+    path = session / "derived/transcript-rich/speaker-resolved-default-v1/selection.json"
+    payload, error = read_json(path)
+    if error or payload is None or payload.get("schema") != SPEAKER_SELECTION_SCHEMA:
+        return None, f"speaker_selection:{error or 'unsupported_schema'}"
+    return payload, None
+
+
+def selected_speaker_transcript(
+    session: Path,
+    profile: str,
+    aggregate: Path,
+    selection: dict[str, Any] | None,
+) -> tuple[dict[str, Any], Path | None, str | None]:
+    fallback = {
+        "state": "fallback",
+        "selected_speaker_profile": "aggregate_colleagues",
+        "fallback_reason": "speaker_selection_unavailable",
+        "identity_scope": "session_local_anonymous",
+    }
+    if selection is None:
+        return fallback, None, "speaker_selection_unavailable"
+    if str(selection.get("selected_profile") or "") != profile:
+        fallback["fallback_reason"] = "speaker_selection_profile_mismatch"
+        return fallback, None, "speaker_selection_profile_mismatch"
+    state = str(selection.get("state") or "")
+    row = selection.get("selected_transcript")
+    path = resolve_session_path(session, row.get("path") if isinstance(row, dict) else None)
+    if path is None or not path.is_file() or not isinstance(row, dict):
+        fallback["fallback_reason"] = "speaker_selection_output_missing"
+        return fallback, None, "speaker_selection_output_missing"
+    data = path.read_bytes()
+    if safe_int(row.get("bytes"), -1) != len(data) or row.get("sha256") != sha256_bytes(data):
+        fallback["fallback_reason"] = "speaker_selection_output_stale"
+        return fallback, None, "speaker_selection_output_stale"
+    if state == "selected" and selection.get("selected_speaker_profile") == "remote_speaker_coverage_v3":
+        completed = subprocess.run(
+            [
+                os.sys.executable,
+                str(SPEAKER_SELECTOR),
+                str(session),
+                "--verify-only",
+                "--require-speaker-resolved",
+            ],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if completed.returncode == 0:
+            return {
+                "state": "selected",
+                "selected_speaker_profile": "remote_speaker_coverage_v3",
+                "fallback_reason": None,
+                "identity_scope": "session_local_anonymous",
+                "selection_fingerprint": selection.get("semantic_fingerprint"),
+            }, path, None
+        fallback["fallback_reason"] = "speaker_selection_verification_failed"
+        return fallback, None, "speaker_selection_verification_failed"
+    if state == "fallback" and path.resolve() == aggregate.resolve():
+        fallback["fallback_reason"] = str(selection.get("fallback_reason") or "speaker_evidence_unavailable")
+        fallback["selection_fingerprint"] = selection.get("semantic_fingerprint")
+        return fallback, aggregate, None
+    fallback["fallback_reason"] = "speaker_selection_fallback_not_exact"
+    return fallback, None, "speaker_selection_fallback_not_exact"
 
 
 def collect_inputs(session: Path) -> tuple[dict[str, Any], dict[str, Path], list[str]]:
@@ -519,6 +604,10 @@ def collect_inputs(session: Path) -> tuple[dict[str, Any], dict[str, Path], list
         paths["quality_verdict_json"] = quality_json_path(session, profile)
     session_json = session / "session.json"
     paths["session"] = session_json
+    selection, _ = materialize_speaker_selection(session)
+    selection_path = session / "derived/transcript-rich/speaker-resolved-default-v1/selection.json"
+    if selection is not None and selection_path.is_file():
+        paths["speaker_selection"] = selection_path
     for key, path in paths.items():
         if not path.is_file():
             blockers.append(f"input_missing:{key}")
@@ -595,6 +684,7 @@ def build_handoff(
         "quality_verdict_json": QUALITY_SCHEMA,
         "evidence_notes": NOTES_SCHEMA,
         "clean_dialogue": DIALOGUE_SCHEMA,
+        "speaker_selection": SPEAKER_SELECTION_SCHEMA,
     }
     for key, expected_schema in expected_schemas.items():
         path = paths.get(key)
@@ -612,6 +702,22 @@ def build_handoff(
     quality = parsed.get("quality_verdict_json", {})
     evidence = parsed.get("evidence_notes", {})
     dialogue = parsed.get("clean_dialogue", {})
+    speaker_selection, speaker_selection_error = materialize_speaker_selection(session)
+    speaker_resolution, speaker_transcript_path, speaker_resolution_warning = selected_speaker_transcript(
+        session,
+        profile,
+        paths.get("transcript", session / "missing-transcript"),
+        speaker_selection,
+    )
+    if speaker_selection_error:
+        warnings.append(speaker_selection_error)
+    if speaker_resolution_warning:
+        warnings.append(speaker_resolution_warning)
+    selection_path = session / "derived/transcript-rich/speaker-resolved-default-v1/selection.json"
+    if selection_path.is_file():
+        paths["speaker_selection"] = selection_path
+    if speaker_resolution.get("state") == "selected" and speaker_transcript_path is not None:
+        paths["speaker_transcript"] = speaker_transcript_path
     verdict = str(readiness.get("verdict") or quality.get("verdict") or "unknown")
     if profile and str(quality.get("selected_transcript_profile") or "") != profile:
         blockers.append("quality_profile_mismatch")
@@ -718,16 +824,22 @@ def build_handoff(
             "missing_utterance_ids": sorted(missing_references),
             "items_without_evidence": sorted(empty_reference_items),
         },
+        "speaker_resolution": speaker_resolution,
     }
+
+    aggregate_transcript = render_transcript(session_id, profile, state, utterances).encode("utf-8")
+    transcript_output = (
+        speaker_transcript_path.read_bytes()
+        if speaker_transcript_path is not None
+        else aggregate_transcript
+    )
 
     output_payloads = {
         "handoff_evidence": canonical_json_bytes(handoff_evidence),
         "meeting": render_meeting(
-            session_id, profile, state, verdict, review, outline, claims
+            session_id, profile, state, verdict, review, outline, claims, speaker_resolution
         ).encode("utf-8"),
-        "transcript": render_transcript(
-            session_id, profile, state, utterances
-        ).encode("utf-8"),
+        "transcript": transcript_output,
         "notes": render_notes(
             session_id, profile, state, outline, claims
         ).encode("utf-8"),
@@ -752,11 +864,9 @@ def build_handoff(
     handoff_evidence["review"] = {**review, "items": compact_review}
     output_payloads["handoff_evidence"] = canonical_json_bytes(handoff_evidence)
     output_payloads["meeting"] = render_meeting(
-        session_id, profile, state, verdict, review, outline, claims
+        session_id, profile, state, verdict, review, outline, claims, speaker_resolution
     ).encode("utf-8")
-    output_payloads["transcript"] = render_transcript(
-        session_id, profile, state, utterances
-    ).encode("utf-8")
+    output_payloads["transcript"] = transcript_output
     output_payloads["notes"] = render_notes(
         session_id, profile, state, outline, claims
     ).encode("utf-8")
@@ -792,6 +902,7 @@ def build_handoff(
         "outputs": provisional_outputs,
         "review": review,
         "referential_integrity": handoff_evidence["referential_integrity"],
+        "speaker_resolution": speaker_resolution,
         "blockers": blockers,
         "warnings": warnings,
         "recommended_next": recommended_next,
@@ -824,6 +935,7 @@ def build_handoff(
         "bundle": {"path": bundle_relative, "files": files},
         "review": review,
         "referential_integrity": handoff_evidence["referential_integrity"],
+        "speaker_resolution": speaker_resolution,
         "gates": {
             "export_allowed": state in EXPORTABLE_STATES,
             "profile_consistent": not any("profile_mismatch" in item for item in blockers),
@@ -922,6 +1034,11 @@ def verify_manifest(
             reasons.append(f"output_hash_changed:{name}")
     if verify_current_inputs:
         inputs = manifest.get("inputs") if isinstance(manifest.get("inputs"), dict) else {}
+        declared_speaker_resolution = manifest.get("speaker_resolution")
+        legacy_aggregate_handoff = (
+            not isinstance(declared_speaker_resolution, dict)
+            and "speaker_selection" not in inputs
+        )
         required_inputs = {
             "clean_dialogue",
             "evidence_notes",
@@ -933,7 +1050,21 @@ def verify_manifest(
             "session",
             "transcript",
         }
-        if not set(inputs).issubset(required_inputs):
+        if not legacy_aggregate_handoff:
+            required_inputs.add("speaker_selection")
+        allowed_inputs = required_inputs | {"speaker_transcript"}
+        speaker_resolution = (
+            declared_speaker_resolution
+            if isinstance(declared_speaker_resolution, dict)
+            else {
+                "state": "fallback",
+                "selected_speaker_profile": "aggregate_colleagues",
+                "fallback_reason": "legacy_handoff_v2",
+            }
+        )
+        if speaker_resolution.get("state") == "selected":
+            required_inputs.add("speaker_transcript")
+        if not set(inputs).issubset(allowed_inputs):
             reasons.append("manifest_inputs_unexpected")
         if manifest.get("state") != "blocked" and set(inputs) != required_inputs:
             reasons.append("manifest_inputs_incomplete")
@@ -950,6 +1081,51 @@ def verify_manifest(
                 reasons.append(f"stale_input_size:{name}")
             if row.get("sha256") != sha256_bytes(data):
                 reasons.append(f"stale_input_hash:{name}")
+        if speaker_resolution.get("state") not in {"selected", "fallback"}:
+            reasons.append("speaker_resolution_state_invalid")
+        if speaker_resolution.get("state") == "selected":
+            selected_input = inputs.get("speaker_transcript")
+            transcript_output = files.get("transcript")
+            if not isinstance(selected_input, dict) or not isinstance(transcript_output, dict):
+                reasons.append("speaker_resolved_transcript_missing")
+            elif selected_input.get("sha256") != transcript_output.get("sha256"):
+                reasons.append("speaker_resolved_handoff_mismatch")
+        elif speaker_resolution.get("state") == "fallback":
+            aggregate_input = inputs.get("transcript")
+            transcript_output = files.get("transcript")
+            if not isinstance(aggregate_input, dict) or not isinstance(transcript_output, dict):
+                reasons.append("aggregate_fallback_transcript_missing")
+            elif legacy_aggregate_handoff:
+                dialogue_input = inputs.get("clean_dialogue")
+                dialogue_path = (
+                    resolve_session_path(session, dialogue_input.get("path"))
+                    if isinstance(dialogue_input, dict)
+                    else None
+                )
+                output_path = resolve_session_path(session, transcript_output.get("path"))
+                dialogue, dialogue_error = (
+                    read_json(dialogue_path)
+                    if dialogue_path is not None
+                    else (None, "missing")
+                )
+                expected = (
+                    render_transcript(
+                        str(manifest.get("session_id") or session.name),
+                        str(manifest.get("selected_profile") or ""),
+                        str(manifest.get("state") or "blocked"),
+                        dialogue_utterances(dialogue, session),
+                    ).encode("utf-8")
+                    if dialogue is not None and dialogue_error is None
+                    else None
+                )
+                if (
+                    output_path is None
+                    or not output_path.is_file()
+                    or output_path.read_bytes() != expected
+                ):
+                    reasons.append("legacy_aggregate_handoff_mismatch")
+            elif aggregate_input.get("sha256") != transcript_output.get("sha256"):
+                reasons.append("aggregate_fallback_handoff_mismatch")
     return not reasons, dedupe_strings(reasons)
 
 

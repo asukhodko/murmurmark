@@ -1116,7 +1116,18 @@ def export_session(args: argparse.Namespace) -> dict[str, Any]:
             speaker_memory_reason = f"speaker_memory_verification_failed:{type(error).__name__}"
         if speaker_memory_manifest is None:
             warnings.append(f"reviewed_speakers_fallback:{speaker_memory_reason}")
-    speaker_mode = "reviewed_session_labels" if speaker_memory_manifest is not None else "ordinary"
+    handoff_speaker = (
+        handoff.get("speaker_resolution")
+        if isinstance(handoff.get("speaker_resolution"), dict)
+        else {}
+    )
+    speaker_mode = (
+        "reviewed_session_labels"
+        if speaker_memory_manifest is not None
+        else "session_local_anonymous"
+        if handoff_speaker.get("state") == "selected"
+        else "aggregate_colleagues"
+    )
 
     destination = args.out_dir / session.name
     staging = Path(
@@ -1228,6 +1239,20 @@ def export_session(args: argparse.Namespace) -> dict[str, Any]:
             "handoff_state": state,
             "handoff_fingerprint": fingerprint,
             "speaker_mode": speaker_mode,
+            "selected_speaker_profile": (
+                "reviewed_session_labels"
+                if speaker_memory_manifest is not None
+                else handoff_speaker.get("selected_speaker_profile")
+                or "aggregate_colleagues"
+            ),
+            "speaker_resolution_state": (
+                "selected" if speaker_memory_manifest is not None else handoff_speaker.get("state")
+            ),
+            "speaker_fallback_reason": (
+                None
+                if speaker_memory_manifest is not None
+                else handoff_speaker.get("fallback_reason")
+            ),
             "speaker_memory_fingerprint": (
                 speaker_memory_manifest.get("semantic_fingerprint")
                 if speaker_memory_manifest is not None

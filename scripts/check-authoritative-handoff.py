@@ -375,10 +375,11 @@ def main() -> int:
         assert deferred_names.index("rebuild_audio_review_pack_v2") < deferred_names.index(
             "audit_stronger_audio_judge"
         )
-        assert deferred_names[-3:] == [
+        assert deferred_names[-4:] == [
             "synthesize_authoritative_final",
             "audit_transcript_order_authoritative_final",
             "session_readiness_authoritative_final",
+            "speaker_resolved_transcript_default",
         ]
         final_synthesis = next(item for item in pipeline_steps if item["name"] == "synthesize_authoritative_final")
         assert final_synthesis["command"][-2:] == ["--transcript-profile", "authoritative"]

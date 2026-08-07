@@ -86,11 +86,14 @@ Read in this order:
 82. [Evidence-Only Local Note Selection result](research/2026-08-07-evidence-only-local-note-selection-v1.md)
 83. [Session debug cycle: 2026-08-07_15-01-22](testing/2026-08-07-session-debug-cycle.md)
 84. [Session debug cycle: 2026-08-07_16-03-37](testing/2026-08-07-session-2026-08-07_16-03-37-debug.md)
-85. [Planning and development history](history/README.md)
+85. [Speaker-Resolved Transcript Default v1 contract](contracts/speaker-resolved-transcript-default-v1.md)
+86. [Speaker-Resolved Transcript Default v1 runbook](runbooks/speaker-resolved-transcript-default-v1.md)
+87. [Speaker-Resolved Transcript Default v1 result](testing/2026-08-08-speaker-resolved-transcript-default-v1.md)
+88. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
-Planning snapshot: 2026-08-07. Durable capture, authoritative batch transcription, guarded review,
+Planning snapshot: 2026-08-08. Durable capture, authoritative batch transcription, guarded review,
 optional extractive notes/export and Speaker-Preserving Neural Echo v2.17 remain production. The bounded
 pre-ASR frontier is closed: SepFormer could assign present Target-Me stems but failed reliable
 presence/absence separation before dev. Anonymous rich transcript, explicit reviewed naming and
@@ -102,8 +105,10 @@ Diarization v2 passed `PROMOTE`; Coverage v3 raised attributable remote speech t
 preserving B-cubed F1 `0.962171`, pairwise precision `0.961675` and every selected word. Residual
 Evidence v4 safely recovered another 124 words / `83.640s`, but its `14.57%` word and `13.98%`
 second reductions missed both `20%` promotion gates. It closed with reproducible `DO_NOT_PROMOTE`.
-**Speaker-Resolved Transcript Default v1** is current: expose promoted v3 through the ordinary CLI
-with exact aggregate fallback. Notes, retrieval and work proposals remain parked.
+**Speaker-Resolved Transcript Default v1** is promoted for ordinary read/handoff/export with exact
+aggregate fallback. **Lexical Accuracy Reference Corpus v1** is current: replace lexical
+`not_measured` with a private graded WER/CER baseline or exact `REFERENCE_INSUFFICIENT`. Notes,
+retrieval and work proposals remain parked.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

@@ -1283,6 +1283,7 @@ enum DoctorChecks {
             "scripts/report-asr-chunk-cache-corpus.py",
             "scripts/report-authoritative-incremental-asr.py",
             "scripts/report-transcript-perfection-corpus.py",
+            "scripts/report-speaker-resolved-transcript-default-corpus.py",
             "scripts/transcribe-simple-whispercpp.py",
             "scripts/check-asr-chunk-cache.py",
             "scripts/check-capture-regressions.sh",
@@ -1301,6 +1302,7 @@ enum DoctorChecks {
             "scripts/audit-remote-speaker-evidence.py",
             "scripts/audit-remote-speaker-diarization.py",
             "scripts/audit-remote-speaker-coverage-v3.py",
+            "scripts/select-speaker-resolved-transcript.py",
             "scripts/report-remote-speaker-coverage-v3-corpus.py",
             "scripts/audit-remote-speaker-residual-evidence-v4.py",
             "scripts/report-remote-speaker-residual-evidence-v4-corpus.py",
@@ -4704,6 +4706,13 @@ enum AuditCommands {
                 + remaining
             try Tooling.runPath(python, auditArgs)
             try AuditPrinter.printRemoteCoverage(session: session, args: auditArgs)
+        case "speaker-default", "speaker_default":
+            var selectorArgs = [try script("select-speaker-resolved-transcript.py").path, session.path]
+                + remaining
+            if !remaining.contains("--verify-only"), !remaining.contains("--refresh-evidence") {
+                selectorArgs.append("--refresh-evidence")
+            }
+            try Tooling.runPath(python, selectorArgs)
         case "remote-residual", "remote_residual":
             let v3Report = session.appendingPathComponent(
                 "derived/audit/remote-speaker-coverage-v3/report.json"
@@ -4849,6 +4858,7 @@ enum AuditCommands {
           murmurmark audit remote-speakers ./session|latest [--profile auto] [--sessions-root ./sessions]
           murmurmark audit remote-diarization ./session|latest [--profile auto] [--sessions-root ./sessions]
           murmurmark audit remote-coverage ./session|latest [--sessions-root ./sessions]
+          murmurmark audit speaker-default ./session|latest [--verify-only] [--sessions-root ./sessions]
           murmurmark audit remote-residual ./session|latest [--sessions-root ./sessions]
           murmurmark audit asr-positive-echo-candidate ./session|latest
                                              [--candidate coverage_v2_remote_gate_local_fir]
@@ -4877,6 +4887,8 @@ enum AuditCommands {
                           assigns immutable remote words to promoted session-local anonymous voices
           remote-coverage
                           recovers bounded v2 unknown words without changing text or existing labels
+          speaker-default
+                          selects promoted v3 or the exact aggregate fallback for the ordinary transcript
           remote-residual
                           measures bounded split-enrollment evidence over the promoted v3 residual
           asr-positive-echo-candidate
@@ -5811,6 +5823,80 @@ enum EvidenceHandoffState {
     }
 }
 
+enum SpeakerResolvedTranscriptState {
+    static let schema = "murmurmark.speaker_resolved_transcript_selection/v1"
+
+    struct Selection {
+        let payload: [String: Any]
+        let transcript: URL
+        let state: String
+        let speakerProfile: String
+        let fallbackReason: String?
+    }
+
+    static func materialize(_ session: URL) -> Selection? {
+        let script = PathURLs.fileURL("scripts/select-speaker-resolved-transcript.py")
+        guard FileManager.default.fileExists(atPath: script.path),
+              let python = try? PythonRuntime.resolve(),
+              (try? Tooling.runPathQuietAllowingExitCodes(
+                  python,
+                  [script.path, session.path],
+                  allowedExitCodes: [0, 2]
+              )) == 0
+        else {
+            return nil
+        }
+        return selection(session)
+    }
+
+    static func selection(_ session: URL) -> Selection? {
+        let report = session.appendingPathComponent(
+            "derived/transcript-rich/speaker-resolved-default-v1/selection.json"
+        )
+        guard let payload = try? JSONFiles.object(report),
+              payload["schema"] as? String == schema,
+              let profile = payload["selected_profile"] as? String,
+              let readiness = try? JSONFiles.object(
+                  session.appendingPathComponent("derived/readiness/session_readiness.json")
+              ),
+              readiness["selected_profile"] as? String == profile,
+              let row = payload["selected_transcript"] as? [String: Any],
+              let transcript = identityURL(row, session: session),
+              let state = payload["state"] as? String,
+              let speakerProfile = payload["selected_speaker_profile"] as? String
+        else {
+            return nil
+        }
+        return Selection(
+            payload: payload,
+            transcript: transcript,
+            state: state,
+            speakerProfile: speakerProfile,
+            fallbackReason: payload["fallback_reason"] as? String
+        )
+    }
+
+    private static func identityURL(_ row: [String: Any], session: URL) -> URL? {
+        guard let raw = row["path"] as? String,
+              !raw.hasPrefix("/"),
+              !raw.split(separator: "/").contains(".."),
+              let expectedSHA = row["sha256"] as? String
+        else {
+            return nil
+        }
+        let root = session.standardizedFileURL.path + "/"
+        let url = session.appendingPathComponent(raw).standardizedFileURL
+        guard url.path.hasPrefix(root),
+              let data = try? Data(contentsOf: url),
+              (row["bytes"] as? NSNumber)?.intValue == data.count
+        else {
+            return nil
+        }
+        let actualSHA = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        return actualSHA == expectedSHA ? url : nil
+    }
+}
+
 enum NotesCommands {
     static func notes(_ args: [String]) throws {
         if args.isEmpty || ArgumentEditing.hasHelpFlag(args) {
@@ -6203,19 +6289,28 @@ enum TranscriptCommands {
             fallbackReason = selection.fallbackReason
         } else {
             profile = try selectedProfile(requestedProfile, session: session)
-            url = requestedProfile == "auto"
-                ? (EvidenceHandoffState.artifact("transcript", session: session)
-                    ?? AuthoritativeHandoffState.artifact("transcript", session: session)
-                    ?? transcriptURL(profile: profile, session: session))
-                : transcriptURL(profile: profile, session: session)
-            kind = "plain_authoritative"
+            if requestedProfile == "auto",
+               let selection = SpeakerResolvedTranscriptState.materialize(session) {
+                url = selection.transcript
+                kind = selection.speakerProfile
+                fallbackReason = selection.fallbackReason
+            } else {
+                url = transcriptURL(profile: profile, session: session)
+                kind = "aggregate_colleagues"
+                if requestedProfile == "auto" {
+                    fallbackReason = "speaker_selector_unavailable"
+                }
+            }
         }
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw CLIError("transcript not found: \(PathDisplay.display(url)); run `murmurmark process \(PathDisplay.display(session))`")
         }
 
         if let fallbackReason, cat || pathOnly {
-            fputs("warning: reviewed speaker labels unavailable (\(fallbackReason)); using anonymous rich transcript\n", stderr)
+            let message = rich
+                ? "reviewed speaker labels unavailable (\(fallbackReason)); using anonymous rich transcript"
+                : "speaker-resolved transcript unavailable (\(fallbackReason)); using exact aggregate transcript"
+            fputs("warning: \(message)\n", stderr)
         }
         if cat {
             let data = try Data(contentsOf: url)
@@ -6232,6 +6327,7 @@ enum TranscriptCommands {
         print("transcript:")
         print("  kind: \(kind)")
         print("  profile: \(profile)")
+        print("  speaker_profile: \(kind)")
         print("  path: \(PathDisplay.display(url))")
         if let fallbackReason {
             print("  fallback_reason: \(fallbackReason)")
@@ -6485,8 +6581,9 @@ enum TranscriptCommands {
                               [--rich [--reviewed-speakers]] [--path-only|--cat]
                               [--sessions-root ./sessions]
 
-        Resolves the current authoritative handoff and prints its transcript path.
-        Use --rich for the optional current session-local anonymous-speaker view.
+        Resolves the current handoff and selects promoted session-local speaker evidence by default.
+        Unsupported remote words remain aggregate Colleagues; stale evidence falls back exactly.
+        Use --rich for the compatible diagnostic speaker-resolution path.
         Add --reviewed-speakers to request explicit session-local labels. Missing, incomplete or
         stale decisions fail open to the anonymous rich view.
         Use --cat to stream Markdown to stdout.
@@ -7502,7 +7599,7 @@ enum CorpusCommands {
             throw CLIError(
                 "corpus requires process, build, evaluate, train-audio-judge, taxonomy, gate, order, " +
                 "local-recall, local-recall-repair, boundary, remote-leak, echo-candidate, " +
-                    "echo-supervision, remote-coverage, remote-residual, perfection, lifecycle, or report"
+                "echo-supervision, remote-coverage, speaker-default, remote-residual, perfection, lifecycle, or report"
             )
         }
         var forwarded = Array(args.dropFirst())
@@ -7758,6 +7855,30 @@ enum CorpusCommands {
                     + coverageArgs
                     + ["--sessions-root", sessionsRoot.path]
             )
+        case "speaker-default", "speaker_default":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(
+                    try PythonRuntime.resolve(),
+                    [try script("report-speaker-resolved-transcript-default-corpus.py").path, "--help"]
+                )
+                return
+            }
+            var speakerDefaultArgs = forwarded
+            if !ArgumentEditing.hasOption("frozen-manifest", in: speakerDefaultArgs),
+               !ArgumentEditing.hasOption("write-manifest", in: speakerDefaultArgs) {
+                let frozenManifest = PathURLs.fileURL(
+                    "docs/testing/speaker-resolved-transcript-default-v1-manifest.json"
+                )
+                if FileManager.default.fileExists(atPath: frozenManifest.path) {
+                    speakerDefaultArgs += ["--frozen-manifest", frozenManifest.path]
+                }
+            }
+            try Tooling.runPath(
+                try PythonRuntime.resolve(),
+                [try script("report-speaker-resolved-transcript-default-corpus.py").path]
+                    + speakerDefaultArgs
+                    + ["--sessions-root", sessionsRoot.path]
+            )
         case "remote-residual", "remote_residual":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 try Tooling.runPath(
@@ -7927,6 +8048,8 @@ enum CorpusHelp {
           murmurmark corpus echo-supervision build|replay|status [--sessions-root ./sessions]
           murmurmark corpus live [all|latest|./session...] [--refresh] [--target-live-sessions 3] [--sessions-root ./sessions]
           murmurmark corpus remote-coverage all [--verify-existing] [--sessions-root ./sessions]
+          murmurmark corpus speaker-default all [--refresh-evidence] [--verify-existing]
+                                                [--sessions-root ./sessions]
           murmurmark corpus remote-residual all [--verify-existing] [--sessions-root ./sessions]
           murmurmark corpus perfection all [--verify-existing]
                                         [--manifest docs/testing/transcript-perfection-corpus-v1-manifest.json]
@@ -15487,6 +15610,17 @@ enum ReadinessPrinter {
         print("  gate: \(gate)")
         print("  recommendation: \(recommendation)")
         print("  selected_profile: \(profile)")
+        if let speaker = SpeakerResolvedTranscriptState.materialize(session) {
+            print("  selected_speaker_profile: \(speaker.speakerProfile)")
+            print("  speaker_resolution_state: \(speaker.state)")
+            if let fallbackReason = speaker.fallbackReason {
+                print("  speaker_fallback_reason: \(fallbackReason)")
+            }
+        } else {
+            print("  selected_speaker_profile: aggregate_colleagues")
+            print("  speaker_resolution_state: fallback")
+            print("  speaker_fallback_reason: speaker_selector_unavailable")
+        }
         print("  verdict: \(verdict)")
         if let classification = string(payload["session_classification"]), classification != "conversation" {
             print("  session_classification: \(classification)")
@@ -15638,6 +15772,15 @@ enum ReadinessPrinter {
         let fingerprint = string(payload["semantic_fingerprint"]) ?? ""
         print("  evidence_handoff_v2:")
         print("    state: \(string(payload["state"]) ?? "unknown")")
+        let speaker = payload["speaker_resolution"] as? [String: Any] ?? [:]
+        print(
+            "    selected_speaker_profile: "
+                + (string(speaker["selected_speaker_profile"]) ?? "aggregate_colleagues")
+        )
+        print("    speaker_resolution_state: \(string(speaker["state"]) ?? "fallback")")
+        if let reason = string(speaker["fallback_reason"]) {
+            print("    speaker_fallback_reason: \(reason)")
+        }
         print("    export_allowed: \(EvidenceHandoffState.exportAllowed(session))")
         print("    mandatory_review_items: \(int(review["mandatory_count"]) ?? 0)")
         print(String(format: "    mandatory_review_seconds: %.2f", double(review["mandatory_seconds"]) ?? 0))
@@ -16424,6 +16567,16 @@ enum ReadinessPrinter {
         print("outcome:")
         print("  status: \(string(payload["outcome"]) ?? "unknown")")
         print("  selected_profile: \(string(payload["selected_profile"]) ?? "unknown")")
+        print(
+            "  selected_speaker_profile: "
+                + (string(payload["selected_speaker_profile"]) ?? "aggregate_colleagues")
+        )
+        if let speaker = payload["speaker_resolution"] as? [String: Any] {
+            print("  speaker_resolution_state: \(string(speaker["state"]) ?? "fallback")")
+            if let reason = string(speaker["fallback_reason"]) {
+                print("  speaker_fallback_reason: \(reason)")
+            }
+        }
         print("  verdict: \(string(payload["verdict"]) ?? "unknown")")
         if let classification = string(payload["session_classification"]), classification != "conversation" {
             print("  session_classification: \(classification)")
@@ -16614,7 +16767,12 @@ enum ReadinessPrinter {
         let canOpenReadOutputs = canReadOutputsForStatus(status)
         if canOpenReadOutputs {
             appendOpenCommand("open_notes", outputKey: "notes", session: session, outputs: outputs, to: &commands)
-            appendOpenCommand("open_transcript", outputKey: "transcript", session: session, outputs: outputs, to: &commands)
+            if let selection = SpeakerResolvedTranscriptState.materialize(session),
+               selection.state == "selected" {
+                commands.append(("open_transcript", "less \(PathDisplay.display(selection.transcript))"))
+            } else {
+                appendOpenCommand("open_transcript", outputKey: "transcript", session: session, outputs: outputs, to: &commands)
+            }
             appendOpenCommand("open_verdict", outputKey: "quality_verdict", session: session, outputs: outputs, to: &commands)
         }
         if let exportHandoff {

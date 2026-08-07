@@ -1522,7 +1522,9 @@ jq -e '
 grep -Fq '## Evidence Summary' "$ready_export_dir/$(basename "$ready_export_session")/index.md"
 grep -q '^# Quality Verdict$' "$ready_export_dir/$(basename "$ready_export_session")/quality_verdict.md"
 grep -q '^# Evidence Notes$' "$ready_export_dir/$(basename "$ready_export_session")/notes.md"
-grep -q '^# Transcript$' "$ready_export_dir/$(basename "$ready_export_session")/transcript.md"
+cmp -s \
+  "$ready_export_session/derived/transcript-simple/whisper-cpp/resolved/transcript.md" \
+  "$ready_export_dir/$(basename "$ready_export_session")/transcript.md"
 ready_next_output="$("$bin" next "$ready_export_session" --export-manifest "$ready_export_dir/$(basename "$ready_export_session")/export_manifest.json")"
 assert_no_helper_prefix "$ready_next_output"
 echo "$ready_next_output" | grep -q '^next:$'

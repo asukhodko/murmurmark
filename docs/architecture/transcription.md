@@ -90,12 +90,12 @@ derived/transcript-simple/whisper-cpp/resolved/
 
 Limitations:
 
-- the ordinary transcript does not split `Colleagues`; the optional `--rich` view labels only
-  confidently supported session-local clusters;
+- the ordinary auto-selected transcript labels only fingerprint-verified session-local remote
+  speakers; unsupported words and incompatible evidence remain aggregate `Colleagues`;
 - domain terms are only nudged through the prompt, not guaranteed by a correction layer;
 - some long overlaps remain audit risks;
-- optional `transcript.rich.json` and `speaker_map.json` are emitted separately and never selected
-  by the ordinary transcript, notes or export path;
+- rich JSON and speaker maps remain separate evidence artifacts; the ordinary Markdown and guarded
+  export consume only the promoted default selector, never an unchecked map;
 - Markdown is useful for reading, but JSON remains the safer processing target.
 
 ### Authoritative boundary profile
@@ -171,12 +171,11 @@ major, stable clusters; unsupported intervals remain aggregate `Colleagues`. The
 decision is `PROMOTE_AUDIT_ONLY`: attributed-only B-cubed F1 is `0.913884`, but only `50.3892%` of
 remote speech is attributed, so this evidence does not replace the selected transcript.
 
-Anonymous Rich Transcript Handoff v1 is promoted in optional scope. It binds current passing
-speaker evidence to unchanged utterances and exposes `murmurmark transcript SESSION --rich` without
-changing the authoritative view. Reviewed Remote Speaker Naming v1 adds only explicit session-local
-labels through `--rich --reviewed-speakers`; stale decisions fail open to the anonymous view.
-Participant identity is never inferred from voice. Optional speaker-aware notes/export and
-cross-session matching remain separate gates.
+Anonymous Rich Transcript Handoff v1 remains the compatible diagnostic path. Speaker-Resolved
+Transcript Default v1 now binds promoted Coverage v3 to the current selected dialogue and exposes it
+through ordinary `murmurmark transcript`, Evidence Handoff and guarded export. Stale evidence returns
+the exact aggregate Markdown. Reviewed Remote Speaker Naming v1 adds only explicit session-local
+labels through `--rich --reviewed-speakers`; participant identity is never inferred from voice.
 
 ## Promoted Remote Diarization
 

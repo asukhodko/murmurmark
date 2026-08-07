@@ -2232,6 +2232,12 @@ derived/handoff-v2/
     quality_verdict.md
 ```
 
+Before publication it validates Speaker-Resolved Transcript Default v1. A selected v3 transcript is
+copied byte-for-byte into the bundle. Any unavailable or incompatible speaker evidence copies the
+exact selected aggregate transcript instead. The manifest records `speaker_resolution` with state,
+profile, identity scope, selection fingerprint and fallback reason; verification requires the
+selected input/output SHA-256 to match.
+
 The schemas are `murmurmark.handoff_manifest/v2` and
 `murmurmark.handoff_evidence/v2`. A manifest has exactly one state:
 
@@ -2273,8 +2279,8 @@ same sibling evidence artifacts.
 
 `export_manifest.json` retains schema `murmurmark.export_manifest/v1` for retention compatibility,
 but records `bundle_quality: handoff_v2`, `handoff_state`, `handoff_fingerprint`, selected profile
-and SHA-256/size for every copied file. It is deterministic and contains no timestamps or absolute
-local paths.
+and speaker profile/state/fallback plus SHA-256/size for every copied file. It is deterministic and
+contains no timestamps or absolute local paths.
 
 `--force` is retained for command compatibility and cannot bypass stale, integrity or
 mandatory-review gates. A blocked attempt writes the compatibility
@@ -6232,6 +6238,29 @@ The frozen decision is `PROMOTE_OPTIONAL_RICH` on six sessions: `2319` selected 
 exact remote references, `629` attributed rows, `606` aggregate fallbacks and `14` session-local
 anonymous speakers. Promotion covers only this explicit read surface. Plain Markdown, notes,
 verdict, Evidence Handoff v2, auto-selection, guarded export and retention do not consume it.
+
+## Speaker-Resolved Transcript Default v1
+
+The promoted default selector is the only bridge from Coverage v3 evidence into ordinary output:
+
+```text
+derived/transcript-rich/speaker-resolved-default-v1/
+  selection.json
+  selection.md
+  evidence/<refresh-key>/...
+```
+
+`selection.json` uses `murmurmark.speaker_resolved_transcript_selection/v1`. It binds the current
+readiness profile, selected dialogue, aggregate Markdown, selected Coverage v3 report/rich Markdown,
+promoted policy and implementation identities. State is `selected` only after Coverage v3
+`--verify-only --require-promoted` passes every required session gate. Otherwise state is `fallback`
+and `selected_transcript` is the exact aggregate Markdown.
+
+Ordinary `murmurmark transcript`, Evidence Handoff v2 and guarded export consume this one selection.
+Status, outcome and meeting handoff expose `selected_speaker_profile`, state and fallback reason.
+Unsupported remote words stay `Colleagues`. Human names still require complete fingerprint-bound
+review and are never inferred from voice. See the dedicated contract for the frozen six-session
+qualification and complete failure rules.
 
 ## Reviewed Remote Speaker Naming v1
 

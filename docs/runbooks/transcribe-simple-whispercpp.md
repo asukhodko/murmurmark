@@ -2165,25 +2165,25 @@ mic.wav    -> Me
 remote.wav -> Colleagues
 ```
 
-The ordinary selected transcript keeps remote text aggregate as `Colleagues`. Remote Speaker
-Coverage v3 passed its frozen gates as the highest-coverage optional session-local word/frame view.
-It preserves every v2 assignment and recovers only unanimous bounded-frame evidence for existing
-anonymous speakers. Generate and read it explicitly with:
+The ordinary auto-selected transcript now uses Remote Speaker Coverage v3 when its promoted policy,
+implementation, corpus and current session fingerprints all pass. It preserves every v2 assignment
+and recovers only unanimous bounded-frame evidence for existing anonymous speakers. Refresh and read
+the default selection with:
 
 ```bash
-murmurmark audit remote-coverage "$SESSION"
-murmurmark transcript "$SESSION" --rich
-murmurmark transcript "$SESSION" --rich --path-only
+murmurmark audit speaker-default "$SESSION"
+murmurmark transcript "$SESSION"
+murmurmark transcript "$SESSION" --path-only
 
 less "$SESSION/derived/audit/remote-speaker-coverage-v3/report.md"
 ```
 
 The command is local and fail-open. Missing Resemblyzer/model/audio/token timestamps, weak frames,
 conflicting overlap or stale SHA-256 lineage produce aggregate `Colleagues`; they do not fail the
-meeting pipeline. Anonymous IDs are valid only inside the session. `--rich` verifies the promoted
-corpus policy, implementation and current input fingerprints before reading v3. It falls back to v2,
-then to the existing anonymous-v1 view when needed. Without `--rich`, the ordinary Evidence Handoff
-v2 transcript is unchanged. Notes, auto-selection and export do not consume these labels.
+meeting pipeline. Anonymous IDs are valid only inside the session. The ordinary selector fails open
+directly to byte-identical aggregate Markdown. Explicit `--rich` keeps the compatible diagnostic
+v3/v2/anonymous chain. Evidence Handoff v2 and guarded export copy the selected default bytes and
+record the speaker profile and fallback reason.
 
 The frozen v3 corpus covers `93.9312%` of remote speech, passes B-cubed F1 `0.962171`, pairwise
 precision `0.961675`, 5/5 internal-boundary cases and exact selected-word plus v2-label conservation.
@@ -2215,8 +2215,8 @@ fall back to the anonymous rich transcript; aggregate evidence stays `Colleagues
 view is not consumed by ordinary notes or export. The two explicit `--reviewed-speakers` commands
 verify a separate immutable speaker-aware memory bundle created by `speakers apply`. Every rendered
 name is linked to its anonymous speaker ID, review row and exact note evidence IDs. If that bundle
-is missing or stale, both commands print the reason and use the byte-identical ordinary Evidence
-Handoff v2 notes/export instead.
+is missing or stale, both commands print the reason and use the ordinary anonymous-or-aggregate
+Evidence Handoff v2 notes/export instead.
 
 The promoted corpus decision is `PROMOTE_OPTIONAL_REVIEWED_SPEAKER_MEMORY`: 6/6 sessions, 2319
 utterances and 726 evidence statements passed deterministic replay, exact-reference, partial-review
