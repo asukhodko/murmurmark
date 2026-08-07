@@ -82,10 +82,10 @@ def build_fixture(root: Path) -> Path:
         ],
     )
     payloads: dict[str, tuple[Path, dict[str, object], list[str]]] = {
-        "remote_speaker_diarization_v2": (
+        "remote_speaker_coverage_v3": (
             files / "remote.json",
             {
-                "schema": "murmurmark.remote_speaker_diarization_corpus_report/v2",
+                "schema": "murmurmark.remote_speaker_coverage_corpus_report/v3",
                 "decision": "PROMOTE",
                 "gates": {"all_word_conservation": True, "all_timestamp_order": True},
                 "summary": {
@@ -105,9 +105,9 @@ def build_fixture(root: Path) -> Path:
             },
             ["recognized_words", "remote_speaker_turns"],
         ),
-        "remote_speaker_diarization_v2_manifest": (
+        "remote_speaker_coverage_v3_manifest": (
             files / "remote-manifest.json",
-            {"schema": "murmurmark.remote_speaker_diarization_frozen_manifest/v2", "decision": "PROMOTE"},
+            {"schema": "murmurmark.remote_speaker_coverage_frozen_manifest/v3", "decision": "PROMOTE"},
             ["recognized_words", "remote_speaker_turns"],
         ),
         "residual_audio_arbitration_v1": (
@@ -259,7 +259,7 @@ def main() -> int:
         words = next(row for row in report["dimensions"] if row["id"] == "recognized_words")
         assert words["correctness_status"] == "not_measured"
         assert report["residuals"][0]["class"] == "unknown_remote_speaker"
-        assert report["next_goal"]["id"] == "remote-speaker-coverage-v3"
+        assert report["next_goal"]["id"] == "remote-speaker-residual-evidence-v4"
         snapshot = json.loads((out / "input_manifest.json").read_text())
         assert all(not Path(str(row["path"])).is_absolute() for row in snapshot["sources"])
         assert all("text" not in row and "speaker_name" not in row for row in snapshot["sources"])

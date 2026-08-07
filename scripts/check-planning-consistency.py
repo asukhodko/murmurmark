@@ -63,6 +63,7 @@ CRITICAL_PATH = (
     "quality-remote-speaker-diarization-v2",
     "quality-transcript-perfection-corpus-v1",
     "quality-remote-speaker-coverage-v3",
+    "quality-remote-speaker-residual-evidence-v4",
     "product-speaker-resolved-transcript-default-v1",
 )
 
@@ -280,12 +281,21 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
     )
     require(
         "quality-remote-speaker-coverage-v3"
+        in nodes["quality-remote-speaker-residual-evidence-v4"].get("deps", []),
+        "remote speaker residual evidence v4 must follow promoted coverage v3",
+    )
+    require(
+        "quality-remote-speaker-residual-evidence-v4"
         in nodes["product-speaker-resolved-transcript-default-v1"].get("deps", []),
         "speaker-resolved default must follow the current ranked residual closure",
     )
     require(
-        nodes["quality-remote-speaker-coverage-v3"].get("status") == "current",
-        "remote speaker coverage v3 must be the current quality goal",
+        nodes["quality-remote-speaker-coverage-v3"].get("status") == "done",
+        "remote speaker coverage v3 must remain a completed promoted checkpoint",
+    )
+    require(
+        nodes["quality-remote-speaker-residual-evidence-v4"].get("status") == "current",
+        "remote speaker residual evidence v4 must be the current quality goal",
     )
     require(
         nodes["product-speaker-resolved-transcript-default-v1"].get("status") == "blocked",
@@ -295,7 +305,7 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
         nodes["optional-derived-transcript-workflows"].get("status") == "optional",
         "notes and work workflows must remain outside the critical transcript path",
     )
-    require(nodes["parked-live-promotion"].get("status") == "blocked", "live promotion must stay blocked")
+    require(nodes["parking-lot"].get("status") == "optional", "parking lot must stay optional")
     require("parked-ui" not in nodes, "UI must not occupy the active CLI roadmap")
 
 

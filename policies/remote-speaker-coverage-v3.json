@@ -1,0 +1,23 @@
+{
+  "schema": "murmurmark.remote_speaker_coverage_policy/v3",
+  "state": "promoted",
+  "profile": "resemblyzer_seeded_frame_recovery_v3",
+  "scope": "optional_session_local_speaker_resolved_read_surface",
+  "corpus_manifest": {
+    "path": "docs/testing/remote-speaker-coverage-v3-manifest.json",
+    "sha256": "20b4073df90f98729cc29bc2ec8f3002e88155d9202afd72f6898f494cfd0a6c"
+  },
+  "thresholds": {
+    "unknown_words_reduction_ratio": 0.25,
+    "unknown_seconds_reduction_ratio": 0.25,
+    "attributed_only_bcubed_f1": 0.95,
+    "attributed_only_pairwise_precision": 0.95,
+    "frame_similarity": 0.66,
+    "frame_margin": 0.008
+  },
+  "fallback": "remote_speaker_diarization_v2",
+  "existing_v2_labels_unchanged": true,
+  "authoritative_plain_transcript_unchanged": true,
+  "identity_inference": false,
+  "cross_session_matching": false
+}

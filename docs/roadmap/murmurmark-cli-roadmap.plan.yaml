@@ -534,7 +534,7 @@ nodes:
     notes: |
       Завершено BASELINE_ESTABLISHED. 12/12 frozen sources verified; восемь dimensions разделяют
       correctness, coverage, uncertainty и review. Lexical correctness остаётся not_measured,
-      aggregate score запрещён. Ranked residual leader: unknown remote speaker, 797.773s / 1219
+      aggregate score запрещён. Coverage v3 пересчитал ranked residual leader до 598.240s / 851
       words / 6 sessions. Команда: `murmurmark corpus perfection all`.
 
   quality-remote-speaker-coverage-v3:
@@ -542,19 +542,32 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-transcript-perfection-corpus-v1]
+    status: done
+    effort: 16
+    notes: |
+      Завершено PROMOTE. Bounded unanimous rejected-frame evidence восстановил 368 words / 199.533s,
+      сократил unknown words на 30.1887%, seconds на 25.0113% и поднял attributable speech до
+      0.939312. B-cubed F1 0.962171, pairwise precision 0.961675; v2 labels, words, timestamps,
+      boundaries, overlap, raw audio и fallback остались точными.
+
+  quality-remote-speaker-residual-evidence-v4:
+    title: "Remote Speaker Residual Evidence v4"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-remote-speaker-coverage-v3]
     status: current
     effort: 16
     notes: |
-      Закрыть крупнейший measured residual: 797.773s и 1219 remote words без supported speaker на
-      шести frozen sessions. Сначала bounded Resemblyzer improvements, затем только pinned offline
-      candidate. PROMOTE требует >=25% unknown reduction, attributed B-cubed F1 и pairwise precision
-      >=0.95, exact words/timestamps/boundaries/fallback; иначе reproducible DO_NOT_PROMOTE ceiling.
+      Разобрать remaining 851 words / 598.240s cause-specific: сначала similarity-below и missing
+      embeddings, не ослабляя v3 thresholds. PROMOTE требует >=20% unknown words/seconds reduction,
+      B-cubed F1 и pairwise precision >=0.95, exact v2/v3 labels, words, timestamps, boundaries,
+      overlap и fallback; conflicts остаются unknown без нового независимого evidence.
 
   product-speaker-resolved-transcript-default-v1:
     title: "Speaker-Resolved Transcript Default v1"
     kind: task
     parent: murmurmark-cli
-    deps: [quality-remote-speaker-coverage-v3, quality-remote-speaker-diarization-v2, product-reliable-final-handoff-v1]
+    deps: [quality-remote-speaker-residual-evidence-v4, quality-remote-speaker-diarization-v2, product-reliable-final-handoff-v1]
     status: blocked
     effort: 8
     notes: |
@@ -593,18 +606,10 @@ nodes:
     parent: murmurmark-cli
     status: optional
     effort: 15
-    notes: "Полезные возможности без влияния на текущую сходимость CLI."
-
-  parked-live-promotion:
-    title: "Live result promotion"
-    kind: task
-    parent: parking-lot
-    deps: [capability-live-shadow, corpus-regression]
-    status: blocked
-    effort: 5
     notes: |
-      Заблокировано воспроизводимыми quality/runtime DO_NOT_PROMOTE. Возобновлять только с новой
-      гипотезой, которая проходит immutable corpus и live-vs-batch parity gates.
+      Полезные возможности без влияния на текущую сходимость CLI. Live promotion остаётся здесь
+      заблокированным после reproducible quality/runtime DO_NOT_PROMOTE; возвращаться к нему можно
+      только с новой гипотезой и immutable live-vs-batch gates.
 
 views:
   roadmap-tree:
@@ -623,7 +628,7 @@ views:
         nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-remote-speaker-coverage-v3]
+        nodes: [quality-remote-speaker-residual-evidence-v4]
       dependent:
         title: "Следующая quality-цепочка"
         nodes: [product-speaker-resolved-transcript-default-v1]
@@ -665,6 +670,7 @@ views:
           - quality-remote-speaker-diarization-v2
           - quality-transcript-perfection-corpus-v1
           - quality-remote-speaker-coverage-v3
+          - quality-remote-speaker-residual-evidence-v4
           - product-speaker-resolved-transcript-default-v1
 
   echo-frontier:
@@ -702,7 +708,7 @@ views:
         nodes: [research-remote-diarization, research-rich-transcript, quality-remote-speaker-diarization-v2]
       current:
         title: "Крупнейший measured residual"
-        nodes: [quality-remote-speaker-coverage-v3]
+        nodes: [quality-remote-speaker-residual-evidence-v4]
       closure:
         title: "Unified baseline"
         nodes: [quality-transcript-perfection-corpus-v1]
@@ -718,9 +724,7 @@ views:
     lanes:
       parked:
         title: "Parking lot"
-        nodes:
-          - parked-live-promotion
-          - optional-derived-transcript-workflows
+        nodes: [parking-lot, optional-derived-transcript-workflows]
 
   deps-map:
     title: "Зависимости активного плана"
@@ -759,6 +763,7 @@ views:
           - quality-remote-speaker-diarization-v2
           - quality-transcript-perfection-corpus-v1
           - quality-remote-speaker-coverage-v3
+          - quality-remote-speaker-residual-evidence-v4
           - product-speaker-resolved-transcript-default-v1
           - future-local-mic-diarization-v1
           - optional-derived-transcript-workflows
@@ -767,8 +772,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Remote Speaker Coverage v3: сократить крупнейший frozen residual `unknown_remote_speaker` в Transcript Perfection Corpus v1 — 797.773 секунды и 1219 слов на шести сессиях — не меняя selected words, `Me`, роли, порядок и обычный aggregate transcript; построить карту причин unknown, проверить сначала bounded улучшения существующего локального Resemblyzer-профиля, а более тяжёлый локальный backend допускать только как pinned offline-кандидат без неявного скачивания; разрешать speaker attribution лишь при независимом enrollment и достаточных similarity/margin evidence, сохраняя conflicting overlap и слабую речь как unknown; продвинуть изолированный профиль только при снижении unknown seconds и words минимум на 25%, attributed-only B-cubed F1 и pairwise precision не ниже 0.95, полном word/timestamp conservation, прохождении 1x1/group/boundary/fallback gates и отсутствии регрессий Transcript Perfection Corpus; иначе выпустить воспроизводимый DO_NOT_PROMOTE с точным evidence ceiling; default transcript, capture, Echo Guard, ASR, retention, export, local mic diarization и optional derivatives не менять; добавить tests/report, актуализировать README, contracts, runbook, current goal, roadmap и OpsKarta, закоммитить и отправить в origin/main."
-      success_by_next_sync: "Frozen unknown queue классифицирована по причинам; один isolated v3 profile дал >=25% reduction при precision/conservation gates либо выпущен reproducible DO_NOT_PROMOTE ceiling; perfection scorecard пересчитан без регрессий."
+      nearest_goal: "Remote Speaker Residual Evidence v4: сократить оставшиеся 851 remote words / 598.240 секунды explicit `unknown` после promoted Coverage v3, не ослабляя его similarity/margin gates и не меняя существующие v2/v3 speaker labels, selected words, timestamps, `Me`, роли, порядок или aggregate fallback; разбирать причины отдельно, начиная с `similarity_below_threshold` и `embedding_unavailable`, проверять bounded speech-aware окна и независимое enrollment agreement, а тяжёлый локальный backend допускать только как pinned offline-кандидат с явной лицензией, моделью и воспроизводимостью; conflicting frames и protected overlap оставлять unknown без нового независимого доказательства; продвинуть изолированный профиль только при снижении оставшихся unknown words и seconds минимум на 20%, attributed-only B-cubed F1 и pairwise precision не ниже 0.95, полном conservation и прохождении 1x1/group/boundary/fallback и Transcript Perfection gates; иначе выпустить воспроизводимый DO_NOT_PROMOTE с cause-specific evidence ceiling; capture, Echo Guard, основной ASR, local mic diarization, export и optional derivatives не менять; добавить tests/report, актуализировать README, contracts, runbook, roadmap и OpsKarta, закоммитить и отправить в origin/main."
+      success_by_next_sync: "Remaining v3 unknown разобран по причинам; один isolated v4 profile дал >=20% reduction при precision/conservation gates либо выпущен reproducible cause-specific DO_NOT_PROMOTE ceiling."
     defaults:
       status_progress:
         done: 1.0
@@ -789,13 +794,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle, batch transcript, review, notes/export и Live Shadow уже работают."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Remote Speaker Coverage v3"
-        scope_nodes: [quality-remote-speaker-coverage-v3]
+        title: "Remote Speaker Residual Evidence v4"
+        scope_nodes: [quality-remote-speaker-residual-evidence-v4]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Perfection baseline established: 12/12 sources verified. Крупнейший residual — 797.773s / 1219 remote words с explicit unknown speaker."
-          next_sync_goal: "Снизить unknown минимум на 25% без потери attributed precision, words, timestamps и fallback."
+          sync_note: "Coverage v3 promoted: 368 words / 199.533s recovered. Крупнейший residual теперь 598.240s / 851 remote words с explicit unknown speaker."
+          next_sync_goal: "Снизить remaining unknown минимум на 20% cause-specific evidence без потери precision, words, timestamps и fallback."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -804,12 +809,13 @@ x:
           - quality-remote-speaker-diarization-v2
           - quality-transcript-perfection-corpus-v1
           - quality-remote-speaker-coverage-v3
+          - quality-remote-speaker-residual-evidence-v4
           - product-speaker-resolved-transcript-default-v1
         kind: main
         mgmt:
           health: yellow
           sync_note: "Unified perfection corpus выбирает ровно один residual; после каждого решения ranking пересчитывается до speaker-resolved default."
-          next_sync_goal: "Закрыть unknown remote speaker, затем взять новый верхний residual из того же отчёта."
+          next_sync_goal: "Закрыть следующий evidence-bounded слой unknown remote speaker, затем пересчитать ranking."
       research:
         title: "Будущий local multi-speaker"
         scope_nodes: [future-local-mic-diarization-v1]
@@ -851,7 +857,7 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: unified baseline готов, текущий residual — unknown remote speaker; затем новый ranking и speaker-resolved default."
+        caption: "Короткая карта: Coverage v3 promoted, текущий residual — cause-specific unknown remote speaker; затем новый ranking и speaker-resolved default."
         blocks:
           - working-now
           - current-quality

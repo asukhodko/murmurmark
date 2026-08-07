@@ -3,10 +3,10 @@
 Status: active product route; durable capture, one-command processing, evidence handoff and guarded
 export are complete. Speaker-Preserving Neural Echo v2.17 is the compatible production pre-ASR
 plateau. The bounded pre-ASR frontier is complete after SepFormer stopped before dev on unreliable
-Target-Me presence evidence. Remote Speaker Diarization v2 is promoted with `91.9071%` attributable
-remote speech, strong private-reference precision and exact selected-word conservation. Transcript
-Perfection Corpus v1 is the current product step; notes, retrieval and work proposals are optional
-derivatives outside the critical route.
+Target-Me presence evidence. Remote Speaker Coverage v3 is promoted with `93.9312%` attributable
+remote speech, strong private-reference precision and exact v2-label/word conservation. Remote
+Speaker Residual Evidence v4 is the current product step selected by Transcript Perfection Corpus;
+notes, retrieval and work proposals are optional derivatives outside the critical route.
 Date: 2026-08-07
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
@@ -460,14 +460,14 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Remote Speaker Coverage v3: сократить крупнейший frozen residual `unknown_remote_speaker`
-с 797.773 секунды и 1219 слов минимум на 25%, не меняя слова, таймкоды, Me/remote роли и порядок;
-сохранить attributed-only B-cubed F1 и pairwise precision не ниже 0.95 либо зафиксировать
-воспроизводимый DO_NOT_PROMOTE с точным пределом доступных доказательств.
+Remote Speaker Residual Evidence v4: сократить remaining `unknown_remote_speaker`
+с 598.240 секунды и 851 слова минимум на 20%, не ослабляя promoted v3 thresholds и не меняя
+v2/v3 speaker labels, слова, таймкоды, Me/remote роли или порядок; сохранить attributed-only
+B-cubed F1 и pairwise precision не ниже 0.95 либо зафиксировать cause-specific DO_NOT_PROMOTE.
 ```
 
 Transcript Perfection Corpus v1 уже зафиксировал baseline и остаётся общим no-regression gate.
-После Remote Speaker Coverage v3 следует закрывать оставшиеся измеренные классы по одному, затем
+После Remote Speaker Residual Evidence v4 следует закрывать оставшиеся измеренные классы по одному, затем
 квалифицировать speaker-resolved transcript как normal read surface с exact aggregate fallback.
 Local mic multi-speaker остаётся условной веткой и открывается только после реального сценария и
 размеченного материала. Производные workflows остаются optional.
@@ -478,15 +478,15 @@ Use this prompt if external consultation is needed:
 
 ```text
 Мы строим MurmurMark: локальный macOS CLI-пайплайн для надёжной speaker-resolved транскрибации
-1x1 и групповых созвонов. Transcript Perfection Corpus v1 завершён; текущая цель — Remote Speaker
-Coverage v3.
+1x1 и групповых созвонов. Coverage v3 завершён с PROMOTE; текущая цель — Remote Speaker Residual
+Evidence v4.
 
 Имеется:
 - authoritative selected dialogue и Evidence Handoff v2;
-- Remote Speaker Diarization v2: PROMOTE, 6 frozen sessions, attributable speech 0.919071,
-  B-cubed F1 0.960690, pairwise precision 0.959564, 5/5 internal boundaries;
+- Remote Speaker Coverage v3: PROMOTE, 6 frozen sessions, attributable speech 0.939312,
+  B-cubed F1 0.962171, pairwise precision 0.961675, 5/5 internal boundaries;
 - corpus baseline проверяет 12/12 frozen sources; lexical correctness пока `not_measured`;
-- крупнейший actionable residual: unknown remote speaker, 1219 слов / 797.773 секунды / 6 сессий;
+- крупнейший actionable residual: unknown remote speaker, 851 слово / 598.240 секунды / 6 сессий;
 - explicit fingerprint-bound reviewed naming with anonymous fail-open;
 - selected ASR words/order/timestamps должны оставаться неизменными;
 - closed pre-ASR frontier; production v2.17 remains exact audio plateau.
@@ -502,9 +502,9 @@ roles и speakers корректны, а предел доказательств
 - weak attribution не форсируется ради coverage.
 
 Вопросы:
-1. Какие причины unknown можно безопасно устранить bounded-настройкой существующего
-   Resemblyzer-профиля, не снижая attributed-only precision?
+1. Какие cause-specific evidence безопасно добавят speech-aware bounded windows для
+   similarity-below и embedding-unavailable, не снижая attributed-only precision?
 2. Какие независимые enrollment, similarity и margin evidence нужны для нового speaker attribution?
 3. Когда тяжёлый локальный backend действительно добавляет доказательство, а не только coverage?
-4. Как доказать минимум 25% сокращения unknown при полном conservation слов, таймкодов и ролей?
+4. Как доказать минимум 20% сокращения remaining unknown при полном conservation слов, таймкодов и ролей?
 ```

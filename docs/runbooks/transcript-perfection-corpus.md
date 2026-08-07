@@ -36,8 +36,8 @@ Expected frozen baseline:
 decision: BASELINE_ESTABLISHED
 sources: 12/12 verified
 release_ready: false
-largest_actionable_residual: unknown_remote_speaker (797.773s)
-next_goal: Remote Speaker Coverage v3
+largest_actionable_residual: unknown_remote_speaker (598.240s)
+next_goal: Remote Speaker Residual Evidence v4
 ```
 
 ## Reading The Result
@@ -50,7 +50,7 @@ next_goal: Remote Speaker Coverage v3
 
 The current baseline ranks:
 
-1. `unknown_remote_speaker`: `797.773s`, 1219 words, 6 sessions;
+1. `unknown_remote_speaker`: `598.240s`, 851 words, 6 sessions;
 2. `chronology_conflict`: `62.690s`, 14 rows, 10 sessions;
 3. `ambiguous_me_audio_evidence`: `196.280s`, 65 rows, 13 sessions;
 4. `missing_me_uncertainty`: `21.120s`, 4 rows, 4 sessions.

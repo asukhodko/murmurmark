@@ -285,13 +285,13 @@ is one command plus `Ctrl-C`; diagnostic commands remain available for recovery.
 Speaker-Preserving Neural Echo v2.17 requalified the unchanged selector after ASR changes: the
 12-session corpus retained `5/12` candidates, `41.940s`, 90 removed tokens and local retention `1.0`.
 
-Remote Speaker Evidence Map v1 remains the conservative baseline. Remote Speaker Diarization v2 is
-promoted as the higher-coverage optional read surface: it attributes `91.9071%` of remote speech,
+Remote Speaker Evidence Map v1 remains the conservative baseline. Remote Speaker Coverage v3 is
+promoted as the highest-coverage optional read surface: it attributes `93.9312%` of remote speech,
 preserves every selected word and can split supported speaker changes inside one ASR utterance.
 Build and inspect it with:
 
 ```bash
-murmurmark audit remote-diarization "$SESSION" --profile auto
+murmurmark audit remote-coverage "$SESSION"
 murmurmark transcript "$SESSION" --rich
 ```
 
@@ -318,20 +318,20 @@ The dependent critical path is:
 Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental ASR
 -> Remote Speaker Evidence (done: audit-only, 50.4% coverage)
 -> Remote Speaker Diarization v2 (done: PROMOTE, 91.9% coverage)
--> Transcript Perfection Corpus v1 (done) -> Remote Speaker Coverage v3 (current) -> Speaker-Resolved Default
+-> Remote Speaker Coverage v3 (done: PROMOTE, 93.9% coverage)
+-> Remote Speaker Residual Evidence v4 (current) -> Speaker-Resolved Default
 ```
 
-**Remote Speaker Coverage v3** targets the top measured residual: 1219 words / `797.773s` of preserved
-remote speech without a supported speaker. It must reduce unknown by 25% without weakening precision,
-words, timestamps or fallback. See the [current goal](docs/project/current-goal.md),
+**Remote Speaker Residual Evidence v4** targets the new top residual: 851 words / `598.240s` of
+preserved remote speech without a supported speaker. It addresses each evidence cause separately and
+must not lower v3 thresholds to buy coverage. See the [current goal](docs/project/current-goal.md),
 [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
-
 ## Scope And Limitations
 
 - Ordinary selected transcripts use `Me` and aggregate `Colleagues`; `--rich` is an optional,
   fingerprint-verified anonymous-speaker view and is not an export source.
-- Promoted v2 anonymous remote evidence covers `91.9071%` of frozen-corpus speech and leaves the
-  remaining `8.0929%` explicit `unknown`; a rare participant without enough enrollment is not forced
+- Promoted v3 anonymous remote evidence covers `93.9312%` of frozen-corpus speech and leaves the
+  remaining `6.0688%` explicit `unknown`; a rare participant without enough enrollment is not forced
   into a known voice.
 - `--reviewed-speakers` uses only explicit labels from the current session decision file; ordinary
   transcript, notes and export never consume those labels implicitly.
@@ -363,7 +363,6 @@ words, timestamps or fallback. See the [current goal](docs/project/current-goal.
 - No cloud ASR or cloud raw-audio upload is required by the normal workflow.
 - Notes, summaries, retrieval and work-system proposals are optional derivatives outside the critical roadmap.
 - A future UI must reuse CLI contracts and is not required for a useful product.
-
 ## Documentation
 
 - [Documentation index](docs/00-index.md)
@@ -377,6 +376,7 @@ words, timestamps or fallback. See the [current goal](docs/project/current-goal.
 - [Meeting cheat sheet](docs/runbooks/meeting-cheatsheet.md)
 - [Transcription and review runbook](docs/runbooks/transcribe-simple-whispercpp.md)
 - [Transcript Perfection Corpus contract](docs/contracts/transcript-perfection-corpus.md)
+- [Remote Speaker Coverage v3 contract](docs/contracts/remote-speaker-coverage-v3.md)
 
 ## Development Checks
 
@@ -386,8 +386,8 @@ swift build
 scripts/check-planning-consistency.py
 scripts/check-open-source-readiness.sh
 scripts/check.sh
+murmurmark corpus remote-coverage all --verify-existing
 murmurmark corpus perfection all --verify-existing
-murmurmark corpus lifecycle all --require-frozen-inputs --require-passing-gates
 ```
 The active roadmap uses OpsKarta v3. Validate and render it with the adjacent OpsKarta repository:
 

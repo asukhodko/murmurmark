@@ -19,30 +19,30 @@
   "schema": "murmurmark.transcript_perfection_manifest/v1",
   "sources": [
     {
-      "bytes": 52070,
+      "bytes": 50006,
       "dimensions": [
         "recognized_words",
         "remote_speaker_turns"
       ],
       "evidence_level": "private_reference_plus_frozen_real_sessions",
-      "expected_schema": "murmurmark.remote_speaker_diarization_corpus_report/v2",
-      "id": "remote_speaker_diarization_v2",
-      "path": "sessions/_reports/remote-speaker-diarization-v2/remote_speaker_diarization_corpus_report.json",
+      "expected_schema": "murmurmark.remote_speaker_coverage_corpus_report/v3",
+      "id": "remote_speaker_coverage_v3",
+      "path": "sessions/_reports/remote-speaker-coverage-v3/remote_speaker_coverage_corpus_report.json",
       "required": true,
-      "sha256": "c3ac832ad8bb7a148c1efd19e4067089b20f80a066986385a58950e92aafeb5d"
+      "sha256": "0d2d6edcb0a0153a7ea3190760a8df609c3f3f7633c075ab65252035862932d4"
     },
     {
-      "bytes": 6755,
+      "bytes": 7050,
       "dimensions": [
         "recognized_words",
         "remote_speaker_turns"
       ],
       "evidence_level": "portable_frozen_lineage",
-      "expected_schema": "murmurmark.remote_speaker_diarization_frozen_manifest/v2",
-      "id": "remote_speaker_diarization_v2_manifest",
-      "path": "docs/testing/remote-speaker-diarization-v2-manifest.json",
+      "expected_schema": "murmurmark.remote_speaker_coverage_frozen_manifest/v3",
+      "id": "remote_speaker_coverage_v3_manifest",
+      "path": "docs/testing/remote-speaker-coverage-v3-manifest.json",
       "required": true,
-      "sha256": "32161a77afd2a63e79c21e063111be6b5202b9b542e8ecc09978319d0c111470"
+      "sha256": "20b4073df90f98729cc29bc2ec8f3002e88155d9202afd72f6898f494cfd0a6c"
     },
     {
       "bytes": 11887,

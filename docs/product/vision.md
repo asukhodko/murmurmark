@@ -65,10 +65,10 @@ Speaker-Preserving Neural Echo v2.17 is the safe production plateau; unsupported
 failed evidence return to exact `local_fir`.
 
 Speaker attribution is evidence-first. Voice can establish session-local similarity, not a durable
-human identity. Remote Speaker Diarization v2 is promoted with `91.9071%` attributable remote
-speech and exact selected-word conservation. Unsupported regions and a rare voice without enough
-enrollment remain explicit `unknown`. Transcript Perfection Corpus v1 now replaces derivative note
-work as the convergence baseline. Remote Speaker Coverage v3 is the active goal selected from it.
+human identity. Remote Speaker Coverage v3 is promoted with `93.9312%` attributable remote speech,
+exact selected-word and v2-label conservation. Unsupported regions and a rare voice without enough
+enrollment remain explicit `unknown`. Transcript Perfection Corpus v1 remains the convergence
+baseline. Remote Speaker Residual Evidence v4 is the active goal selected from it.
 
 ## Core User Jobs
 
@@ -107,8 +107,8 @@ met, unless an explicit product decision changes the priority.
 
 1. **Transcript Perfection Corpus v1:** maintain the completed 12-source benchmark for text,
    chronology, roles, speakers, overlap, acoustic modes and known residual defects.
-2. **Remote Speaker Coverage v3:** reduce the top residual, 1219 words / `797.773s` of unknown remote
-   speaker, without weakening attributed precision or word conservation.
+2. **Remote Speaker Residual Evidence v4:** reduce the remaining 851 words / `598.240s` of unknown
+   remote speaker cause by cause, without lowering promoted v3 thresholds.
 3. **Measured residual loop:** rerank after every bounded `PROMOTE` or evidence ceiling and close the
    next highest-impact class.
 4. **Speaker-Resolved Transcript Default v1:** make the promoted anonymous-speaker view the normal

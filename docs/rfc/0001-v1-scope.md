@@ -47,9 +47,9 @@ Current implementation status, 2026-08-07:
 - committed-PCM live preview exists as an advisory shadow, while batch remains authoritative;
 - Evidence-Guarded Local Synthesis v1 completed with `DO_NOT_PROMOTE`; ID-only local evidence
   selection remains an explicit optional derivative;
-- Remote Speaker Diarization v2 is promoted with `91.9071%` attributable remote speech, exact
-  selected-word conservation and aggregate `Colleagues` fallback. Transcript Perfection Corpus v1
-  has established the unified baseline; Remote Speaker Coverage v3 is current. Cross-session
+- Remote Speaker Coverage v3 is promoted with `93.9312%` attributable remote speech, exact
+  selected-word and v2-label conservation and aggregate `Colleagues` fallback. Transcript Perfection
+  Corpus v1 remains the unified baseline; Remote Speaker Residual Evidence v4 is current. Cross-session
   identity, summaries, cloud/external writes and UI remain future or optional work.
 
 ## Goals

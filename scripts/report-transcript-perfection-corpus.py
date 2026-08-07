@@ -166,17 +166,17 @@ def semantic_gates(
     def add(source: str, gate: str, passed: bool, observed: Any) -> None:
         checks.append({"source": source, "gate": gate, "passed": bool(passed), "observed": observed})
 
-    remote = payloads.get("remote_speaker_diarization_v2") or {}
-    add("remote_speaker_diarization_v2", "decision", remote.get("decision") == "PROMOTE", remote.get("decision"))
+    remote = payloads.get("remote_speaker_coverage_v3") or {}
+    add("remote_speaker_coverage_v3", "decision", remote.get("decision") == "PROMOTE", remote.get("decision"))
     add(
-        "remote_speaker_diarization_v2",
+        "remote_speaker_coverage_v3",
         "all_source_gates",
         bool(remote.get("gates")) and all(value is True for value in remote.get("gates", {}).values()),
         remote.get("gates"),
     )
-    remote_manifest = payloads.get("remote_speaker_diarization_v2_manifest") or {}
+    remote_manifest = payloads.get("remote_speaker_coverage_v3_manifest") or {}
     add(
-        "remote_speaker_diarization_v2_manifest",
+        "remote_speaker_coverage_v3_manifest",
         "decision",
         remote_manifest.get("decision") == "PROMOTE",
         remote_manifest.get("decision"),
@@ -271,7 +271,7 @@ def residual_score(severity: float, seconds: float, evidence: float, repairabili
 
 
 def build_residuals(payloads: dict[str, Any]) -> list[dict[str, Any]]:
-    remote = payloads["remote_speaker_diarization_v2"]
+    remote = payloads["remote_speaker_coverage_v3"]
     remote_summary = remote["summary"]
     remote_seconds = round(float(remote_summary["remote_speech_sec"]) - float(remote_summary["attributed_speech_sec"]), 6)
     remote_words = int(remote_summary["remote_words"]) - int(remote_summary["attributed_words"])
@@ -300,8 +300,8 @@ def build_residuals(payloads: dict[str, Any]) -> list[dict[str, Any]]:
             "evidence_strength": 1.0,
             "repairability": 0.8,
             "confidence": "high",
-            "source_ids": ["remote_speaker_diarization_v2"],
-            "reason": "remote words are preserved but 8.0929% of remote speech lacks supported speaker attribution",
+            "source_ids": ["remote_speaker_coverage_v3"],
+            "reason": "remote words are preserved but 6.0688% of remote speech lacks supported speaker attribution",
         },
         {
             "class": "ambiguous_me_audio_evidence",
@@ -368,7 +368,7 @@ def build_residuals(payloads: dict[str, Any]) -> list[dict[str, Any]]:
 
 def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) -> list[dict[str, Any]]:
     residual_by_class = {row["class"]: row for row in residuals}
-    remote = payloads["remote_speaker_diarization_v2"]
+    remote = payloads["remote_speaker_coverage_v3"]
     remote_summary = remote["summary"]
     reference = remote.get("reference_evaluation", {}).get("attributed_only", {})
     audio_summary = payloads["residual_audio_arbitration_v1"]["summary"]
@@ -385,7 +385,7 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
             "correctness_status": "not_measured",
             "coverage_status": "remote_word_conservation_measured",
             "reference_level": "selected_output_conservation_only",
-            "source_ids": ["remote_speaker_diarization_v2"],
+            "source_ids": ["remote_speaker_coverage_v3"],
             "metrics": {
                 "remote_words": int(remote_summary["remote_words"]),
                 "remote_words_conserved": bool(remote["gates"]["all_word_conservation"]),
@@ -428,7 +428,7 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
             "correctness_status": "attributed_subset_passed",
             "coverage_status": "explicit_unknown",
             "reference_level": "private_named_reference_plus_frozen_boundaries",
-            "source_ids": ["remote_speaker_diarization_v2", "remote_speaker_diarization_v2_manifest"],
+            "source_ids": ["remote_speaker_coverage_v3", "remote_speaker_coverage_v3_manifest"],
             "metrics": {
                 "attributable_speech_ratio": float(remote_summary["attributable_remote_speech_ratio"]),
                 "attributed_bcubed_f1": float(reference.get("bcubed", {}).get("f1") or 0),
@@ -636,13 +636,13 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
             "blockers": release_blockers if not failures else ["input_integrity"] + failures,
         },
         "next_goal": {
-            "id": "remote-speaker-coverage-v3",
-            "title": "Remote Speaker Coverage v3",
+            "id": "remote-speaker-residual-evidence-v4",
+            "title": "Remote Speaker Residual Evidence v4",
             "selected_residual_class": residuals[0]["class"] if residuals else None,
             "rationale": (
-                "The largest actionable measured residual is 797.773 seconds of preserved remote speech without "
-                "supported speaker attribution across six frozen sessions. It is central to the transcript mission, "
-                "has strong evidence, and can be improved without changing recognized words."
+                "The largest actionable measured residual is 598.240 seconds of preserved remote speech without "
+                "supported speaker attribution across six frozen sessions. V3 exhausted the safe fixed-threshold "
+                "extension; the next step needs cause-specific independent local evidence rather than weaker gates."
                 if residuals
                 else "Input integrity must be restored before selecting an engineering goal."
             ),

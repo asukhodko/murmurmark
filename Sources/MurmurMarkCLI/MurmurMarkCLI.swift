@@ -332,6 +332,7 @@ struct MurmurMark {
           murmurmark audit target-me ./session|latest [--profile auto] [--max-items 80] [--sessions-root ./sessions]
           murmurmark audit remote-speakers ./session|latest [--profile auto] [--sessions-root ./sessions]
           murmurmark audit remote-diarization ./session|latest [--profile auto] [--sessions-root ./sessions]
+          murmurmark audit remote-coverage ./session|latest [--sessions-root ./sessions]
           murmurmark cleanup ./session|latest [--input-profile shadow_v2] [--output-profile audit_cleanup_v1]
                              [--mode conservative] [--sessions-root ./sessions]
           murmurmark repair order ./session|latest [--input-profile auto] [--output-profile order_repair_v1]
@@ -1297,6 +1298,8 @@ enum DoctorChecks {
             "scripts/audit-target-me.py",
             "scripts/audit-remote-speaker-evidence.py",
             "scripts/audit-remote-speaker-diarization.py",
+            "scripts/audit-remote-speaker-coverage-v3.py",
+            "scripts/report-remote-speaker-coverage-v3-corpus.py",
             "scripts/materialize-anonymous-rich-transcript.py",
             "scripts/review-remote-speaker-labels.py",
             "scripts/materialize-reviewed-speaker-memory.py",
@@ -4545,6 +4548,17 @@ enum AuditCommands {
             }
             try Tooling.runPath(python, auditArgs)
             try AuditPrinter.printRemoteDiarization(session: session, args: auditArgs)
+        case "remote-coverage", "remote_coverage":
+            let v2Report = session.appendingPathComponent(
+                "derived/audit/remote-speaker-diarization-v2/report.json"
+            )
+            if !FileManager.default.fileExists(atPath: v2Report.path) {
+                try audit(["remote-diarization", session.path])
+            }
+            let auditArgs = [try script("audit-remote-speaker-coverage-v3.py").path, session.path]
+                + remaining
+            try Tooling.runPath(python, auditArgs)
+            try AuditPrinter.printRemoteCoverage(session: session, args: auditArgs)
         case "asr-positive-echo-candidate", "asr_positive_echo_candidate", "echo-candidate", "echo_candidate":
             if !ArgumentEditing.hasOption("candidate", in: remaining) {
                 remaining += ["--candidate", "coverage_v2_remote_gate_local_fir"]
@@ -4676,6 +4690,7 @@ enum AuditCommands {
           murmurmark audit target-me ./session|latest [--profile auto] [--max-items 80] [--sessions-root ./sessions]
           murmurmark audit remote-speakers ./session|latest [--profile auto] [--sessions-root ./sessions]
           murmurmark audit remote-diarization ./session|latest [--profile auto] [--sessions-root ./sessions]
+          murmurmark audit remote-coverage ./session|latest [--sessions-root ./sessions]
           murmurmark audit asr-positive-echo-candidate ./session|latest
                                              [--candidate coverage_v2_remote_gate_local_fir]
                                              [--skip-lab] [--sessions-root ./sessions]
@@ -4701,6 +4716,8 @@ enum AuditCommands {
           remote-speakers builds an audit-only anonymous map over authoritative remote audio
           remote-diarization
                           assigns immutable remote words to promoted session-local anonymous voices
+          remote-coverage
+                          recovers bounded v2 unknown words without changing text or existing labels
           asr-positive-echo-candidate
                           runs/reuses offline_aec_v2 and writes an explicit shadow audio-candidate report
           echo-suppression-promotion
@@ -5002,6 +5019,36 @@ enum AuditPrinter {
         print("  anonymous_speakers: \(int(summary["published_speakers"]))")
         print(String(format: "  attributable_remote_speech_ratio: %.3f", double(summary["attributable_remote_speech_ratio"])))
         print("  internal_change_utterances: \(int(summary["internal_change_utterances"]))")
+        print("  batch_authoritative: true")
+        printAuditHandoff(
+            session: session,
+            report: outDir.appendingPathComponent("report.md"),
+            needsReview: false
+        )
+    }
+
+    static func printRemoteCoverage(session: URL, args: [String]) throws {
+        let defaultURL = session.appendingPathComponent("derived/audit/remote-speaker-coverage-v3")
+        let outDir = PathURLs.fileURL(ArgumentEditing.peekOption("out-dir", in: args) ?? defaultURL.path)
+        let reportURL = outDir.appendingPathComponent("report.json")
+        guard FileManager.default.fileExists(atPath: reportURL.path) else {
+            printMissing(kind: "remote_coverage", expected: reportURL)
+            return
+        }
+        let payload = try JSONFiles.object(reportURL)
+        let summary = dict(payload["summary"])
+
+        print("")
+        print("audit:")
+        print("  kind: remote_coverage")
+        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("report.md")))")
+        print("  status: \(string(payload["status"]) ?? "unknown")")
+        print("  decision: \(string(payload["decision"]) ?? "FALLBACK_V2")")
+        print("  recovered_words: \(int(summary["recovered_words"]))")
+        print(String(format: "  recovered_seconds: %.3fs", double(summary["recovered_seconds"])))
+        print("  remaining_unknown_words: \(int(summary["remaining_unknown_words"]))")
+        print(String(format: "  remaining_unknown_seconds: %.3fs", double(summary["remaining_unknown_seconds"])))
+        print("  fallback: remote_speaker_diarization_v2")
         print("  batch_authoritative: true")
         printAuditHandoff(
             session: session,
@@ -6009,6 +6056,37 @@ enum TranscriptCommands {
 
     private static func richTranscript(session: URL, reviewedSpeakers: Bool) throws -> RichSelection {
         if !reviewedSpeakers {
+            let coverageScript = PathURLs.fileURL("scripts/audit-remote-speaker-coverage-v3.py")
+            let coverageReport = session.appendingPathComponent(
+                "derived/audit/remote-speaker-coverage-v3/report.json"
+            )
+            let coverageMarkdown = session.appendingPathComponent(
+                "derived/audit/remote-speaker-coverage-v3/transcript.rich.shadow.md"
+            )
+            if FileManager.default.fileExists(atPath: coverageScript.path),
+               FileManager.default.fileExists(atPath: coverageReport.path),
+               FileManager.default.fileExists(atPath: coverageMarkdown.path) {
+                let status = try Tooling.runPathQuietAllowingExitCodes(
+                    try PythonRuntime.resolve(),
+                    [
+                        coverageScript.path,
+                        session.path,
+                        "--verify-only",
+                        "--require-promoted",
+                    ],
+                    allowedExitCodes: [0, 2]
+                )
+                if status == 0 {
+                    let report = try JSONFiles.object(coverageReport)
+                    let parameters = report["parameters"] as? [String: Any] ?? [:]
+                    return RichSelection(
+                        profile: parameters["profile"] as? String ?? "remote_speaker_coverage_v3",
+                        url: coverageMarkdown,
+                        kind: "remote_speaker_coverage_v3",
+                        fallbackReason: nil
+                    )
+                }
+            }
             let diarizationScript = PathURLs.fileURL("scripts/audit-remote-speaker-diarization.py")
             let diarizationReport = session.appendingPathComponent(
                 "derived/audit/remote-speaker-diarization-v2/report.json"
@@ -7221,7 +7299,7 @@ enum CorpusCommands {
             throw CLIError(
                 "corpus requires process, build, evaluate, train-audio-judge, taxonomy, gate, order, " +
                 "local-recall, local-recall-repair, boundary, remote-leak, echo-candidate, " +
-                    "echo-supervision, perfection, lifecycle, or report"
+                    "echo-supervision, remote-coverage, perfection, lifecycle, or report"
             )
         }
         var forwarded = Array(args.dropFirst())
@@ -7453,6 +7531,30 @@ enum CorpusCommands {
                 try PythonRuntime.resolve(),
                 [try script("report-transcript-perfection-corpus.py").path] + forwarded
             )
+        case "remote-coverage", "remote_coverage":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(
+                    try PythonRuntime.resolve(),
+                    [try script("report-remote-speaker-coverage-v3-corpus.py").path, "--help"]
+                )
+                return
+            }
+            var coverageArgs = forwarded
+            if !ArgumentEditing.hasOption("frozen-manifest", in: coverageArgs),
+               !ArgumentEditing.hasOption("write-manifest", in: coverageArgs) {
+                let frozenManifest = PathURLs.fileURL(
+                    "docs/testing/remote-speaker-coverage-v3-manifest.json"
+                )
+                if FileManager.default.fileExists(atPath: frozenManifest.path) {
+                    coverageArgs += ["--frozen-manifest", frozenManifest.path]
+                }
+            }
+            try Tooling.runPath(
+                try PythonRuntime.resolve(),
+                [try script("report-remote-speaker-coverage-v3-corpus.py").path]
+                    + coverageArgs
+                    + ["--sessions-root", sessionsRoot.path]
+            )
         case "lifecycle":
             try Tooling.runPath(
                 try PythonRuntime.resolve(),
@@ -7596,6 +7698,7 @@ enum CorpusHelp {
                                              [--sessions-root ./sessions]
           murmurmark corpus echo-supervision build|replay|status [--sessions-root ./sessions]
           murmurmark corpus live [all|latest|./session...] [--refresh] [--target-live-sessions 3] [--sessions-root ./sessions]
+          murmurmark corpus remote-coverage all [--verify-existing] [--sessions-root ./sessions]
           murmurmark corpus perfection all [--verify-existing]
                                         [--manifest docs/testing/transcript-perfection-corpus-v1-manifest.json]
           murmurmark corpus lifecycle [all|latest|./session...] [--freeze-inputs]
