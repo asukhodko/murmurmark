@@ -28,7 +28,7 @@ from murmurmark_resource_policy import (
     resolve_resource_policy,
 )
 
-SCRIPT_VERSION = "0.2.4"
+SCRIPT_VERSION = "0.2.5"
 SCHEMA = "murmurmark.session_pipeline_run/v1"
 RUN_STATE_SCHEMA = "murmurmark.pipeline_run_state/v1"
 HANDOFF_SCHEMA = "murmurmark.authoritative_handoff/v1"
@@ -47,6 +47,10 @@ SPARSE_CAPTURE_ACTIVE_DB = -60.0
 SPARSE_CAPTURE_MIN_ACTIVE_RATIO = 0.03
 SPARSE_CAPTURE_MIN_ACTIVE_SEC = 15.0
 SPARSE_CAPTURE_MAX_REQUIRED_ACTIVE_SEC = 60.0
+DEFERRED_BOUNDED_ENV = "MURMURMARK_DEFERRED_BOUNDED"
+DEFERRED_BUDGET_ENV = "MURMURMARK_DEFERRED_BUDGET_SEC"
+DEFERRED_ECHO_RESERVE_SEC = 900.0
+DEFAULT_ECHO_SELECTOR_RUNTIME_FACTOR = 0.524864
 
 
 STEP_COST_HINTS: dict[str, dict[str, str]] = {
@@ -287,6 +291,67 @@ def read_json(path: Path) -> dict[str, Any] | None:
     except (OSError, json.JSONDecodeError):
         return None
     return value if isinstance(value, dict) else None
+
+
+def deferred_echo_budget_decision(repo_root: Path, session: Path) -> dict[str, Any]:
+    if os.environ.get(DEFERRED_BOUNDED_ENV) != "1":
+        return {
+            "bounded": False,
+            "enabled": True,
+            "reason": "explicit deferred enrichment is not lifecycle-bounded",
+        }
+    try:
+        budget_sec = float(os.environ.get(DEFERRED_BUDGET_ENV, ""))
+    except ValueError:
+        budget_sec = 0.0
+    if not math.isfinite(budget_sec) or budget_sec <= 0:
+        return {
+            "bounded": True,
+            "enabled": False,
+            "budget_sec": max(0.0, budget_sec) if math.isfinite(budget_sec) else 0.0,
+            "reason": "bounded lifecycle has no remaining deferred budget",
+        }
+
+    manifest = read_json(session / "session.json") or {}
+    health = manifest.get("health") if isinstance(manifest.get("health"), dict) else {}
+    duration_sec = float(health.get("actual_duration_sec") or 0.0)
+    policy = read_json(repo_root / "policies/speaker-preserving-neural-echo-production-v2.json") or {}
+    promotion = policy.get("promotion_summary") if isinstance(policy.get("promotion_summary"), dict) else {}
+    runtime_factor = float(
+        promotion.get("selector_runtime_factor_max") or DEFAULT_ECHO_SELECTOR_RUNTIME_FACTOR
+    )
+    if duration_sec <= 0 or not math.isfinite(duration_sec):
+        return {
+            "bounded": True,
+            "enabled": False,
+            "budget_sec": round(budget_sec, 3),
+            "reason": "capture duration is unavailable for bounded Neural Echo admission",
+        }
+    if runtime_factor <= 0 or not math.isfinite(runtime_factor):
+        runtime_factor = DEFAULT_ECHO_SELECTOR_RUNTIME_FACTOR
+    estimated_sec = duration_sec * runtime_factor
+    available_sec = max(0.0, budget_sec - DEFERRED_ECHO_RESERVE_SEC)
+    enabled = estimated_sec <= available_sec
+    reason = (
+        "bounded Neural Echo estimate fits after the review-evidence reserve"
+        if enabled
+        else (
+            f"bounded Neural Echo skipped: estimate {estimated_sec:.1f}s exceeds "
+            f"{available_sec:.1f}s available after the {DEFERRED_ECHO_RESERVE_SEC:.0f}s "
+            "review-evidence reserve; run `murmurmark enrich SESSION` explicitly"
+        )
+    )
+    return {
+        "bounded": True,
+        "enabled": enabled,
+        "budget_sec": round(budget_sec, 3),
+        "reserve_sec": DEFERRED_ECHO_RESERVE_SEC,
+        "available_sec": round(available_sec, 3),
+        "capture_duration_sec": round(duration_sec, 3),
+        "runtime_factor": round(runtime_factor, 6),
+        "estimated_sec": round(estimated_sec, 3),
+        "reason": reason,
+    }
 
 
 def final_capture_stop_reason(session: Path) -> str:
@@ -710,6 +775,14 @@ def step(
 def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> list[dict[str, Any]]:
     py = sys.executable
     prompt = args.prompt_file
+    deferred_echo = deferred_echo_budget_decision(repo_root, session)
+    deferred_echo_base_enabled = not args.skip_transcription and not args.skip_preprocess
+    deferred_echo_enabled = deferred_echo_base_enabled and deferred_echo["enabled"] is True
+    deferred_echo_reason = (
+        "--skip-transcription/--skip-preprocess"
+        if not deferred_echo_base_enabled
+        else str(deferred_echo.get("reason") or "bounded deferred budget")
+    )
     transcribe_base = [
         py,
         str(repo_root / "scripts/transcribe-simple-whispercpp.py"),
@@ -837,8 +910,8 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
                 "--transcript-profile",
                 "shadow_v2",
             ],
-            enabled=not args.skip_transcription and not args.skip_preprocess,
-            reason="--skip-transcription/--skip-preprocess",
+            enabled=deferred_echo_enabled,
+            reason=deferred_echo_reason,
             phase=DEFERRED_PHASE,
         ),
         step(
@@ -850,8 +923,8 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
                 "--whisper-model",
                 str(args.model),
             ],
-            enabled=not args.skip_transcription and not args.skip_preprocess,
-            reason="--skip-transcription/--skip-preprocess",
+            enabled=deferred_echo_enabled,
+            reason=deferred_echo_reason,
             phase=DEFERRED_PHASE,
         ),
         step(

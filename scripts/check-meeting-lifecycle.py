@@ -159,6 +159,13 @@ if command == "process":
     )
     raise SystemExit(0)
 if command == "enrich":
+    write(
+        session / "fake-enrich-env.json",
+        {
+            "bounded": os.environ.get("MURMURMARK_DEFERRED_BOUNDED"),
+            "budget_sec": os.environ.get("MURMURMARK_DEFERRED_BUDGET_SEC"),
+        },
+    )
     if scenario == "enrich_failed":
         raise SystemExit(7)
     if scenario == "enrich_slow":
@@ -682,6 +689,9 @@ def main() -> None:
         assert optional_report["result"] == "ready_with_review"
         assert optional_report["actions"]["enrich"]["status"] == "failed_soft"
         assert any(item.startswith("enrich:") for item in optional_report["warnings"])
+        enrich_env = json.loads((optional_session / "fake-enrich-env.json").read_text())
+        assert enrich_env["bounded"] == "1", enrich_env
+        assert float(enrich_env["budget_sec"]) > 0, enrich_env
 
         budget_skip_session = write_session(root, "budget-skip")
         budget_skip_run = run_supervisor(

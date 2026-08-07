@@ -79,9 +79,9 @@ prints an exact `murmurmark meeting --resume SESSION` command. The final summary
 transcript, notes, verdict, unresolved review burden, export status and raw preservation result.
 
 The first authoritative handoff no longer waits for optional Neural Echo evaluation. Deferred
-enrichment has an explicit time budget and a machine-readable reason when postponed. `status`
-finishes with `complete`, an executable recovery command, or `human_decision_required` with a
-bounded item count and duration; it must not send the user back into a `status` loop.
+enrichment has an explicit time budget; Neural Echo is skipped when its frozen worst-case estimate
+cannot fit after the review-evidence reserve. `status` finishes with `complete`, an executable recovery
+command, or `human_decision_required` with a bounded item count and duration.
 
 Capture runs in a short-lived child process. It exits and releases ScreenCaptureKit/ReplayKit before
 batch processing begins. A new meeting may therefore start while an earlier meeting is still being
@@ -208,13 +208,14 @@ murmurmark status "$SESSION"
 murmurmark finish "$SESSION"
 ```
 
-Suggested review closes only rows supported by current local evidence. Unresolved rows remain
-explicit. `finish` attempts guarded local export and writes retention recommendations; it never
-deletes raw audio. After a successful guarded export, `finish` removes rebuildable audio copies
-under `SESSION/derived/` by default. Raw CAF, selected transcript, notes, verdict, review decisions
+Suggested review closes only rows supported by current local evidence. `review suggested apply`
+rebuilds the session-local queue for bounded passes, closing newly exposed safe rows in one command.
+It stops at a stable manual remainder; unresolved rows remain explicit. `finish` attempts guarded
+local export, writes retention recommendations and never deletes raw audio. After a successful
+guarded export, `finish` removes rebuildable audio copies under `SESSION/derived/` by default. Raw
+CAF, selected transcript, notes, verdict, review decisions
 and JSON/Markdown provenance remain available. Use `--keep-debug-artifacts` when the session is
 needed for pipeline or audio-algorithm debugging.
-
 ```bash
 murmurmark finish "$SESSION" --format markdown
 murmurmark finish "$SESSION" --format obsidian

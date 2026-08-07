@@ -24,7 +24,7 @@ STATE_SCHEMA = "murmurmark.meeting_lifecycle_state/v1"
 NEXT_SCHEMA = "murmurmark.meeting_next_action/v1"
 EVENT_SCHEMA = "murmurmark.meeting_lifecycle_event/v1"
 REPORT_SCHEMA = "murmurmark.meeting_lifecycle_report/v1"
-GENERATOR = {"name": "run-meeting-lifecycle", "version": "0.1.0"}
+GENERATOR = {"name": "run-meeting-lifecycle", "version": "0.1.1"}
 DEFAULT_POST_STOP_BUDGET_RATIO = 1.0
 DEFAULT_MAX_ENRICHMENT_BUDGET_SEC = 1800.0
 ACTION_ORDER = (
@@ -508,8 +508,16 @@ class MeetingLifecycle:
                 timeout_sec = (
                     self.enrichment_budget_remaining_sec() if action == "enrich" else None
                 )
+                extra_env = None
+                if action == "enrich" and timeout_sec is not None:
+                    extra_env = {
+                        "MURMURMARK_DEFERRED_BOUNDED": "1",
+                        "MURMURMARK_DEFERRED_BUDGET_SEC": f"{timeout_sec:.6f}",
+                    }
                 return_code, interrupted, timed_out = self.run_command(
-                    command, timeout_sec=timeout_sec
+                    command,
+                    timeout_sec=timeout_sec,
+                    extra_env=extra_env,
                 )
                 if interrupted:
                     action_state["status"] = "interrupted"
@@ -569,13 +577,25 @@ class MeetingLifecycle:
         return "passed"
 
     def run_command(
-        self, command: list[str], *, timeout_sec: float | None = None
+        self,
+        command: list[str],
+        *,
+        timeout_sec: float | None = None,
+        extra_env: dict[str, str] | None = None,
     ) -> tuple[int, bool, bool]:
         self.state["actions"][self.state["current_action"]]["command"] = command
         self.save_state()
         # Isolate each allowlisted action from the terminal's foreground process group.
         # The supervisor receives Ctrl-C and forwards it exactly once to the action.
-        process = subprocess.Popen(command, stdin=subprocess.DEVNULL, start_new_session=True)
+        environment = os.environ.copy()
+        if extra_env:
+            environment.update(extra_env)
+        process = subprocess.Popen(
+            command,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+            env=environment,
+        )
         self.interrupts.child = process
         process_start = time.monotonic()
         interrupted_at: float | None = None

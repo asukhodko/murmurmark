@@ -3538,6 +3538,22 @@ enum ReviewSuggestedCommand {
         if status != 0 {
             throw CLIError("suggested review apply did not pass; inspect \(PathDisplay.display(ReviewPaths.applyReport(from: batchArgs)))")
         }
+
+        let convergence = try convergeSuggestedReview(
+            session: session,
+            python: python,
+            runStrongerAudioJudge: !skipTargetedJudge,
+            runTargetMe: !skipTargetMe
+        )
+        print("")
+        print("suggested_fixed_point:")
+        print("  additional_materialized_passes: \(convergence.materializedPasses)")
+        print("  additional_safe_rows_applied: \(convergence.appliedRows)")
+        print("  manual_remaining_rows: \(convergence.remainingRows)")
+        print("  reached: \(convergence.reached ? "true" : "false")")
+        if !convergence.reached {
+            print("  warning: suggested review did not converge within the bounded pass limit")
+        }
     }
 
     static func printHelp() {
@@ -3589,6 +3605,114 @@ enum ReviewSuggestedCommand {
         ReviewSessionLocalPlan.addBuildDefaults(for: session, to: &workspaceArgs)
         workspaceArgs += ["--session", session.lastPathComponent]
         try Tooling.runPathQuiet(python, [try script("build-review-workspace.py").path] + workspaceArgs)
+    }
+
+    private struct SuggestedConvergence {
+        let materializedPasses: Int
+        let appliedRows: Int
+        let remainingRows: Int
+        let reached: Bool
+    }
+
+    private static func convergeSuggestedReview(
+        session: URL,
+        python: URL,
+        runStrongerAudioJudge: Bool,
+        runTargetMe: Bool
+    ) throws -> SuggestedConvergence {
+        let maxAdditionalPasses = 7
+        var materializedPasses = 0
+        var appliedRows = 0
+        var remainingRows = 0
+
+        for _ in 0..<maxAdditionalPasses {
+            try buildReviewWorkspace(session: session, python: python)
+            if runStrongerAudioJudge || runTargetMe {
+                try refreshTargetedEvidence(
+                    session: session,
+                    python: python,
+                    runStrongerAudioJudge: runStrongerAudioJudge,
+                    runTargetMe: runTargetMe
+                )
+                try buildReviewWorkspace(session: session, python: python)
+            }
+
+            var workspaceApplyArgs = ["--answers-source", "suggested", "--allow-partial", "--quiet"]
+            ReviewSessionLocalPlan.addWorkspaceApplyDefaults(for: session, to: &workspaceApplyArgs)
+            try Tooling.runPathQuiet(
+                python,
+                [try script("apply-review-workspace-decisions.py").path] + workspaceApplyArgs
+            )
+
+            var progressArgs: [String] = []
+            ReviewSessionLocalPlan.addProgressDefaults(for: session, to: &progressArgs)
+            try ReviewProgressRunner.run(args: progressArgs)
+            try refreshSessionReadiness(session: session, python: python)
+            try refreshOutcome(session: session, python: python)
+
+            let workspaceReport = ReviewPaths.workspaceApplyReport(from: workspaceApplyArgs)
+            let payload = try JSONFiles.object(workspaceReport)
+            let summary = payload["summary"] as? [String: Any] ?? [:]
+            let closure = payload["suggested_closure"] as? [String: Any] ?? [:]
+            let closed = closure["closed_by_suggestions"] as? [String: Any] ?? [:]
+            remainingRows = integer(summary["remaining_rows"])
+            let safeRows = integer(closed["rows"])
+            if safeRows == 0 {
+                return SuggestedConvergence(
+                    materializedPasses: materializedPasses,
+                    appliedRows: appliedRows,
+                    remainingRows: remainingRows,
+                    reached: true
+                )
+            }
+
+            let readyForProfile = (summary["ready_for_batch_apply"] as? Bool) == true
+                || (summary["ready_for_partial_apply"] as? Bool) == true
+            guard readyForProfile else {
+                throw CLIError(
+                    "suggested review produced \(safeRows) safe rows without an applicable profile; inspect "
+                        + PathDisplay.display(workspaceReport)
+                )
+            }
+
+            var batchArgs = [
+                "--allow-partial-review",
+                "--session", session.lastPathComponent,
+                "--synthesize",
+                "--refresh-reports",
+            ]
+            ReviewSessionLocalPlan.addReviewApplyDefaults(for: session, to: &batchArgs)
+            let status = try Tooling.runPathAllowingExitCodes(
+                python,
+                [try script("apply-review-decisions-batch.py").path] + batchArgs,
+                allowedExitCodes: [0, 2]
+            )
+            guard status == 0 else {
+                throw CLIError(
+                    "suggested review convergence apply did not pass; inspect "
+                        + PathDisplay.display(ReviewPaths.applyReport(from: batchArgs))
+                )
+            }
+            materializedPasses += 1
+            appliedRows += safeRows
+        }
+
+        return SuggestedConvergence(
+            materializedPasses: materializedPasses,
+            appliedRows: appliedRows,
+            remainingRows: remainingRows,
+            reached: false
+        )
+    }
+
+    private static func integer(_ value: Any?) -> Int {
+        if let value = value as? Int {
+            return value
+        }
+        if let value = value as? NSNumber {
+            return value.intValue
+        }
+        return 0
     }
 
     private static func refreshTargetedEvidence(

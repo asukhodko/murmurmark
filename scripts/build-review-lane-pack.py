@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.8.5"
+SCRIPT_VERSION = "0.8.6"
 REVIEW_STATE_FIELDS = {
     "decision",
     "status",
@@ -853,6 +853,13 @@ def target_me_suggested_decision(
         and float((match.get("classification") or {}).get("confidence") or 0.0) >= 0.88
         and str((match.get("impact") or {}).get("category") or "") == "new_drop_evidence"
     ]
+    if stronger_has_high_confidence_keep(stronger_summary) and not high_confirmed:
+        return (
+            "needs_review",
+            "low",
+            "target_me: speech is audible, but the available voice evidence does not confirm the local speaker",
+            summary,
+        )
     if useful_absent and not high_confirmed and "drop_me" in allowed and not stronger_has_high_confidence_keep(stronger_summary):
         labels = {str(row.get("label") or "") for row in rows}
         drop_safe_labels = {"lost_me", "uncertain", "asr_noise", "remote_duplicate"}
@@ -1037,6 +1044,14 @@ def suggested_decision_for_group(
             "needs_review",
             "low",
             "target_me: confirmed local speaker conflicts with stronger-audio-judge drop evidence",
+            summary,
+            target_summary,
+        )
+    if target_decision == "needs_review":
+        return (
+            "needs_review",
+            target_confidence,
+            target_reason or "target_me: conflicting local-speaker evidence",
             summary,
             target_summary,
         )

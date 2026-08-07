@@ -225,32 +225,29 @@ def main() -> int:
         assert [item["name"] for item in MODULE.steps_for_phase(steps, "deferred")] == ["optional"]
         assert [item["name"] for item in MODULE.steps_for_phase(steps, "full")] == ["critical", "optional"]
 
-        pipeline_steps = MODULE.build_steps(
-            SimpleNamespace(
-                model=Path("model.bin"),
-                language="ru",
-                asr_track_workers=2,
-                asr_threads=6,
-                micro_asr_workers=2,
-                prompt_file=None,
-                force_asr=False,
-                reuse_asr_cache=False,
-                audio_judge_queue=session / "missing-audio-judge.jsonl",
-                max_stronger_audio_judge_items=80,
-                stronger_audio_judge_exhaustive=False,
-                skip_build=False,
-                skip_preprocess=False,
-                skip_transcription=False,
-                skip_audits=False,
-                skip_stronger_audio_judge=False,
-                skip_cleanup=False,
-                max_clips=80,
-                max_audio_review_items=80,
-                murmurmark_bin=Path("murmurmark"),
-            ),
-            REPO_ROOT,
-            session,
+        pipeline_args = SimpleNamespace(
+            model=Path("model.bin"),
+            language="ru",
+            asr_track_workers=2,
+            asr_threads=6,
+            micro_asr_workers=2,
+            prompt_file=None,
+            force_asr=False,
+            reuse_asr_cache=False,
+            audio_judge_queue=session / "missing-audio-judge.jsonl",
+            max_stronger_audio_judge_items=80,
+            stronger_audio_judge_exhaustive=False,
+            skip_build=False,
+            skip_preprocess=False,
+            skip_transcription=False,
+            skip_audits=False,
+            skip_stronger_audio_judge=False,
+            skip_cleanup=False,
+            max_clips=80,
+            max_audio_review_items=80,
+            murmurmark_bin=Path("murmurmark"),
         )
+        pipeline_steps = MODULE.build_steps(pipeline_args, REPO_ROOT, session)
         transcribe_steps = [item for item in pipeline_steps if item["name"].startswith("transcribe_")]
         assert [item["name"] for item in transcribe_steps] == ["transcribe_current"]
         assert transcribe_steps[0]["command"][-2:] == ["--repair-profile", "shadow_v2"]
@@ -287,6 +284,36 @@ def main() -> int:
         assert "transcribe_current" in handoff_names
         assert "speaker_preserving_neural_echo_v2" not in handoff_names
         assert "speaker_preserving_neural_echo_v2" in deferred_names
+
+        write_json(
+            session / "session.json",
+            {"health": {"actual_duration_sec": 5897.418}},
+        )
+        previous_bounded = os.environ.get(MODULE.DEFERRED_BOUNDED_ENV)
+        previous_budget = os.environ.get(MODULE.DEFERRED_BUDGET_ENV)
+        try:
+            os.environ[MODULE.DEFERRED_BOUNDED_ENV] = "1"
+            os.environ[MODULE.DEFERRED_BUDGET_ENV] = "1800"
+            decision = MODULE.deferred_echo_budget_decision(REPO_ROOT, session)
+            assert decision["enabled"] is False, decision
+            assert decision["estimated_sec"] > decision["available_sec"], decision
+            bounded_steps = MODULE.build_steps(pipeline_args, REPO_ROOT, session)
+            bounded_selector = next(
+                item
+                for item in bounded_steps
+                if item["name"] == "speaker_preserving_neural_echo_v2"
+            )
+            assert bounded_selector["enabled"] is False, bounded_selector
+            assert "run `murmurmark enrich SESSION` explicitly" in bounded_selector["skip_reason"]
+        finally:
+            if previous_bounded is None:
+                os.environ.pop(MODULE.DEFERRED_BOUNDED_ENV, None)
+            else:
+                os.environ[MODULE.DEFERRED_BOUNDED_ENV] = previous_bounded
+            if previous_budget is None:
+                os.environ.pop(MODULE.DEFERRED_BUDGET_ENV, None)
+            else:
+                os.environ[MODULE.DEFERRED_BUDGET_ENV] = previous_budget
 
         synthesis_session = Path(raw_root) / "sessions/synthesis-fixture"
         synthesis_resolved = (

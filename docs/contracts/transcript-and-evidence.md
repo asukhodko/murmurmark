@@ -3417,7 +3417,12 @@ answers that are already actionable `keep_me`/`drop_me`, keeps dotted rows as ma
 was closed. If generated suggested sheets contain only dots, no decisions are written and the next
 command points to the first remaining manual lane. The Swift workspace handoff prints
 `suggested_dry_run` and `suggested_apply` commands whenever the workspace has suggested sheets. It
-writes decisions cumulatively: already reviewed rows that are no longer present in a regenerated
+writes and materializes suggestions to a bounded fixed point: after each reviewed-profile refresh it
+rebuilds the workspace, reuses cached local evidence and applies newly exposed safe rows. The loop
+stops when `closed_by_suggestions.rows == 0` or after seven additional materialization passes. The
+final `suggested_fixed_point` CLI block reports whether convergence was reached and the exact manual
+remainder. No uncertain row is converted merely to make the loop converge. The command writes
+decisions cumulatively: already reviewed rows that are no longer present in a regenerated
 template remain in `review_decisions.jsonl`, and `suggested_closure.closed_by_suggestions` is computed
 by stable review-row keys rather than list positions. This keeps `review progress`, `status`,
 `report`, session-quality and `suggested_closure.remaining_manual_queue` aligned on the same
@@ -8360,6 +8365,14 @@ matches both size and SHA-256, `paths.transcript` matches the fingerprint path, 
 `session_readiness.json` still selects the same profile and transcript path. Deferred enrichment
 may update only `deferred_enrichment` metadata in this checkpoint; it must not alter the published
 fingerprint or silently select another transcript.
+
+The bounded `meeting` supervisor exports `MURMURMARK_DEFERRED_BOUNDED=1` and the exact remaining
+seconds in `MURMURMARK_DEFERRED_BUDGET_SEC` only to its `enrich` child. The deferred pipeline uses
+the promoted policy's frozen `selector_runtime_factor_max` and keeps a `900s` review-evidence
+reserve. If Neural Echo cannot fit, `synthesize_neural_echo_baseline` and
+`speaker_preserving_neural_echo_v2` are skipped with an explicit reason in the pipeline report.
+An independently invoked `murmurmark enrich SESSION` has no bounded marker and remains the explicit
+path for completing the heavy selector.
 
 The deferred phase ends with an authoritative-profile refresh. Synthesis resolves
 `--transcript-profile authoritative`, order audit resolves `--profile authoritative`, and readiness

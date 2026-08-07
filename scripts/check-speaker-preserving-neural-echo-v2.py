@@ -1673,7 +1673,7 @@ def production_pipeline_order_checks() -> None:
         "neural echo selection must compare against a profile-matched shadow_v2 verdict",
     )
     require(
-        "enabled=not args.skip_transcription and not args.skip_preprocess" in synthesis_block,
+        "enabled=deferred_echo_enabled" in synthesis_block,
         "neural echo baseline synthesis must share the selector enablement contract",
     )
     prepare_start = source.index(

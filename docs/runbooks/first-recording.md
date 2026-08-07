@@ -124,6 +124,13 @@ bounded by a recorded lifecycle budget and may be deferred without hiding the tr
 item count and duration. The machine-readable details are in
 `derived/meeting-lifecycle/report.json`; `report.md` is the readable view.
 
+For bounded `meeting`, the supervisor passes the exact remaining enrichment budget downstream.
+The deferred pipeline admits the heavy Neural Echo selector only when its frozen maximum runtime
+estimate fits after a `900s` reserve for review evidence. Otherwise baseline synthesis and selector
+are marked skipped, and stronger audio/review work can consume the budget. Run
+`murmurmark enrich "$SESSION"` explicitly when you deliberately want the full selector regardless
+of the one-command lifecycle budget.
+
 Post-capture work uses the `background` resource profile by default:
 
 - the capture child keeps normal scheduling until both raw tracks are finalized;

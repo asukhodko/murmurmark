@@ -28,6 +28,13 @@ def main() -> int:
     apply = load_module("apply-review-decisions.py", "murmurmark_apply_review_materialization")
     outcome = load_module("evaluate-outcome.py", "murmurmark_evaluate_outcome_materialization")
 
+    swift_source = (
+        Path(__file__).parents[1] / "Sources/MurmurMarkCLI/MurmurMarkCLI.swift"
+    ).read_text(encoding="utf-8")
+    assert "private static func convergeSuggestedReview(" in swift_source
+    assert "let maxAdditionalPasses = 7" in swift_source
+    assert 'let closed = closure["closed_by_suggestions"]' in swift_source
+
     raw = {
         "source": "local_recall",
         "source_audit_id": "local_recall_0001",
@@ -64,6 +71,55 @@ def main() -> int:
     normalized = apply.normalize_decision({**materialized, "decision": "keep_me"})
     assert not normalized.get("_invalid"), normalized
     assert apply.obsolete_audit_only_local_recall_keep({**materialized, "decision": "keep_me"}) is False
+
+    audio_row = {
+        "session_id": "fixture",
+        "source": "audio_review",
+        "source_audit_id": "arp_voice_conflict",
+        "review_lane": "classify_audio",
+        "allowed_decisions": ["drop_me", "keep_me", "needs_review", "skip"],
+        "utterance_ids": ["utt_voice_me", "utt_voice_remote"],
+        "me_utterance_ids": ["utt_voice_me"],
+        "remote_utterance_ids": ["utt_voice_remote"],
+        "interval": {"start": 10.0, "end": 12.0},
+    }
+    stronger_keep = {
+        "id": "fwj_voice_conflict",
+        "source_pack_item_id": "arp_voice_conflict",
+        "session_id": "fixture",
+        "utterance_ids": ["utt_voice_me", "utt_voice_remote"],
+        "interval": {"start": 10.0, "end": 12.0},
+        "classification": {"label": "confirm_timing_or_doubletalk", "confidence": 0.92},
+    }
+    target_absent = {
+        "id": "tme_voice_conflict",
+        "source_pack_item_id": "arp_voice_conflict",
+        "session_id": "fixture",
+        "utterance_ids": ["utt_voice_me", "utt_voice_remote"],
+        "interval": {"start": 10.0, "end": 12.0},
+        "classification": {"label": "target_me_absent", "confidence": 0.70},
+        "impact": {"category": "not_actionable"},
+    }
+    suggestion = lane.suggested_decision_for_group(
+        [audio_row],
+        {"fixture": [stronger_keep]},
+        {"fixture": [target_absent]},
+    )
+    assert suggestion[0] == "needs_review", suggestion
+    assert "does not confirm the local speaker" in suggestion[2], suggestion
+
+    target_confirmed = {
+        **target_absent,
+        "id": "tme_voice_confirmed",
+        "classification": {"label": "target_me_confirmed", "confidence": 0.94},
+        "impact": {"category": "new_keep_evidence"},
+    }
+    suggestion = lane.suggested_decision_for_group(
+        [audio_row],
+        {"fixture": [stronger_keep]},
+        {"fixture": [target_confirmed]},
+    )
+    assert suggestion[0] == "keep_me", suggestion
 
     workspace_apply = load_module(
         "apply-review-workspace-decisions.py",
