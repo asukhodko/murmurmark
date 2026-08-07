@@ -83,6 +83,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-resource-policy.py
 "$python_bin" scripts/check-audio-review-clip-parallelism.py
 "$python_bin" scripts/check-stronger-audio-judge.py
+"$python_bin" scripts/check-capture-continuity.py
 "$python_bin" scripts/check-independent-me-evidence.py
 "$python_bin" scripts/check-authoritative-boundary.py
 "$python_bin" scripts/check-residual-me-evidence.py

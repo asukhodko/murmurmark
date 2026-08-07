@@ -28,7 +28,7 @@ from murmurmark_resource_policy import (
     resolve_resource_policy,
 )
 
-SCRIPT_VERSION = "0.2.3"
+SCRIPT_VERSION = "0.2.4"
 SCHEMA = "murmurmark.session_pipeline_run/v1"
 RUN_STATE_SCHEMA = "murmurmark.pipeline_run_state/v1"
 HANDOFF_SCHEMA = "murmurmark.authoritative_handoff/v1"
@@ -61,6 +61,10 @@ STEP_COST_HINTS: dict[str, dict[str, str]] = {
     "echo_suppression_policy": {
         "cost": "light",
         "reason": "validates the frozen Echo Guard promotion policy and fails open to local_fir",
+    },
+    "audit_capture_continuity": {
+        "cost": "light",
+        "reason": "measures restart-correlated PCM gaps without scanning the full recording",
     },
     "export_asr_audio": {
         "cost": "light",
@@ -764,6 +768,11 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
     return [
         step("swift_build", ["swift", "build"], enabled=not args.skip_build, reason="--skip-build"),
         step("inspect", [str(args.murmurmark_bin), "inspect", str(session)]),
+        step(
+            "audit_capture_continuity",
+            [py, str(repo_root / "scripts/audit-capture-continuity.py"), str(session)],
+            warning_returncodes={78},
+        ),
         step(
             "echo_preprocess",
             [str(args.murmurmark_bin), "preprocess", str(session), "--echo", "clean", "--echo-engine", "local_fir"],
@@ -1651,6 +1660,15 @@ def checkpoint_progress_for_step(
 
 def expected_output_specs(session: Path, report_path: Path) -> list[dict[str, str]]:
     return [
+        {
+            "id": "capture_continuity",
+            "path": rel(
+                session / "derived/audit/capture-continuity/capture_continuity_report.json",
+                session,
+            ),
+            "produced_by": "audit_capture_continuity",
+            "purpose": "restart-correlated raw PCM continuity evidence",
+        },
         {
             "id": "mic_for_asr",
             "path": rel(session / "derived/preprocess/audio/mic_for_asr.wav", session),

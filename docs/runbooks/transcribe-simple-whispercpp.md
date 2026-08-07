@@ -1153,6 +1153,10 @@ default broader budget so suggested review can close order/timing rows before as
 listening. Review lane packs use those rows only for safer suggested answers: `confirm_me` and
 `confirm_timing_or_doubletalk` suggest `keep_me` when allowed; `confirm_remote_duplicate` and
 `confirm_asr_noise` suggest `drop_me` only when the lane and safety gates allow that decision.
+The stronger judge also reads interval-weighted `speaker_state.jsonl`. If the complete interval is
+`remote_only`, local evidence is weak and decoded mic follows remote, it vetoes `keep_me` even when
+faster-whisper found similar words in mic. This veto is deliberately fail-open: it yields
+`uncertain / needs_review`, not an automatic drop.
 Suggested answer sheets leave
 `uncertain`/`needs_review` rows as dots, so applying suggested answers closes only actionable rows.
 Dots preserve already reviewed rows and do not reset earlier decisions back to `todo`.

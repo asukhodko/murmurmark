@@ -1516,11 +1516,29 @@ def v217_contract_and_visibility_checks() -> None:
             + "\n",
             encoding="utf-8",
         )
+        active_dir = session / "derived/preprocess/echo"
+        active_dir.mkdir(parents=True)
+        (active_dir / "echo_suppression_selection.json").write_text(
+            json.dumps(
+                {
+                    "schema": "murmurmark.echo_suppression_selection/v1",
+                    "selected": "local_fir_role_masked",
+                    "reason": "corpus_policy_not_promoted",
+                    "mic_for_asr": "derived/preprocess/audio/mic_for_asr.wav",
+                    "candidate_applied": False,
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
         visible = QUALITY.pre_asr_echo_selection_metrics(session)
         require(
             visible["pre_asr_echo_selection_status"] == "fallback"
             and visible["pre_asr_echo_policy_compatible"] is False
-            and visible["pre_asr_echo_exact_fallback"] is True,
+            and visible["pre_asr_echo_exact_fallback"] is True
+            and visible["pre_asr_echo_active_status"] == "selected"
+            and visible["pre_asr_echo_active_profile"] == "local_fir_role_masked"
+            and visible["pre_asr_echo_advanced_status"] == "fallback",
             "readiness hid the incompatible exact pre-ASR fallback",
         )
         (session / "session.json").write_text("{}\n", encoding="utf-8")

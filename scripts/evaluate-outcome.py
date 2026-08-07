@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.4"
+SCRIPT_VERSION = "0.1.5"
 OUTCOME_SCHEMA = "murmurmark.outcome/v1"
 REVIEW_PLAN_SCHEMA = "murmurmark.outcome_review_plan/v1"
 RUN_SCHEMA = "murmurmark.pipeline_run/v1"
@@ -128,6 +128,22 @@ def compact_metrics(metrics: dict[str, Any]) -> dict[str, Any]:
         "transcript_order_probable_order_risk_count",
         "remote_forbidden_review_burden_seconds",
         "remote_forbidden_status",
+        "capture_continuity_status",
+        "capture_continuity_restart_count",
+        "capture_continuity_gap_count",
+        "capture_continuity_gap_seconds",
+        "capture_continuity_max_gap_seconds",
+        "capture_continuity_gap_ratio",
+        "capture_continuity_partial_recommended",
+        "capture_continuity_source",
+        "pre_asr_echo_active_status",
+        "pre_asr_echo_active_reason",
+        "pre_asr_echo_active_profile",
+        "pre_asr_echo_active_input",
+        "pre_asr_echo_active_candidate_applied",
+        "pre_asr_echo_advanced_status",
+        "pre_asr_echo_advanced_reason",
+        "pre_asr_echo_advanced_profile",
         "pre_asr_echo_selection_status",
         "pre_asr_echo_selection_reason",
         "pre_asr_echo_selected_profile",
@@ -380,6 +396,31 @@ def evaluate_gates(
         }
     )
 
+    continuity_status = str(metrics.get("capture_continuity_status") or "missing")
+    continuity_partial = metrics.get("capture_continuity_partial_recommended") is True
+    continuity_available = continuity_status != "missing"
+    gates.append(
+        {
+            "id": "capture_continuity",
+            "status": "review" if continuity_partial else "pass" if continuity_available else "unknown",
+            "severity": "risk" if continuity_partial else "info",
+            "message": (
+                "capture gaps can make the transcript incomplete"
+                if continuity_partial
+                else "restart-correlated PCM continuity is measured"
+                if continuity_available
+                else "capture continuity audit is unavailable"
+            ),
+            "value": continuity_status,
+            "restart_count": metrics.get("capture_continuity_restart_count"),
+            "gap_count": metrics.get("capture_continuity_gap_count"),
+            "gap_seconds": metrics.get("capture_continuity_gap_seconds"),
+            "max_gap_seconds": metrics.get("capture_continuity_max_gap_seconds"),
+            "partial_recommended": continuity_partial if continuity_available else None,
+            "blocking": continuity_partial,
+        }
+    )
+
     for output_id in ("clean_dialogue", "quality_report", "notes", "quality_verdict"):
         item = outputs.get(output_id)
         exists = isinstance(item, dict) and item.get("exists") is True
@@ -471,6 +512,26 @@ def evaluate_gates(
         }
     )
 
+    active_echo_status = str(metrics.get("pre_asr_echo_active_status") or "missing")
+    active_echo_available = active_echo_status == "selected"
+    gates.append(
+        {
+            "id": "pre_asr_echo_active",
+            "status": "pass" if active_echo_available else "unknown",
+            "severity": "info",
+            "message": (
+                "authoritative ASR echo-suppression input is recorded"
+                if active_echo_available
+                else "authoritative ASR echo-suppression selection is unavailable"
+            ),
+            "value": active_echo_status,
+            "selected_profile": metrics.get("pre_asr_echo_active_profile"),
+            "reason": metrics.get("pre_asr_echo_active_reason"),
+            "input": metrics.get("pre_asr_echo_active_input"),
+            "blocking": False,
+        }
+    )
+
     echo_status = str(metrics.get("pre_asr_echo_selection_status") or "missing")
     echo_reason = str(metrics.get("pre_asr_echo_selection_reason") or "selection_report_missing")
     echo_exact_fallback = metrics.get("pre_asr_echo_exact_fallback") is True
@@ -491,9 +552,9 @@ def evaluate_gates(
                 if echo_status == "candidate" and echo_policy_compatible
                 else "exact local-FIR fallback preserved"
                 if echo_status == "fallback" and echo_exact_fallback
-                else "pre-ASR echo selection is not safely resolved"
+                else "advanced pre-ASR echo selection is not safely resolved"
                 if echo_available
-                else "pre-ASR echo selection report is unavailable for this session"
+                else "advanced pre-ASR echo selection was not evaluated for this session"
             ),
             "available": echo_available,
             "value": echo_status,

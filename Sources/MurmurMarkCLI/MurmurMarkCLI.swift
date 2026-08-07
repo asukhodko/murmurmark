@@ -1286,6 +1286,7 @@ enum DoctorChecks {
             "scripts/transcribe-simple-whispercpp.py",
             "scripts/check-asr-chunk-cache.py",
             "scripts/check-capture-regressions.sh",
+            "scripts/audit-capture-continuity.py",
             "scripts/synthesize-simple-extractive.py",
             "scripts/evidence_handoff_v2.py",
             "scripts/export-session-bundle.py",
@@ -15656,6 +15657,23 @@ enum ReadinessPrinter {
         if let remoteDuration = double(remote["duration_sec"]) {
             print(String(format: "    remote: %.1fs", remoteDuration))
         }
+        let continuityURL = session.appendingPathComponent(
+            "derived/audit/capture-continuity/capture_continuity_report.json"
+        )
+        if let continuity = try? JSONFiles.object(continuityURL) {
+            print("    continuity: \(string(continuity["status"]) ?? "unknown")")
+            print("    restarts: \(int(continuity["screen_capture_restart_count"]) ?? 0)")
+            let gaps = int(continuity["observed_gap_count"]) ?? 0
+            let gapSeconds = double(continuity["observed_gap_seconds"]) ?? 0.0
+            print(String(format: "    pcm_gaps: %d / %.3fs", gaps, gapSeconds))
+            if let maximum = double(continuity["max_observed_gap_seconds"]) {
+                print(String(format: "    largest_pcm_gap: %.3fs", maximum))
+            }
+            print("    partial_recommended: \(bool(continuity["partial_recommended"]) ?? false)")
+        } else if let restarts = int(health["screen_capture_restart_count"]), restarts > 0 {
+            print("    restarts: \(restarts)")
+            print("    continuity: not_measured")
+        }
     }
 
     private static func printLivePipelineSummary(_ session: URL) {
@@ -15850,22 +15868,36 @@ enum ReadinessPrinter {
     }
 
     private static func printSpeakerPreservingEchoSummary(_ session: URL) {
-        let reportURL = session.appendingPathComponent(
+        let activeURL = session.appendingPathComponent(
+            "derived/preprocess/echo/echo_suppression_selection.json"
+        )
+        let advancedURL = session.appendingPathComponent(
             "derived/preprocess/speaker-preserving-neural-echo-v2/production_selection_report.json"
         )
-        guard FileManager.default.fileExists(atPath: reportURL.path),
-              let payload = try? JSONFiles.object(reportURL)
-        else {
-            return
+        let active = try? JSONFiles.object(activeURL)
+        let advanced = try? JSONFiles.object(advancedURL)
+        guard active != nil || advanced != nil else { return }
+        if let active {
+            print("  pre_asr_echo_active:")
+            print("    status: selected")
+            print("    profile: \(string(active["selected"]) ?? "unknown")")
+            if let reason = string(active["reason"]), !reason.isEmpty {
+                print("    reason: \(reason)")
+            }
+            if let input = string(active["mic_for_asr"]), !input.isEmpty {
+                print("    input: \(input)")
+            }
+            print("    candidate_applied: \(bool(active["candidate_applied"]) ?? false)")
         }
-        print("  pre_asr_echo_selection:")
-        print("    status: \(string(payload["status"]) ?? "unknown")")
-        print("    profile: \(string(payload["selected_profile"]) ?? "local_fir_role_masked")")
-        print("    batch_authoritative: \(bool(payload["batch_authoritative"]) ?? true)")
-        if let reason = string(payload["reason"]), !reason.isEmpty {
+        guard let advanced else { return }
+        print("  pre_asr_echo_advanced:")
+        print("    status: \(string(advanced["status"]) ?? "unknown")")
+        print("    profile: \(string(advanced["selected_profile"]) ?? "local_fir_role_masked")")
+        print("    batch_authoritative: \(bool(advanced["batch_authoritative"]) ?? true)")
+        if let reason = string(advanced["reason"]), !reason.isEmpty {
             print("    reason: \(reason)")
         }
-        if let selector = payload["selector"] as? [String: Any] {
+        if let selector = advanced["selector"] as? [String: Any] {
             let applicability = selector["applicability"] as? [String: Any] ?? [:]
             if let classification = string(applicability["classification"]) {
                 print("    applicability: \(classification)")
@@ -16303,12 +16335,30 @@ enum ReadinessPrinter {
             if let coverage = string(metrics["harmful_remote_in_me_coverage"]), !coverage.isEmpty {
                 print("  harmful_remote_evidence: \(coverage)")
             }
-            if let echoStatus = string(metrics["pre_asr_echo_selection_status"]), !echoStatus.isEmpty {
-                let echoProfile = string(metrics["pre_asr_echo_selected_profile"]) ?? "unknown"
-                print("  pre_asr_echo: \(echoStatus) (\(echoProfile))")
+            if let continuityStatus = string(metrics["capture_continuity_status"]), !continuityStatus.isEmpty {
+                let gaps = int(metrics["capture_continuity_gap_count"]) ?? 0
+                let gapSeconds = double(metrics["capture_continuity_gap_seconds"]) ?? 0.0
+                print(String(format: "  capture_continuity: %@ (%d gaps / %.3fs)", continuityStatus, gaps, gapSeconds))
             }
-            if let echoReason = string(metrics["pre_asr_echo_selection_reason"]), !echoReason.isEmpty {
-                print("  pre_asr_echo_reason: \(echoReason)")
+            if let activeStatus = string(metrics["pre_asr_echo_active_status"]), !activeStatus.isEmpty {
+                let activeProfile = string(metrics["pre_asr_echo_active_profile"]) ?? "unknown"
+                print("  pre_asr_echo_active: \(activeStatus) (\(activeProfile))")
+            }
+            if let activeReason = string(metrics["pre_asr_echo_active_reason"]), !activeReason.isEmpty {
+                print("  pre_asr_echo_active_reason: \(activeReason)")
+            }
+            if let echoStatus = string(metrics["pre_asr_echo_advanced_status"])
+                ?? string(metrics["pre_asr_echo_selection_status"]),
+               !echoStatus.isEmpty {
+                let echoProfile = string(metrics["pre_asr_echo_advanced_profile"])
+                    ?? string(metrics["pre_asr_echo_selected_profile"])
+                    ?? "unknown"
+                print("  pre_asr_echo_advanced: \(echoStatus) (\(echoProfile))")
+            }
+            if let echoReason = string(metrics["pre_asr_echo_advanced_reason"])
+                ?? string(metrics["pre_asr_echo_selection_reason"]),
+               !echoReason.isEmpty {
+                print("  pre_asr_echo_advanced_reason: \(echoReason)")
             }
             if let localRecall = double(metrics["local_only_island_recall"]) {
                 print(String(format: "  local_recall: %.3f", localRecall))

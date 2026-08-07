@@ -40,20 +40,23 @@ def classify(
     *,
     local: float,
     corroborated_duplicate: bool = False,
+    speaker_state: dict[str, Any] | None = None,
+    item_remote_text: str = "Скинул мерч-квест.",
+    mic_raw_text: str | None = None,
 ) -> dict[str, Any]:
     item = {
         "utterances": [
             {"id": "me", "role": "me", "source_track": "mic", "text": me_text},
-            {"id": "remote", "role": "remote", "source_track": "remote", "text": "Скинул мерч-квест."},
+            {"id": "remote", "role": "remote", "source_track": "remote", "text": item_remote_text},
         ],
         "source_contexts": [group_context(local, 45, 40)],
     }
     transcripts = {
         "mic_clean": {"text": mic_text, "avg_logprob": -0.4, "no_speech_prob": 0.1},
-        "mic_raw": {"text": mic_text, "avg_logprob": -0.4, "no_speech_prob": 0.1},
+        "mic_raw": {"text": mic_raw_text or mic_text, "avg_logprob": -0.4, "no_speech_prob": 0.1},
         "remote": {"text": remote_text, "avg_logprob": -0.3, "no_speech_prob": 0.05},
     }
-    metrics = module.source_metrics(transcripts, me_text, "Скинул мерч-квест.")
+    metrics = module.source_metrics(transcripts, me_text, item_remote_text)
     audit_row = None
     if corroborated_duplicate:
         audit_row = {
@@ -66,7 +69,7 @@ def classify(
                 "remote_similarity": 90,
             },
         }
-    return module.classify_item(item, audit_row, transcripts, metrics)
+    return module.classify_item(item, audit_row, transcripts, metrics, speaker_state)
 
 
 def main() -> int:
@@ -100,6 +103,37 @@ def main() -> int:
     )
     assert double_talk["label"] in {"confirm_me", "confirm_timing_or_doubletalk"}, double_talk
     assert double_talk["suggested_decision"] == "keep_me", double_talk
+
+    remote_only_false_keep = classify(
+        module,
+        "Вот он, предыдущий голос. Росбанк, да. Давайте, если вас...",
+        "Ну, вон там ребята еще делаются. Росбанк слетел. Росбанк, да? Давайте, если вы хотите, мы можем сделать это.",
+        "Давайте если вас это",
+        local=40,
+        speaker_state={
+            "available": True,
+            "coverage_ratio": 1.0,
+            "remote_only_ratio": 1.0,
+            "local_active_ratio": 0.0,
+            "double_talk_ratio": 0.0,
+        },
+        item_remote_text="",
+        mic_raw_text="Ну, вон там ребята еще, Росбанк слетел. Росбанк, да? Давайте, если вас...",
+    )
+    assert remote_only_false_keep["label"] == "uncertain", remote_only_false_keep
+    assert remote_only_false_keep["suggested_decision"] == "needs_review", remote_only_false_keep
+    assert remote_only_false_keep["scores"]["speaker_state_remote_only_keep_veto"] is True
+
+    state = module.interval_speaker_state_evidence(
+        [
+            {"start": 10.0, "end": 12.0, "state": "remote_only_level"},
+            {"start": 12.0, "end": 14.0, "state": "remote_only"},
+        ],
+        {"start": 10.5, "end": 13.5},
+    )
+    assert state["coverage_ratio"] == 1.0, state
+    assert state["remote_only_ratio"] == 1.0, state
+    assert state["local_active_ratio"] == 0.0, state
 
     remote_contained_me = classify(
         module,

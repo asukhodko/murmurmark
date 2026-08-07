@@ -178,6 +178,40 @@ If any check fails, `session_classification` is `unverified_empty_transcript`, v
 and the normal blocked/review handoff remains in force. This contract does not infer why nobody
 spoke; it only states what the recorded and derived evidence supports.
 
+### Capture continuity evidence
+
+Normal processing writes:
+
+```text
+derived/audit/capture-continuity/
+  capture_continuity_report.json
+  capture_continuity_report.md
+```
+
+The JSON schema is `murmurmark.capture_continuity/v1`. It records ScreenCaptureKit restart events
+and exact-zero PCM runs found in bounded raw mic/remote windows around those events:
+
+```json
+{
+  "schema": "murmurmark.capture_continuity/v1",
+  "status": "warning",
+  "source": "restart_bounded_pcm_scan",
+  "screen_capture_restart_count": 3,
+  "observed_gap_count": 3,
+  "observed_gap_seconds": 2.466,
+  "max_observed_gap_seconds": 0.910,
+  "observed_gap_ratio": 0.000710,
+  "partial_recommended": false,
+  "gaps": []
+}
+```
+
+Native future `session.json.health.capture_gaps` rows take precedence; otherwise the bounded scan is
+the reproducible fallback. `partial_recommended` becomes true when a gap is at least `2s`, total
+gaps reach `5s`, or they occupy at least `0.5%` of capture. A smaller measured gap is a non-blocking
+warning. Missing evidence stays explicit and must not be interpreted as gap-free capture. Raw CAF
+is read-only. Derived compaction retains the JSON report with the selected transcript and outcome.
+
 `recommended_next`, `next_commands` and `open_commands` are also copied to
 `synthesis_manifest.json`. This makes synthesis a machine-readable handoff: CLI wrappers and agents
 do not have to scrape terminal output to decide whether to review, inspect notes, refresh a report
@@ -1568,6 +1602,11 @@ single classification:
     "mic_clean": {"text": "Да, я проверю логи.", "avg_logprob": -0.19},
     "remote": {"text": "Давайте посмотрим deploy.", "avg_logprob": -0.22}
   },
+  "speaker_state_evidence": {
+    "coverage_ratio": 1.0,
+    "remote_only_ratio": 1.0,
+    "local_active_ratio": 0.0
+  },
   "classification": {
     "label": "confirm_timing_or_doubletalk",
     "suggested_decision": "keep_me",
@@ -1584,6 +1623,10 @@ Valid labels are `confirm_me`, `confirm_remote_duplicate`, `confirm_asr_noise`,
 missing, and `recommended_next_step`. These outputs are audit evidence only. They may improve
 `review_lane_answers.<lane>.suggested.txt`, but they do not edit transcript profiles, Echo Guard
 outputs or raw capture.
+An interval-weighted `speaker_state` veto prevents `confirm_me` when at least `80%` of a well-covered
+interval is `remote_only`, local-active coverage is at most `10%`, independent local support is
+weak and mic ASR follows remote. The result is `uncertain / needs_review`; speaker state and audio
+similarity alone never authorize `drop_me`.
 `likely_reliable` can also be emitted for benign ties when `double_talk`, `timing_overlap` and/or
 local reliability are the strongest classes and all error classes stay below `60`. This avoids
 escalating expected group-call timing overlap to a stronger judge.
@@ -8628,9 +8671,18 @@ The immutable decision is `HARD_TEST_PASSED_V2_17` plus
 candidates, seven exact fallbacks, `41.940s`, 90 removed remote-supported tokens, local retention
 `1.0` and maximum runtime factor `0.524864`. Production policy v2.17 pins both reports and decisions.
 
-`session_readiness.json.metrics` additionally carries:
+`session_readiness.json.metrics` distinguishes the authoritative input actually used by ASR from
+the optional advanced selector:
 
 ```text
+pre_asr_echo_active_status
+pre_asr_echo_active_reason
+pre_asr_echo_active_profile
+pre_asr_echo_active_input
+pre_asr_echo_active_candidate_applied
+pre_asr_echo_advanced_status
+pre_asr_echo_advanced_reason
+pre_asr_echo_advanced_profile
 pre_asr_echo_selection_status
 pre_asr_echo_selection_reason
 pre_asr_echo_selected_profile
@@ -8638,6 +8690,11 @@ pre_asr_echo_policy_compatible
 pre_asr_echo_exact_fallback
 remote_duplicate_in_me_seconds
 ```
+
+The legacy `pre_asr_echo_selection_*` fields remain aliases for the advanced personalized selector.
+They can be `missing` while `pre_asr_echo_active_*` validly identifies
+`local_fir_role_masked`. Readiness also carries `capture_continuity_*` status, restart, gap, ratio
+and partial-recommendation fields from `murmurmark.capture_continuity/v1`.
 
 `outcome.json` exposes `harmful_remote_in_me_seconds` and
 `harmful_remote_in_me_coverage`. The value is the maximum available duration from audit-harmful,

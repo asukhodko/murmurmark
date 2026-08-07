@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.5.5"
+SCRIPT_VERSION = "0.5.6"
 SCHEMA = "murmurmark.session_quality_report/v1"
 READINESS_SCHEMA = "murmurmark.session_readiness/v1"
 CLEANUP_PROFILES = {
@@ -772,6 +772,9 @@ def stage_status(session: Path) -> dict[str, bool]:
         "capture": (session / "session.json").exists()
         and (session / "audio/mic/000001.caf").exists()
         and (session / "audio/remote/000001.caf").exists(),
+        "capture_continuity_audit": (
+            session / "derived/audit/capture-continuity/capture_continuity_report.json"
+        ).exists(),
         "echo_local_fir": (session / "derived/preprocess/echo/local_fir_report.json").exists(),
         "transcript_current": (resolved / "quality_report.json").exists() and (resolved / "clean_dialogue.json").exists(),
         "transcript_shadow_v2": (resolved / "quality_report.shadow_v2.json").exists()
@@ -2212,6 +2215,24 @@ def use_gate_reasons(row: dict[str, Any]) -> list[dict[str, Any]]:
                     "value": round(guarded_seconds, 3),
                 }
             )
+    if row.get("capture_continuity_partial_recommended") is True:
+        reasons.append(
+            {
+                "id": "capture_continuity_partial",
+                "severity": "review",
+                "message": "Capture continuity gaps are large enough that the transcript may be incomplete.",
+                "value": row.get("capture_continuity_gap_seconds"),
+            }
+        )
+    elif row.get("capture_continuity_status") == "warning":
+        reasons.append(
+            {
+                "id": "capture_continuity_warning",
+                "severity": "warning",
+                "message": "Small restart-correlated PCM gaps were measured; the transcript remains usable.",
+                "value": row.get("capture_continuity_gap_seconds"),
+            }
+        )
     if (
         row.get("pre_asr_echo_selection_status") == "fallback"
         and row.get("pre_asr_echo_selection_reason")
@@ -2327,13 +2348,30 @@ def authoritative_handoff_profile(session: Path) -> str | None:
 
 
 def pre_asr_echo_selection_metrics(session: Path) -> dict[str, Any]:
+    active = read_json(session / "derived/preprocess/echo/echo_suppression_selection.json")
     report = read_json(
         session
         / "derived/preprocess/speaker-preserving-neural-echo-v2"
         / "production_selection_report.json"
     )
+    active_valid = (
+        isinstance(active, dict)
+        and active.get("schema") == "murmurmark.echo_suppression_selection/v1"
+        and isinstance(active.get("selected"), str)
+        and bool(active.get("selected"))
+    )
+    common = {
+        "pre_asr_echo_active_status": "selected" if active_valid else "missing",
+        "pre_asr_echo_active_reason": active.get("reason") if active_valid else "active_selection_report_missing",
+        "pre_asr_echo_active_profile": active.get("selected") if active_valid else None,
+        "pre_asr_echo_active_input": active.get("mic_for_asr") if active_valid else None,
+        "pre_asr_echo_active_candidate_applied": active.get("candidate_applied") if active_valid else None,
+        "pre_asr_echo_advanced_status": report.get("status") if isinstance(report, dict) else "missing",
+        "pre_asr_echo_advanced_reason": report.get("reason") if isinstance(report, dict) else "selection_report_missing",
+        "pre_asr_echo_advanced_profile": report.get("selected_profile") if isinstance(report, dict) else None,
+    }
     if not isinstance(report, dict):
-        return {
+        return common | {
             "pre_asr_echo_selection_status": "missing",
             "pre_asr_echo_selection_reason": "selection_report_missing",
             "pre_asr_echo_selected_profile": None,
@@ -2346,12 +2384,39 @@ def pre_asr_echo_selection_metrics(session: Path) -> dict[str, Any]:
         and bool(checks)
         and all(value is True for value in checks.values())
     )
-    return {
+    return common | {
         "pre_asr_echo_selection_status": report.get("status"),
         "pre_asr_echo_selection_reason": report.get("reason"),
         "pre_asr_echo_selected_profile": report.get("selected_profile"),
         "pre_asr_echo_policy_compatible": compatible,
         "pre_asr_echo_exact_fallback": report.get("exact_fallback"),
+    }
+
+
+def capture_continuity_metrics(session: Path, manifest: dict[str, Any]) -> dict[str, Any]:
+    report = read_json(session / "derived/audit/capture-continuity/capture_continuity_report.json")
+    health = manifest.get("health") if isinstance(manifest.get("health"), dict) else {}
+    restart_count = safe_int(health.get("screen_capture_restart_count")) or 0
+    if not isinstance(report, dict) or report.get("schema") != "murmurmark.capture_continuity/v1":
+        return {
+            "capture_continuity_status": "missing",
+            "capture_continuity_restart_count": restart_count,
+            "capture_continuity_gap_count": None,
+            "capture_continuity_gap_seconds": None,
+            "capture_continuity_max_gap_seconds": None,
+            "capture_continuity_gap_ratio": None,
+            "capture_continuity_partial_recommended": None,
+            "capture_continuity_source": None,
+        }
+    return {
+        "capture_continuity_status": report.get("status"),
+        "capture_continuity_restart_count": safe_int(report.get("screen_capture_restart_count")),
+        "capture_continuity_gap_count": safe_int(report.get("observed_gap_count")),
+        "capture_continuity_gap_seconds": round_or_none(report.get("observed_gap_seconds"), 6),
+        "capture_continuity_max_gap_seconds": round_or_none(report.get("max_observed_gap_seconds"), 6),
+        "capture_continuity_gap_ratio": round_or_none(report.get("observed_gap_ratio"), 9),
+        "capture_continuity_partial_recommended": report.get("partial_recommended") is True,
+        "capture_continuity_source": report.get("source"),
     }
 
 
@@ -2531,6 +2596,7 @@ def collect_session(
         },
     }
     row.update(echo_metrics(local_fir))
+    row.update(capture_continuity_metrics(session, session_json))
     row.update(pre_asr_echo_selection_metrics(session))
     row.update(group_metrics(group_summary))
     row.update(cleanup_metrics(quality, cleanup_report))
@@ -2882,7 +2948,16 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "suggested_closure_auto_review_seconds",
         "suggested_closure_manual_remaining_rows",
         "suggested_closure_manual_remaining_seconds",
+        "capture_continuity_status",
+        "capture_continuity_restart_count",
+        "capture_continuity_gap_count",
+        "capture_continuity_gap_seconds",
+        "capture_continuity_max_gap_seconds",
+        "capture_continuity_partial_recommended",
         "echo_reduction_db",
+        "pre_asr_echo_active_status",
+        "pre_asr_echo_active_profile",
+        "pre_asr_echo_advanced_status",
         "selected_notes",
         "hidden_meeting_facilitation_count",
         "audio_review_items",
@@ -3574,6 +3649,22 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
             "remote_forbidden_token_leak_delta": row.get("remote_forbidden_token_leak_delta"),
             "remote_forbidden_local_word_recall_delta": row.get("remote_forbidden_local_word_recall_delta"),
             "remote_duplicate_in_me_seconds": row.get("remote_duplicate_in_me_seconds"),
+            "capture_continuity_status": row.get("capture_continuity_status"),
+            "capture_continuity_restart_count": row.get("capture_continuity_restart_count"),
+            "capture_continuity_gap_count": row.get("capture_continuity_gap_count"),
+            "capture_continuity_gap_seconds": row.get("capture_continuity_gap_seconds"),
+            "capture_continuity_max_gap_seconds": row.get("capture_continuity_max_gap_seconds"),
+            "capture_continuity_gap_ratio": row.get("capture_continuity_gap_ratio"),
+            "capture_continuity_partial_recommended": row.get("capture_continuity_partial_recommended"),
+            "capture_continuity_source": row.get("capture_continuity_source"),
+            "pre_asr_echo_active_status": row.get("pre_asr_echo_active_status"),
+            "pre_asr_echo_active_reason": row.get("pre_asr_echo_active_reason"),
+            "pre_asr_echo_active_profile": row.get("pre_asr_echo_active_profile"),
+            "pre_asr_echo_active_input": row.get("pre_asr_echo_active_input"),
+            "pre_asr_echo_active_candidate_applied": row.get("pre_asr_echo_active_candidate_applied"),
+            "pre_asr_echo_advanced_status": row.get("pre_asr_echo_advanced_status"),
+            "pre_asr_echo_advanced_reason": row.get("pre_asr_echo_advanced_reason"),
+            "pre_asr_echo_advanced_profile": row.get("pre_asr_echo_advanced_profile"),
             "pre_asr_echo_selection_status": row.get("pre_asr_echo_selection_status"),
             "pre_asr_echo_selection_reason": row.get("pre_asr_echo_selection_reason"),
             "pre_asr_echo_selected_profile": row.get("pre_asr_echo_selected_profile"),

@@ -88,7 +88,7 @@ batch processing begins. A new meeting may therefore start while an earlier meet
 processed in another terminal. Run only one active capture at a time; the recording lock rejects a
 second one. If ScreenCaptureKit startup does not complete, MurmurMark fails within a bounded timeout,
 releases the lock and does not start post-processing. If capture is partial, sparse or silent,
-processing blocks instead of publishing an empty successful transcript.
+processing blocks; `status` also reports restart-correlated PCM gaps measured without changing raw CAF.
 
 `meeting` already owns status, notes and transcript production. Do not paste unconditional
 `status/outcome/transcript` commands after it: when capture startup fails, no finalized session
@@ -336,7 +336,7 @@ V4 recovered 124 words / `83.640s`, below its `20%` promotion gates, and remains
 - `--reviewed-speakers` uses only explicit labels from the current session decision file; ordinary
   transcript, notes and export never consume those labels implicitly.
 - The personalized pre-ASR profile removes independently supported remote leakage on compatible
-  speaker-playback sessions; it does not promise waveform-perfect echo removal on every room/device.
+  sessions; `status` distinguishes the active ASR input from the optional advanced selector.
 - Alignment/Echo-Path v3 is audit-only after `READY_FOR_MULTI_COMPONENT_SEPARATOR`; it is not a
   production audio profile and its hard/sealed sets remain unopened.
 - SepFormer Four-Stem v1 stopped at train presence/absence separation; dev, hard, direct ASR and production stayed closed.

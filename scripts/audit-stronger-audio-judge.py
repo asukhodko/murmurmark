@@ -18,7 +18,7 @@ from typing import Any
 
 SCHEMA_ROW = "murmurmark.faster_whisper_judge/v1"
 SCHEMA_SUMMARY = "murmurmark.faster_whisper_judge_summary/v1"
-SCRIPT_VERSION = "0.1.4"
+SCRIPT_VERSION = "0.1.5"
 DEFAULT_MODEL = Path.home() / ".local/share/murmurmark/models/faster-whisper/large-v3"
 DEFAULT_MAX_ITEMS = 80
 DEFAULT_SOURCES = ("mic_role_masked", "mic_clean", "mic_raw", "remote")
@@ -641,6 +641,79 @@ def safe_float(value: Any, default: float = 0.0) -> float:
     return number
 
 
+def interval_speaker_state_evidence(
+    rows: list[dict[str, Any]],
+    interval: dict[str, Any] | None,
+) -> dict[str, Any]:
+    interval = interval if isinstance(interval, dict) else {}
+    start = safe_float(interval.get("start"), -1.0)
+    end = safe_float(interval.get("end"), -1.0)
+    duration = max(0.0, end - start)
+    if start < 0 or duration <= 0:
+        return {
+            "available": False,
+            "reason": "invalid_interval",
+            "interval_sec": round(duration, 3),
+            "covered_sec": 0.0,
+            "coverage_ratio": 0.0,
+            "remote_only_ratio": 0.0,
+            "local_active_ratio": 0.0,
+            "double_talk_ratio": 0.0,
+            "states": {},
+        }
+
+    covered = 0.0
+    remote_only = 0.0
+    local_only = 0.0
+    double_talk = 0.0
+    silence = 0.0
+    local_scores: list[tuple[float, float]] = []
+    states: Counter[str] = Counter()
+    for row in rows:
+        row_start = safe_float(row.get("start"), -1.0)
+        row_end = safe_float(row.get("end"), -1.0)
+        overlap = max(0.0, min(end, row_end) - max(start, row_start))
+        if overlap <= 0:
+            continue
+        state = str(row.get("state") or "unknown")
+        states[state] += overlap
+        covered += overlap
+        if state.startswith("remote_only"):
+            remote_only += overlap
+        elif state.startswith("local_only"):
+            local_only += overlap
+        elif state == "double_talk":
+            double_talk += overlap
+        elif state == "silence":
+            silence += overlap
+        if row.get("local_score") is not None:
+            local_scores.append((safe_float(row.get("local_score")), overlap))
+
+    denominator = max(covered, 1e-9)
+    local_active = local_only + double_talk
+    local_score_weight = sum(weight for _, weight in local_scores)
+    local_score_mean = (
+        sum(score * weight for score, weight in local_scores) / local_score_weight
+        if local_score_weight > 0
+        else None
+    )
+    return {
+        "available": covered > 0,
+        "reason": "speaker_state_overlap" if covered > 0 else "speaker_state_not_covered",
+        "interval_sec": round(duration, 3),
+        "covered_sec": round(covered, 3),
+        "coverage_ratio": round(min(1.0, covered / duration), 6),
+        "remote_only_ratio": round(remote_only / denominator, 6),
+        "local_only_ratio": round(local_only / denominator, 6),
+        "local_active_ratio": round(local_active / denominator, 6),
+        "double_talk_ratio": round(double_talk / denominator, 6),
+        "silence_ratio": round(silence / denominator, 6),
+        "local_score_mean": round(local_score_mean, 6) if local_score_mean is not None else None,
+        "local_score_max": round(max((score for score, _ in local_scores), default=0.0), 6),
+        "states": {key: round(value, 3) for key, value in sorted(states.items())},
+    }
+
+
 def format_time(seconds: float) -> str:
     total = max(0, int(seconds))
     hours = total // 3600
@@ -949,6 +1022,7 @@ def classify_item(
     audit_row: dict[str, Any] | None,
     transcripts: dict[str, dict[str, Any]],
     metrics: dict[str, Any],
+    speaker_state: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     me_text, remote_text = utterance_texts(item)
     remote_reference_text = remote_text or str(transcripts.get("remote", {}).get("text") or "")
@@ -1007,6 +1081,18 @@ def classify_item(
     group_audio_leak = max(
         (safe_float((context.get("scores") or {}).get("audio_leak"), 0.0) for context in group_contexts),
         default=0.0,
+    )
+    speaker_state = speaker_state if isinstance(speaker_state, dict) else {}
+    state_coverage = safe_float(speaker_state.get("coverage_ratio"), 0.0)
+    state_remote_only = safe_float(speaker_state.get("remote_only_ratio"), 0.0)
+    state_local_active = safe_float(speaker_state.get("local_active_ratio"), 0.0)
+    state_double_talk = safe_float(speaker_state.get("double_talk_ratio"), 0.0)
+    remote_only_keep_veto = (
+        state_coverage >= 0.80
+        and state_remote_only >= 0.80
+        and state_local_active <= 0.10
+        and group_local_evidence < 50
+        and best_remote_in_mic >= 0.70
     )
     decoded_remote_to_me = text_similarity(str(transcripts.get("remote", {}).get("text") or ""), me_text)
     remote_contains_me_veto = (
@@ -1124,6 +1210,14 @@ def classify_item(
             "remote track fully contains the proposed Me phrase and the mic decode also follows remote; "
             "local speech is not independently confirmed"
         )
+    elif remote_only_keep_veto and me_confirmed:
+        label = "uncertain"
+        suggested = "needs_review"
+        confidence = min(0.69, max(0.60, best_remote_in_mic))
+        reasons.append(
+            "speaker_state is remote-only across the interval and mic follows remote; "
+            "decoded mic text cannot independently confirm Me"
+        )
     elif me_confirmed and remote_confirmed and best_remote_in_mic < 0.68:
         label = "confirm_timing_or_doubletalk" if remote_text else "confirm_me"
         suggested = "keep_me"
@@ -1218,6 +1312,11 @@ def classify_item(
             "group_audio_leak": round(group_audio_leak, 3),
             "audio_review_local_support": local_support,
             "audio_review_remote_similarity": remote_similarity,
+            "speaker_state_coverage_ratio": round(state_coverage, 6),
+            "speaker_state_remote_only_ratio": round(state_remote_only, 6),
+            "speaker_state_local_active_ratio": round(state_local_active, 6),
+            "speaker_state_double_talk_ratio": round(state_double_talk, 6),
+            "speaker_state_remote_only_keep_veto": remote_only_keep_veto,
         },
         "best_sources": {
             "me": best_me_source,
@@ -1228,7 +1327,13 @@ def classify_item(
     }
 
 
-def audit_item(model: Any, item: dict[str, Any], audit_row: dict[str, Any] | None, args: argparse.Namespace) -> dict[str, Any]:
+def audit_item(
+    model: Any,
+    item: dict[str, Any],
+    audit_row: dict[str, Any] | None,
+    args: argparse.Namespace,
+    speaker_state_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
     sources = selected_sources(args)
     clips = item.get("clips") if isinstance(item.get("clips"), dict) else {}
     transcripts: dict[str, dict[str, Any]] = {}
@@ -1239,7 +1344,8 @@ def audit_item(model: Any, item: dict[str, Any], audit_row: dict[str, Any] | Non
         transcripts[source] = transcribe_clip(model, Path(path_value), args)
     me_text, remote_text = utterance_texts(item)
     metrics = source_metrics(transcripts, me_text, remote_text)
-    classification = classify_item(item, audit_row, transcripts, metrics)
+    speaker_state = interval_speaker_state_evidence(speaker_state_rows, item.get("interval"))
+    classification = classify_item(item, audit_row, transcripts, metrics, speaker_state)
     return {
         "schema": SCHEMA_ROW,
         "id": f"fwj_{str(item.get('id') or '').replace('arp_', '')}",
@@ -1257,8 +1363,27 @@ def audit_item(model: Any, item: dict[str, Any], audit_row: dict[str, Any] | Non
         "clips": clips,
         "transcripts": transcripts,
         "text_metrics": metrics,
+        "speaker_state_evidence": speaker_state,
         "classification": classification,
     }
+
+
+def refresh_cached_classification(
+    row: dict[str, Any],
+    item: dict[str, Any],
+    audit_row: dict[str, Any] | None,
+    speaker_state_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    refreshed = dict(row)
+    transcripts = row.get("transcripts") if isinstance(row.get("transcripts"), dict) else {}
+    me_text, remote_text = utterance_texts(item)
+    metrics = source_metrics(transcripts, me_text, remote_text)
+    speaker_state = interval_speaker_state_evidence(speaker_state_rows, item.get("interval"))
+    refreshed["text_metrics"] = metrics
+    refreshed["speaker_state_evidence"] = speaker_state
+    refreshed["classification"] = classify_item(item, audit_row, transcripts, metrics, speaker_state)
+    refreshed["classification_policy_version"] = SCRIPT_VERSION
+    return refreshed
 
 
 def summarize(rows: list[dict[str, Any]], *, model_path: Path, pack_summary: dict[str, Any] | None, skipped_reason: str | None = None) -> dict[str, Any]:
@@ -1419,6 +1544,7 @@ def main() -> int:
         existing_ids = {str(item.get("id") or "") for item in items}
         items.extend(item for item in lane_items if str(item.get("id") or "") not in existing_ids)
     audio_review_rows = audit_by_id(read_jsonl(pack_dir / "audio_review_audit.jsonl"))
+    speaker_state_rows = read_jsonl(session / "derived/preprocess/echo/speaker_state.jsonl")
     pack_summary = read_json(pack_dir / "review_pack_summary.json")
     model_path = resolve_model(args)
     ready, ready_reason = model_ready(model_path)
@@ -1481,7 +1607,14 @@ def main() -> int:
             item_id = str(item.get("id") or "")
             duration = safe_float((item.get("interval") or {}).get("duration_sec"), 0.0)
             progress(args, f"decode {index}/{len(missing_items)} {item_id} ({duration:.2f}s)")
-            new_by_pack_id[item_id] = audit_item(model, item, matched_audio_review_rows.get(item_id), args)
+            new_by_pack_id[item_id] = audit_item(
+                model,
+                item,
+                matched_audio_review_rows.get(item_id),
+                args,
+                speaker_state_rows,
+            )
+            new_by_pack_id[item_id]["classification_policy_version"] = SCRIPT_VERSION
             classification = new_by_pack_id[item_id].get("classification") or {}
             progress(
                 args,
@@ -1499,7 +1632,14 @@ def main() -> int:
         item_id = str(item.get("id") or "")
         row = new_by_pack_id.get(item_id) or cached_by_pack_id.get(item_id)
         if row:
-            selected_rows.append(row)
+            selected_rows.append(
+                refresh_cached_classification(
+                    row,
+                    item,
+                    matched_audio_review_rows.get(item_id),
+                    speaker_state_rows,
+                )
+            )
     targeted_run = bool(requested_target_ids or args.review_lane_pack or args.pack_item_id)
     merged_by_pack_id = existing_rows_by_pack_id(out_dir) if targeted_run else {}
     merged_by_pack_id.update(valid_existing_rows_by_pack_id(out_dir, items, sources))

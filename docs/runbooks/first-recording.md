@@ -618,6 +618,19 @@ If ScreenCaptureKit stops before `Ctrl-C`, MurmurMark tries to restart the captu
 recording into the same session. A successful restart is written to `events.jsonl` as
 `capture.restarted`.
 
+During `process`, `audit-capture-continuity.py` inspects only short raw-PCM windows around those
+restart events. The resulting `capture_continuity_report.json` is shown by `status` and `outcome`:
+
+```bash
+jq '{status, screen_capture_restart_count, observed_gap_count, observed_gap_seconds,
+     max_observed_gap_seconds, partial_recommended}' \
+  "$SESSION/derived/audit/capture-continuity/capture_continuity_report.json"
+```
+
+`warning` means small measured gaps remain explicit while the batch transcript is usable.
+`partial_recommended: true` means continuity loss may hide speech and the transcript must stay
+behind review. The audit never repairs, truncates or rewrites raw CAF.
+
 ScreenCaptureKit can omit audio buffers during silence or source inactivity. MurmurMark preserves
 the wall-clock timeline by inserting silence for timestamp gaps in the raw CAF tracks. If no
 ScreenCaptureKit audio samples arrive at the start of recording, MurmurMark tries short restarts and

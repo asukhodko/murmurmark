@@ -308,6 +308,7 @@ def selected_paths(session: Path) -> tuple[list[Path], list[str]]:
         session / "derived/outcome/outcome.json",
         session / "derived/readiness/session_readiness.json",
         session / "derived/pipeline-run/authoritative_handoff.json",
+        session / "derived/audit/capture-continuity/capture_continuity_report.json",
     ]
     paths: list[Path] = []
     warnings: list[str] = []
