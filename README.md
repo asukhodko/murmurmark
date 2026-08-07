@@ -276,27 +276,12 @@ murmurmark open "$SESSION" --kind transcript --command-only
 
 ## Current Development Direction
 
-The one-command lifecycle, Speaker-Preserving Neural Echo v2, Evidence Handoff v2, guarded export,
-release-quality CLI, bounded resume and authoritative incremental ASR are promoted. The normal path
-is one command plus `Ctrl-C`; diagnostic commands remain available for recovery.
+The one-command lifecycle, Speaker-Preserving Neural Echo v2.17, Evidence Handoff v2, guarded export,
+bounded resume and incremental ASR are promoted. The normal path is one command plus `Ctrl-C`.
 
-Speaker-Preserving Neural Echo v2.17 requalified the unchanged selector after ASR changes: the
-12-session corpus retained `5/12` candidates, `41.940s`, 90 removed tokens and local retention `1.0`.
-
-Remote Speaker Evidence Map v1 remains the conservative baseline. Remote Speaker Coverage v3 is
-promoted as the highest-coverage optional read surface: it attributes `93.9312%` of remote speech,
-preserves every selected word and can split supported speaker changes inside one ASR utterance.
-Residual Evidence v4 measured a further safe ceiling but did not pass promotion, so v3 remains the
-supported source. Build and inspect both with:
-
-```bash
-murmurmark audit remote-coverage "$SESSION"
-murmurmark audit remote-residual "$SESSION"
-murmurmark transcript "$SESSION" --rich
-```
-
-Remote-speaker evidence is bound to the transcript profile currently selected by Evidence Handoff.
-After review or cleanup selects a newer profile, rebuild the chain before reading it:
+Remote Speaker Coverage v3 is the promoted optional read surface: it attributes `93.9312%` of remote
+speech and preserves every selected word. Residual Evidence v4 did not pass promotion. Rebuild the
+speaker chain after review or cleanup changes the selected profile, then inspect it with:
 
 ```bash
 murmurmark audit remote-speakers "$SESSION"
@@ -305,8 +290,8 @@ murmurmark audit remote-coverage "$SESSION"
 murmurmark transcript "$SESSION" --rich
 ```
 
-`transcript --rich` refuses an otherwise valid but profile-stale speaker view. The aggregate
-`Me`/`Colleagues` transcript remains available while current speaker evidence is rebuilt.
+`transcript --rich` refuses profile-stale evidence; aggregate `Me`/`Colleagues` remains available
+while the current speaker view is rebuilt. Use `audit remote-residual` only for the v4 audit ceiling.
 
 Anonymous Rich Transcript Handoff v1 passed all `1235` references on 6/6 sessions. Reviewed Remote
 Speaker Naming v1 and Reviewed Speaker-Aware Meeting Memory v1 add only explicit session-local
