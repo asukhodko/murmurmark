@@ -65,9 +65,10 @@ Speaker-Preserving Neural Echo v2.17 is the safe production plateau; unsupported
 failed evidence return to exact `local_fir`.
 
 Speaker attribution is evidence-first. Voice can establish session-local similarity, not a durable
-human identity. The current Remote Speaker Evidence Map v1 has strong attributed-only quality but
-only about half of remote speech is covered. Remote Speaker Diarization v2 therefore replaces
-derivative note work as the active goal.
+human identity. Remote Speaker Diarization v2 is promoted with `91.9071%` attributable remote
+speech and exact selected-word conservation. Unsupported regions and a rare voice without enough
+enrollment remain explicit `unknown`. Transcript Perfection Corpus v1 now replaces derivative note
+work as the active goal.
 
 ## Core User Jobs
 
@@ -104,11 +105,9 @@ met, unless an explicit product decision changes the priority.
 
 ## Near-Term Direction
 
-1. **Remote Speaker Diarization v2:** word/frame-level remote speaker turns, internal boundary
-   splitting, explicit unknown and corpus-wide quality gates.
-2. **Transcript Perfection Corpus v1:** one benchmark for text, chronology, roles, speakers, overlap,
+1. **Transcript Perfection Corpus v1:** one benchmark for text, chronology, roles, speakers, overlap,
    acoustic modes and known residual defects.
-3. **Local Mic Multi-Speaker Diarization v1:** only after a real multi-person local scenario and
+2. **Local Mic Multi-Speaker Diarization v1:** only after a real multi-person local scenario and
    labelled corpus exist.
 
 ## Long-Term Direction

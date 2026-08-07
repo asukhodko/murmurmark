@@ -1,0 +1,41 @@
+{
+  "schema": "murmurmark.remote_speaker_boundary_cases/v2",
+  "reference_sha256": "9049d4bea55cabe370a55fe844243aed29f81499bf8e04fa5e82105da694d56a",
+  "cases": [
+    {
+      "session_id": "2026-07-14_15-01-19-live",
+      "utterance_id": "utt_000099",
+      "min_supported_runs": 2,
+      "min_distinct_speakers": 2,
+      "selected_text": "Я думаю, что все возвращается на круги свои. Да, это буквально то, что было."
+    },
+    {
+      "session_id": "2026-07-14_15-01-19-live",
+      "utterance_id": "utt_000125",
+      "min_supported_runs": 2,
+      "min_distinct_speakers": 2,
+      "selected_text": "почему бы им не заняться поддержкой реально у меня еще такое такое предложение мы не можем использовать нейронки, которые"
+    },
+    {
+      "session_id": "2026-07-14_15-01-19-live",
+      "utterance_id": "utt_000354",
+      "min_supported_runs": 2,
+      "min_distinct_speakers": 2,
+      "selected_text": "сейчас два варианта просто запишем левая левая я читал наверно есть три варианта первый вариант"
+    },
+    {
+      "session_id": "2026-07-14_15-01-19-live",
+      "utterance_id": "utt_000408",
+      "min_supported_runs": 2,
+      "min_distinct_speakers": 2,
+      "selected_text": "Но это те патчи, которые в их формате работают. Я к тому, что может быть... Я предлагал никому не подключить. Сделать такую систему, что у нас, правда, есть веточка с нашими изменениями,"
+    },
+    {
+      "session_id": "2026-07-14_15-01-19-live",
+      "utterance_id": "utt_000479",
+      "min_supported_runs": 2,
+      "min_distinct_speakers": 2,
+      "selected_text": "видел эти фронтовые штук который говорил типа что они плохо там переносит это что такие файлы но я бы самый первый комит черепик ночь"
+    }
+  ]
+}

@@ -264,6 +264,14 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
         "transcript perfection corpus must follow remote diarization v2",
     )
     require(
+        nodes["quality-remote-speaker-diarization-v2"].get("status") == "done",
+        "remote diarization v2 must remain a completed promoted checkpoint",
+    )
+    require(
+        nodes["quality-transcript-perfection-corpus-v1"].get("status") == "current",
+        "transcript perfection corpus must remain the current quality goal",
+    )
+    require(
         nodes["optional-derived-transcript-workflows"].get("status") == "optional",
         "notes and work workflows must remain outside the critical transcript path",
     )

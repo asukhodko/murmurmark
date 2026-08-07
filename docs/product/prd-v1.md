@@ -96,9 +96,9 @@ Current operating point, 2026-08-07:
   `DO_NOT_ADVANCE_STRONGER_SEPARATOR` before dev. Reviewed Speaker-Aware Meeting Memory v1 is
   promoted optional on 6/6 sessions. Evidence-Guarded Local Synthesis v1 completed with
   `DO_NOT_PROMOTE`; Evidence-Only Local Note Selection v1 remains an optional derivative;
-- Remote Speaker Diarization v2 is current: move from `50.3892%` audit-only coverage to a
-  word/frame-level speaker-resolved profile with at least `85%` attributable remote speech, exact
-  selected-word conservation and aggregate fallback;
+- Remote Speaker Diarization v2 is promoted: `91.9071%` attributable remote speech,
+  attributed-only B-cubed F1 `0.960690`, pairwise precision `0.959564`, 5/5 internal-boundary cases,
+  exact selected-word conservation and aggregate fallback;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 
@@ -114,9 +114,8 @@ Any later separator remains isolated until a corpus-wide decision and cannot use
 audio quality alone as evidence of correct word attribution. Post-ASR duplicate cleanup receives no
 promotion credit. Reopening the audio frontier requires an independently qualified abstaining
 Target-Me presence detector. Free-text LLM synthesis remains unpromoted; ID-only evidence selection
-is an explicit opt-in view with exact source text. The current stage is Remote Speaker Diarization
-v2, followed by Transcript Perfection Corpus v1. Notes, retrieval, external writes and UI remain
-optional work.
+is an explicit opt-in view with exact source text. The current stage is Transcript Perfection
+Corpus v1. Notes, retrieval, external writes and UI remain optional work.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.
 

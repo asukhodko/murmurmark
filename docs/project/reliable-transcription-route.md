@@ -3,9 +3,10 @@
 Status: active product route; durable capture, one-command processing, evidence handoff and guarded
 export are complete. Speaker-Preserving Neural Echo v2.17 is the compatible production pre-ASR
 plateau. The bounded pre-ASR frontier is complete after SepFormer stopped before dev on unreliable
-Target-Me presence evidence. Remote Speaker Evidence Map v1 proved useful anonymous attribution but
-covers only `50.3892%` of remote speech. Remote Speaker Diarization v2 is the current product step;
-notes, retrieval and work proposals are optional derivatives outside the critical route.
+Target-Me presence evidence. Remote Speaker Diarization v2 is promoted with `91.9071%` attributable
+remote speech, strong private-reference precision and exact selected-word conservation. Transcript
+Perfection Corpus v1 is the current product step; notes, retrieval and work proposals are optional
+derivatives outside the critical route.
 Date: 2026-08-07
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
@@ -459,13 +460,14 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Remote Speaker Diarization v2: заменить audit-only utterance clustering локальной word/frame-level
-diarization authoritative remote audio; сохранять words/order/timestamps, назначать session-local
-anonymous speaker либо unknown и проходить coverage/precision/boundary gates с aggregate fallback.
+Transcript Perfection Corpus v1: объединить frozen references и regression gates для words,
+chronology, Me/remote roles, remote speakers, overlap, missing Me, remote leakage и acoustic modes;
+определить supported correctness плюс explicit unknown, измерить единый baseline и выбрать
+следующий quality goal по крупнейшему доказанному residual class.
 ```
 
-После этого Transcript Perfection Corpus v1 объединяет text/order/role/speaker/acoustic gates и
-выбирает следующий крупнейший измеренный остаток. Производные workflows остаются optional.
+Производные workflows остаются optional. Local mic multi-speaker открывается только после реального
+сценария и размеченного материала.
 
 ## Consultation Prompt
 
@@ -473,32 +475,32 @@ Use this prompt if external consultation is needed:
 
 ```text
 Мы строим MurmurMark: локальный macOS CLI-пайплайн для надёжной speaker-resolved транскрибации
-1x1 и групповых созвонов. Текущая цель — Remote Speaker Diarization v2.
+1x1 и групповых созвонов. Текущая цель — Transcript Perfection Corpus v1.
 
 Имеется:
 - authoritative selected dialogue и Evidence Handoff v2;
-- Remote Speaker Evidence Map v1: 6 frozen sessions, attributed-only B-cubed F1 0.913884, но
-  attributable remote speech ratio только 0.503892;
-- anonymous rich transcript: 1235 exact remote references, 629 attributed и 606 aggregate;
+- Remote Speaker Diarization v2: PROMOTE, 6 frozen sessions, attributable speech 0.919071,
+  B-cubed F1 0.960690, pairwise precision 0.959564, 5/5 internal boundaries;
+- отдельные frozen corpora уже существуют для text/order/local recall/remote leakage/acoustic modes;
 - explicit fingerprint-bound reviewed naming with anonymous fail-open;
 - selected ASR words/order/timestamps должны оставаться неизменными;
 - closed pre-ASR frontier; production v2.17 remains exact audio plateau.
 
-North Star: каждое remote word получает правильный session-local anonymous speaker либо explicit
-unknown; слова, порядок и роли не теряются, а имя никогда не выводится только по голосу.
+North Star: одно воспроизводимое определение идеальной транскрибации, где supported words, order,
+roles и speakers корректны, а предел доказательств выражен explicit unknown.
 
 Ограничения:
-- default transcript, Me role, ASR text и export не менять до corpus-wide promotion;
-- stale, missing или partial review обязан вернуть anonymous/aggregate fallback;
+- существующие production outputs и frozen gates не ослаблять;
+- private references не публиковать, tracked manifests не содержат речь или имена;
 - voice-only identity и cross-session roster запрещены;
 - capture, Echo Guard, primary ASR и external writes вне цели;
 - weak attribution не форсируется ради coverage.
 
 Вопросы:
-1. Какой pinned local frame/word diarization backend даст coverage >= 0.85 при B-cubed F1 >= 0.90
-   и pairwise precision >= 0.90 на этом frozen corpus?
-2. Как reconcile diarization boundaries с immutable ASR words, internal switches и overlap без
-   word loss/duplication?
-3. Какие speaker-count, boundary-error, unknown и single-speaker control gates нужны до запуска?
-4. Как доказать deterministic offline replay и exact aggregate fallback при stale/missing runtime?
+1. Как объединить разнородные word/order/role/speaker/acoustic references без потери их отдельных
+   safety gates?
+2. Как считать correctness и explicit unknown так, чтобы система не улучшала метрику простым
+   воздержанием?
+3. Как ранжировать residual classes по пользовательскому вреду, секундам и уверенности?
+4. Какой минимальный corpus command и frozen manifest дадут детерминированный no-regression gate?
 ```

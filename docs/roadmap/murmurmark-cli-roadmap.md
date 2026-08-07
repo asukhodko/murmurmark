@@ -96,18 +96,17 @@ Selected remote utterances и local Resemblyzer дали 14 устойчивых
 aggregate `Colleagues`; internal speaker changes не разделяются. Решение `PROMOTE_AUDIT_ONLY`
 доказывает осуществимость и одновременно фиксирует текущий пробел.
 
-### 2. Remote Speaker Diarization v2 — `current`
+### 2. Remote Speaker Diarization v2 — `done`
 
 Word/frame-level diarization работает по authoritative remote audio, обнаруживает смену говорящего
-внутри ASR-реплики и связывает каждое remote word с session-local speaker или `unknown`. Текст и
-порядок не переписываются. Целевые corpus gates: coverage не ниже `0.85`, attributed-only B-cubed F1
-не ниже `0.90`, pairwise precision не ниже `0.90`, zero word loss/duplication и exact aggregate
-fallback при любой несовместимости.
+внутри ASR-реплики и связывает каждое remote word с session-local speaker или `unknown`. Решение
+`PROMOTE`: coverage `0.919071`, attributed-only B-cubed F1 `0.960690`, pairwise precision
+`0.959564`, 5/5 boundary cases и zero selected-word loss/duplication.
 
 Результат: speaker-resolved read surface, который можно продвинуть только после corpus-wide
 `PROMOTE`; иначе остаётся воспроизводимый предел и прежний transcript.
 
-### 3. Transcript Perfection Corpus v1 — `next`
+### 3. Transcript Perfection Corpus v1 — `current`
 
 Единый корпус связывает проверку текста, порядка, ролей, speaker turns, overlap, missing `Me`,
 remote leakage, наушников, динамиков и шумного офиса. Для каждого известного дефекта есть reference,

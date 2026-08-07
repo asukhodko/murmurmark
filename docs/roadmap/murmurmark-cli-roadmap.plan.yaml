@@ -545,21 +545,20 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-pre-asr-target-me-isolation-limit-v1, research-remote-diarization, research-rich-transcript, corpus-regression]
-    status: current
+    status: done
     effort: 12
     notes: |
-      Перейти от audit-only utterance clustering с coverage 0.503892 к локальной word/frame-level
-      diarization authoritative remote audio. Сохранять selected words/order, разделять internal
-      speaker changes и назначать session-local anonymous speaker либо explicit unknown. Locked
-      corpus gates: attributable speech >= 0.85, attributed-only B-cubed F1 >= 0.90, pairwise
-      precision >= 0.90, zero word loss/duplication, deterministic replay и exact aggregate fallback.
+      Завершено PROMOTE. Seeded Resemblyzer word/frame profile достиг attributable speech 0.919071,
+      attributed-only B-cubed F1 0.960690, pairwise precision 0.959564, 5/5 internal-boundary cases
+      и zero selected-word loss/duplication. `--rich` проверяет policy, implementation и input SHA;
+      stale/missing runtime возвращает exact aggregate fallback.
 
   quality-transcript-perfection-corpus-v1:
     title: "Transcript Perfection Corpus v1"
     kind: task
     parent: murmurmark-cli
     deps: [quality-remote-speaker-diarization-v2, corpus-regression]
-    status: next
+    status: current
     effort: 10
     notes: |
       Объединить frozen references для слов, chronology, Me/remote roles, remote speakers, overlap,
@@ -627,10 +626,10 @@ views:
         nodes: [working-capabilities, corpus-regression]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-remote-speaker-diarization-v2]
+        nodes: [quality-transcript-perfection-corpus-v1]
       dependent:
         title: "Следующая quality-цепочка"
-        nodes: [quality-transcript-perfection-corpus-v1, future-local-mic-diarization-v1]
+        nodes: [future-local-mic-diarization-v1]
 
   critical-path:
     title: "Критический CLI-путь"
@@ -703,11 +702,8 @@ views:
     lanes:
       baseline:
         title: "Доказанная speaker evidence"
-        nodes: [research-remote-diarization, research-rich-transcript]
+        nodes: [research-remote-diarization, research-rich-transcript, quality-remote-speaker-diarization-v2]
       current:
-        title: "Полная remote diarization"
-        nodes: [quality-remote-speaker-diarization-v2]
-      convergence:
         title: "Corpus convergence"
         nodes: [quality-transcript-perfection-corpus-v1]
       future:
@@ -768,8 +764,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Remote Speaker Diarization v2: заменить audit-only utterance-level clustering полноценной локальной word/frame-level diarization authoritative remote audio; заморозить speaker-labelled reference и 1x1/group controls, сравнить pinned local backends и выбрать воспроизводимый профиль; обнаруживать internal speaker changes и привязывать каждое remote word к session-local anonymous speaker либо explicit unknown, сохраняя selected text, chronology и timestamps без потерь и не выводя имя по голосу; добиться на frozen corpus attributable remote speech >= 0.85, attributed-only B-cubed F1 >= 0.90, pairwise precision >= 0.90, корректных speaker-count/overlap/boundary gates и zero word loss/duplication; при missing/stale/model failure fail open к exact aggregate Colleagues; продвигать speaker-resolved read surface только после corpus-wide PROMOTE, иначе зафиксировать воспроизводимый DO_NOT_PROMOTE; default transcript, Me role, capture, Echo Guard, ASR text, retention, cloud/external writes и cross-session identity не менять; отдельно зафиксировать future mic multi-speaker path; добавить tests/report, согласовать README, contracts, runbook, current goal, roadmap и OpsKarta, закоммитить и отправить в origin/main."
-      success_by_next_sync: "Есть isolated word/frame-level remote diarization profile и frozen corpus decision: remote words сохраняются без потерь, >=85% речи получает точного anonymous speaker или explicit unknown, stale/missing runtime возвращает exact aggregate transcript."
+      nearest_goal: "Transcript Perfection Corpus v1: собрать единый локальный frozen benchmark над существующими real-session и synthetic references для recognized words, chronology, Me/remote roles, remote speaker turns, overlap, missing Me, remote leakage и acoustic modes; формально определить operational transcript perfection как корректный supported result плюс explicit unknown, не позволяя улучшать score простым abstention; добавить одну воспроизводимую corpus-команду, versioned manifest и no-regression gates, которые сохраняют отдельные safety thresholds, private references и raw CAF; измерить текущий production baseline, ранжировать residual classes по пользовательскому вреду, длительности, частоте и доказательности и выбрать один крупнейший исправимый класс как следующую цель; default transcript, capture, Echo Guard, ASR, promoted remote diarization, retention, cloud/external writes и optional synthesis не менять; добавить tests/report, согласовать README, contracts, runbook, current goal, roadmap и OpsKarta, закоммитить и отправить в origin/main."
+      success_by_next_sync: "Есть одна детерминированная corpus-команда, portable frozen manifest и baseline scorecard по words/order/roles/speakers/overlap/acoustic modes; missing evidence не считается pass, а следующий quality goal выбран по крупнейшему измеренному residual class."
     defaults:
       status_progress:
         done: 1.0
@@ -790,13 +786,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle, batch transcript, review, notes/export и Live Shadow уже работают."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Remote Speaker Diarization v2"
-        scope_nodes: [quality-remote-speaker-diarization-v2]
+        title: "Transcript Perfection Corpus v1"
+        scope_nodes: [quality-transcript-perfection-corpus-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Audit-only map доказал attributed-only B-cubed F1 0.913884, но покрывает лишь 50.3892% remote speech и не разделяет internal speaker changes."
-          next_sync_goal: "Квалифицировать word/frame-level profile с coverage >= 0.85 и exact word-conservation fallback."
+          sync_note: "Remote Speaker Diarization v2 promoted: coverage 0.919071, B-cubed F1 0.960690, pairwise precision 0.959564 и exact word conservation. Отдельные quality corpora пока не дают единой меры сходимости."
+          next_sync_goal: "Объединить word/order/role/speaker/acoustic gates и выбрать крупнейший measured residual class."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -808,7 +804,7 @@ x:
         mgmt:
           health: yellow
           sync_note: "Критический путь теперь заканчивается speaker-resolved transcript и единым perfection corpus. Производные заметки выведены из миссии."
-          next_sync_goal: "После remote v2 заморозить единые word/order/role/speaker/acoustic gates и выбирать крупнейший residual class."
+          next_sync_goal: "Заморозить единые word/order/role/speaker/acoustic gates и выбирать крупнейший residual class."
       research:
         title: "Будущий local multi-speaker"
         scope_nodes: [future-local-mic-diarization-v1]

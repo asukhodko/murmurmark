@@ -117,13 +117,13 @@ v1 proved exact remote parity but closed with `DO_NOT_PROMOTE` because the paral
 wall-time benefit to `2.8651%..4.1040%`. Causal Canonical Mic ASR v1 then measured the selected
 post-Echo path and closed with `DO_NOT_PROMOTE`: `0/147` candidate windows matched and bounded
 prefixes through `120s` remained different from final PCM. The current exact mic boundary is
-session end. Remote Speaker Evidence Map v1 has promoted optional anonymous evidence over the
-already authoritative remote track, but covers only `50.3892%` of remote speech. Anonymous Rich
-Transcript Handoff v1 remains an exact optional read surface and explicit session-local decisions
-are the only way to replace anonymous display IDs. Remote Speaker Diarization v2 is now the active
-stage: word/frame-level turns, internal speaker changes, explicit unknown and exact aggregate
-fallback. Notes, retrieval and work proposals remain optional consumers and cannot alter the
-authoritative path.
+session end. Remote Speaker Evidence Map v1 remains the conservative seed map over the already
+authoritative remote track. Remote Speaker Diarization v2 has promoted a `91.9071%`-coverage
+word/frame view with internal speaker changes, explicit unknown and exact aggregate fallback.
+`--rich` verifies the promoted policy and current input lineage; explicit session-local decisions
+remain the only way to replace anonymous display IDs. Transcript Perfection Corpus v1 is now the
+active measurement stage. Notes, retrieval and work proposals remain optional consumers and cannot
+alter the authoritative path.
 
 Target full-product path:
 

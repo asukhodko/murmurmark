@@ -58,10 +58,9 @@ exports stay in the external workspace. Reinstall and upgrade verify and self-te
 before atomically switching the active version. A failed upgrade leaves the previous release
 working.
 
-From a developer checkout, use `source .venv/bin/activate && scripts/install-local.sh` instead.
-The exact compatibility matrix, model fingerprint and optional dependencies live in
-[`release/compatibility-v1.json`](release/compatibility-v1.json); see the
-[installation runbook](docs/runbooks/install-and-upgrade.md).
+From a developer checkout, use `source .venv/bin/activate && scripts/install-local.sh` instead. The
+compatibility matrix and model fingerprint live in [`release/compatibility-v1.json`](release/compatibility-v1.json);
+see the [installation runbook](docs/runbooks/install-and-upgrade.md).
 
 The optional stronger audio judge uses a local faster-whisper model. Its absence must not block the
 normal pipeline; `murmurmark doctor` reports it as an optional warning.
@@ -286,11 +285,13 @@ is one command plus `Ctrl-C`; diagnostic commands remain available for recovery.
 Speaker-Preserving Neural Echo v2.17 requalified the unchanged selector after ASR changes: the
 12-session corpus retained `5/12` candidates, `41.940s`, 90 removed tokens and local retention `1.0`.
 
-Remote Speaker Evidence Map v1 and its anonymous rich handoff are promoted optional read surfaces,
-but only `50.3892%` of remote speech is attributed. Inspect that evidence with:
+Remote Speaker Evidence Map v1 remains the conservative baseline. Remote Speaker Diarization v2 is
+promoted as the higher-coverage optional read surface: it attributes `91.9071%` of remote speech,
+preserves every selected word and can split supported speaker changes inside one ASR utterance.
+Build and inspect it with:
 
 ```bash
-murmurmark audit remote-speakers "$SESSION" --profile auto
+murmurmark audit remote-diarization "$SESSION" --profile auto
 murmurmark transcript "$SESSION" --rich
 ```
 
@@ -307,30 +308,31 @@ murmurmark notes "$SESSION" --reviewed-speakers
 murmurmark export "$SESSION" --format markdown --include-json --reviewed-speakers
 ```
 Speaker-aware memory and the exact-text selector are completed optional derivatives. The pre-ASR
-frontier is closed at the current resource limit with exact fallback. **Remote Speaker Diarization
-v2** is current: move from conservative utterance-level evidence to word/frame-level remote speaker
-turns with much higher coverage, internal turn splitting and frozen correctness gates.
+frontier is closed with exact fallback. **Remote Speaker Diarization v2** passed its frozen gates;
+**Transcript Perfection Corpus v1** now combines text, chronology, roles, speaker turns, overlap and
+explicit uncertainty into one convergence benchmark.
 
 The dependent critical path is:
 
 ```text
 Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental ASR
 -> Remote Speaker Evidence (done: audit-only, 50.4% coverage)
--> Remote Speaker Diarization v2 (current) -> Transcript Perfection Corpus (next)
+-> Remote Speaker Diarization v2 (done: PROMOTE, 91.9% coverage)
+-> Transcript Perfection Corpus v1 (current)
 ```
 
-The current stage must conserve every selected word while assigning remote words to stable
-session-local anonymous speakers or explicit `unknown`. A later mic-speaker stage opens only if a
-real multi-person local scenario appears. Summaries, retrieval and work proposals are parked until
-the transcript-quality program reaches its corpus target. See the [current goal](docs/project/current-goal.md),
+The current stage defines transcript perfection as correct supported words, roles, order and speakers
+plus visible `unknown` where evidence ends. Local mic diarization waits for a real multi-person
+scenario; derivative workflows remain parked. See the [current goal](docs/project/current-goal.md),
 [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 
 ## Scope And Limitations
 
 - Ordinary selected transcripts use `Me` and aggregate `Colleagues`; `--rich` is an optional,
   fingerprint-verified anonymous-speaker view and is not an export source.
-- Current anonymous remote evidence covers about half of remote speech and does not split an
-  utterance that contains an internal speaker change; Remote Speaker Diarization v2 targets this gap.
+- Promoted v2 anonymous remote evidence covers `91.9071%` of frozen-corpus speech and leaves the
+  remaining `8.0929%` explicit `unknown`; a rare participant without enough enrollment is not forced
+  into a known voice.
 - `--reviewed-speakers` uses only explicit labels from the current session decision file; ordinary
   transcript, notes and export never consume those labels implicitly.
 - The personalized pre-ASR profile removes independently supported remote leakage on compatible
@@ -387,7 +389,6 @@ scripts/check.sh
 
 murmurmark corpus lifecycle all --require-frozen-inputs --require-passing-gates
 ```
-
 The active roadmap uses OpsKarta v3. Validate and render it with the adjacent OpsKarta repository:
 
 ```bash

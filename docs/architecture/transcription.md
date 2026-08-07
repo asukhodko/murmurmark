@@ -178,17 +178,18 @@ labels through `--rich --reviewed-speakers`; stale decisions fail open to the an
 Participant identity is never inferred from voice. Optional speaker-aware notes/export and
 cross-session matching remain separate gates.
 
-## Current Remote Diarization Goal
+## Promoted Remote Diarization
 
-Remote Speaker Diarization v2 moves speaker evidence to authoritative remote frames and selected
-ASR words. It must split supported internal speaker changes, represent overlap and assign each
-remote word to a session-local anonymous speaker or explicit `unknown`. Coverage cannot be bought
-with forced attribution. Selected words and chronology are immutable; missing, stale or failed
-runtime returns the exact aggregate `Colleagues` view.
+Remote Speaker Diarization v2 now applies seeded Resemblyzer evidence to authoritative remote
+frames and immutable selected ASR words. It splits supported internal speaker changes, represents
+overlap conservatively and assigns each remote word to a session-local anonymous speaker or explicit
+`unknown`. Selected words and chronology are immutable; missing, stale or failed runtime returns the
+exact aggregate `Colleagues` view.
 
-The initial locked corpus targets are attributable speech `>= 0.85`, attributed-only B-cubed F1
-`>= 0.90`, pairwise precision `>= 0.90`, zero word loss/duplication and deterministic replay.
-Display names remain explicit session review only.
+The six-session corpus passed `PROMOTE`: attributable speech `0.919071`, attributed-only B-cubed F1
+`0.960690`, pairwise precision `0.959564`, 5/5 frozen internal-boundary cases and zero selected-word
+loss or duplication. Display names remain explicit session review only. The remaining uncertainty,
+including a rare participant without enough enrollment, is not force-assigned.
 
 Mic multi-speaker diarization is a later profile. It starts only after a real multi-person local
 scenario and labelled corpus exist, and must distinguish Target-Me, other local speakers and
@@ -196,8 +197,9 @@ unknown without weakening current Target-Me protection.
 
 ## Heavy-Local v1 Profile
 
-Status: remote diarization backend qualification is current; the replacement ASR and correction
-components remain target architecture, not current production.
+Status: seeded local remote diarization is promoted; the replacement ASR and correction components
+remain target architecture, not current production. Transcript Perfection Corpus v1 is the current
+measurement stage.
 
 Primary:
 

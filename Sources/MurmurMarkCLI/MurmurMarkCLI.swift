@@ -331,6 +331,7 @@ struct MurmurMark {
                                                         [--review-lane-pack PATH] [--sessions-root ./sessions]
           murmurmark audit target-me ./session|latest [--profile auto] [--max-items 80] [--sessions-root ./sessions]
           murmurmark audit remote-speakers ./session|latest [--profile auto] [--sessions-root ./sessions]
+          murmurmark audit remote-diarization ./session|latest [--profile auto] [--sessions-root ./sessions]
           murmurmark cleanup ./session|latest [--input-profile shadow_v2] [--output-profile audit_cleanup_v1]
                              [--mode conservative] [--sessions-root ./sessions]
           murmurmark repair order ./session|latest [--input-profile auto] [--output-profile order_repair_v1]
@@ -1294,6 +1295,7 @@ enum DoctorChecks {
             "scripts/audit-stronger-audio-judge.py",
             "scripts/audit-target-me.py",
             "scripts/audit-remote-speaker-evidence.py",
+            "scripts/audit-remote-speaker-diarization.py",
             "scripts/materialize-anonymous-rich-transcript.py",
             "scripts/review-remote-speaker-labels.py",
             "scripts/materialize-reviewed-speaker-memory.py",
@@ -4520,6 +4522,28 @@ enum AuditCommands {
                 allowedExitCodes: [0, 2]
             )
             try AuditPrinter.printAnonymousRichHandoff(session: session, helperStatus: richStatus)
+        case "remote-diarization", "remote_diarization":
+            var auditArgs = [try script("audit-remote-speaker-diarization.py").path, session.path] + remaining
+            if !ArgumentEditing.hasOption("profile", in: auditArgs) {
+                auditArgs += ["--profile", "auto"]
+            }
+            let profile = ArgumentEditing.peekOption("profile", in: auditArgs) ?? "auto"
+            let v1Report = session.appendingPathComponent(
+                "derived/audit/remote-speaker-evidence-v1/report.json"
+            )
+            if !FileManager.default.fileExists(atPath: v1Report.path) {
+                try Tooling.runPathQuiet(
+                    python,
+                    [
+                        try script("audit-remote-speaker-evidence.py").path,
+                        session.path,
+                        "--profile", profile,
+                        "--no-progress",
+                    ]
+                )
+            }
+            try Tooling.runPath(python, auditArgs)
+            try AuditPrinter.printRemoteDiarization(session: session, args: auditArgs)
         case "asr-positive-echo-candidate", "asr_positive_echo_candidate", "echo-candidate", "echo_candidate":
             if !ArgumentEditing.hasOption("candidate", in: remaining) {
                 remaining += ["--candidate", "coverage_v2_remote_gate_local_fir"]
@@ -4650,6 +4674,7 @@ enum AuditCommands {
                                              [--quick] [--max-computed-items N] [--sessions-root ./sessions]
           murmurmark audit target-me ./session|latest [--profile auto] [--max-items 80] [--sessions-root ./sessions]
           murmurmark audit remote-speakers ./session|latest [--profile auto] [--sessions-root ./sessions]
+          murmurmark audit remote-diarization ./session|latest [--profile auto] [--sessions-root ./sessions]
           murmurmark audit asr-positive-echo-candidate ./session|latest
                                              [--candidate coverage_v2_remote_gate_local_fir]
                                              [--skip-lab] [--sessions-root ./sessions]
@@ -4673,6 +4698,8 @@ enum AuditCommands {
                           with --review-lane-pack or --pack-item-id, reuses the existing audio-review pack
           target-me       runs audit-target-me.py as a shadow voice-evidence layer
           remote-speakers builds an audit-only anonymous map over authoritative remote audio
+          remote-diarization
+                          assigns immutable remote words to promoted session-local anonymous voices
           asr-positive-echo-candidate
                           runs/reuses offline_aec_v2 and writes an explicit shadow audio-candidate report
           echo-suppression-promotion
@@ -4946,6 +4973,35 @@ enum AuditPrinter {
         print(String(format: "  published_speech_ratio: %.3f", double(summary["published_speech_ratio"])))
         print(String(format: "  chunk_replay_ari: %.3f", double(stability["chunk_replay_ari"])))
         print("  authoritative: false")
+        printAuditHandoff(
+            session: session,
+            report: outDir.appendingPathComponent("report.md"),
+            needsReview: false
+        )
+    }
+
+    static func printRemoteDiarization(session: URL, args: [String]) throws {
+        let defaultURL = session.appendingPathComponent("derived/audit/remote-speaker-diarization-v2")
+        let outDir = PathURLs.fileURL(ArgumentEditing.peekOption("out-dir", in: args) ?? defaultURL.path)
+        let reportURL = outDir.appendingPathComponent("report.json")
+        guard FileManager.default.fileExists(atPath: reportURL.path) else {
+            printMissing(kind: "remote_diarization", expected: reportURL)
+            return
+        }
+        let payload = try JSONFiles.object(reportURL)
+        let summary = dict(payload["summary"])
+
+        print("")
+        print("audit:")
+        print("  kind: remote_diarization")
+        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("report.md")))")
+        print("  status: \(string(payload["status"]) ?? "unknown")")
+        print("  decision: \(string(payload["decision"]) ?? "FALLBACK_AGGREGATE")")
+        print("  profile: \(string(dict(payload["source"])["profile"]) ?? "unknown")")
+        print("  anonymous_speakers: \(int(summary["published_speakers"]))")
+        print(String(format: "  attributable_remote_speech_ratio: %.3f", double(summary["attributable_remote_speech_ratio"])))
+        print("  internal_change_utterances: \(int(summary["internal_change_utterances"]))")
+        print("  batch_authoritative: true")
         printAuditHandoff(
             session: session,
             report: outDir.appendingPathComponent("report.md"),
@@ -5951,6 +6007,40 @@ enum TranscriptCommands {
     }
 
     private static func richTranscript(session: URL, reviewedSpeakers: Bool) throws -> RichSelection {
+        if !reviewedSpeakers {
+            let diarizationScript = PathURLs.fileURL("scripts/audit-remote-speaker-diarization.py")
+            let diarizationReport = session.appendingPathComponent(
+                "derived/audit/remote-speaker-diarization-v2/report.json"
+            )
+            let diarizationMarkdown = session.appendingPathComponent(
+                "derived/audit/remote-speaker-diarization-v2/transcript.rich.shadow.md"
+            )
+            if FileManager.default.fileExists(atPath: diarizationScript.path),
+               FileManager.default.fileExists(atPath: diarizationReport.path),
+               FileManager.default.fileExists(atPath: diarizationMarkdown.path) {
+                let status = try Tooling.runPathQuietAllowingExitCodes(
+                    try PythonRuntime.resolve(),
+                    [
+                        diarizationScript.path,
+                        session.path,
+                        "--verify-only",
+                        "--require-promoted",
+                        "--no-progress",
+                    ],
+                    allowedExitCodes: [0, 2]
+                )
+                if status == 0 {
+                    let report = try JSONFiles.object(diarizationReport)
+                    let source = report["source"] as? [String: Any] ?? [:]
+                    return RichSelection(
+                        profile: source["profile"] as? String ?? "remote_speaker_diarization_v2",
+                        url: diarizationMarkdown,
+                        kind: "remote_speaker_diarization_v2",
+                        fallbackReason: nil
+                    )
+                }
+            }
+        }
         let script = PathURLs.fileURL("scripts/materialize-anonymous-rich-transcript.py")
         guard FileManager.default.fileExists(atPath: script.path) else {
             throw CLIError("anonymous rich transcript helper not found: \(script.path)")

@@ -53,6 +53,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-causal-canonical-mic-asr.py
 "$python_bin" scripts/check-causal-canonical-mic-asr-corpus.py
 "$python_bin" scripts/check-remote-speaker-evidence.py
+"$python_bin" scripts/check-remote-speaker-diarization.py
 "$python_bin" scripts/check-anonymous-rich-transcript.py
 "$python_bin" scripts/check-reviewed-remote-speaker-naming.py
 "$python_bin" scripts/check-reviewed-speaker-memory.py

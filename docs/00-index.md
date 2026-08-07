@@ -69,11 +69,13 @@ Read in this order:
 65. [Canonical Live ASR Producer v1 result](testing/2026-08-06-canonical-live-asr-producer-v1.md)
 66. [Causal Canonical Mic ASR v1 result](testing/2026-08-06-causal-canonical-mic-asr-v1.md)
 67. [Remote Speaker Evidence Map v1 result](testing/2026-08-06-remote-speaker-evidence-map-v1.md)
-68. [Evidence-Guarded Local Synthesis runbook](runbooks/evidence-guarded-local-synthesis.md)
-69. [Evidence-Guarded Local Synthesis result](research/2026-08-07-evidence-guarded-local-synthesis-v1.md)
-70. [Evidence-Only Local Note Selection runbook](runbooks/evidence-only-local-note-selection.md)
-71. [Evidence-Only Local Note Selection result](research/2026-08-07-evidence-only-local-note-selection-v1.md)
-72. [Planning and development history](history/README.md)
+68. [Remote Speaker Diarization v2 contract](contracts/remote-speaker-diarization-v2.md)
+69. [Remote Speaker Diarization v2 result](testing/2026-08-07-remote-speaker-diarization-v2.md)
+70. [Evidence-Guarded Local Synthesis runbook](runbooks/evidence-guarded-local-synthesis.md)
+71. [Evidence-Guarded Local Synthesis result](research/2026-08-07-evidence-guarded-local-synthesis-v1.md)
+72. [Evidence-Only Local Note Selection runbook](runbooks/evidence-only-local-note-selection.md)
+73. [Evidence-Only Local Note Selection result](research/2026-08-07-evidence-only-local-note-selection-v1.md)
+74. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
@@ -85,10 +87,10 @@ Reviewed Speaker-Aware Meeting Memory v1 are promoted optional read surfaces.
 
 Free-text synthesis is closed with reproducible `DO_NOT_PROMOTE`; exact ID-only selection remains an
 optional derivative. The mission now ends at a reliable speaker-resolved transcript. Remote Speaker
-Evidence Map v1 proved attributed-only B-cubed F1 `0.913884`, but covers only `50.3892%` of remote
-speech and cannot split internal speaker changes. **Remote Speaker Diarization v2** is current;
-**Transcript Perfection Corpus v1** follows. Notes, retrieval and work proposals are parked until
-the transcript-quality program reaches its corpus gates.
+Diarization v2 passed `PROMOTE` with `91.9071%` attributable remote speech, B-cubed F1 `0.960690`,
+pairwise precision `0.959564` and zero selected-word loss. **Transcript Perfection Corpus v1** is
+current. Notes, retrieval and work proposals are parked until the transcript-quality program reaches
+its unified corpus gates.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

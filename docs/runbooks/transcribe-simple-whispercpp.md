@@ -2154,23 +2154,29 @@ remote.wav -> Colleagues
 ```
 
 The ordinary selected transcript keeps remote text aggregate as `Colleagues`. Remote Speaker
-Evidence Map v1 and Anonymous Rich Transcript Handoff v1 passed their frozen gates as an optional
-session-local view. Generate and read it explicitly with:
+Diarization v2 passed its frozen gates as an optional session-local word/frame view. It uses the v1
+map as conservative seed voices and can split supported internal speaker changes. Generate and read
+it explicitly with:
 
 ```bash
-murmurmark audit remote-speakers "$SESSION" --profile auto
+murmurmark audit remote-diarization "$SESSION" --profile auto
 murmurmark transcript "$SESSION" --rich
 murmurmark transcript "$SESSION" --rich --path-only
 
-less "$SESSION/derived/audit/remote-speaker-evidence-v1/report.md"
+less "$SESSION/derived/audit/remote-speaker-diarization-v2/report.md"
 ```
 
-The command is local and fail-open. Missing Resemblyzer/model/audio, weak clusters, conflicting
-overlap or failed replay consistency produce aggregate `Colleagues`; they do not fail the meeting
-pipeline. Anonymous IDs are valid only inside the session. `--rich` verifies current SHA-256 lineage
-and reads an immutable optional bundle; stale evidence explains how to rebuild it. Without `--rich`,
-the ordinary Evidence Handoff v2 transcript is unchanged. Notes, auto-selection and export do not
-consume anonymous labels.
+The command is local and fail-open. Missing Resemblyzer/model/audio/token timestamps, weak frames,
+conflicting overlap or stale SHA-256 lineage produce aggregate `Colleagues`; they do not fail the
+meeting pipeline. Anonymous IDs are valid only inside the session. `--rich` verifies the promoted
+corpus policy, implementation and current input fingerprints before reading v2. It falls back to the
+existing anonymous-v1 view when v2 is unavailable. Without `--rich`, the ordinary Evidence Handoff
+v2 transcript is unchanged. Notes, auto-selection and export do not consume v2 labels.
+
+The frozen v2 corpus covers `91.9071%` of remote speech, passes B-cubed F1 `0.960690`, pairwise
+precision `0.959564`, 5/5 internal-boundary cases and exact selected-word conservation. The remaining
+speech stays explicit `unknown`. Reviewed display names remain on the explicit v1 review path:
+`--rich --reviewed-speakers` never infers a name from v2 voice evidence.
 
 To replace useful anonymous IDs with explicit session-local labels, generate a review file:
 

@@ -47,10 +47,10 @@ Current implementation status, 2026-08-07:
 - committed-PCM live preview exists as an advisory shadow, while batch remains authoritative;
 - Evidence-Guarded Local Synthesis v1 completed with `DO_NOT_PROMOTE`; ID-only local evidence
   selection remains an explicit optional derivative;
-- Remote Speaker Diarization v2 is current. It must raise anonymous remote attribution coverage
-  from `50.3892%` to at least `85%`, preserve every selected word and fail open to aggregate
-  `Colleagues`. Transcript Perfection Corpus v1 follows. Cross-session identity, summaries,
-  cloud/external writes and UI remain future or optional work.
+- Remote Speaker Diarization v2 is promoted with `91.9071%` attributable remote speech, exact
+  selected-word conservation and aggregate `Colleagues` fallback. Transcript Perfection Corpus v1
+  is current. Cross-session identity, summaries, cloud/external writes and UI remain future or
+  optional work.
 
 ## Goals
 
