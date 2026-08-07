@@ -1162,6 +1162,9 @@ The pack is written under `derived/audit/audio-review-pack/`. It includes short 
 regions. The local audit classifies each item as likely reliable, probable transcript error, or
 needing a stronger local audio judge. It does not rewrite transcripts, Echo Guard outputs,
 synthesis files or raw `audio/*.caf`.
+Clip names contain their full content SHA-256. A rebuilt pack may reuse an `arp_*` ordering id, but
+it writes changed audio to a new immutable path, so an existing lane pack cannot silently start
+playing a different interval.
 If there are no suspicious regions, the pack may contain zero items. That is a normal no-op: the
 audit writes empty `audio_review_audit.jsonl`, `audio_review_summary.json` and
 `audio_review_report.md`, then the full `murmurmark process` pipeline continues.

@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
 import shutil
 import subprocess
+import threading
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -14,7 +17,7 @@ from typing import Any
 SCHEMA_MANIFEST = "murmurmark.audio_review_pack/v1"
 SCHEMA_ITEM = "murmurmark.audio_review_pack_item/v1"
 SCHEMA_SUMMARY = "murmurmark.audio_review_pack_summary/v1"
-SCRIPT_VERSION = "0.1.3"
+SCRIPT_VERSION = "0.1.4"
 SAMPLE_RATE = 16000
 PROFILE_CHOICES = [
     "auto",
@@ -581,27 +584,98 @@ def write_stereo(left: Path, right: Path, output: Path) -> None:
     )
 
 
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def immutable_clip_path(temp: Path, clips_dir: Path, clip_id: str, name: str) -> tuple[Path, str]:
+    digest = sha256_file(temp)
+    destination = clips_dir / f"{clip_id}_{digest}_{name}.wav"
+    if destination.exists():
+        if sha256_file(destination) != digest:
+            raise RuntimeError(f"immutable clip hash collision: {destination}")
+        temp.unlink()
+    else:
+        temp.replace(destination)
+    return destination, digest
+
+
+def temporary_clip_path(clips_dir: Path, clip_id: str, name: str) -> Path:
+    return clips_dir / f".{clip_id}_{name}.{os.getpid()}.{threading.get_ident()}.tmp.wav"
+
+
+def extract_immutable_wav(
+    source: Path,
+    clips_dir: Path,
+    clip_id: str,
+    name: str,
+    start: float,
+    duration: float,
+) -> tuple[Path, str]:
+    temp = temporary_clip_path(clips_dir, clip_id, name)
+    temp.unlink(missing_ok=True)
+    try:
+        extract_wav(source, temp, start, duration)
+        return immutable_clip_path(temp, clips_dir, clip_id, name)
+    finally:
+        temp.unlink(missing_ok=True)
+
+
+def write_immutable_stereo(
+    left: Path,
+    right: Path,
+    clips_dir: Path,
+    clip_id: str,
+    name: str,
+) -> tuple[Path, str]:
+    temp = temporary_clip_path(clips_dir, clip_id, name)
+    temp.unlink(missing_ok=True)
+    try:
+        write_stereo(left, right, temp)
+        return immutable_clip_path(temp, clips_dir, clip_id, name)
+    finally:
+        temp.unlink(missing_ok=True)
+
+
 def attach_clips(item: dict[str, Any], sources: dict[str, Path], clips_dir: Path, padding: float) -> None:
     start = max(0.0, float(item["interval"]["start"]) - padding)
     end = float(item["interval"]["end"]) + padding
     duration = max(0.05, end - start)
     clip_id = item["id"]
     clips: dict[str, str] = {}
+    clip_sha256: dict[str, str] = {}
     for name, source in sources.items():
         if not source.exists():
             continue
-        output = clips_dir / f"{clip_id}_{name}.wav"
-        extract_wav(source, output, start, duration)
+        output, digest = extract_immutable_wav(source, clips_dir, clip_id, name, start, duration)
         clips[name] = str(output)
+        clip_sha256[name] = digest
     if "mic_raw" in clips and "remote" in clips:
-        stereo = clips_dir / f"{clip_id}_stereo_mic_left_remote_right.wav"
-        write_stereo(Path(clips["mic_raw"]), Path(clips["remote"]), stereo)
+        stereo, digest = write_immutable_stereo(
+            Path(clips["mic_raw"]),
+            Path(clips["remote"]),
+            clips_dir,
+            clip_id,
+            "stereo_mic_left_remote_right",
+        )
         clips["stereo_mic_left_remote_right"] = str(stereo)
+        clip_sha256["stereo_mic_left_remote_right"] = digest
     if "mic_clean" in clips and "remote" in clips:
-        stereo = clips_dir / f"{clip_id}_stereo_clean_left_remote_right.wav"
-        write_stereo(Path(clips["mic_clean"]), Path(clips["remote"]), stereo)
+        stereo, digest = write_immutable_stereo(
+            Path(clips["mic_clean"]),
+            Path(clips["remote"]),
+            clips_dir,
+            clip_id,
+            "stereo_clean_left_remote_right",
+        )
         clips["stereo_clean_left_remote_right"] = str(stereo)
+        clip_sha256["stereo_clean_left_remote_right"] = digest
     item["clips"] = clips
+    item["clip_sha256"] = clip_sha256
     item["commands"] = {key: f"afplay {path}" for key, path in clips.items()}
 
 

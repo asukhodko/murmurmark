@@ -1499,14 +1499,24 @@ overlaps, group overlap audit and audit-cleanup rejections:
     {"id": "utt_0124", "role": "Colleagues", "text": "Давайте посмотрим deploy.", "needs_review": false}
   ],
   "clips": {
-    "mic_raw": "derived/audit/audio-review-pack/clips/arp_000042_mic_raw.wav",
-    "remote": "derived/audit/audio-review-pack/clips/arp_000042_remote.wav",
-    "mic_clean": "derived/audit/audio-review-pack/clips/arp_000042_mic_clean.wav",
-    "mic_role_masked": "derived/audit/audio-review-pack/clips/arp_000042_mic_role_masked.wav",
-    "stereo_clean_left_remote_right": "derived/audit/audio-review-pack/clips/arp_000042_stereo_clean_left_remote_right.wav"
+    "mic_raw": "derived/audit/audio-review-pack/clips/arp_000042_<sha256>_mic_raw.wav",
+    "remote": "derived/audit/audio-review-pack/clips/arp_000042_<sha256>_remote.wav",
+    "mic_clean": "derived/audit/audio-review-pack/clips/arp_000042_<sha256>_mic_clean.wav",
+    "mic_role_masked": "derived/audit/audio-review-pack/clips/arp_000042_<sha256>_mic_role_masked.wav",
+    "stereo_clean_left_remote_right": "derived/audit/audio-review-pack/clips/arp_000042_<sha256>_stereo_clean_left_remote_right.wav"
+  },
+  "clip_sha256": {
+    "mic_raw": "<sha256>",
+    "remote": "<sha256>"
   }
 }
 ```
+
+`arp_*` is an ordering id inside one current pack snapshot and can be assigned to a different
+interval after review state changes. Clip files are therefore immutable and include their full
+content SHA-256. Rebuilding a pack writes a new path when clip content changes and never overwrites
+a clip referenced by an older lane pack. `clip_sha256` records the digest for every entry in
+`clips`; old unhashed clip names remain readable for compatibility.
 
 `audio_review_summary.json` is the local metric audit over the pack:
 

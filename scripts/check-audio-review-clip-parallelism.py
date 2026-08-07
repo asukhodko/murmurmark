@@ -169,6 +169,23 @@ def main() -> int:
         assert [sorted((item.get("clips") or {}).keys()) for item in serial_items] == [
             sorted((item.get("clips") or {}).keys()) for item in parallel_items
         ]
+
+        first = {key: Path(value) for key, value in serial_items[0]["clips"].items()}
+        first_digests = {key: hashlib.sha256(path.read_bytes()).hexdigest() for key, path in first.items()}
+        reused_id = {
+            "id": serial_items[0]["id"],
+            "interval": {"start": 4.37, "end": 6.05},
+        }
+        MODULE.attach_clips(reused_id, sources, serial_dir, 0.5)
+        for key, old_path in first.items():
+            new_path = Path(reused_id["clips"][key])
+            assert new_path != old_path, (key, old_path, new_path)
+            assert old_path.exists(), old_path
+            assert hashlib.sha256(old_path.read_bytes()).hexdigest() == first_digests[key]
+        assert reused_id["clip_sha256"] == {
+            key: hashlib.sha256(Path(path).read_bytes()).hexdigest()
+            for key, path in reused_id["clips"].items()
+        }
     print("audio review clip parallelism checks passed")
     return 0
 
