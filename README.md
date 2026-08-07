@@ -295,6 +295,19 @@ murmurmark audit remote-residual "$SESSION"
 murmurmark transcript "$SESSION" --rich
 ```
 
+Remote-speaker evidence is bound to the transcript profile currently selected by Evidence Handoff.
+After review or cleanup selects a newer profile, rebuild the chain before reading it:
+
+```bash
+murmurmark audit remote-speakers "$SESSION"
+murmurmark audit remote-diarization "$SESSION"
+murmurmark audit remote-coverage "$SESSION"
+murmurmark transcript "$SESSION" --rich
+```
+
+`transcript --rich` refuses an otherwise valid but profile-stale speaker view. The aggregate
+`Me`/`Colleagues` transcript remains available while current speaker evidence is rebuilt.
+
 Anonymous Rich Transcript Handoff v1 passed all `1235` references on 6/6 sessions. Reviewed Remote
 Speaker Naming v1 and Reviewed Speaker-Aware Meeting Memory v1 add only explicit session-local
 labels and optional evidence-backed notes/export:
@@ -330,7 +343,9 @@ V4 recovered 124 words / `83.640s`, below its `20%` promotion gates, and remains
 ## Scope And Limitations
 
 - Ordinary selected transcripts use `Me` and aggregate `Colleagues`; `--rich` is an optional,
-  fingerprint-verified anonymous-speaker view and is not an export source.
+  fingerprint-verified anonymous-speaker view and is not an export source. It must reference the
+  exact currently selected dialogue profile; evidence from an older cleanup/review profile is never
+  returned as current.
 - Promoted v3 anonymous remote evidence covers `93.9312%` of frozen-corpus speech and leaves the
   remaining `6.0688%` explicit `unknown`; a rare participant without enough enrollment is not forced
   into a known voice.

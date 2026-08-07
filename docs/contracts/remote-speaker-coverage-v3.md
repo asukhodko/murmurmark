@@ -20,6 +20,11 @@ The profile requires fingerprinted v2 artifacts from the same selected dialogue 
 Missing, stale or incompatible evidence returns the exact v2 fallback. V3 performs no model download
 and no new embedding inference.
 
+The CLI read selector additionally requires `report.source.profile` to equal the profile currently
+selected by Evidence Handoff. This check is independent of the v3 algorithm identifier in
+`report.parameters.profile`. A valid artifact over an older cleanup/review profile is stale for the
+current read and cannot be returned by `murmurmark transcript --rich`.
+
 ## Decision Rule
 
 The profile `resemblyzer_seeded_frame_recovery_v3` considers only v2 `unknown` words. A word is
@@ -82,3 +87,5 @@ unknown seconds by `25.0113%`. Attributable remote speech reached `93.9312%`; B-
 - no forced label from similarity alone or for coverage targets;
 - no local mic multi-speaker inference;
 - v2 remains the exact fallback when policy, implementation or inputs do not match.
+- v2 is a fallback only when it is bound to the same current selected profile; otherwise the exact
+  aggregate `Me`/`Colleagues` transcript is the fallback.

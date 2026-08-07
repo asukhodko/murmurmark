@@ -26,7 +26,7 @@ SCHEMA_ENROLLMENT = "murmurmark.target_me_enrollment/v1"
 SCHEMA_ROW = "murmurmark.target_me_audit/v1"
 SCHEMA_SUMMARY = "murmurmark.target_me_summary/v1"
 SCHEMA_CORPUS = "murmurmark.target_me_corpus_report/v1"
-SCRIPT_VERSION = "0.2.2"
+SCRIPT_VERSION = "0.3.0"
 SAMPLE_RATE = 16000
 EPS = 1e-9
 DEFAULT_WAVLM_MODEL = Path.home() / ".local/share/murmurmark/models/target-me/wavlm-base-plus-sv"
@@ -98,6 +98,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-items", type=int, default=80)
     parser.add_argument("--padding-sec", type=float, default=0.25)
     parser.add_argument("--skip-build-pack", action="store_true")
+    parser.add_argument(
+        "--review-lane-pack",
+        action="append",
+        type=Path,
+        default=[],
+        help=(
+            "Audit unresolved review-lane Me utterances with speaker-bounded clips. "
+            "Can repeat; existing Target-Me rows remain cached."
+        ),
+    )
     parser.add_argument("--write-clips", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--progress", action=argparse.BooleanOptionalAction, default=True)
     return parser.parse_args()
@@ -164,6 +174,28 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
             if isinstance(value, dict):
                 rows.append(value)
     return rows
+
+
+def list_strings(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if item is not None and str(item)]
+
+
+def collect_source_audit_ids(value: Any) -> list[str]:
+    ids: list[str] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if key == "source_audit_id" and child:
+                ids.append(str(child))
+            elif key == "source_audit_ids" and isinstance(child, list):
+                ids.extend(str(item) for item in child if item)
+            else:
+                ids.extend(collect_source_audit_ids(child))
+    elif isinstance(value, list):
+        for item in value:
+            ids.extend(collect_source_audit_ids(item))
+    return list(dict.fromkeys(ids))
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -946,6 +978,125 @@ def ensure_audio_pack(session: Path, profile: str, args: argparse.Namespace) -> 
     return isolated_pack_dir
 
 
+def review_lane_pack_items(
+    *,
+    session: Path,
+    profile: str,
+    dialogue_rows: list[dict[str, Any]],
+    out_dir: Path,
+    args: argparse.Namespace,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    if not args.review_lane_pack:
+        return [], []
+    dialogue_by_id = {
+        str(row.get("id")): row
+        for row in dialogue_rows
+        if isinstance(row, dict) and row.get("id")
+    }
+    sources = source_audio(session)
+    clips_dir = out_dir / "clips/review_lane"
+    items: list[dict[str, Any]] = []
+    missing: list[str] = []
+    seen_fingerprints: set[str] = set()
+    for raw_path in args.review_lane_pack:
+        path = raw_path.expanduser()
+        lane_pack = read_json(path)
+        if lane_pack is None:
+            missing.append(str(path))
+            continue
+        lane_name = str(lane_pack.get("lane") or path.stem)
+        for lane_row in lane_pack.get("items") or []:
+            if not isinstance(lane_row, dict):
+                continue
+            session_id = str(lane_row.get("session_id") or session.name)
+            if session_id != session.name:
+                continue
+            me_ids = list_strings(lane_row.get("me_utterance_ids"))
+            me_rows = [dialogue_by_id[item_id] for item_id in me_ids if item_id in dialogue_by_id]
+            me_rows = [row for row in me_rows if role_of(row) == "me"]
+            if not me_rows:
+                continue
+            exact_start = min(safe_float(row.get("start")) for row in me_rows)
+            exact_end = max(safe_float(row.get("end")) for row in me_rows)
+            if exact_end <= exact_start:
+                continue
+            source_ids = list_strings(lane_row.get("source_audit_ids"))
+            if not source_ids and lane_row.get("source_audit_id"):
+                source_ids = [str(lane_row["source_audit_id"])]
+            all_ids = list_strings(lane_row.get("utterance_ids"))
+            utterances = [dialogue_by_id[item_id] for item_id in all_ids if item_id in dialogue_by_id]
+            if not utterances:
+                utterances = me_rows
+            identity_payload = {
+                "session_id": session.name,
+                "profile": profile,
+                "lane": lane_name,
+                "source_ids": source_ids,
+                "me_ids": me_ids,
+                "start": round(exact_start, 3),
+                "end": round(exact_end, 3),
+                "texts": [normalize_text(row.get("text")) for row in me_rows],
+            }
+            digest = hashlib.sha256(
+                json.dumps(identity_payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+            ).hexdigest()
+            if digest in seen_fingerprints:
+                continue
+            seen_fingerprints.add(digest)
+            source_label = source_ids[0] if source_ids else "review"
+            safe_label = re.sub(r"[^0-9A-Za-z_.-]+", "_", source_label).strip("_") or "review"
+            item_id = f"lane_{safe_label}_{digest[:10]}"
+            clip_start = max(0.0, exact_start - max(0.0, args.padding_sec))
+            clip_end = exact_end + max(0.0, args.padding_sec)
+            clips: dict[str, str] = {}
+            for source_name, source_path in sources.items():
+                destination = clips_dir / f"{item_id}_{source_name}.wav"
+                if extract_wav(source_path, destination, clip_start, clip_end - clip_start):
+                    clips[source_name] = str(destination)
+            if not any(name in clips for name in ("mic_role_masked", "mic_clean", "mic_raw")):
+                missing.append(f"{path}:{source_label}:mic_audio")
+                continue
+            items.append(
+                {
+                    "schema": "murmurmark.audio_review_pack_item/v1",
+                    "id": item_id,
+                    "session_id": session.name,
+                    "profile": profile,
+                    "interval": {
+                        "start": round(exact_start, 3),
+                        "end": round(exact_end, 3),
+                        "duration_sec": round(exact_end - exact_start, 3),
+                        "start_time": format_time(exact_start),
+                        "end_time": format_time(exact_end),
+                    },
+                    "clip_interval": {
+                        "start": round(clip_start, 3),
+                        "end": round(clip_end, 3),
+                    },
+                    "review_lane": lane_name,
+                    "review_lane_target": True,
+                    "source_reasons": [
+                        f"review_lane:{lane_name}",
+                        str(lane_row.get("label") or "needs_review"),
+                    ],
+                    "source_audit_ids": source_ids,
+                    "source_contexts": [
+                        {"source_audit_id": source_id, "review_lane": lane_name}
+                        for source_id in source_ids
+                    ],
+                    "review_features": (
+                        lane_row.get("review_features")
+                        if isinstance(lane_row.get("review_features"), dict)
+                        else {}
+                    ),
+                    "utterance_ids": [str(row.get("id")) for row in utterances if row.get("id")],
+                    "utterances": utterances,
+                    "clips": clips,
+                }
+            )
+    return items, list(dict.fromkeys(missing))
+
+
 def utterance_texts(item: dict[str, Any]) -> tuple[str, str]:
     me: list[str] = []
     remote: list[str] = []
@@ -978,7 +1129,7 @@ def me_utterance_ids(item: dict[str, Any]) -> list[str]:
 
 
 def item_source_audit_ids(item: dict[str, Any]) -> list[str]:
-    ids: list[str] = []
+    ids: list[str] = list_strings(item.get("source_audit_ids"))
     for context in item.get("source_contexts") or []:
         if not isinstance(context, dict):
             continue
@@ -1059,6 +1210,31 @@ def evidence_rows_by_item_id(
             if evidence_row_matches_item(row, item):
                 matched[pack_id] = row
                 break
+            if not item.get("review_lane_target"):
+                continue
+            source_ids = set(item_source_audit_ids(item))
+            row_source_id = str(row.get("source_pack_item_id") or "")
+            if source_ids and row_source_id not in source_ids:
+                continue
+            if str(row.get("session_id") or "") != str(item.get("session_id") or ""):
+                continue
+            item_text_by_id = {
+                str(value.get("id")): normalize_text(value.get("text"))
+                for value in item.get("utterances") or []
+                if isinstance(value, dict) and value.get("id")
+            }
+            row_text_by_id = {
+                str(value.get("id")): normalize_text(value.get("text"))
+                for value in row.get("utterances") or []
+                if isinstance(value, dict) and value.get("id")
+            }
+            me_ids = set(me_utterance_ids(item))
+            if not me_ids or not me_ids <= set(row_text_by_id):
+                continue
+            if any(item_text_by_id.get(item_id) != row_text_by_id.get(item_id) for item_id in me_ids):
+                continue
+            matched[pack_id] = row
+            break
     return matched
 
 
@@ -1575,7 +1751,20 @@ def audit_session(session: Path, args: argparse.Namespace) -> dict[str, Any]:
     progress(args, f"{session.name}: ensure audio review pack")
     pack_dir = ensure_audio_pack(session, profile, args)
     items = read_jsonl(pack_dir / "review_pack_items.jsonl")
-    selected = select_pack_items(items, args.max_items)
+    lane_items, missing_lane_packs = review_lane_pack_items(
+        session=session,
+        profile=profile,
+        dialogue_rows=dialogue["utterances"],
+        out_dir=out_dir,
+        args=args,
+    )
+    all_items = list(items)
+    existing_item_ids = {str(item.get("id") or "") for item in all_items}
+    all_items.extend(item for item in lane_items if str(item.get("id") or "") not in existing_item_ids)
+    if args.review_lane_pack:
+        selected = lane_items[: args.max_items] if args.max_items > 0 else lane_items
+    else:
+        selected = select_pack_items(items, args.max_items)
     evidence_dirs = [pack_dir]
     canonical_pack_dir = session / "derived/audit/audio-review-pack"
     if canonical_pack_dir != pack_dir:
@@ -1589,12 +1778,46 @@ def audit_session(session: Path, args: argparse.Namespace) -> dict[str, Any]:
         [row for directory in evidence_dirs for row in read_jsonl(directory / "faster_whisper_judge.jsonl")],
     )
     calibration = enrollment.get("calibration") if isinstance(enrollment.get("calibration"), dict) else {}
-    rows: list[dict[str, Any]] = []
+    existing_rows = read_jsonl(out_dir / "target_me_audit.jsonl")
+    cached_by_item: dict[str, dict[str, Any]] = {}
+    for item in all_items:
+        pack_id = str(item.get("id") or "")
+        if not pack_id:
+            continue
+        for row in existing_rows:
+            if item.get("review_lane_target") and str(row.get("source_pack_item_id") or "") != pack_id:
+                continue
+            if evidence_row_matches_item(row, item):
+                cached_by_item[pack_id] = row
+                break
+    computed_by_item: dict[str, dict[str, Any]] = {}
     for index, item in enumerate(selected, start=1):
-        progress(args, f"{session.name}: audit {index}/{len(selected)} {item.get('id')}")
-        rows.append(audit_item(item, target_model, calibration, backend, state_rows, audio_review_by_id, stronger_by_id))
+        pack_id = str(item.get("id") or "")
+        cached = cached_by_item.get(pack_id)
+        if cached is not None:
+            progress(args, f"{session.name}: cached {index}/{len(selected)} {pack_id}")
+            continue
+        progress(args, f"{session.name}: audit {index}/{len(selected)} {pack_id}")
+        computed_by_item[pack_id] = audit_item(
+            item,
+            target_model,
+            calibration,
+            backend,
+            state_rows,
+            audio_review_by_id,
+            stronger_by_id,
+        )
+    merged_by_item = dict(cached_by_item)
+    merged_by_item.update(computed_by_item)
+    ordered_ids = [str(item.get("id") or "") for item in all_items if item.get("id")]
+    rows = [merged_by_item[item_id] for item_id in ordered_ids if item_id in merged_by_item]
     summary = summarize_session(session=session, profile=profile, out_dir=out_dir, enrollment=enrollment, rows=rows)
     summary["source_review_pack"] = str(pack_dir)
+    summary["source_review_lane_packs"] = [str(path) for path in args.review_lane_pack]
+    summary["missing_review_lane_packs"] = missing_lane_packs
+    summary["targeted_review_lane_items"] = len(lane_items)
+    summary["computed_items"] = len(computed_by_item)
+    summary["cached_items"] = len(cached_by_item)
     write_jsonl(out_dir / "target_me_audit.jsonl", rows)
     write_json(out_dir / "target_me_summary.json", summary)
     write_session_report(out_dir / "target_me_report.md", summary, rows)

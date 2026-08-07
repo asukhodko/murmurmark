@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -104,6 +105,91 @@ def main() -> int:
         isolated.mkdir(parents=True)
         (isolated / "review_pack_items.jsonl").write_text("", encoding="utf-8")
         assert module.ensure_audio_pack(session, "reviewed_v1", skip_args) == isolated
+
+        lane_path = session / "review_lane_pack.classify_audio.json"
+        lane_path.write_text(
+            json.dumps(
+                {
+                    "lane": "classify_audio",
+                    "items": [
+                        {
+                            "session_id": session.name,
+                            "source_audit_id": "arp_000117",
+                            "source_audit_ids": ["arp_000117"],
+                            "label": "uncertain",
+                            "utterance_ids": ["utt_remote", "utt_me"],
+                            "me_utterance_ids": ["utt_me"],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        dialogue = [
+            {
+                "id": "utt_remote",
+                "role": "remote",
+                "source_track": "remote",
+                "start": 9.8,
+                "end": 12.0,
+                "text": "remote phrase",
+            },
+            {
+                "id": "utt_me",
+                "role": "me",
+                "source_track": "mic",
+                "start": 10.0,
+                "end": 11.5,
+                "text": "exact local phrase",
+            },
+        ]
+        lane_args = SimpleNamespace(review_lane_pack=[lane_path], padding_sec=0.25)
+        original_extract = module.extract_wav
+
+        def fake_extract(_source: Path, output: Path, _start: float, _duration: float) -> bool:
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_bytes(b"fixture")
+            return True
+
+        module.extract_wav = fake_extract
+        try:
+            lane_items, missing = module.review_lane_pack_items(
+                session=session,
+                profile="reviewed_v1",
+                dialogue_rows=dialogue,
+                out_dir=session / "derived/audit/target-me",
+                args=lane_args,
+            )
+        finally:
+            module.extract_wav = original_extract
+        assert missing == [], missing
+        assert len(lane_items) == 1, lane_items
+        lane_item = lane_items[0]
+        assert lane_item["interval"] == {
+            "start": 10.0,
+            "end": 11.5,
+            "duration_sec": 1.5,
+            "start_time": "00:10",
+            "end_time": "00:11",
+        }, lane_item
+        assert lane_item["clip_interval"] == {"start": 9.75, "end": 11.75}, lane_item
+        assert lane_item["source_audit_ids"] == ["arp_000117"], lane_item
+        assert set(lane_item["clips"]) == {"mic_raw", "remote", "mic_clean", "mic_role_masked"}, lane_item
+
+        compatible_judge = {
+            "source_pack_item_id": "arp_000117",
+            "session_id": session.name,
+            "utterance_ids": ["utt_remote", "utt_me"],
+            "utterances": dialogue,
+        }
+        assert module.evidence_rows_by_item_id([lane_item], [compatible_judge]) == {
+            lane_item["id"]: compatible_judge
+        }
+        stale_judge = {
+            **compatible_judge,
+            "utterances": [dialogue[0], {**dialogue[1], "text": "stale local phrase"}],
+        }
+        assert module.evidence_rows_by_item_id([lane_item], [stale_judge]) == {}
 
     print("Target-Me evidence matching checks passed")
     return 0

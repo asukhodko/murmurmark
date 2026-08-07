@@ -24,7 +24,7 @@ STATE_SCHEMA = "murmurmark.meeting_lifecycle_state/v1"
 NEXT_SCHEMA = "murmurmark.meeting_next_action/v1"
 EVENT_SCHEMA = "murmurmark.meeting_lifecycle_event/v1"
 REPORT_SCHEMA = "murmurmark.meeting_lifecycle_report/v1"
-GENERATOR = {"name": "run-meeting-lifecycle", "version": "0.1.1"}
+GENERATOR = {"name": "run-meeting-lifecycle", "version": "0.1.2"}
 DEFAULT_POST_STOP_BUDGET_RATIO = 1.0
 DEFAULT_MAX_ENRICHMENT_BUDGET_SEC = 1800.0
 ACTION_ORDER = (
@@ -1022,6 +1022,19 @@ class MeetingLifecycle:
     def review_apply_report_path(self) -> Path:
         return self.session / "derived" / "readiness" / "review-plan" / "review_workspace_apply_report.json"
 
+    def review_progress_path(self) -> Path:
+        return self.session / "derived" / "readiness" / "review-plan" / "review_decisions_progress.json"
+
+    def review_decisions_report_path(self, profile: str) -> Path:
+        return (
+            self.session
+            / "derived"
+            / "transcript-simple"
+            / "whisper-cpp"
+            / "review-decisions"
+            / f"review_decisions_report.{profile}.json"
+        )
+
     def export_manifest_path(self) -> Path:
         return self.project_home / "exports" / "private" / self.session.name / "export_manifest.json"
 
@@ -1326,14 +1339,76 @@ class MeetingLifecycle:
                     }
                 )
         rows.sort(key=lambda row: (row["start"], row["end"], row["utterance_id"]))
+        completed_review = self.completed_review_decisions(outcome)
+        if completed_review is not None:
+            return {
+                "schema": "murmurmark.meeting_manual_decisions/v1",
+                "source": display_path(self.review_progress_path()),
+                "status": "complete",
+                "total": 0,
+                "listed": 0,
+                "truncated": False,
+                "items": [],
+                "residual_quality_flag_count": len(rows),
+                "completion": completed_review,
+            }
         total = len(rows)
         return {
             "schema": "murmurmark.meeting_manual_decisions/v1",
             "source": display_path(clean_dialogue) if clean_dialogue and clean_dialogue.is_file() else None,
+            "status": "required" if total else "none",
             "total": total,
             "listed": min(total, MAX_MANUAL_DECISION_ITEMS),
             "truncated": total > MAX_MANUAL_DECISION_ITEMS,
             "items": rows[:MAX_MANUAL_DECISION_ITEMS],
+            "residual_quality_flag_count": total,
+        }
+
+    def completed_review_decisions(self, outcome: dict[str, Any]) -> dict[str, Any] | None:
+        profile = str(outcome.get("selected_profile") or "")
+        if not profile:
+            return None
+        progress = read_json(self.review_progress_path())
+        report_path = self.review_decisions_report_path(profile)
+        report = read_json(report_path)
+        if (
+            not isinstance(progress, dict)
+            or progress.get("schema") != "murmurmark.review_decisions_progress/v1"
+            or not isinstance(report, dict)
+            or report.get("schema") != "murmurmark.review_decisions_report/v1"
+        ):
+            return None
+        progress_summary = (
+            progress.get("summary") if isinstance(progress.get("summary"), dict) else {}
+        )
+        report_summary = report.get("summary") if isinstance(report.get("summary"), dict) else {}
+        gates = report.get("gates") if isinstance(report.get("gates"), dict) else {}
+        report_profile = str(
+            report.get("output_profile") or report_summary.get("output_profile") or ""
+        )
+        progress_total = int(progress_summary.get("total") or 0)
+        report_total = int(report_summary.get("decision_rows") or 0)
+        if not (
+            report_profile == profile
+            and gates.get("passed") is True
+            and progress_summary.get("ready_for_batch_apply") is True
+            and int(progress_summary.get("remaining") or 0) == 0
+            and int(progress_summary.get("invalid_rows") or 0) == 0
+            and int(report_summary.get("pending_decision_rows") or 0) == 0
+            and int(report_summary.get("rejected_decision_rows") or 0) == 0
+            and int(report_summary.get("conflict_count") or 0) == 0
+            and report_summary.get("review_scope_complete") is True
+            and progress_total > 0
+            and progress_total == report_total
+            and int(progress_summary.get("reviewed") or 0) == progress_total
+        ):
+            return None
+        return {
+            "profile": profile,
+            "progress": display_path(self.review_progress_path()),
+            "application_report": display_path(report_path),
+            "reviewed_rows": progress_total,
+            "remaining_rows": 0,
         }
 
     def final_next_step(

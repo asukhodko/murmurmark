@@ -1628,7 +1628,11 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
     }
 
 
-def remote_leak_segment_plan_metrics(plan: dict[str, Any] | None) -> dict[str, Any]:
+def remote_leak_segment_plan_metrics(
+    session: Path,
+    profile: str,
+    plan: dict[str, Any] | None,
+) -> dict[str, Any]:
     if not isinstance(plan, dict):
         return {
             "remote_leak_segment_plan_status": "missing",
@@ -1636,18 +1640,123 @@ def remote_leak_segment_plan_metrics(plan: dict[str, Any] | None) -> dict[str, A
             "remote_leak_segment_plan_seconds": None,
             "remote_leak_segment_plan_protect_local_content_items": None,
             "remote_leak_segment_plan_protect_local_content_seconds": None,
+            "remote_leak_segment_plan_source_items": None,
+            "remote_leak_segment_plan_source_seconds": None,
+            "remote_leak_segment_plan_resolved_items": None,
+            "remote_leak_segment_plan_resolved_seconds": None,
+            "remote_leak_segment_plan_stale_items": None,
+            "remote_leak_segment_plan_stale_seconds": None,
+            "remote_leak_segment_plan_source_profiles": [],
+            "remote_leak_segment_plan_selected_profile": profile,
             "remote_leak_segment_plan_next_work": None,
         }
     summary = plan.get("summary") if isinstance(plan.get("summary"), dict) else {}
     action_plan = plan.get("action_plan") if isinstance(plan.get("action_plan"), list) else []
     first_action = action_plan[0] if action_plan and isinstance(action_plan[0], dict) else {}
+    item_path = (
+        session
+        / "derived/transcript-simple/whisper-cpp/remote-leak-repair"
+        / "remote_leak_segment_repair_items.jsonl"
+    )
+    items = read_jsonl(item_path)
+    current_rows = dialogue_utterances(session, profile)
+    current_by_id = {
+        str(row.get("id") or ""): row
+        for row in current_rows
+        if str(row.get("id") or "")
+    }
+    active: list[dict[str, Any]] = []
+    resolved: list[dict[str, Any]] = []
+    stale: list[dict[str, Any]] = []
+    source_profiles = sorted(
+        {str(row.get("profile") or "") for row in items if str(row.get("profile") or "")}
+    )
+
+    for item in items:
+        utterances = item.get("utterances") if isinstance(item.get("utterances"), list) else []
+        source_me = next(
+            (
+                row
+                for row in utterances
+                if isinstance(row, dict)
+                and (
+                    str(row.get("role") or "").lower() == "me"
+                    or str(row.get("source_track") or "").lower() == "mic"
+                )
+            ),
+            None,
+        )
+        if not isinstance(source_me, dict):
+            stale.append(item)
+            continue
+        utterance_id = str(source_me.get("id") or "")
+        current = current_by_id.get(utterance_id)
+        if current is None:
+            resolved.append(item)
+            continue
+        current_role = str(current.get("role") or current.get("speaker_label") or "").lower()
+        if current_role != "me" or str(current.get("text") or "").strip() != str(source_me.get("text") or "").strip():
+            stale.append(item)
+            continue
+        quality = current.get("quality") if isinstance(current.get("quality"), dict) else {}
+        if quality.get("needs_review") is True:
+            active.append(item)
+        else:
+            resolved.append(item)
+
+    def item_seconds(rows: list[dict[str, Any]]) -> float:
+        return round(
+            sum(
+                safe_float((row.get("interval") or {}).get("duration_sec")) or 0.0
+                for row in rows
+                if isinstance(row.get("interval"), dict)
+            ),
+            3,
+        )
+
+    protected = [
+        item
+        for item in active
+        if isinstance(item.get("diagnostic"), dict)
+        and item["diagnostic"].get("protect_local_content") is True
+    ]
+    source_items = safe_int(summary.get("items"))
+    source_seconds = round_or_none(summary.get("seconds"))
+    if not items and (source_items or 0) > 0:
+        status = "items_missing"
+        active_items = source_items
+        active_seconds = source_seconds
+        protected_items = safe_int(summary.get("protect_local_content_items"))
+        protected_seconds = round_or_none(summary.get("protect_local_content_seconds"))
+    else:
+        status = (
+            "stale_current_profile"
+            if stale
+            else "ok"
+            if not source_profiles or profile in source_profiles
+            else "reconciled_current_profile"
+        )
+        active_items = len(active)
+        active_seconds = item_seconds(active)
+        protected_items = len(protected)
+        protected_seconds = item_seconds(protected)
     return {
-        "remote_leak_segment_plan_status": "ok",
-        "remote_leak_segment_plan_items": safe_int(summary.get("items")),
-        "remote_leak_segment_plan_seconds": round_or_none(summary.get("seconds")),
-        "remote_leak_segment_plan_protect_local_content_items": safe_int(summary.get("protect_local_content_items")),
-        "remote_leak_segment_plan_protect_local_content_seconds": round_or_none(summary.get("protect_local_content_seconds")),
-        "remote_leak_segment_plan_next_work": first_action.get("next_work"),
+        "remote_leak_segment_plan_status": status,
+        "remote_leak_segment_plan_items": active_items,
+        "remote_leak_segment_plan_seconds": active_seconds,
+        "remote_leak_segment_plan_protect_local_content_items": protected_items,
+        "remote_leak_segment_plan_protect_local_content_seconds": protected_seconds,
+        "remote_leak_segment_plan_source_items": source_items,
+        "remote_leak_segment_plan_source_seconds": source_seconds,
+        "remote_leak_segment_plan_resolved_items": len(resolved),
+        "remote_leak_segment_plan_resolved_seconds": item_seconds(resolved),
+        "remote_leak_segment_plan_stale_items": len(stale),
+        "remote_leak_segment_plan_stale_seconds": item_seconds(stale),
+        "remote_leak_segment_plan_source_profiles": source_profiles,
+        "remote_leak_segment_plan_selected_profile": profile,
+        "remote_leak_segment_plan_next_work": (
+            first_action.get("next_work") if protected_items else None
+        ),
     }
 
 
@@ -2070,6 +2179,8 @@ def risk_flags(row: dict[str, Any]) -> list[str]:
     remote_leak_protect = safe_int(row.get("remote_leak_segment_plan_protect_local_content_items")) or 0
     if remote_leak_protect and (audio_error_count > 0 or audio_error_seconds > 0.0):
         flags.append("remote_leak_segment_repair_candidates")
+    if (safe_int(row.get("remote_leak_segment_plan_stale_items")) or 0) > 0:
+        flags.append("stale_remote_leak_segment_plan")
     audio_judge_count = safe_int(row.get("audio_review_notes_stronger_judge_count")) or 0
     audio_judge_seconds = safe_float(row.get("audio_review_notes_stronger_judge_seconds")) or 0.0
     if audio_judge_count >= 20 or audio_judge_seconds >= 60.0:
@@ -2605,7 +2716,7 @@ def collect_session(
     row.update(synthesis_review_metrics(verdict))
     row.update(notes_needs_review_metrics(session, profile, evidence))
     row.update(audio_review_metrics(audio_summary, session, profile, evidence))
-    row.update(remote_leak_segment_plan_metrics(remote_leak_plan))
+    row.update(remote_leak_segment_plan_metrics(session, profile, remote_leak_plan))
     row.update(remote_forbidden_metrics(remote_forbidden))
     row.update(
         reconcile_materialized_local_recall(
@@ -2970,8 +3081,12 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "audio_review_notes_stronger_judge_count",
         "audio_review_notes_stronger_judge_seconds",
         "audio_review_remote_leak_probable_error_count",
+        "remote_leak_segment_plan_status",
         "remote_leak_segment_plan_items",
         "remote_leak_segment_plan_protect_local_content_items",
+        "remote_leak_segment_plan_source_items",
+        "remote_leak_segment_plan_resolved_items",
+        "remote_leak_segment_plan_stale_items",
         "remote_leak_segment_plan_next_work",
         "remote_forbidden_status",
         "remote_forbidden_gate_passed",
@@ -3612,10 +3727,19 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
             "suggested_closure_auto_review_seconds": row.get("suggested_closure_auto_review_seconds"),
             "suggested_closure_manual_remaining_rows": row.get("suggested_closure_manual_remaining_rows"),
             "suggested_closure_manual_remaining_seconds": row.get("suggested_closure_manual_remaining_seconds"),
+            "remote_leak_segment_plan_status": row.get("remote_leak_segment_plan_status"),
             "remote_leak_segment_plan_items": row.get("remote_leak_segment_plan_items"),
             "remote_leak_segment_plan_seconds": row.get("remote_leak_segment_plan_seconds"),
             "remote_leak_segment_plan_protect_local_content_items": row.get("remote_leak_segment_plan_protect_local_content_items"),
             "remote_leak_segment_plan_protect_local_content_seconds": row.get("remote_leak_segment_plan_protect_local_content_seconds"),
+            "remote_leak_segment_plan_source_items": row.get("remote_leak_segment_plan_source_items"),
+            "remote_leak_segment_plan_source_seconds": row.get("remote_leak_segment_plan_source_seconds"),
+            "remote_leak_segment_plan_resolved_items": row.get("remote_leak_segment_plan_resolved_items"),
+            "remote_leak_segment_plan_resolved_seconds": row.get("remote_leak_segment_plan_resolved_seconds"),
+            "remote_leak_segment_plan_stale_items": row.get("remote_leak_segment_plan_stale_items"),
+            "remote_leak_segment_plan_stale_seconds": row.get("remote_leak_segment_plan_stale_seconds"),
+            "remote_leak_segment_plan_source_profiles": row.get("remote_leak_segment_plan_source_profiles"),
+            "remote_leak_segment_plan_selected_profile": row.get("remote_leak_segment_plan_selected_profile"),
             "remote_leak_segment_plan_next_work": row.get("remote_leak_segment_plan_next_work"),
             "remote_forbidden_status": row.get("remote_forbidden_status"),
             "remote_forbidden_gate_passed": row.get("remote_forbidden_gate_passed"),

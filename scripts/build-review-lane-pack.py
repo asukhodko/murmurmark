@@ -853,7 +853,18 @@ def target_me_suggested_decision(
         and float((match.get("classification") or {}).get("confidence") or 0.0) >= 0.88
         and str((match.get("impact") or {}).get("category") or "") == "new_drop_evidence"
     ]
-    if stronger_has_high_confidence_keep(stronger_summary) and not high_confirmed:
+    contradictory_absent = [
+        match
+        for match in matches
+        if str((match.get("classification") or {}).get("label") or "") == "target_me_absent_remote_like"
+        and float((match.get("classification") or {}).get("confidence") or 0.0) >= 0.80
+    ]
+    independently_confirmed_doubletalk = stronger_has_independent_doubletalk_keep(stronger_summary)
+    if (
+        stronger_has_high_confidence_keep(stronger_summary)
+        and not high_confirmed
+        and (not independently_confirmed_doubletalk or bool(contradictory_absent))
+    ):
         return (
             "needs_review",
             "low",
@@ -920,6 +931,30 @@ def stronger_has_high_confidence_keep(summary: dict[str, Any] | None) -> bool:
         confidence = float(classification.get("confidence") or 0.0)
         if label in {"confirm_me", "confirm_timing_or_doubletalk"} and confidence >= 0.74:
             return True
+    return False
+
+
+def stronger_has_independent_doubletalk_keep(summary: dict[str, Any] | None) -> bool:
+    if not summary:
+        return False
+    for match in summary.get("matches") or []:
+        classification = match.get("classification") if isinstance(match, dict) else {}
+        if not isinstance(classification, dict):
+            continue
+        if str(classification.get("label") or "") != "confirm_timing_or_doubletalk":
+            continue
+        if float(classification.get("confidence") or 0.0) < 0.90:
+            continue
+        scores = classification.get("scores") if isinstance(classification.get("scores"), dict) else {}
+        if float(scores.get("best_me_similarity") or 0.0) < 0.80:
+            continue
+        if float(scores.get("speaker_state_local_active_ratio") or 0.0) < 0.90:
+            continue
+        if float(scores.get("speaker_state_double_talk_ratio") or 0.0) < 0.80:
+            continue
+        if int(scores.get("mic_content_tokens") or 0) < 4:
+            continue
+        return True
     return False
 
 

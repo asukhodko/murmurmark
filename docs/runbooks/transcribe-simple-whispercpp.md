@@ -1837,11 +1837,16 @@ MURMURMARK_TARGETED_JUDGE_MAX_COMPUTED=4 \
 murmurmark review suggested apply "$SESSION"
 ```
 
-To refresh Target-Me evidence during suggested review intentionally:
+Target-Me evidence is refreshed by default for current review lanes. Disable it only for a
+deliberately cache-only diagnostic run:
 
 ```bash
-MURMURMARK_REVIEW_TARGET_ME_REFRESH=1 murmurmark review suggested apply "$SESSION"
+MURMURMARK_REVIEW_TARGET_ME_REFRESH=0 murmurmark review suggested apply "$SESSION"
 ```
+
+The refresh uses exact `Me` utterance boundaries and isolated mic/remote clips from every current
+lane pack. Cached rows must match the lane item, text and provenance; an older canonical
+audio-review row cannot satisfy a newly bounded lane merely because its interval overlaps.
 
 To audit the current live remaining mixed-boundary gap explicitly:
 

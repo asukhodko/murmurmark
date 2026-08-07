@@ -3757,15 +3757,20 @@ enum ReviewSuggestedCommand {
                 print("targeted_stronger_audio_judge: skipped (\(error.localizedDescription))")
             }
         }
-        if runTargetMe && targetMeNeedsRefresh(session: session) {
+        if runTargetMe && targetMeNeedsRefresh(session: session, lanePacks: lanePacks) {
             do {
-                try Tooling.runPathQuiet(python, [
+                var targetArgs = [
                     try script("audit-target-me.py").path,
                     session.path,
                     "--profile", "auto",
                     "--max-items", envValue("MURMURMARK_TARGET_ME_REVIEW_MAX_ITEMS", defaultValue: "20"),
+                    "--skip-build-pack",
                     "--no-progress",
-                ])
+                ]
+                for lanePack in lanePacks {
+                    targetArgs += ["--review-lane-pack", lanePack.path]
+                }
+                try Tooling.runPathQuiet(python, targetArgs)
             } catch {
                 print("target_me: skipped (\(error.localizedDescription))")
             }
@@ -3784,22 +3789,30 @@ enum ReviewSuggestedCommand {
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
     }
 
-    private static func targetMeNeedsRefresh(session: URL) -> Bool {
+    private static func targetMeNeedsRefresh(session: URL, lanePacks: [URL]) -> Bool {
         let targetSummary = session.appendingPathComponent("derived/audit/target-me/target_me_summary.json")
         let strongerSummary = session.appendingPathComponent("derived/audit/audio-review-pack/faster_whisper_judge_summary.json")
-        if !envBool("MURMURMARK_REVIEW_TARGET_ME_REFRESH", defaultValue: false) {
+        if !envBool("MURMURMARK_REVIEW_TARGET_ME_REFRESH", defaultValue: true) {
             return false
-        }
-        guard FileManager.default.fileExists(atPath: strongerSummary.path) else {
-            return !FileManager.default.fileExists(atPath: targetSummary.path)
         }
         guard let targetDate = modificationDate(targetSummary) else {
             return true
         }
-        guard let strongerDate = modificationDate(strongerSummary) else {
-            return false
+        let summary = try? JSONFiles.object(targetSummary)
+        let recordedLanePacks = Set(
+            (summary?["source_review_lane_packs"] as? [String] ?? []).map {
+                URL(fileURLWithPath: $0).standardizedFileURL.path
+            }
+        )
+        let expectedLanePacks = Set(lanePacks.map { $0.standardizedFileURL.path })
+        if !expectedLanePacks.isSubset(of: recordedLanePacks) {
+            return true
         }
-        return targetDate < strongerDate
+        var evidenceDates = lanePacks.compactMap { modificationDate($0) }
+        if let strongerDate = modificationDate(strongerSummary) {
+            evidenceDates.append(strongerDate)
+        }
+        return evidenceDates.contains { targetDate < $0 }
     }
 
     private static func envValue(_ key: String, defaultValue: String) -> String {
@@ -4641,7 +4654,10 @@ enum AuditCommands {
         case "remote-speakers", "remote_speakers":
             var auditArgs = [try script("audit-remote-speaker-evidence.py").path, session.path] + remaining
             if !ArgumentEditing.hasOption("profile", in: auditArgs) {
-                auditArgs += ["--profile", "auto"]
+                let selectedProfile = EvidenceHandoffState.selectedProfile(session)
+                    ?? AuthoritativeHandoffState.selectedProfile(session)
+                    ?? "auto"
+                auditArgs += ["--profile", selectedProfile]
             }
             try Tooling.runPath(python, auditArgs)
             try AuditPrinter.printRemoteSpeakers(session: session, args: auditArgs)
@@ -6235,6 +6251,7 @@ enum TranscriptCommands {
     }
 
     private static func richTranscript(session: URL, reviewedSpeakers: Bool) throws -> RichSelection {
+        let currentProfile = try selectedProfile("auto", session: session)
         if !reviewedSpeakers {
             let coverageScript = PathURLs.fileURL("scripts/audit-remote-speaker-coverage-v3.py")
             let coverageReport = session.appendingPathComponent(
@@ -6258,13 +6275,16 @@ enum TranscriptCommands {
                 )
                 if status == 0 {
                     let report = try JSONFiles.object(coverageReport)
-                    let parameters = report["parameters"] as? [String: Any] ?? [:]
-                    return RichSelection(
-                        profile: parameters["profile"] as? String ?? "remote_speaker_coverage_v3",
-                        url: coverageMarkdown,
-                        kind: "remote_speaker_coverage_v3",
-                        fallbackReason: nil
-                    )
+                    let source = report["source"] as? [String: Any] ?? [:]
+                    let coverageProfile = source["profile"] as? String ?? ""
+                    if coverageProfile == currentProfile {
+                        return RichSelection(
+                            profile: coverageProfile,
+                            url: coverageMarkdown,
+                            kind: "remote_speaker_coverage_v3",
+                            fallbackReason: nil
+                        )
+                    }
                 }
             }
             let diarizationScript = PathURLs.fileURL("scripts/audit-remote-speaker-diarization.py")
@@ -6291,12 +6311,15 @@ enum TranscriptCommands {
                 if status == 0 {
                     let report = try JSONFiles.object(diarizationReport)
                     let source = report["source"] as? [String: Any] ?? [:]
-                    return RichSelection(
-                        profile: source["profile"] as? String ?? "remote_speaker_diarization_v2",
-                        url: diarizationMarkdown,
-                        kind: "remote_speaker_diarization_v2",
-                        fallbackReason: nil
-                    )
+                    let diarizationProfile = source["profile"] as? String ?? ""
+                    if diarizationProfile == currentProfile {
+                        return RichSelection(
+                            profile: diarizationProfile,
+                            url: diarizationMarkdown,
+                            kind: "remote_speaker_diarization_v2",
+                            fallbackReason: nil
+                        )
+                    }
                 }
             }
         }

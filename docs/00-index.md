@@ -85,7 +85,8 @@ Read in this order:
 81. [Evidence-Only Local Note Selection runbook](runbooks/evidence-only-local-note-selection.md)
 82. [Evidence-Only Local Note Selection result](research/2026-08-07-evidence-only-local-note-selection-v1.md)
 83. [Session debug cycle: 2026-08-07_15-01-22](testing/2026-08-07-session-debug-cycle.md)
-84. [Planning and development history](history/README.md)
+84. [Session debug cycle: 2026-08-07_16-03-37](testing/2026-08-07-session-2026-08-07_16-03-37-debug.md)
+85. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 

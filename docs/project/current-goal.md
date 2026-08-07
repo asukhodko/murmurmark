@@ -23,6 +23,12 @@ passed, so v4 closed with `DO_NOT_PROMOTE`. More threshold tuning is not the sho
 The product value now exists behind explicit `--rich`; this goal moves the proven result into the
 normal user path without claiming identity where evidence is absent.
 
+A fresh 98-minute session debug cycle provides current-profile evidence for that transition. After
+review closure, Coverage v3 preserved all 6289 remote words, attributed 6067 (`94.6258%` of remote
+speech) to three anonymous speakers and left 222 unsupported words aggregate. All text, role, `Me`,
+timestamp, order and word-conservation gates passed. The result is recorded in
+[`docs/testing/2026-08-07-session-2026-08-07_16-03-37-debug.md`](../testing/2026-08-07-session-2026-08-07_16-03-37-debug.md).
+
 ## Objective
 
 Make the default transcript visibly speaker-resolved on eligible sessions. Keep aggregate output as

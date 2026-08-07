@@ -633,6 +633,52 @@ def main() -> None:
             assert "manual_decisions: 2 items / 4.50s" in cli_next.stdout
             assert "non_actionable_review_blocker" not in cli_next.stdout
 
+        review_progress_path = (
+            review_session / "derived/readiness/review-plan/review_decisions_progress.json"
+        )
+        write_json(
+            review_progress_path,
+            {
+                "schema": "murmurmark.review_decisions_progress/v1",
+                "summary": {
+                    "total": 2,
+                    "reviewed": 2,
+                    "remaining": 0,
+                    "invalid_rows": 0,
+                    "ready_for_batch_apply": True,
+                },
+            },
+        )
+        write_json(
+            review_session
+            / "derived/transcript-simple/whisper-cpp/review-decisions"
+            / "review_decisions_report.fixture.json",
+            {
+                "schema": "murmurmark.review_decisions_report/v1",
+                "output_profile": "fixture",
+                "summary": {
+                    "output_profile": "fixture",
+                    "decision_rows": 2,
+                    "pending_decision_rows": 0,
+                    "rejected_decision_rows": 0,
+                    "conflict_count": 0,
+                    "review_scope_complete": True,
+                },
+                "gates": {"passed": True, "hard_failures": []},
+            },
+        )
+        completed_review_run = run_supervisor(root, review_session, fake, "review")
+        assert completed_review_run.returncode == 0, (
+            completed_review_run.stdout,
+            completed_review_run.stderr,
+        )
+        completed_review_report = report(review_session)
+        assert completed_review_report["manual_decisions"]["total"] == 0
+        assert completed_review_report["manual_decisions"]["status"] == "complete"
+        assert completed_review_report["manual_decisions"]["residual_quality_flag_count"] == 2
+        assert completed_review_report["unresolved_review"]["count"] == 2
+        assert completed_review_report["next"]["status"] == "blocked_unactionable"
+
         warning_session = write_session(root, "warning", warning=True)
         warning_run = run_supervisor(root, warning_session, fake, "review")
         assert warning_run.returncode == 0, (warning_run.stdout, warning_run.stderr)

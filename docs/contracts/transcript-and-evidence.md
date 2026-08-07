@@ -1424,6 +1424,14 @@ evidence and ready clip commands from the source audit. v1 has five diagnostics:
 - `remote_duplicate_whole_drop_candidate`: the duplicate likely belongs to the existing
   whole-utterance cleanup/review path, not the segment repair queue.
 
+Session readiness reconciles this audit-only plan against the currently selected dialogue. A plan
+row remains active only when its `Me` utterance still exists with the same text and still has
+`quality.needs_review == true`. Removed or reviewed rows are counted under
+`remote_leak_segment_plan_resolved_*`; changed rows are reported as
+`remote_leak_segment_plan_stale_*` and never silently reused. The original plan totals remain under
+`remote_leak_segment_plan_source_*`, while `remote_leak_segment_plan_items` and its protected count
+describe the active current-profile remainder.
+
 The top-level `recommended_next`, `next_commands` and `open_commands` make the audit-only plan
 self-guiding. `murmurmark repair remote-leak` prints the same JSON commands after writing the plan.
 
@@ -3450,8 +3458,10 @@ close `keep_me` only when local-speaker evidence is high-confidence and no stron
 conflicts. `drop_me` from Target-Me remains stricter: it requires absent/remote-like evidence,
 existing remote/noise evidence, allowed `drop_me`, short non-protected `Me` text and no
 high-confidence stronger-audio keep evidence. New faster-whisper decodes during suggested review are
-opt-in through `MURMURMARK_TARGETED_JUDGE_COMPUTE=1`; Target-Me refresh during suggested review is
-opt-in through `MURMURMARK_REVIEW_TARGET_ME_REFRESH=1`.
+opt-in through `MURMURMARK_TARGETED_JUDGE_COMPUTE=1`. Target-Me refresh is enabled by default and
+can be disabled with `MURMURMARK_REVIEW_TARGET_ME_REFRESH=0`. It consumes every current lane pack
+with `--skip-build-pack`, creates exact speaker-bounded mic/remote clips for each `Me` utterance and
+reuses a cached row only when the lane item identity, text and source provenance still match.
 
 The workspace apply report is written to:
 

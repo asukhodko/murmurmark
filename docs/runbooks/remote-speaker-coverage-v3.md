@@ -19,8 +19,22 @@ result without recomputation:
 murmurmark audit remote-coverage "$SESSION" --verify-only
 ```
 
+When review or cleanup changes the selected transcript profile, rebuild all speaker layers against
+that exact profile:
+
+```bash
+murmurmark audit remote-speakers "$SESSION"
+murmurmark audit remote-diarization "$SESSION"
+murmurmark audit remote-coverage "$SESSION"
+```
+
+`audit remote-speakers` defaults to the current Evidence Handoff profile. `transcript --rich`
+accepts v2/v3 only when `report.source.profile` equals the current selected profile; the algorithm
+name in `report.parameters.profile` is not a transcript profile.
+
 If v3 is missing, stale or invalid, `transcript --rich` falls back to promoted v2 and then to the
-aggregate `Colleagues` transcript according to the existing rich-transcript chain.
+aggregate `Colleagues` transcript according to the existing rich-transcript chain. A v2 artifact
+from an older selected profile is stale too and is skipped rather than displayed.
 
 ## Frozen Corpus
 

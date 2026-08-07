@@ -207,7 +207,16 @@ def main() -> int:
         "session_id": "fixture",
         "utterance_ids": ["utt_voice_me", "utt_voice_remote"],
         "interval": {"start": 10.0, "end": 12.0},
-        "classification": {"label": "confirm_timing_or_doubletalk", "confidence": 0.92},
+        "classification": {
+            "label": "confirm_timing_or_doubletalk",
+            "confidence": 0.92,
+            "scores": {
+                "best_me_similarity": 0.95,
+                "speaker_state_local_active_ratio": 1.0,
+                "speaker_state_double_talk_ratio": 1.0,
+                "mic_content_tokens": 8,
+            },
+        },
     }
     target_absent = {
         "id": "tme_voice_conflict",
@@ -222,6 +231,19 @@ def main() -> int:
         [audio_row],
         {"fixture": [stronger_keep]},
         {"fixture": [target_absent]},
+    )
+    assert suggestion[0] == "keep_me", suggestion
+
+    target_remote_like = {
+        **target_absent,
+        "id": "tme_voice_remote_like",
+        "classification": {"label": "target_me_absent_remote_like", "confidence": 0.90},
+        "impact": {"category": "new_drop_evidence"},
+    }
+    suggestion = lane.suggested_decision_for_group(
+        [audio_row],
+        {"fixture": [stronger_keep]},
+        {"fixture": [target_remote_like]},
     )
     assert suggestion[0] == "needs_review", suggestion
     assert "does not confirm the local speaker" in suggestion[2], suggestion

@@ -211,11 +211,14 @@ The final report contains:
 - `deferred_work`: non-blocking command, status and reason for optional work left outside the first
   handoff;
 - `manual_decisions`: at most 100 bounded items with interval, role, reason and allowed decisions,
-  without transcript text;
+  without transcript text. When the current reviewed profile and review progress prove complete
+  coverage, the list is empty even if conservative `quality.needs_review` flags remain;
+  `residual_quality_flag_count` keeps that uncertainty visible;
 - `next`: `complete`, an allowlisted command, `human_decision_required`, or a hard failure reason.
 
 Reliable Final Handoff v1 adds a stricter convergence invariant to this existing schema. A blocking
-result must expose either an allowlisted executable next action or a bounded manual decision item.
+result exposes an allowlisted executable next action, a bounded manual decision item, or an explicit
+non-actionable evidence limit.
 Stage budgets and deferred-work reasons must be machine-readable; exceeding a budget cannot be
 reported as silent success or leave a stale `running` action. The measured pre-change baseline is in
 `docs/testing/2026-08-05-reliable-final-handoff-baseline.md`.
@@ -227,8 +230,10 @@ authoritative transcript.
 
 `murmurmark status SESSION` accepts a lifecycle result only when the report schema is current, raw is
 preserved, the selected profile matches readiness, the selected transcript exists and the report is
-not older than readiness/outcome. A compatible report replaces an opaque status loop with either
-`complete` or `human_decision_required` plus exact item count and seconds.
+not older than readiness/outcome. A compatible report replaces an opaque status loop with
+`complete`, `human_decision_required` plus exact item count and seconds, or
+`blocked_unactionable` when the review queue is exhausted but a documented residual still blocks
+export. The latter never pretends that repeating review would create a missing decision.
 
 Corpus evidence is produced with:
 
@@ -269,7 +274,8 @@ coexist, while two concurrent captures remain forbidden.
 
 - `ready`: authoritative transcript exists and guarded export completed.
 - `ready_with_review`: authoritative transcript exists but explicit review or export follow-up
-  remains. It must include an allowlisted remediation command or bounded `manual_decisions`.
+  remains. It includes an allowlisted remediation command, bounded `manual_decisions`, or an
+  explicit `blocked_unactionable` residual with no fictitious manual queue.
 - `failed`: capture is invalid, authoritative processing failed, required outputs are missing or raw
   identities changed.
 - `interrupted`: processing stopped by signal and can be resumed.

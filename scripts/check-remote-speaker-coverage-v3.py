@@ -19,6 +19,7 @@ AUDIT = ROOT / "scripts/audit-remote-speaker-coverage-v3.py"
 CORPUS = ROOT / "scripts/report-remote-speaker-coverage-v3-corpus.py"
 V2_AUDIT = ROOT / "scripts/audit-remote-speaker-diarization.py"
 V3_DIR = Path("derived/audit/remote-speaker-coverage-v3")
+CLI = ROOT / ".build/debug/murmurmark"
 
 
 def canonical(payload: Any) -> bytes:
@@ -232,6 +233,14 @@ def build_v2_fixture(session: Path) -> Path:
 def check_auditor(root: Path) -> None:
     session = root / "audit-session"
     v2 = build_v2_fixture(session)
+    write_json(
+        session / "session.json",
+        {
+            "schema": "murmurmark.session/v1",
+            "session_id": session.name,
+            "status": "completed",
+        },
+    )
     dialogue_hash = sha256(session / "dialogue.json")
     run([str(AUDIT), str(session)])
     out = session / V3_DIR
@@ -248,6 +257,19 @@ def check_auditor(root: Path) -> None:
     assert sha256(session / "dialogue.json") == dialogue_hash
     run([str(AUDIT), str(session), "--verify-only"])
     run([str(AUDIT), str(session), "--verify-only", "--require-promoted"])
+    write_json(
+        session / "derived/synthesis-simple/extractive/quality_verdict.json",
+        {"selected_transcript_profile": "fixture"},
+    )
+    cli = subprocess.run(
+        [str(CLI), "transcript", str(session), "--rich", "--path-only"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert cli.returncode == 0, cli.stderr
+    assert "remote-speaker-coverage-v3/transcript.rich.shadow.md" in cli.stdout, cli.stdout
     replay = session / "derived/audit/remote-speaker-coverage-v3-replay"
     run([str(AUDIT), str(session), "--out-dir", str(replay)])
     for name in ("report.json", "word_attribution.jsonl", "recovery_decisions.jsonl", "transcript.rich.shadow.json"):
