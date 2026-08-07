@@ -1,0 +1,1215 @@
+{
+  "constraints": {
+    "capture_or_asr_changes_allowed": false,
+    "cloud_or_external_writes_allowed": false,
+    "cross_session_identity_allowed": false,
+    "default_outputs_must_remain_identical": true,
+    "generated_or_edited_claim_text_allowed": false,
+    "model_pull_allowed": false,
+    "transcript_rewrite_allowed": false,
+    "voice_identity_inference_allowed": false
+  },
+  "decision": "PROMOTE_OPTIONAL_EVIDENCE_SELECTION",
+  "gates": {
+    "all_ordinary_outputs_unchanged": true,
+    "all_references_exact": true,
+    "all_replays_deterministic": true,
+    "all_sessions_passed": true,
+    "all_source_text_exact": true,
+    "baseline_high_confidence_retained": true,
+    "category_coverage": true,
+    "minimum_frozen_sessions": true,
+    "published_generated_claims_zero": true,
+    "selection_contract_exact": true,
+    "speaker_coverage": true,
+    "synthetic_contract_checker": true,
+    "useful_review_compression": true
+  },
+  "generator": {
+    "fingerprint": {
+      "bytes": 29284,
+      "path": "scripts/report-evidence-only-local-note-selection-corpus.py",
+      "scope": "repository",
+      "sha256": "e1f1e7696b9e68190972c01a3b545b1f6ea688b03900b4a02d2879ee48976c0c"
+    },
+    "script": "report-evidence-only-local-note-selection-corpus.py",
+    "version": "0.1.0"
+  },
+  "limitations": [
+    "baseline_high_confidence_retention_is_vacuous:no_high_confidence_items_in_frozen_corpus"
+  ],
+  "metrics": {
+    "available_categories": 25,
+    "available_speakers": 25,
+    "baseline_high_confidence": 0,
+    "baseline_high_confidence_population_present": false,
+    "baseline_high_confidence_retention_ratio": 1.0,
+    "category_coverage_ratio": 1.0,
+    "published_generated_claims": 0,
+    "retained_baseline_high_confidence": 0,
+    "review_compression_ratio": 0.404255,
+    "selected_categories": 25,
+    "selected_review_marked": 28,
+    "selected_review_marked_by_category": {
+      "actions": 9,
+      "decisions": 9,
+      "open_questions": 1,
+      "risks": 9,
+      "summary": 0
+    },
+    "selected_review_ratio": 0.595745,
+    "selected_speakers": 20,
+    "selected_statements": 56,
+    "selected_statements_by_category": {
+      "actions": 9,
+      "decisions": 9,
+      "open_questions": 1,
+      "risks": 9,
+      "summary": 28
+    },
+    "selection_contract_errors": 0,
+    "sessions_passed": 6,
+    "sessions_total": 6,
+    "sessions_with_review_selection": 6,
+    "source_candidates": 189,
+    "source_candidates_by_category": {
+      "actions": 18,
+      "decisions": 14,
+      "open_questions": 1,
+      "risks": 14,
+      "summary": 142
+    },
+    "source_review_marked": 47,
+    "source_review_marked_by_category": {
+      "actions": 18,
+      "decisions": 14,
+      "open_questions": 1,
+      "risks": 14,
+      "summary": 0
+    },
+    "speaker_coverage_ratio": 0.8
+  },
+  "model": {
+    "architecture": "qwen2",
+    "endpoint_scope": "loopback",
+    "license": "MIT",
+    "license_sha256": "6e4c38e1172f42fdbff13edf9a7a017679fb82b0fde415a3e8b3c31c6ed4a4e4",
+    "model": "deepseek-r1:14b",
+    "model_blob_sha256": "6e9f90f02bb3b39b59e81916e8cfce9deb45aeaeb9a54a5be4414486b907dc1e",
+    "parameter_size": "14.8B",
+    "quantization": "Q4_K_M",
+    "runtime": "ollama",
+    "runtime_version": "0.32.1"
+  },
+  "qualification_complete": true,
+  "qualification_contract": {
+    "corpus_gates": {
+      "max_peak_rss_mb": 14336,
+      "max_selected_review_ratio": 0.7,
+      "max_selection_contract_errors": 0,
+      "max_session_wall_sec": 180.0,
+      "min_baseline_high_confidence_retention_ratio": 1.0,
+      "min_category_coverage_ratio": 0.6,
+      "min_selected_review_marked": 8,
+      "min_sessions": 6,
+      "min_sessions_with_review_selection": 4,
+      "min_speaker_coverage_ratio": 0.5,
+      "require_byte_identical_fallback": true,
+      "require_deterministic_replay": true,
+      "require_exact_source_publication": true,
+      "require_referential_integrity": true
+    },
+    "corpus_reporter": {
+      "fingerprint": {
+        "bytes": 29284,
+        "path": "scripts/report-evidence-only-local-note-selection-corpus.py",
+        "scope": "repository",
+        "sha256": "e1f1e7696b9e68190972c01a3b545b1f6ea688b03900b4a02d2879ee48976c0c"
+      },
+      "script": "report-evidence-only-local-note-selection-corpus.py",
+      "version": "0.1.0"
+    },
+    "generation": {
+      "keep_alive": "0s",
+      "num_ctx": 6144,
+      "num_predict": 1024,
+      "seed": 424242,
+      "temperature": 0
+    },
+    "limits": {
+      "actions": 3,
+      "decisions": 2,
+      "open_questions": 2,
+      "risks": 2,
+      "summary": 5
+    },
+    "materializer": {
+      "fingerprint": {
+        "bytes": 47730,
+        "path": "scripts/materialize-evidence-only-local-note-selection.py",
+        "scope": "repository",
+        "sha256": "08dba467f07a3b289e9fc0467101dc18e8bf2aeaeb8e2498ae8b2603860dc6c1"
+      },
+      "script": "materialize-evidence-only-local-note-selection.py",
+      "version": "0.1.0"
+    },
+    "model_runtime_helper": {
+      "fingerprint": {
+        "bytes": 59209,
+        "path": "scripts/materialize-evidence-guarded-local-synthesis.py",
+        "scope": "repository",
+        "sha256": "b38d993230ee4b704135adb1fc2c247b7adb9427c52e5d6f90365cfdce728179"
+      },
+      "script": "materialize-evidence-guarded-local-synthesis.py",
+      "version": "0.1.0"
+    },
+    "prompt": {
+      "bytes": 2498,
+      "path": "policies/prompts/evidence-only-local-note-selection-v1.txt",
+      "scope": "repository",
+      "sha256": "19d221a23df5bee2b52a0ed6afbac62346dc949d0c479235d3913fe8e0f32dac"
+    },
+    "prompt_budget": {
+      "max_rendered_bytes": 30000
+    },
+    "selection": {
+      "container_category": "advisory_source_catalog_authoritative",
+      "force_baseline_high_confidence": true,
+      "high_confidence_categories": [
+        "decisions",
+        "actions",
+        "risks",
+        "open_questions"
+      ],
+      "model_output_keys": [
+        "summary",
+        "decisions",
+        "actions",
+        "risks",
+        "open_questions"
+      ],
+      "model_output_shape": "category_ordered_statement_id_arrays",
+      "over_category_limit": "deterministic_drop",
+      "structured_output": "dynamic_json_schema_with_catalog_enums",
+      "unknown_or_malformed_response": "fail_open_exact_extractive"
+    },
+    "source_manifest": {
+      "bytes": 9559,
+      "path": "docs/testing/reviewed-speaker-memory-v1-manifest.json",
+      "scope": "repository",
+      "sha256": "c789b1b8662b9ffe1e024ff4a0171f16e5b33f6f60bece2fdafc1b7fd3517e32"
+    },
+    "synthetic_contract_checker": {
+      "bytes": 13026,
+      "path": "scripts/check-evidence-only-local-note-selection.py",
+      "scope": "repository",
+      "sha256": "5b7ba67255530aa3f0272bc4847e5fcddadbbeeef543679a1732a2222e469c44"
+    }
+  },
+  "schema": "murmurmark.evidence_only_local_note_selection_frozen_manifest/v1",
+  "scope": "frozen_six_session_exact_evidence_selection_qualification",
+  "sessions": [
+    {
+      "gates": {
+        "baseline_high_confidence_retained": true,
+        "deterministic_replay": true,
+        "exact_source_publication": true,
+        "handoff_ready": true,
+        "model_contract_valid": true,
+        "ordinary_outputs_unchanged": true,
+        "published_generated_claims_zero": true,
+        "referential_integrity": true,
+        "source_transcript_exact": true,
+        "source_verdict_exact": true
+      },
+      "metrics": {
+        "available_categories": 4,
+        "available_speakers": 3,
+        "baseline_high_confidence": 0,
+        "baseline_high_confidence_retention_ratio": 1.0,
+        "category_coverage_ratio": 1.0,
+        "exact_source_publication": true,
+        "model_contract_valid": true,
+        "published_generated_claims": 0,
+        "referential_integrity": true,
+        "retained_baseline_high_confidence": 0,
+        "review_compression_ratio": 0.0,
+        "selected_categories": 4,
+        "selected_evidence_utterances": 8,
+        "selected_review_marked": 4,
+        "selected_review_marked_by_category": {
+          "actions": 1,
+          "decisions": 1,
+          "open_questions": 0,
+          "risks": 2,
+          "summary": 0
+        },
+        "selected_review_ratio": 1.0,
+        "selected_speakers": 3,
+        "selected_statements": 8,
+        "selected_statements_by_category": {
+          "actions": 1,
+          "decisions": 1,
+          "open_questions": 0,
+          "risks": 2,
+          "summary": 4
+        },
+        "selection_contract_errors": 0,
+        "source_candidates": 21,
+        "source_candidates_by_category": {
+          "actions": 1,
+          "decisions": 1,
+          "open_questions": 0,
+          "risks": 2,
+          "summary": 17
+        },
+        "source_review_marked": 4,
+        "source_review_marked_by_category": {
+          "actions": 1,
+          "decisions": 1,
+          "open_questions": 0,
+          "risks": 2,
+          "summary": 0
+        },
+        "speaker_coverage_ratio": 1.0
+      },
+      "model_run": {
+        "eval_count": 127,
+        "prompt_eval_count": 3047,
+        "prompt_input_sha256": "0d52ab62af3cf008b8d371bab703ab7e817272ef2075c3882466c9fbbdc0bda2",
+        "prompt_rendered_bytes": 13437,
+        "prompt_rendered_sha256": "b80583a23371eae395a64afc69cbe93cb619efd2526aa97851197afc80cb4095",
+        "raw_response_sha256": "c14fc82b16be4e90343baf75a44b27ee69d3e1fc313dc8a0bdda73eaaa0b48cb"
+      },
+      "reasons": [],
+      "selection": {
+        "catalog_sha256": "c8077bc55525a24a7b954a13fde48d33994646509aa1deceeba3e1caf76259be",
+        "category_normalizations": [],
+        "contract_errors": [],
+        "final_selected_ids": {
+          "actions": [
+            "claim:actions:cand_action_0273"
+          ],
+          "decisions": [
+            "claim:decisions:cand_decision_0109"
+          ],
+          "open_questions": [],
+          "risks": [
+            "claim:risks:cand_risk_0160",
+            "claim:risks:cand_risk_0204"
+          ],
+          "summary": [
+            "outline:topic_0001:0",
+            "outline:topic_0002:0",
+            "outline:topic_0003:0",
+            "outline:topic_0004:0"
+          ]
+        },
+        "model_container_ids": {
+          "actions": [
+            "claim:actions:cand_action_0273"
+          ],
+          "decisions": [
+            "claim:decisions:cand_decision_0109"
+          ],
+          "open_questions": [],
+          "risks": [
+            "claim:risks:cand_risk_0160",
+            "claim:risks:cand_risk_0204"
+          ],
+          "summary": [
+            "outline:topic_0001:0",
+            "outline:topic_0002:0",
+            "outline:topic_0003:0",
+            "outline:topic_0004:0"
+          ]
+        },
+        "model_ranked_ids": [
+          "outline:topic_0001:0",
+          "outline:topic_0002:0",
+          "outline:topic_0003:0",
+          "outline:topic_0004:0",
+          "claim:decisions:cand_decision_0109",
+          "claim:actions:cand_action_0273",
+          "claim:risks:cand_risk_0160",
+          "claim:risks:cand_risk_0204"
+        ],
+        "model_selected_ids": {
+          "actions": [
+            "claim:actions:cand_action_0273"
+          ],
+          "decisions": [
+            "claim:decisions:cand_decision_0109"
+          ],
+          "open_questions": [],
+          "risks": [
+            "claim:risks:cand_risk_0160",
+            "claim:risks:cand_risk_0204"
+          ],
+          "summary": [
+            "outline:topic_0001:0",
+            "outline:topic_0002:0",
+            "outline:topic_0003:0",
+            "outline:topic_0004:0"
+          ]
+        },
+        "policy_dropped_ids": []
+      },
+      "session_id": "2026-06-23_14-04-37",
+      "source": {
+        "anonymous_handoff": {
+          "bytes": 13972,
+          "path": "derived/transcript-rich/anonymous-v1/handoff_manifest.json",
+          "sha256": "c73c77d2d54def2e3b1b125ffab84f39c277a9ba81c756265da4da7032f1147e"
+        },
+        "evidence_handoff": {
+          "bytes": 9035,
+          "path": "derived/handoff-v2/handoff_manifest.json",
+          "sha256": "6114fc67bc2e6595fddee0c0da1cd85e5908e8013618fc57e9438cec7cb6efc4"
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "gates": {
+        "baseline_high_confidence_retained": true,
+        "deterministic_replay": true,
+        "exact_source_publication": true,
+        "handoff_ready": true,
+        "model_contract_valid": true,
+        "ordinary_outputs_unchanged": true,
+        "published_generated_claims_zero": true,
+        "referential_integrity": true,
+        "source_transcript_exact": true,
+        "source_verdict_exact": true
+      },
+      "metrics": {
+        "available_categories": 4,
+        "available_speakers": 3,
+        "baseline_high_confidence": 0,
+        "baseline_high_confidence_retention_ratio": 1.0,
+        "category_coverage_ratio": 1.0,
+        "exact_source_publication": true,
+        "model_contract_valid": true,
+        "published_generated_claims": 0,
+        "referential_integrity": true,
+        "retained_baseline_high_confidence": 0,
+        "review_compression_ratio": 0.285714,
+        "selected_categories": 4,
+        "selected_evidence_utterances": 11,
+        "selected_review_marked": 5,
+        "selected_review_marked_by_category": {
+          "actions": 1,
+          "decisions": 2,
+          "open_questions": 0,
+          "risks": 2,
+          "summary": 0
+        },
+        "selected_review_ratio": 0.714286,
+        "selected_speakers": 3,
+        "selected_statements": 10,
+        "selected_statements_by_category": {
+          "actions": 1,
+          "decisions": 2,
+          "open_questions": 0,
+          "risks": 2,
+          "summary": 5
+        },
+        "selection_contract_errors": 0,
+        "source_candidates": 35,
+        "source_candidates_by_category": {
+          "actions": 1,
+          "decisions": 2,
+          "open_questions": 0,
+          "risks": 4,
+          "summary": 28
+        },
+        "source_review_marked": 7,
+        "source_review_marked_by_category": {
+          "actions": 1,
+          "decisions": 2,
+          "open_questions": 0,
+          "risks": 4,
+          "summary": 0
+        },
+        "speaker_coverage_ratio": 1.0
+      },
+      "model_run": {
+        "eval_count": 153,
+        "prompt_eval_count": 4680,
+        "prompt_input_sha256": "3315d59548e99626647ba6b4dab08dea848a35233a726ef93425448e6614631a",
+        "prompt_rendered_bytes": 20455,
+        "prompt_rendered_sha256": "adde5169bfffa905e9a140367834df2e6a1df75aca0b3e4ccc771500e61c1e3f",
+        "raw_response_sha256": "23b3bd91c5f9efc7442b82c13651cf412ec024b2564b7490993b4b8507172862"
+      },
+      "reasons": [],
+      "selection": {
+        "catalog_sha256": "0309522b269cb04d0ef13b87fcc8eefdc6cfa5f31a14685a8acbf31248427215",
+        "category_normalizations": [],
+        "contract_errors": [],
+        "final_selected_ids": {
+          "actions": [
+            "claim:actions:cand_action_0006"
+          ],
+          "decisions": [
+            "claim:decisions:cand_decision_0180",
+            "claim:decisions:cand_decision_0181"
+          ],
+          "open_questions": [],
+          "risks": [
+            "claim:risks:cand_risk_0075",
+            "claim:risks:cand_risk_0257"
+          ],
+          "summary": [
+            "outline:topic_0001:0",
+            "outline:topic_0002:0",
+            "outline:topic_0003:0",
+            "outline:topic_0004:0",
+            "outline:topic_0005:0"
+          ]
+        },
+        "model_container_ids": {
+          "actions": [
+            "claim:actions:cand_action_0006"
+          ],
+          "decisions": [
+            "claim:decisions:cand_decision_0180",
+            "claim:decisions:cand_decision_0181"
+          ],
+          "open_questions": [],
+          "risks": [
+            "claim:risks:cand_risk_0075",
+            "claim:risks:cand_risk_0257"
+          ],
+          "summary": [
+            "outline:topic_0001:0",
+            "outline:topic_0002:0",
+            "outline:topic_0003:0",
+            "outline:topic_0004:0",
+            "outline:topic_0005:0"
+          ]
+        },
+        "model_ranked_ids": [
+          "outline:topic_0001:0",
+          "outline:topic_0002:0",
+          "outline:topic_0003:0",
+          "outline:topic_0004:0",
+          "outline:topic_0005:0",
+          "claim:decisions:cand_decision_0180",
+          "claim:decisions:cand_decision_0181",
+          "claim:actions:cand_action_0006",
+          "claim:risks:cand_risk_0075",
+          "claim:risks:cand_risk_0257"
+        ],
+        "model_selected_ids": {
+          "actions": [
+            "claim:actions:cand_action_0006"
+          ],
+          "decisions": [
+            "claim:decisions:cand_decision_0180",
+            "claim:decisions:cand_decision_0181"
+          ],
+          "open_questions": [],
+          "risks": [
+            "claim:risks:cand_risk_0075",
+            "claim:risks:cand_risk_0257"
+          ],
+          "summary": [
+            "outline:topic_0001:0",
+            "outline:topic_0002:0",
+            "outline:topic_0003:0",
+            "outline:topic_0004:0",
+            "outline:topic_0005:0"
+          ]
+        },
+        "policy_dropped_ids": []
+      },
+      "session_id": "2026-06-24_15-03-52",
+      "source": {
+        "anonymous_handoff": {
+          "bytes": 13976,
+          "path": "derived/transcript-rich/anonymous-v1/handoff_manifest.json",
+          "sha256": "8e6ae9ab879c9780185c348aa298dfcd023df1773a124c1d561b40672235f5eb"
+        },
+        "evidence_handoff": {
+          "bytes": 8953,
+          "path": "derived/handoff-v2/handoff_manifest.json",
+          "sha256": "948a848012954e9535e7bbbb63c746be02c39f5ffe533477c2fe074292ae1b87"
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "gates": {
+        "baseline_high_confidence_retained": true,
+        "deterministic_replay": true,
+        "exact_source_publication": true,
+        "handoff_ready": true,
+        "model_contract_valid": true,
+        "ordinary_outputs_unchanged": true,
+        "published_generated_claims_zero": true,
+        "referential_integrity": true,
+        "source_transcript_exact": true,
+        "source_verdict_exact": true
+      },
+      "metrics": {
+        "available_categories": 5,
+        "available_speakers": 6,
+        "baseline_high_confidence": 0,
+        "baseline_high_confidence_retention_ratio": 1.0,
+        "category_coverage_ratio": 1.0,
+        "exact_source_publication": true,
+        "model_contract_valid": true,
+        "published_generated_claims": 0,
+        "referential_integrity": true,
+        "retained_baseline_high_confidence": 0,
+        "review_compression_ratio": 0.529412,
+        "selected_categories": 5,
+        "selected_evidence_utterances": 13,
+        "selected_review_marked": 8,
+        "selected_review_marked_by_category": {
+          "actions": 3,
+          "decisions": 2,
+          "open_questions": 1,
+          "risks": 2,
+          "summary": 0
+        },
+        "selected_review_ratio": 0.470588,
+        "selected_speakers": 3,
+        "selected_statements": 13,
+        "selected_statements_by_category": {
+          "actions": 3,
+          "decisions": 2,
+          "open_questions": 1,
+          "risks": 2,
+          "summary": 5
+        },
+        "selection_contract_errors": 0,
+        "source_candidates": 41,
+        "source_candidates_by_category": {
+          "actions": 8,
+          "decisions": 5,
+          "open_questions": 1,
+          "risks": 3,
+          "summary": 24
+        },
+        "source_review_marked": 17,
+        "source_review_marked_by_category": {
+          "actions": 8,
+          "decisions": 5,
+          "open_questions": 1,
+          "risks": 3,
+          "summary": 0
+        },
+        "speaker_coverage_ratio": 0.5
+      },
+      "model_run": {
+        "eval_count": 192,
+        "prompt_eval_count": 5434,
+        "prompt_input_sha256": "59868361562535a03a51c4b96f450eda7b6936aeb742b4ab3b395d58ba4ba4b8",
+        "prompt_rendered_bytes": 23646,
+        "prompt_rendered_sha256": "f3281af8c88fbc3cc3cb23a7d358328ff4a87c691cfc7eb59af2ee59eada6134",
+        "raw_response_sha256": "16004595d0e189348f0922019a172d6b8402c62d42f07b911a1c83f84e31f6d8"
+      },
+      "reasons": [],
+      "selection": {
+        "catalog_sha256": "cddc0f85a931b729d6e95267a386a0c17729ba12ec696cd64f24c8f218558141",
+        "category_normalizations": [],
+        "contract_errors": [],
+        "final_selected_ids": {
+          "actions": [
+            "claim:actions:cand_action_0256",
+            "claim:actions:cand_action_0345",
+            "claim:actions:cand_action_0329"
+          ],
+          "decisions": [
+            "claim:decisions:cand_decision_0462",
+            "claim:decisions:cand_decision_0284"
+          ],
+          "open_questions": [
+            "claim:open_questions:cand_question_0091"
+          ],
+          "risks": [
+            "claim:risks:cand_risk_0050",
+            "claim:risks:cand_risk_0460"
+          ],
+          "summary": [
+            "outline:topic_0001:0",
+            "outline:topic_0001:1",
+            "outline:topic_0001:2",
+            "outline:topic_0001:3",
+            "outline:topic_0001:4"
+          ]
+        },
+        "model_container_ids": {
+          "actions": [
+            "claim:actions:cand_action_0256",
+            "claim:actions:cand_action_0345",
+            "claim:actions:cand_action_0329"
+          ],
+          "decisions": [
+            "claim:decisions:cand_decision_0462",
+            "claim:decisions:cand_decision_0284"
+          ],
+          "open_questions": [
+            "claim:open_questions:cand_question_0091"
+          ],
+          "risks": [
+            "claim:risks:cand_risk_0050",
+            "claim:risks:cand_risk_0460"
+          ],
+          "summary": [
+            "outline:topic_0001:0",
+            "outline:topic_0001:1",
+            "outline:topic_0001:2",
+            "outline:topic_0001:3",
+            "outline:topic_0001:4"
+          ]
+        },
+        "model_ranked_ids": [
+          "outline:topic_0001:0",
+          "outline:topic_0001:1",
+          "outline:topic_0001:2",
+          "outline:topic_0001:3",
+          "outline:topic_0001:4",
+          "claim:decisions:cand_decision_0462",
+          "claim:decisions:cand_decision_0284",
+          "claim:actions:cand_action_0256",
+          "claim:actions:cand_action_0345",
+          "claim:actions:cand_action_0329",
+          "claim:risks:cand_risk_0050",
+          "claim:risks:cand_risk_0460",
+          "claim:open_questions:cand_question_0091"
+        ],
+        "model_selected_ids": {
+          "actions": [
+            "claim:actions:cand_action_0256",
+            "claim:actions:cand_action_0345",
+            "claim:actions:cand_action_0329"
+          ],
+          "decisions": [
+            "claim:decisions:cand_decision_0462",
+            "claim:decisions:cand_decision_0284"
+          ],
+          "open_questions": [
+            "claim:open_questions:cand_question_0091"
+          ],
+          "risks": [
+            "claim:risks:cand_risk_0050",
+            "claim:risks:cand_risk_0460"
+          ],
+          "summary": [
+            "outline:topic_0001:0",
+            "outline:topic_0001:1",
+            "outline:topic_0001:2",
+            "outline:topic_0001:3",
+            "outline:topic_0001:4"
+          ]
+        },
+        "policy_dropped_ids": []
+      },
+      "session_id": "2026-06-26_11-15-50",
+      "source": {
+        "anonymous_handoff": {
+          "bytes": 13959,
+          "path": "derived/transcript-rich/anonymous-v1/handoff_manifest.json",
+          "sha256": "164def7b915ea29f6dc6a124d6ee4b60722de36654bd689b7782ac9630d148ed"
+        },
+        "evidence_handoff": {
+          "bytes": 8941,
+          "path": "derived/handoff-v2/handoff_manifest.json",
+          "sha256": "09bce39776d9566330f5584444c23f6e79f22bc3f6a3703d8669349e000496ce"
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "gates": {
+        "baseline_high_confidence_retained": true,
+        "deterministic_replay": true,
+        "exact_source_publication": true,
+        "handoff_ready": true,
+        "model_contract_valid": true,
+        "ordinary_outputs_unchanged": true,
+        "published_generated_claims_zero": true,
+        "referential_integrity": true,
+        "source_transcript_exact": true,
+        "source_verdict_exact": true
+      },
+      "metrics": {
+        "available_categories": 4,
+        "available_speakers": 4,
+        "baseline_high_confidence": 0,
+        "baseline_high_confidence_retention_ratio": 1.0,
+        "category_coverage_ratio": 1.0,
+        "exact_source_publication": true,
+        "model_contract_valid": true,
+        "published_generated_claims": 0,
+        "referential_integrity": true,
+        "retained_baseline_high_confidence": 0,
+        "review_compression_ratio": 0.0,
+        "selected_categories": 4,
+        "selected_evidence_utterances": 6,
+        "selected_review_marked": 3,
+        "selected_review_marked_by_category": {
+          "actions": 1,
+          "decisions": 1,
+          "open_questions": 0,
+          "risks": 1,
+          "summary": 0
+        },
+        "selected_review_ratio": 1.0,
+        "selected_speakers": 3,
+        "selected_statements": 7,
+        "selected_statements_by_category": {
+          "actions": 1,
+          "decisions": 1,
+          "open_questions": 0,
+          "risks": 1,
+          "summary": 4
+        },
+        "selection_contract_errors": 0,
+        "source_candidates": 21,
+        "source_candidates_by_category": {
+          "actions": 1,
+          "decisions": 1,
+          "open_questions": 0,
+          "risks": 1,
+          "summary": 18
+        },
+        "source_review_marked": 3,
+        "source_review_marked_by_category": {
+          "actions": 1,
+          "decisions": 1,
+          "open_questions": 0,
+          "risks": 1,
+          "summary": 0
+        },
+        "speaker_coverage_ratio": 0.75
+      },
+      "model_run": {
+        "eval_count": 112,
+        "prompt_eval_count": 2986,
+        "prompt_input_sha256": "17b1b552947c7541001997f0d44cce1c433848b92a9f5e04614b4e604b33df37",
+        "prompt_rendered_bytes": 13473,
+        "prompt_rendered_sha256": "5b45a745ed01d91cc6c16410dc6f5bc7644af44dda601fff19b8225111a51bd5",
+        "raw_response_sha256": "23b7c5155436e549863b14e81c219eb1e40f214a28aedc8e26ff1d3dfdd1f675"
+      },
+      "reasons": [],
+      "selection": {
+        "catalog_sha256": "61dee06604590d1bc9676bd2ad4d57fd4a28a6053985f36db55ea6bcf373cd6f",
+        "category_normalizations": [],
+        "contract_errors": [],
+        "final_selected_ids": {
+          "actions": [
+            "claim:actions:cand_action_0099"
+          ],
+          "decisions": [
+            "claim:decisions:cand_decision_0139"
+          ],
+          "open_questions": [],
+          "risks": [
+            "claim:risks:cand_risk_0143"
+          ],
+          "summary": [
+            "outline:topic_0001:3",
+            "outline:topic_0002:3",
+            "outline:topic_0003:1",
+            "outline:topic_0004:3"
+          ]
+        },
+        "model_container_ids": {
+          "actions": [
+            "claim:actions:cand_action_0099"
+          ],
+          "decisions": [
+            "claim:decisions:cand_decision_0139"
+          ],
+          "open_questions": [],
+          "risks": [
+            "claim:risks:cand_risk_0143"
+          ],
+          "summary": [
+            "outline:topic_0001:3",
+            "outline:topic_0002:3",
+            "outline:topic_0003:1",
+            "outline:topic_0004:3"
+          ]
+        },
+        "model_ranked_ids": [
+          "outline:topic_0001:3",
+          "outline:topic_0002:3",
+          "outline:topic_0003:1",
+          "outline:topic_0004:3",
+          "claim:decisions:cand_decision_0139",
+          "claim:actions:cand_action_0099",
+          "claim:risks:cand_risk_0143"
+        ],
+        "model_selected_ids": {
+          "actions": [
+            "claim:actions:cand_action_0099"
+          ],
+          "decisions": [
+            "claim:decisions:cand_decision_0139"
+          ],
+          "open_questions": [],
+          "risks": [
+            "claim:risks:cand_risk_0143"
+          ],
+          "summary": [
+            "outline:topic_0001:3",
+            "outline:topic_0002:3",
+            "outline:topic_0003:1",
+            "outline:topic_0004:3"
+          ]
+        },
+        "policy_dropped_ids": []
+      },
+      "session_id": "2026-06-26_12-04-04",
+      "source": {
+        "anonymous_handoff": {
+          "bytes": 13894,
+          "path": "derived/transcript-rich/anonymous-v1/handoff_manifest.json",
+          "sha256": "5c35edb27d302f78932d26701f9dd9d7a8149922df9049d5400190fb0a377bc1"
+        },
+        "evidence_handoff": {
+          "bytes": 8941,
+          "path": "derived/handoff-v2/handoff_manifest.json",
+          "sha256": "113d9798ef9d1e948b760bdefe5d4b83a4ff7eba3493db6ffce7a88157b5917b"
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "gates": {
+        "baseline_high_confidence_retained": true,
+        "deterministic_replay": true,
+        "exact_source_publication": true,
+        "handoff_ready": true,
+        "model_contract_valid": true,
+        "ordinary_outputs_unchanged": true,
+        "published_generated_claims_zero": true,
+        "referential_integrity": true,
+        "source_transcript_exact": true,
+        "source_verdict_exact": true
+      },
+      "metrics": {
+        "available_categories": 4,
+        "available_speakers": 5,
+        "baseline_high_confidence": 0,
+        "baseline_high_confidence_retention_ratio": 1.0,
+        "category_coverage_ratio": 1.0,
+        "exact_source_publication": true,
+        "model_contract_valid": true,
+        "published_generated_claims": 0,
+        "referential_integrity": true,
+        "retained_baseline_high_confidence": 0,
+        "review_compression_ratio": 0.727273,
+        "selected_categories": 4,
+        "selected_evidence_utterances": 8,
+        "selected_review_marked": 3,
+        "selected_review_marked_by_category": {
+          "actions": 1,
+          "decisions": 1,
+          "open_questions": 0,
+          "risks": 1,
+          "summary": 0
+        },
+        "selected_review_ratio": 0.272727,
+        "selected_speakers": 4,
+        "selected_statements": 8,
+        "selected_statements_by_category": {
+          "actions": 1,
+          "decisions": 1,
+          "open_questions": 0,
+          "risks": 1,
+          "summary": 5
+        },
+        "selection_contract_errors": 0,
+        "source_candidates": 46,
+        "source_candidates_by_category": {
+          "actions": 5,
+          "decisions": 3,
+          "open_questions": 0,
+          "risks": 3,
+          "summary": 35
+        },
+        "source_review_marked": 11,
+        "source_review_marked_by_category": {
+          "actions": 5,
+          "decisions": 3,
+          "open_questions": 0,
+          "risks": 3,
+          "summary": 0
+        },
+        "speaker_coverage_ratio": 0.8
+      },
+      "model_run": {
+        "eval_count": 124,
+        "prompt_eval_count": 5813,
+        "prompt_input_sha256": "6db0195a90b3d01cefa6c6bff6e4c6d9a7cbf4cc641f95145721e5b606458bb2",
+        "prompt_rendered_bytes": 25555,
+        "prompt_rendered_sha256": "032d4dbb6b3ca6b91207f78efed93d324bc45f65b65ed8cb4cd6512e969014d3",
+        "raw_response_sha256": "44f1e33098f1333428daab1f9113b8959aba0b355f767cca1fd141575203a545"
+      },
+      "reasons": [],
+      "selection": {
+        "catalog_sha256": "cba7728c13ba9cc4d9c3e4ae8af2962c1fada9c92ecb35f0750dd96d0488938c",
+        "category_normalizations": [],
+        "contract_errors": [],
+        "final_selected_ids": {
+          "actions": [
+            "claim:actions:cand_action_0242"
+          ],
+          "decisions": [
+            "claim:decisions:cand_decision_0506"
+          ],
+          "open_questions": [],
+          "risks": [
+            "claim:risks:cand_risk_0083"
+          ],
+          "summary": [
+            "outline:topic_0001:0",
+            "outline:topic_0001:1",
+            "outline:topic_0001:2",
+            "outline:topic_0002:0",
+            "outline:topic_0003:0"
+          ]
+        },
+        "model_container_ids": {
+          "actions": [
+            "claim:actions:cand_action_0242"
+          ],
+          "decisions": [
+            "claim:decisions:cand_decision_0506"
+          ],
+          "open_questions": [],
+          "risks": [
+            "claim:risks:cand_risk_0083"
+          ],
+          "summary": [
+            "outline:topic_0001:0",
+            "outline:topic_0001:1",
+            "outline:topic_0001:2",
+            "outline:topic_0002:0",
+            "outline:topic_0003:0"
+          ]
+        },
+        "model_ranked_ids": [
+          "outline:topic_0001:0",
+          "outline:topic_0001:1",
+          "outline:topic_0001:2",
+          "outline:topic_0002:0",
+          "outline:topic_0003:0",
+          "claim:decisions:cand_decision_0506",
+          "claim:actions:cand_action_0242",
+          "claim:risks:cand_risk_0083"
+        ],
+        "model_selected_ids": {
+          "actions": [
+            "claim:actions:cand_action_0242"
+          ],
+          "decisions": [
+            "claim:decisions:cand_decision_0506"
+          ],
+          "open_questions": [],
+          "risks": [
+            "claim:risks:cand_risk_0083"
+          ],
+          "summary": [
+            "outline:topic_0001:0",
+            "outline:topic_0001:1",
+            "outline:topic_0001:2",
+            "outline:topic_0002:0",
+            "outline:topic_0003:0"
+          ]
+        },
+        "policy_dropped_ids": []
+      },
+      "session_id": "2026-07-14_15-01-19-live",
+      "source": {
+        "anonymous_handoff": {
+          "bytes": 14075,
+          "path": "derived/transcript-rich/anonymous-v1/handoff_manifest.json",
+          "sha256": "8727d13c82844d9f6bf3a08fcced0c1a121b6e2ec29b1982fafcc8a4184f9fc1"
+        },
+        "evidence_handoff": {
+          "bytes": 9353,
+          "path": "derived/handoff-v2/handoff_manifest.json",
+          "sha256": "9690c043de6868c25d7e2a0f0c1ee20876f00836d739e9c9176172cffcd25fb4"
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "gates": {
+        "baseline_high_confidence_retained": true,
+        "deterministic_replay": true,
+        "exact_source_publication": true,
+        "handoff_ready": true,
+        "model_contract_valid": true,
+        "ordinary_outputs_unchanged": true,
+        "published_generated_claims_zero": true,
+        "referential_integrity": true,
+        "source_transcript_exact": true,
+        "source_verdict_exact": true
+      },
+      "metrics": {
+        "available_categories": 4,
+        "available_speakers": 4,
+        "baseline_high_confidence": 0,
+        "baseline_high_confidence_retention_ratio": 1.0,
+        "category_coverage_ratio": 1.0,
+        "exact_source_publication": true,
+        "model_contract_valid": true,
+        "published_generated_claims": 0,
+        "referential_integrity": true,
+        "retained_baseline_high_confidence": 0,
+        "review_compression_ratio": 0.0,
+        "selected_categories": 4,
+        "selected_evidence_utterances": 11,
+        "selected_review_marked": 5,
+        "selected_review_marked_by_category": {
+          "actions": 2,
+          "decisions": 2,
+          "open_questions": 0,
+          "risks": 1,
+          "summary": 0
+        },
+        "selected_review_ratio": 1.0,
+        "selected_speakers": 4,
+        "selected_statements": 10,
+        "selected_statements_by_category": {
+          "actions": 2,
+          "decisions": 2,
+          "open_questions": 0,
+          "risks": 1,
+          "summary": 5
+        },
+        "selection_contract_errors": 0,
+        "source_candidates": 25,
+        "source_candidates_by_category": {
+          "actions": 2,
+          "decisions": 2,
+          "open_questions": 0,
+          "risks": 1,
+          "summary": 20
+        },
+        "source_review_marked": 5,
+        "source_review_marked_by_category": {
+          "actions": 2,
+          "decisions": 2,
+          "open_questions": 0,
+          "risks": 1,
+          "summary": 0
+        },
+        "speaker_coverage_ratio": 1.0
+      },
+      "model_run": {
+        "eval_count": 151,
+        "prompt_eval_count": 3288,
+        "prompt_input_sha256": "a82b0ac446fa161a1504a5980b23d8432cd1693b550be7295ee4a34e9fc1706e",
+        "prompt_rendered_bytes": 14134,
+        "prompt_rendered_sha256": "814c0bfb2770275ac49748fb22e465c75f23d1729476d7ba846616e699cf06fe",
+        "raw_response_sha256": "ec53ba769c7d477a29b255bc296fb49f9537e3b25a044c87fb113e533770f067"
+      },
+      "reasons": [],
+      "selection": {
+        "catalog_sha256": "4edfb7da1e63fdbdd92a7ae6556274cf96103674ec93350707efeae33dd9286a",
+        "category_normalizations": [],
+        "contract_errors": [],
+        "final_selected_ids": {
+          "actions": [
+            "claim:actions:cand_action_0194",
+            "claim:actions:cand_action_0043"
+          ],
+          "decisions": [
+            "claim:decisions:cand_decision_0252",
+            "claim:decisions:cand_decision_0053"
+          ],
+          "open_questions": [],
+          "risks": [
+            "claim:risks:cand_risk_0140"
+          ],
+          "summary": [
+            "outline:topic_0003:0",
+            "outline:topic_0004:0",
+            "outline:topic_0001:0",
+            "outline:topic_0002:0",
+            "outline:topic_0003:1"
+          ]
+        },
+        "model_container_ids": {
+          "actions": [
+            "claim:actions:cand_action_0194",
+            "claim:actions:cand_action_0043"
+          ],
+          "decisions": [
+            "claim:decisions:cand_decision_0252",
+            "claim:decisions:cand_decision_0053"
+          ],
+          "open_questions": [],
+          "risks": [
+            "claim:risks:cand_risk_0140"
+          ],
+          "summary": [
+            "outline:topic_0003:0",
+            "outline:topic_0004:0",
+            "outline:topic_0001:0",
+            "outline:topic_0002:0",
+            "outline:topic_0003:1"
+          ]
+        },
+        "model_ranked_ids": [
+          "outline:topic_0003:0",
+          "outline:topic_0004:0",
+          "outline:topic_0001:0",
+          "outline:topic_0002:0",
+          "outline:topic_0003:1",
+          "claim:decisions:cand_decision_0252",
+          "claim:decisions:cand_decision_0053",
+          "claim:actions:cand_action_0194",
+          "claim:actions:cand_action_0043",
+          "claim:risks:cand_risk_0140"
+        ],
+        "model_selected_ids": {
+          "actions": [
+            "claim:actions:cand_action_0194",
+            "claim:actions:cand_action_0043"
+          ],
+          "decisions": [
+            "claim:decisions:cand_decision_0252",
+            "claim:decisions:cand_decision_0053"
+          ],
+          "open_questions": [],
+          "risks": [
+            "claim:risks:cand_risk_0140"
+          ],
+          "summary": [
+            "outline:topic_0003:0",
+            "outline:topic_0004:0",
+            "outline:topic_0001:0",
+            "outline:topic_0002:0",
+            "outline:topic_0003:1"
+          ]
+        },
+        "policy_dropped_ids": []
+      },
+      "session_id": "2026-07-20_15-15-26-live",
+      "source": {
+        "anonymous_handoff": {
+          "bytes": 14230,
+          "path": "derived/transcript-rich/anonymous-v1/handoff_manifest.json",
+          "sha256": "88df225e019542689b178e8b371f262c45c06210a5fd49d593e8e85ac51fb989"
+        },
+        "evidence_handoff": {
+          "bytes": 9539,
+          "path": "derived/handoff-v2/handoff_manifest.json",
+          "sha256": "70f09a9a5e012be37922f92bab26a809a999eac455a4ead560cb9958440342c2"
+        }
+      },
+      "status": "passed"
+    }
+  ],
+  "version": 1
+}

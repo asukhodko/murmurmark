@@ -45,8 +45,9 @@ Current implementation status, 2026-08-07:
   handoff; ordinary outputs remain authoritative fallback;
 - committed-PCM live preview exists as an advisory shadow, while batch remains authoritative;
 - Evidence-Guarded Local Synthesis v1 completed with `DO_NOT_PROMOTE`; ID-only local evidence
-  selection is current. Authoritative cross-session identity, cloud/external writes and UI remain
-  future or optional work.
+  selection is promoted as an explicit exact-text opt-in view. Reviewed Meeting Artifacts v1 is
+  current, followed by local evidence retrieval and reviewed proposal bundles. Authoritative
+  cross-session identity, cloud/external writes and UI remain future or optional work.
 
 ## Goals
 

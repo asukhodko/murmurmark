@@ -36,9 +36,11 @@ nodes:
     effort: 221
     notes: |
       Активная CLI-first, local-first и evidence-backed программа. Batch transcript остаётся
-      authoritative. Текущий технический North Star: сохранить всю подтверждённую локальную речь
-      и удалить распознаваемый remote до первичного ASR. В работе одновременно может быть только
-      одна исполнимая цель.
+      authoritative. Текущий продуктовый North Star: одной командой получить честный transcript,
+      короткие подтверждённые meeting artifacts, локальный evidence retrieval и только затем
+      reviewed work proposals. Pre-ASR audio plateau остаётся обязательным quality boundary и
+      открывается снова лишь при новом независимом Target-Me presence evidence. В работе
+      одновременно может быть только одна исполнимая цель.
       Подробная история экспериментов сохранена в
       docs/history/murmurmark-cli-roadmap-through-2026-07-19.plan.yaml.
 
@@ -475,47 +477,6 @@ nodes:
       direct ASR не открывались. Production v2.17 остаётся exact plateau; bounded audio frontier
       закрыт, а его reopening требует отдельного abstaining Target-Me presence detector.
 
-  quality-pre-asr-residual-echo-ceiling-map-v1:
-    title: "Pre-ASR Residual Echo Ceiling Map v1"
-    kind: task
-    parent: quality-pre-asr-target-me-isolation-limit-v1
-    deps: [research-speaker-preserving-neural-echo-v2, research-reference-conditioned-target-me-separation-v2]
-    status: done
-    effort: 5
-    notes: |
-      Завершено READY_FOR_ALIGNMENT_OR_ECHO_MODEL_V3 на 14 discovery sessions и 2068 material
-      events. Из 6869.306s actionable evidence alignment/echo-path требует 2443.222s (35.567%),
-      multi-component separation 2124.220s (30.923%), Target-Me model 1258.702s (18.324%). Raw,
-      production v2 и transcript неизменны; replay и frozen SHA-256 проходят.
-
-  quality-multi-component-residual-separator-v1:
-    title: "Multi-Component Residual Separator Qualification v1"
-    kind: task
-    parent: quality-pre-asr-target-me-isolation-limit-v1
-    deps: [quality-pre-asr-residual-echo-ceiling-map-v1, research-speaker-preserving-neural-echo-v2, research-reference-conditioned-target-me-separation-v2]
-    status: done
-    effort: 10
-    notes: |
-      Завершено READY_FOR_STRONGER_LOCAL_SEPARATOR. Four-stem FiLM-GRU на 320 train / 85 dev
-      mixtures сохранил reconstruction 0.0 и query collapse 0.0, но получил Target-Me 5.561 dB,
-      other-local 4.443 dB, absent-query 6.803 dB и residual -1.545 dB. Единственная revision не
-      сняла предел; hard/sealed и direct ASR не открывались, production v2 не изменён.
-
-  quality-sepformer-four-stem-target-me-qualification-v1:
-    title: "SepFormer Four-Stem Target-Me Qualification v1"
-    kind: task
-    parent: quality-pre-asr-target-me-isolation-limit-v1
-    deps: [quality-multi-component-residual-separator-v1, quality-target-me-identifiability-corpus-v1]
-    status: done
-    effort: 10
-    notes: |
-      Prerequisites заморозили Apache-2.0 SpeechBrain SepFormer, pinned revision, 12/4/4 identities,
-      network-blocked replay и resource budget. Qualification завершена DO_NOT_ADVANCE_STRONGER_SEPARATOR:
-      180 train items прошли exact accounting; WavLM назначил присутствующий Target-Me без ошибок и
-      с collapse 0.03125. Однако positive p05 -0.186223 пересёк negative p95 0.067174, поэтому
-      reliable absent-Target-Me gate невозможен. Dev не открывался; production v2.17, future-hard,
-      sealed и direct ASR неизменны.
-
   product-reviewed-speaker-memory-v1:
     title: "Reviewed Speaker-Aware Meeting Memory v1"
     kind: task
@@ -578,15 +539,54 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [research-evidence-guarded-llm]
+    status: done
+    effort: 7
+    notes: |
+      Завершено PROMOTE_OPTIONAL_EVIDENCE_SELECTION. На 6/6 frozen sessions модель выбрала 56/189
+      exact statements и сократила 47 review-marked candidates до 28; category/speaker coverage
+      1.0/0.8, replay deterministic, published model-authored claims = 0, ordinary outputs
+      byte-identical. Пик RSS 12474.344 MB, поэтому слой остаётся explicit opt-in. В корпусе не было
+      baseline high-confidence artifacts; retention 1.0 помечен как вакуумный и не даёт права
+      удалять будущие high-confidence rows.
+
+  product-reviewed-meeting-artifacts-v1:
+    title: "Reviewed Meeting Artifacts v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [research-evidence-only-local-note-selection-v1, product-evidence-export-v2]
     status: current
     effort: 7
     notes: |
-      Сохранить возможную ranking-пользу local model, но убрать text authorship. Модель возвращает
-      только known statement IDs и bounded ordering metadata; published text, speaker provenance и
-      utterance IDs копируются byte-for-byte из current Reviewed Speaker-Aware Meeting Memory v1.
-      Same six-session corpus, deterministic replay, baseline high-confidence retention, useful
-      review-candidate compression, latency/memory и exact fallback дают PROMOTE_OPTIONAL_EVIDENCE_SELECTION
-      либо DO_NOT_PROMOTE. Default notes/export, cloud, external writes и cross-session identity не меняются.
+      Превратить exact decisions, actions, risks и open questions в короткую fingerprint-bound
+      очередь confirmed/rejected/unresolved. Использовать promoted ID selector только при current
+      verified handoff; иначе работать с deterministic exact source catalog. Добавить review
+      template/apply и isolated immutable bundle, не переписывать text/speaker provenance/evidence
+      IDs и не считать unresolved пункт подтверждённым обязательством. Проверить тот же six-session
+      corpus, stale fail-open, deterministic replay и ordinary-output non-regression.
+
+  product-local-evidence-retrieval-v1:
+    title: "Local Evidence Retrieval v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [product-reviewed-meeting-artifacts-v1, corpus-regression]
+    status: next
+    effort: 8
+    notes: |
+      Добавить локальный поиск по сессиям, utterances и reviewed artifacts с exact citations,
+      fingerprint invalidation и retention-aware индексом. Поиск возвращает существующие evidence
+      records, не генерирует ответы и не вводит cross-session voice identity.
+
+  product-reviewed-work-proposals-v1:
+    title: "Reviewed Work Proposals v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [product-local-evidence-retrieval-v1, product-evidence-export-v2]
+    status: later
+    effort: 7
+    notes: |
+      Материализовать подтверждённые meeting artifacts как локальные Markdown/Obsidian/docs/issue
+      proposal bundles с provenance и diff. Никаких автоматических внешних записей: публикация в
+      стороннюю систему потребует отдельного явного review и собственного integration gate.
 
   parking-lot:
     title: "Parking lot"
@@ -624,10 +624,10 @@ views:
         nodes: [working-capabilities, corpus-regression]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [research-evidence-only-local-note-selection-v1]
+        nodes: [product-reviewed-meeting-artifacts-v1]
       dependent:
-        title: "После audio frontier"
-        nodes: [product-reviewed-speaker-memory-v1, research-evidence-guarded-llm, parallel-research, parking-lot]
+        title: "Следующая продуктовая цепочка"
+        nodes: [product-local-evidence-retrieval-v1, product-reviewed-work-proposals-v1]
 
   critical-path:
     title: "Критический CLI-путь"
@@ -660,10 +660,12 @@ views:
           - research-rich-transcript
           - research-speaker-map
           - quality-pre-asr-target-me-isolation-limit-v1
-          - quality-sepformer-four-stem-target-me-qualification-v1
           - product-reviewed-speaker-memory-v1
           - research-evidence-guarded-llm
           - research-evidence-only-local-note-selection-v1
+          - product-reviewed-meeting-artifacts-v1
+          - product-local-evidence-retrieval-v1
+          - product-reviewed-work-proposals-v1
 
   echo-frontier:
     title: "Пред-ASR отделение Me от remote"
@@ -676,18 +678,11 @@ views:
           - research-reference-conditioned-target-me-separation-v1
           - quality-target-me-identifiability-corpus-v1
           - research-reference-conditioned-target-me-separation-v2
-          - quality-pre-asr-residual-echo-ceiling-map-v1
-          - quality-multi-component-residual-separator-v1
-          - quality-sepformer-four-stem-target-me-qualification-v1
-      current:
-        title: "Текущий предел"
-        nodes:
           - quality-pre-asr-target-me-isolation-limit-v1
-          - quality-sepformer-four-stem-target-me-qualification-v1
       fallback:
-        title: "После решения"
+        title: "Production plateau"
         nodes:
-          - product-reviewed-speaker-memory-v1
+          - capability-echo-preprocess
 
   parallel-research-view:
     title: "Параллельные исследования"
@@ -703,6 +698,22 @@ views:
         nodes:
           - research-evidence-guarded-llm
           - research-evidence-only-local-note-selection-v1
+
+  product-value-chain:
+    title: "Путь от доказательств к полезному результату"
+    lanes:
+      selection:
+        title: "Безопасный отбор"
+        nodes: [research-evidence-only-local-note-selection-v1]
+      confirmation:
+        title: "Подтверждение"
+        nodes: [product-reviewed-meeting-artifacts-v1]
+      retrieval:
+        title: "Повторное использование"
+        nodes: [product-local-evidence-retrieval-v1]
+      proposals:
+        title: "Контролируемое действие"
+        nodes: [product-reviewed-work-proposals-v1]
 
   parking-lot-view:
     title: "Не держит критический путь"
@@ -745,20 +756,20 @@ views:
           - research-rich-transcript
           - research-speaker-map
           - quality-pre-asr-target-me-isolation-limit-v1
-          - quality-pre-asr-residual-echo-ceiling-map-v1
-          - quality-multi-component-residual-separator-v1
-          - quality-sepformer-four-stem-target-me-qualification-v1
           - product-reviewed-speaker-memory-v1
           - research-evidence-guarded-llm
           - research-evidence-only-local-note-selection-v1
+          - product-reviewed-meeting-artifacts-v1
+          - product-local-evidence-retrieval-v1
+          - product-reviewed-work-proposals-v1
           - parallel-research
           - parking-lot
 
 x:
   exec:
     program:
-      nearest_goal: "Evidence-Only Local Note Selection v1: заменить свободную генерацию безопасным выбором и ранжированием только существующих statement IDs из current Reviewed Speaker-Aware Meeting Memory v1; публиковать текст, speaker provenance и evidence utterance IDs byte-for-byte из проверенного source, не разрешая модели создавать или редактировать claims; заморозить модель, ID-only prompt, selection policy и тот же six-session corpus, измерить сохранение baseline high-confidence items, полезное сжатие review-marked candidates, category/speaker coverage, deterministic replay, latency и memory, завершить PROMOTE_OPTIONAL_EVIDENCE_SELECTION либо DO_NOT_PROMOTE; default transcript/notes/export и existing handoffs оставить неизменными, fail open при любой stale/missing/malformed evidence, не использовать cloud, external writes, cross-session identity или UI; добавить tests/report, согласовать документацию, roadmap и OpsKarta, закоммитить и отправить в origin/main."
-      success_by_next_sync: "Есть frozen ID-only selection qualification с exact source-text publication и честным PROMOTE_OPTIONAL_EVIDENCE_SELECTION либо DO_NOT_PROMOTE; generated claims отсутствуют, extractive fallback и ordinary outputs неизменны."
+      nearest_goal: "Reviewed Meeting Artifacts v1: превратить exact decisions, actions, risks и open questions из current Reviewed Speaker-Aware Meeting Memory v1, используя promoted Evidence-Only Local Note Selection v1 только при валидном handoff, в короткую fingerprint-bound очередь confirmed/rejected/unresolved; создать deterministic review template, apply и isolated artifact bundle, копируя text, speaker provenance и evidence utterance IDs byte-for-byte и никогда не считая unresolved подтверждённым; при missing/stale/malformed selector fail open к deterministic exact source catalog; заморозить тот же six-session corpus и проверить review burden, evidence integrity, deterministic replay, stale-input rejection и ordinary-output non-regression; default transcript/notes/export, capture, Echo Guard, ASR, retention, cloud/external writes, cross-session identity и UI не менять; добавить tests/report, согласовать README, contracts, runbook, current goal, roadmap и OpsKarta, закоммитить и отправить в origin/main."
+      success_by_next_sync: "Есть deterministic review template/apply и frozen isolated meeting-artifact bundle: каждый candidate имеет confirmed/rejected/unresolved, confirmed rows сохраняют exact text/provenance, stale selector уходит к exact source catalog, ordinary outputs неизменны."
     defaults:
       status_progress:
         done: 1.0
@@ -780,14 +791,14 @@ x:
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
         title: "Закрытый pre-ASR audio frontier"
-        scope_nodes: [quality-pre-asr-target-me-isolation-limit-v1, quality-pre-asr-residual-echo-ceiling-map-v1, quality-multi-component-residual-separator-v1, quality-sepformer-four-stem-target-me-qualification-v1]
+        scope_nodes: [quality-pre-asr-target-me-isolation-limit-v1]
         kind: main
         mgmt:
           health: green
           sync_note: "SepFormer завершён DO_NOT_ADVANCE на train: presence/absence неразделимы, dev закрыт. Production v2.17 остаётся exact plateau; reopening требует отдельного abstaining presence detector."
           next_sync_goal: "Не возобновлять audio frontier без нового независимого Target-Me presence evidence."
       dependent-path:
-        title: "Текущий продуктовый путь"
+        title: "Путь к рабочим артефактам"
         scope_nodes:
           - quality-operational-rebaseline-v1
           - quality-speaker-mode-hardening-v1
@@ -813,19 +824,22 @@ x:
           - product-reviewed-speaker-memory-v1
           - research-evidence-guarded-llm
           - research-evidence-only-local-note-selection-v1
+          - product-reviewed-meeting-artifacts-v1
+          - product-local-evidence-retrieval-v1
+          - product-reviewed-work-proposals-v1
         kind: main
         mgmt:
           health: green
-          sync_note: "Free-text local synthesis завершён DO_NOT_PROMOTE: 69/142 safety-rejected и resource gate missed. Current: ID-only evidence selection без model-authored wording."
-          next_sync_goal: "Получить selection decision при exact source text и неизменном extractive fallback."
+          sync_note: "ID-only selection завершён optional PROMOTE. Current: exact candidates получают явный confirmed/rejected/unresolved status; затем подтверждённые artifacts идут в local retrieval и reviewed proposals."
+          next_sync_goal: "Получить frozen reviewed-artifact bundle без изменения source text и ordinary outputs."
       research:
         title: "Параллельные исследования"
         scope_nodes: [parallel-research]
         kind: context
         mgmt:
           health: neutral
-          sync_note: "Свободная local generation закрыта DO_NOT_PROMOTE; текущая гипотеза разрешает модели только known statement IDs."
-          next_sync_goal: "Не разрешать generated factual wording и не открывать cloud/external writes."
+          sync_note: "Свободная local generation закрыта DO_NOT_PROMOTE; ID-only selector продвинут только как explicit optional read evidence."
+          next_sync_goal: "Не разрешать model rank автоматически подтверждать factual artifact и не открывать cloud/external writes."
       parked:
         title: "Parking lot"
         scope_nodes: [parking-lot]
@@ -859,7 +873,7 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: production v2 как закрытый audio plateau, promoted speaker-aware memory и текущий ID-only evidence selector."
+        caption: "Короткая карта: закрытый audio plateau, текущая проверка meeting artifacts и путь к локальному поиску и reviewed work proposals."
         blocks:
           - working-now
           - current-quality

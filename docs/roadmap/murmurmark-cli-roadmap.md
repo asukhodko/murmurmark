@@ -2,297 +2,155 @@
 
 Updated: 2026-08-07
 
-This is the readable view of the active OpsKarta v3 plan:
+Это читаемое представление активного плана OpsKarta v3:
 
 - `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`
 
-The YAML plan owns statuses and dependencies. `docs/project/current-goal.md` expands the one
-executable goal. Historical experiment detail is preserved under `docs/history/` and does not
-redefine current priorities.
+YAML владеет статусами и зависимостями. `docs/project/current-goal.md` раскрывает единственную
+исполняемую цель. Подробности завершённых экспериментов сохранены в `docs/research/`,
+`docs/testing/` и `docs/history/`; они не определяют текущий приоритет.
 
-## Planning Rules
+## Правила Планирования
 
-Statuses are `done`, `current`, `next`, `later`, `idea`, `optional` and `blocked`; only `current`
-denotes active execution, while every other unfinished status retains an explicit dependency role.
+- В работе находится ровно одна цель со статусом `current`.
+- Завершённая гипотеза получает `PROMOTE` или `DO_NOT_PROMOTE`; оба исхода закрывают работу.
+- Отрицательный результат не меняет обычный transcript, notes или export.
+- Следующая продуктовая ступень обязана работать и после `PROMOTE`, и через точный fallback после
+  `DO_NOT_PROMOTE`.
+- UI, облако, запись во внешние системы и voice-only cross-session identity не держат CLI-путь.
 
-Evergreen capabilities such as corpus regression are `done`, not permanently `current`. A completed
-experiment ends in `PROMOTE` or `DO_NOT_PROMOTE`; either outcome closes its hypothesis.
+## Миссия И North Star
 
-## What Works Now
+MurmurMark превращает чувствительный рабочий созвон в локальную, достоверную и полезную память:
+транскрипт, решения, действия, риски и вопросы, каждый из которых можно проверить по исходной
+реплике.
+
+Текущий продуктовый North Star:
+
+```text
+одна команда -> надёжная запись -> честный transcript -> короткие подтверждённые артефакты
+             -> локальный поиск -> контролируемые рабочие предложения
+```
+
+Пред-ASR качество остаётся обязательным ограничением: подтверждённая речь `Me` должна сохраняться,
+а распознаваемый authoritative remote не должен попадать в mic-ветку. Доступный предел
+аудиообработки сейчас зафиксирован: Speaker-Preserving Neural Echo v2.17 является production
+plateau, а более сильные локальные разделители не прошли presence/absence gates. Этот трек
+открывается снова только при появлении независимого abstaining Target-Me presence evidence.
+
+## Что Уже Работает
 
 ```mermaid
 flowchart LR
     C["Durable two-track capture"]
-    E["Echo Guard preprocessing"]
-    T["Authoritative batch transcript"]
-    R["Audit and review loop"]
-    N["Evidence notes and verdict"]
+    E["Guarded Echo preprocessing"]
+    T["Authoritative transcript"]
+    R["Audit and review"]
+    M["Speaker-aware evidence memory"]
     X["Guarded export and retention"]
 
-    C --> E --> T --> R --> N --> X
+    C --> E --> T --> R --> M --> X
 ```
 
-The supported product path is:
+Поддерживаемый путь:
 
 ```text
-murmurmark meeting -> first Ctrl-C -> bounded authoritative lifecycle -> honest result
+murmurmark meeting -> первый Ctrl-C -> bounded authoritative lifecycle -> честный результат
 ```
 
-Raw CAF files and batch output are authoritative. Committed-PCM Live Shadow is capture-safe and
-advisory; its promotion remains blocked by quality and runtime evidence.
+Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; его promotion
+заблокирован доказательствами качества и времени выполнения.
 
-## North Star And Current Goal
-The technical North Star is an ASR input that retains every confirmed `Me` word, contains no recognizable authoritative remote and keeps nearby non-target speech out of `Me`, with exact fallback.
-Speaker-Preserving Neural Echo v2 is the safe production plateau: `5/12` candidate sessions,
-`41.940s` and 90 tokens removed, local retention `1.0`; v2.17 requalified it on current ASR with
-hard `3/3`, corpus `12/12` and unchanged utility. **Pre-ASR Target-Me Isolation Limit v1** is done.
-SepFormer reached perfect paired train assignment but failed Target-Me presence separation and
-stopped before dev with `DO_NOT_ADVANCE_STRONGER_SEPARATOR`. **Reviewed Speaker-Aware Meeting
-Memory v1** is promoted optional. **Evidence-Guarded Local Synthesis Qualification v1** completed
-with `DO_NOT_PROMOTE`; **Evidence-Only Local Note Selection v1** is current.
-## Critical Path
+Ключевые достигнутые границы:
+
+| Область | Состояние | Доказанный результат |
+|---|---|---|
+| Capture и lifecycle | `done` | Durable запись, resume, один пользовательский запуск |
+| Echo / Target-Me | `done` | v2.17: safe personalized plateau, exact fallback |
+| Сильнее разделить mic | `done` | `DO_NOT_ADVANCE`: нет надёжного Target-Me presence gate |
+| Transcript / handoff | `done` | Authoritative batch, Evidence Handoff v2, guarded export |
+| Remote speakers | `done` | Anonymous map, rich transcript, explicit reviewed naming |
+| Meeting memory | `done` | 726 exact statements на 6/6 frozen sessions |
+| Свободный LLM-синтез | `done` | `DO_NOT_PROMOTE`: 69/142 claims отклонены verifier |
+| ID-only отбор заметок | `done` | optional `PROMOTE`: 47 review candidates сокращены до 28 без нового текста |
+
+## Актуальная Цепочка
+
 ```mermaid
 flowchart LR
-    P["Done<br/>Me Completion v2"]
-    L["Done<br/>One-Command Lifecycle"]
-    A["Done<br/>Mixed-Utterance Separation"]
-    B["Done<br/>Echo Suppression Promotion v1"]
-    N["Done<br/>Neural Residual Echo v1"]
-    S["Done: DO_NOT_TRAIN<br/>Speaker-Preserving<br/>Adaptation Corpus v1"]
-    C["Done: READY<br/>Controlled Echo<br/>Supervision Lab v1"]
-    E["Done: PROMOTE<br/>Speaker-Preserving<br/>Neural Echo v2"]
-    X["Done: DO_NOT_PROMOTE<br/>Reference-Conditioned<br/>Target-Me Separation v1"]
-    I["Done: READY<br/>Target-Me Identifiability<br/>Corpus v1"]
-    V["Done: DO_NOT_PROMOTE<br/>Reference-Conditioned<br/>Target-Me Separation v2"]
-    H["Done<br/>Evidence Notes And Export v2"]
-    D["Done<br/>Release-quality CLI"]
-    F["Done<br/>Reliable Final<br/>Handoff v1"]
-    G["Done: split decision<br/>Authoritative<br/>Incremental ASR v1"]
-    C2["Done: DO_NOT_PROMOTE<br/>Canonical Live<br/>ASR Producer v1"]
-    M["Done: DO_NOT_PROMOTE<br/>Causal Canonical<br/>Mic ASR v1"]
-    R["Done: PROMOTE_AUDIT_ONLY<br/>Remote Speaker<br/>Evidence Map v1"]
-    T["Done: PROMOTE<br/>Anonymous Rich<br/>Transcript Handoff v1"]
-    Q["Done: PROMOTE<br/>Reviewed Remote<br/>Speaker Naming v1"]
-    Z["Done: READY<br/>Residual Map +<br/>Alignment/Echo v3"]
-    Y["Done: DO_NOT_ADVANCE<br/>Pre-ASR Target-Me<br/>Isolation Limit v1"]
-    W["Done: PROMOTE<br/>Reviewed Speaker-Aware<br/>Meeting Memory v1"]
-    U["Done: DO_NOT_PROMOTE<br/>Evidence-Guarded Local<br/>Synthesis v1"]
-    J["Current<br/>Evidence-Only Local<br/>Note Selection v1"]
+    S["Done<br/>Evidence-Only Local<br/>Note Selection v1"]
+    A["Current<br/>Reviewed Meeting<br/>Artifacts v1"]
+    F["Fail open<br/>exact source catalog"]
+    Q["Next<br/>Local Evidence<br/>Retrieval v1"]
+    W["Later<br/>Reviewed Work<br/>Proposals v1"]
 
-    P --> L --> A --> B --> N --> S --> C --> E --> X --> I --> V --> H --> D --> F --> G --> C2 --> M --> R --> T --> Q --> Z --> Y --> W --> U --> J
+    S --> A
+    F --> A
+    A --> Q --> W
 ```
 
-### 0. Evidence-Backed Me Completion v2
+### 1. Evidence-Only Local Note Selection v1 — `done`
 
-Completed with a scoped `PROMOTE`. Independent mic ASR, word timestamps, speaker state, calibrated
-Target-Me and remote-forbidden evidence may materialize bounded local speech. Weak or conflicting
-evidence stays unchanged and reviewable. Auto-selection requires exact frozen-input and output
-fingerprints plus corpus membership.
+Локальная модель может вернуть только известные statement IDs и порядок. Текст, speaker
+provenance и utterance IDs копируются byte-for-byte из Reviewed Speaker-Aware Meeting Memory v1.
+Frozen corpus завершён `PROMOTE_OPTIONAL_EVIDENCE_SELECTION`: 6/6 sessions, 47 review-marked
+candidates сокращены до 28, category/speaker coverage `1.0/0.8`, generated published claims `0`.
+Unknown/stale/malformed output возвращает exact extractive fallback. Обычные notes/export этот
+тяжёлый opt-in слой не используют.
 
-### 1. One-Command Meeting Lifecycle
+В frozen corpus не было baseline high-confidence artifacts, поэтому retention `1.0` вакуумен и не
+разрешает автоматически удалять такие пункты в будущем.
 
-Completed. One command now runs durable capture and plain authoritative processing, applies only
-allowlisted enrichment and suggested-review actions, guards export from structured outcome state,
-verifies raw SHA-256 identities, isolates capture from post-processing in a short-lived process and
-supports lock-safe resume after a second `Ctrl-C`.
+### 2. Reviewed Meeting Artifacts v1 — `current`
 
-### 2. Mixed-Utterance Remote Span Separation
+Decisions, actions, risks и open questions превращаются в короткую fingerprint-bound очередь:
+`confirmed`, `rejected`, `unresolved`. Promoted selector используется только через валидный handoff;
+иначе используется deterministic exact source catalog. Подтверждение не переписывает текст и
+всегда хранит evidence IDs. `unresolved` никогда не показывается как принятое обязательство.
 
-Completed with `DO_NOT_PROMOTE`. Clean/raw/role-masked word timestamps, authoritative remote timing,
-speaker state and Target-Me evidence were sufficient to identify suspicious remote-supported spans,
-but not to prove safe local prefixes or tails. The isolated profile remains audit evidence and is
-never selected automatically.
+Результат: MurmurMark отличает найденный кандидатом пункт от реально принятого обязательства.
 
-### 3. Echo Suppression Promotion
+### 3. Local Evidence Retrieval v1 — `next`
 
-Completed with `DO_NOT_PROMOTE`. The exact role-aware `local_fir` baseline, signed delay contract,
-candidate matrix, bounded ASR probes and policy are reproducible. Coverage passed `3/5` applicable
-speaker sessions; the failed protected-local and chronology gates keep production on `local_fir`.
+Локальный индекс ищет по сессиям, utterances и подтверждённым артефактам. Каждый результат содержит
+точную цитату и provenance; stale fingerprint инвалидирует индекс. Retention учитывается явно.
+Слой не генерирует ответы и не выводит личность по голосу между встречами.
 
-### 4. Neural Residual Echo Suppression v1
+Результат: накопленный корпус становится рабочей памятью, а не коллекцией отдельных Markdown.
 
-Completed with deterministic `DO_NOT_PROMOTE`. The model-neutral adapter, pinned DEC and AECMOS
-models, exact-duration inference, fail-open checks and frozen corpus are reproducible. The candidate
-removed bounded remote-risk but failed protected-word, chronology, double-talk and runtime gates.
-Production output was never changed.
+### 4. Reviewed Work Proposals v1 — `later`
 
-### 5. Speaker-Preserving Echo Adaptation Corpus v1
+Подтверждённые артефакты материализуются в локальные Markdown/Obsidian/docs/issue proposal bundles
+с provenance и diff. Автоматических внешних записей нет. Jira, docs repository или иной provider
+потребует отдельного явного review и собственного integration gate.
 
-Completed with reproducible `DO_NOT_TRAIN`. Provenance, session-disjoint train/dev/hard-test splits,
-immutable counterexamples, privacy checks and byte-stable replay are available. The frozen corpus
-has enough local-only targets, but no remote-only examples pass the independent confidence gate;
-synthetic pairing is therefore forbidden. No training was run and production remained unchanged.
+Результат: путь от созвона до готового рабочего изменения завершён без скрытой публикации.
 
-### 6. Controlled Echo Supervision Lab v1
+## Параллельные И Закрытые Треки
 
-Done with `READY_FOR_ADAPTATION`. The durable recorder ran a frozen phase schedule across five
-train, one dev and one controlled hard-test speaker-mode sessions. Accept measured echo and local
-targets only when schedule, signal, local ASR and Target-Me evidence agree. Build synthetic mixtures
-inside a split, preserve existing real counterexamples as hard-test only, and issue a deterministic
-adaptation decision. Final replay is `1465/1465`: train has `620s` local, `640s` remote and `1804s`
-synthetic; dev has `124s` local, `128s` remote and `352s` synthetic; hard-test has `68s` measured
-double-talk. Local-FIR residual Target-Me removes raw echo false positives while retaining their
-diagnostic evidence. No gate failed. The lab itself did not alter production; the separately gated
-v2.16 corpus later promoted the personalized hybrid.
+- Пред-ASR разделение закрыто на текущем ресурсе; открыть его может только новая независимая
+  проверка присутствия Target-Me, а не ещё один separator поверх тех же данных.
+- Free-text local synthesis закрыт; повтор возможен лишь с новым runtime/model и сравнением против
+  более безопасного ID-only результата.
+- ID-only selector завершён и остаётся opt-in; его не следует переносить в критический путь из-за
+  расхода памяти и отсутствия high-confidence population в frozen corpus.
+- Live promotion заблокирован; Live Shadow остаётся диагностическим черновиком.
+- Cross-session participant identity, cloud и автоматические external writes требуют отдельных
+  privacy и safety решений.
+- UI/Menu Bar остаётся optional tail после зрелого CLI.
 
-### 7. Speaker-Preserving Neural Echo v2
+## Ворота Продвижения
 
-Completed with guarded `PROMOTE`. Small residual-mask, complex-spectral, echo-mapper and pretrained
-DEC candidates established the local-preservation ceiling. The winning hybrid uses controlled
-Target-Me enrollment, WavLM/Resemblyzer, authoritative remote evidence, bounded attenuation and
-direct whisper.cpp checks with per-window rollback. The immutable hard test proved fail-open safety;
-the sealed corpus proved utility. Candidate publication is transactional and every incompatibility,
-headphones session or regression restores the exact `local_fir` fallback.
+Каждая гипотеза замораживает inputs, работает в отдельном профиле, проверяет deterministic replay,
+referential integrity, fallback и ordinary-output non-regression. `PROMOTE` открывает только явно
+ограниченную дополнительную поверхность. `DO_NOT_PROMOTE` фиксирует предел и оставляет production
+неизменным.
 
-Production Requalification v2.17 replayed the same membership on current incremental ASR. Hard
-`3/3`, corpus `12/12` and unchanged utility passed; production now pins v2.17.
-
-### 8. Reference-Conditioned Target-Me Separation v1
-
-Completed with fingerprinted `DO_NOT_PROMOTE`. All `1456` controlled artifacts, the train/dev
-oracle and bounded overfit passed. Two deterministic candidates then passed seven of nine locked
-dev gates; the best reached `11.470 dB` Target-Me SNR and `7.788 dB` echo SNR against `12/8 dB`
-requirements. The corpus had no independently labelled non-target local speech and only one fixed
-Target-Me enrollment, so correct `other_local speech` attribution was unidentifiable. Hard-test and
-the sealed twelve-session corpus stayed unopened. Production v2 remained byte-exact.
-
-### 9. Target-Me Identifiability Corpus v1
-
-Completed with `READY_FOR_TARGET_CONDITIONED_TRAINING`. The private deterministic publication has
-known Target-Me, remote echo, non-target local speech and local noise stems. Every speaker-bearing
-mixture has paired correct/wrong enrollment queries over identical bytes. Split-local Target-Me
-sources and enrollment audio never cross train/dev/hard; all non-target identities are fully
-speaker-disjoint. Exact source replay, privacy/licensing checks and byte-level publication
-verification pass. No model was trained and production remained byte-exact.
-
-### 10. Reference-Conditioned Target-Me Separation v2
-
-Completed with fingerprinted `DO_NOT_PROMOTE`. The v1 baseline replayed exactly. One frozen
-FiLM+GRU paired-query candidate was trained three times with identical checkpoint, model-state and
-report fingerprints. It learned query adherence (`4.991 dB` correct-vs-wrong margin, `0%`
-collapse), but missed Target-Me, non-target and absent-query dev gates. Hard-test and sealed meeting
-targets remained unopened, and production audio stayed byte-exact.
-
-### 11. Evidence Notes And Export v2
-
-Completed. `murmurmark.handoff_manifest/v2` and `murmurmark.handoff_evidence/v2` bind input schemas,
-paths, SHA-256 values, selected profile, verdict, review burden and evidence IDs. Publication is
-transactional and deterministic. Export consumes only a current `ready` or verified `no_speech`
-handoff; `--force` cannot bypass review or integrity gates. The 110-session corpus passes with
-`110/110` valid manifests and zero referential-integrity, stale or replay failures.
-
-### 12. Release-quality CLI
-
-Completed. The versioned archive has a complete SHA-256 inventory, compatibility and license
-contracts, deterministic assembly and transactional install/upgrade with rollback. Packaged offline
-acceptance covers strict doctor, self-test, Evidence Handoff v2 and guarded export while preserving
-the external workspace and existing fingerprints.
-
-### 13. Reliable Final Handoff v1
-
-Completed. The first handoff excludes optional heavy candidates, enrichment has a recorded budget,
-safe review uses fresh evidence, interruption has exact resume, and terminal review is a bounded
-decision list. The frozen cache/resume verification passes `3/3` with p90 ratio `0.059041`, no dead
-ends or stale handoffs, and exact candidate-window ASR reuse on `2/2` applicable sessions. Cold
-first-pass ASR remains a separately measured ceiling.
-
-### 14. Authoritative Incremental ASR v1
-
-Completed with a split decision. Strict v2 identity, atomic completion, integrity checks and
-byte-identical interrupted-batch replay are `PROMOTE`. Historical checkpoint/cache process reduction
-is median `98.94%`. Live-origin reuse is `DO_NOT_PROMOTE`: three real frozen sessions have `0/30`
-required `authoritative_live_asr_chunk/v1` proofs. Every mismatch falls back to ordinary batch ASR.
-
-### 15. Canonical Live ASR Producer v1
-
-Completed with `DO_NOT_PROMOTE`. A capture-safe producer reconstructs canonical remote PCM from
-closed committed-PCM segments and emits exact `authoritative_live_asr_chunk/v1` proof. Strict remote
-parity passes `3/3`, but evidence is historical replay and the modeled wall reduction is only
-`2.8651%..4.1040%`. Ordinary Live Shadow does not start it; the evidence flag and cache promotion
-gate keep the extra work quarantined.
-
-### 16. Causal Canonical Mic ASR v1
-
-Completed with `DO_NOT_PROMOTE`. The isolated producer formalized committed PCM, resampling and
-speech-band work as causal or delayed-commit operations, then proved the current local-FIR
-statistics, delay/fit choice, policy and Speaker-Preserving selection are whole-session operations.
-Across three frozen real sessions, `0/147` raw-fallback windows matched final canonical mic PCM and
-bounded `5/30/120s` prefix probes all failed exact parity. The strict consumer, raw capture and
-selected output remained unchanged. A future latency attempt first needs a separately quality-gated
-causal Echo architecture; approximate precomputation is closed.
-
-### 17. Remote Speaker Evidence Map v1
-
-Completed with `PROMOTE_AUDIT_ONLY`. Resemblyzer evidence, conservative major-cluster gates,
-reverse-order replay and chunk replay produce stable session-local IDs while every weak interval
-remains aggregate. Both 1x1 controls publish exactly one remote speaker; four group controls publish
-`5`, `2`, `3` and `2`. Selected dialogue, raw remote, Evidence Handoff v2 and export remain exact.
-
-### 18. Anonymous Rich Transcript Handoff v1
-
-Completed with `PROMOTE_OPTIONAL_RICH`. A transactional immutable bundle binds current Evidence
-Handoff v2 utterances to passing anonymous evidence. `murmurmark transcript SESSION --rich` verifies
-all fingerprints before reading it. Replay, stale/fail-open, exact references and plain-output
-non-regression pass on 6/6 frozen sessions.
-
-### 19. Reviewed Remote Speaker Naming v1
-
-Completed with `PROMOTE_OPTIONAL_REVIEWED_NAMING`. `speakers template|apply|status` accepts only
-explicit fingerprint-bound session-local decisions. The optional reviewed read path preserves exact
-utterances and anonymous attributions; stale or missing decisions fall back to anonymous rich.
-Voice-only identity, cross-session matching and ordinary notes/export remain untouched.
-
-### 20. Pre-ASR Target-Me Isolation Limit v1
-Completed as the bounded local audio frontier. SepFormer preserved exact accounting and assigned
-present Target-Me stems with `1.0` train accuracy, but presence separation was `-0.253397` and false
-rejection `0.643939`. It stopped before dev with `DO_NOT_ADVANCE_STRONGER_SEPARATOR`; future-hard,
-sealed, direct ASR and production remained unchanged. Reopening requires a separately qualified
-abstaining Target-Me presence detector and stronger residual preservation.
-
-### 21. Reviewed Speaker-Aware Meeting Memory v1
-
-Completed with `PROMOTE_OPTIONAL_REVIEWED_SPEAKER_MEMORY`: 6/6 frozen sessions, 2319 utterances and
-726 exact evidence statements. Explicit `notes|export --reviewed-speakers` uses complete
-fingerprint-bound decisions; stale or partial review returns byte-identical ordinary artifacts.
-
-### 22. Evidence-Guarded Local Synthesis Qualification v1
-Completed with reproducible `DO_NOT_PROMOTE`. The pinned 14.8B model proposed 142 claims on 6/6
-sessions; 49 passed, 69 were safety-rejected and 24 were hidden as duplicates or output overflow.
-Replay, exact references, zero unsupported publication and byte-identical ordinary outputs passed,
-but safety rejection reached `0.485915` and peak RSS reached `13978.922 MB`. No generated-text CLI
-surface was activated.
-
-### 23. Evidence-Only Local Note Selection v1
-
-Current. Replace free-text generation with selection and ranking of known statement IDs. Published
-wording, speaker provenance and utterance IDs must be copied byte-for-byte from current
-speaker-aware evidence. The same frozen corpus must decide `PROMOTE_OPTIONAL_EVIDENCE_SELECTION` or
-`DO_NOT_PROMOTE` without changing ordinary notes/export.
-
-## Dependent And Parallel Research
-
-Speaker-Preserving Neural Echo v2 remains the exact production plateau after the closed audio
-frontier. Reviewed naming and speaker-aware memory are promoted optional. Cross-session mapping,
-external integrations and heavy audio validators remain closed or parked. Free-text local
-synthesis is closed; ID-only evidence selection is the current bounded qualification. Cloud and
-external writes remain outside it.
-
-## Parking Lot
-
-- Live result promotion: blocked by reproducible `DO_NOT_PROMOTE` evidence;
-- docs and issue-tracker proposals: optional and reviewed before external writes;
-- UI/Menu Bar: optional after release-quality CLI.
-
-## Promotion Gate
-
-Every hypothesis freezes inputs, runs in an isolated profile and ends in `PROMOTE` or
-`DO_NOT_PROMOTE`. It cannot mutate raw capture or silently replace the selected profile; a negative
-result records the evidence ceiling and leaves authoritative output unchanged.
-
-## Validation
+## Проверка Плана
 
 ```bash
 scripts/check-planning-consistency.py
 PYTHONPATH=../opskarta .venv/bin/python -m specs.v3.tools.cli validate docs/roadmap/murmurmark-cli-roadmap.plan.yaml
 PYTHONPATH=../opskarta .venv/bin/python -m specs.v3.tools.cli render tree docs/roadmap/murmurmark-cli-roadmap.plan.yaml
+PYTHONPATH=../opskarta .venv/bin/python -m specs.v3.tools.cli render executive docs/roadmap/murmurmark-cli-roadmap.plan.yaml --view exec-top
 ```

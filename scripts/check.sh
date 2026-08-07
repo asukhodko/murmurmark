@@ -60,6 +60,10 @@ swiftlint lint --quiet
 "$python_bin" scripts/report-evidence-guarded-local-synthesis-corpus.py \
   --verify-frozen-only \
   --frozen-manifest docs/testing/evidence-guarded-local-synthesis-v1-manifest.json
+"$python_bin" scripts/check-evidence-only-local-note-selection.py
+"$python_bin" scripts/report-evidence-only-local-note-selection-corpus.py \
+  --verify-frozen-only \
+  --frozen-manifest docs/testing/evidence-only-local-note-selection-v1-manifest.json
 "$python_bin" scripts/report-reviewed-remote-speaker-naming-corpus.py \
   --strict \
   --frozen-manifest docs/testing/reviewed-remote-speaker-naming-v1-manifest.json

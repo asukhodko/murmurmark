@@ -309,21 +309,25 @@ murmurmark export "$SESSION" --format markdown --include-json --reviewed-speaker
 Speaker-aware memory passed 6/6 frozen sessions and 726 exact evidence statements. The pre-ASR
 frontier is closed with `DO_NOT_ADVANCE_STRONGER_SEPARATOR`. Evidence-Guarded Local Synthesis v1
 then completed with `DO_NOT_PROMOTE`: 69/142 claims failed independent support checks, so no
-generated-text CLI mode was activated. **Evidence-Only Local Note Selection v1** is current.
+generated-text CLI mode was activated. Evidence-Only Local Note Selection v1 then completed with
+`PROMOTE_OPTIONAL_EVIDENCE_SELECTION`: 6/6 sessions passed, 47 review-marked candidates were
+reduced to 28 and published model-authored claims stayed at zero. It remains an explicit heavy local
+view; ordinary notes/export do not consume it. **Reviewed Meeting Artifacts v1** is current.
 
 The dependent critical path is:
 
 ```text
 Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental ASR
 -> Speaker-aware memory (done: PROMOTE) -> Evidence-Guarded Local Synthesis (done: DO_NOT_PROMOTE)
--> Evidence-Only Local Note Selection v1 (current)
+-> Evidence-Only Selection (done: optional PROMOTE) -> Reviewed Meeting Artifacts (current)
+-> Local Evidence Retrieval -> Reviewed Work Proposals
 ```
 
-Speaker-aware memory remains opt-in. Free-text local synthesis is not exposed; ID-only selection is
-the current bounded research path. UI stays parked, Live promotion remains blocked and Live Shadow
-stays advisory.
-
-See the [current goal](docs/project/current-goal.md), [readable roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
+The current stage turns exact candidates into `confirmed`, `rejected` or `unresolved` artifacts.
+It may consume the selector only through its verified handoff and otherwise uses the deterministic
+exact source catalog. Later stages make confirmed evidence locally searchable and materialize
+reviewed proposal bundles. Free-text synthesis and external writes stay closed. See the
+[selection runbook](docs/runbooks/evidence-only-local-note-selection.md), [frozen result](docs/research/2026-08-07-evidence-only-local-note-selection-v1.md), [current goal](docs/project/current-goal.md), [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 
 ## Scope And Limitations
 
@@ -365,7 +369,6 @@ See the [current goal](docs/project/current-goal.md), [readable roadmap](docs/ro
 - [Mission and vision](docs/product/vision.md)
 - [Product requirements](docs/product/prd-v1.md)
 - [Current goal](docs/project/current-goal.md)
-- [SepFormer Four-Stem qualification v1](docs/research/2026-08-07-sepformer-four-stem-target-me-qualification-v1.md)
 - [Reliable transcription route](docs/project/reliable-transcription-route.md)
 - [Readable roadmap](docs/roadmap/murmurmark-cli-roadmap.md)
 - [OpsKarta v3 roadmap](docs/roadmap/murmurmark-cli-roadmap.plan.yaml)

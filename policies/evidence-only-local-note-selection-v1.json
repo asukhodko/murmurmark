@@ -1,0 +1,123 @@
+{
+  "schema": "murmurmark.evidence_only_local_note_selection_policy/v1",
+  "version": 1,
+  "scope": "optional_exact_evidence_note_selection",
+  "decision": "PROMOTE_OPTIONAL_EVIDENCE_SELECTION",
+  "constraints": {
+    "capture_or_asr_changes_allowed": false,
+    "cloud_or_external_writes_allowed": false,
+    "cross_session_identity_allowed": false,
+    "default_outputs_must_remain_identical": true,
+    "generated_or_edited_claim_text_allowed": false,
+    "model_pull_allowed": false,
+    "transcript_rewrite_allowed": false,
+    "voice_identity_inference_allowed": false
+  },
+  "model": {
+    "name": "deepseek-r1:14b",
+    "architecture": "qwen2",
+    "parameter_size": "14.8B",
+    "quantization": "Q4_K_M",
+    "blob_sha256": "6e9f90f02bb3b39b59e81916e8cfce9deb45aeaeb9a54a5be4414486b907dc1e",
+    "license": "MIT",
+    "license_sha256": "6e4c38e1172f42fdbff13edf9a7a017679fb82b0fde415a3e8b3c31c6ed4a4e4"
+  },
+  "runtime": {
+    "name": "ollama",
+    "qualified_version": "0.32.1",
+    "endpoint": "http://127.0.0.1:11434"
+  },
+  "prompt": {
+    "path": "policies/prompts/evidence-only-local-note-selection-v1.txt",
+    "sha256": "19d221a23df5bee2b52a0ed6afbac62346dc949d0c479235d3913fe8e0f32dac"
+  },
+  "generation": {
+    "temperature": 0,
+    "seed": 424242,
+    "num_ctx": 6144,
+    "num_predict": 1024,
+    "keep_alive": "0s"
+  },
+  "prompt_budget": {
+    "max_rendered_bytes": 30000
+  },
+  "limits": {
+    "summary": 5,
+    "decisions": 2,
+    "actions": 3,
+    "risks": 2,
+    "open_questions": 2
+  },
+  "selection": {
+    "force_baseline_high_confidence": true,
+    "high_confidence_categories": [
+      "decisions",
+      "actions",
+      "risks",
+      "open_questions"
+    ],
+    "model_output_shape": "category_ordered_statement_id_arrays",
+    "model_output_keys": [
+      "summary",
+      "decisions",
+      "actions",
+      "risks",
+      "open_questions"
+    ],
+    "structured_output": "dynamic_json_schema_with_catalog_enums",
+    "container_category": "advisory_source_catalog_authoritative",
+    "over_category_limit": "deterministic_drop",
+    "unknown_or_malformed_response": "fail_open_exact_extractive"
+  },
+  "corpus_gates": {
+    "max_peak_rss_mb": 14336,
+    "max_selected_review_ratio": 0.7,
+    "max_selection_contract_errors": 0,
+    "max_session_wall_sec": 180.0,
+    "min_baseline_high_confidence_retention_ratio": 1.0,
+    "min_category_coverage_ratio": 0.6,
+    "min_selected_review_marked": 8,
+    "min_sessions": 6,
+    "min_sessions_with_review_selection": 4,
+    "min_speaker_coverage_ratio": 0.5,
+    "require_byte_identical_fallback": true,
+    "require_deterministic_replay": true,
+    "require_exact_source_publication": true,
+    "require_referential_integrity": true
+  },
+  "source": {
+    "source_manifest": {
+      "scope": "repository",
+      "path": "docs/testing/reviewed-speaker-memory-v1-manifest.json",
+      "bytes": 9559,
+      "sha256": "c789b1b8662b9ffe1e024ff4a0171f16e5b33f6f60bece2fdafc1b7fd3517e32"
+    },
+    "materializer": {
+      "script": "materialize-evidence-only-local-note-selection.py",
+      "version": "0.1.0",
+      "fingerprint": {
+        "scope": "repository",
+        "path": "scripts/materialize-evidence-only-local-note-selection.py",
+        "bytes": 47730,
+        "sha256": "08dba467f07a3b289e9fc0467101dc18e8bf2aeaeb8e2498ae8b2603860dc6c1"
+      }
+    },
+    "corpus_reporter": {
+      "script": "report-evidence-only-local-note-selection-corpus.py",
+      "version": "0.1.0",
+      "fingerprint": {
+        "scope": "repository",
+        "path": "scripts/report-evidence-only-local-note-selection-corpus.py",
+        "bytes": 29284,
+        "sha256": "e1f1e7696b9e68190972c01a3b545b1f6ea688b03900b4a02d2879ee48976c0c"
+      }
+    },
+    "frozen_manifest_path": "docs/testing/evidence-only-local-note-selection-v1-manifest.json",
+    "frozen_manifest": {
+      "scope": "repository",
+      "path": "docs/testing/evidence-only-local-note-selection-v1-manifest.json",
+      "bytes": 39751,
+      "sha256": "a0af4e8f32ea8c6884d11742fa94b7f28ac07cfb8c73dbf449a50e7ce41155cc"
+    }
+  }
+}

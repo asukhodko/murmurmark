@@ -93,7 +93,8 @@ Current operating point, 2026-08-07:
   train assignment but failed Target-Me presence separation, ending in
   `DO_NOT_ADVANCE_STRONGER_SEPARATOR` before dev. Reviewed Speaker-Aware Meeting Memory v1 is
   promoted optional on 6/6 sessions. Evidence-Guarded Local Synthesis v1 completed with
-  `DO_NOT_PROMOTE`; Evidence-Only Local Note Selection v1 is current;
+  `DO_NOT_PROMOTE`; Evidence-Only Local Note Selection v1 completed with an optional
+  `PROMOTE`, and Reviewed Meeting Artifacts v1 is current;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 
@@ -107,7 +108,9 @@ Any later separator remains isolated until a corpus-wide decision and cannot use
 audio quality alone as evidence of correct word attribution. Post-ASR duplicate cleanup receives no
 promotion credit. Reopening the audio frontier requires an independently qualified abstaining
 Target-Me presence detector. Free-text LLM synthesis remains unpromoted; ID-only evidence selection
-is the current bounded research stage. External writes and UI remain optional work.
+is a promoted explicit opt-in view with exact source text. The current stage is fingerprint-bound
+meeting-artifact confirmation, followed by local exact-evidence retrieval and reviewed local work
+proposals. External writes and UI remain optional work.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.
 

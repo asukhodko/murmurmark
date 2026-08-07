@@ -6351,6 +6351,67 @@ bundle. Cloud requests, external writes, voice-only identity and cross-session p
 remain forbidden. The policy pins the exact prompt, model blob, materializer, corpus reporter and
 frozen manifest; normal verification rejects the non-promoted bundle.
 
+## Evidence-Only Local Note Selection v1
+
+Evidence-Only Local Note Selection v1 is an isolated optional consumer of current Reviewed
+Speaker-Aware Meeting Memory v1. It removes the unsafe capability identified by the free-text
+qualification: the model cannot author, edit or paraphrase a claim. Its only accepted output is a
+bounded selection and ordering of statement IDs already present in the verified source catalog.
+
+Publication layout:
+
+```text
+derived/meeting-memory/evidence-only-selection-v1/
+  handoff_manifest.json
+  report.json
+  report.md
+  bundles/<semantic-fingerprint>/
+    handoff_manifest.json
+    candidate_catalog.json
+    selection.json
+    model_run.json
+    notes.md
+    transcript.md
+    quality_verdict.md
+```
+
+Versioned schemas:
+
+- `murmurmark.evidence_only_local_note_selection_policy/v1`;
+- `murmurmark.evidence_only_local_note_selection_handoff/v1`;
+- `murmurmark.evidence_statement_catalog/v1`;
+- `murmurmark.evidence_only_local_note_selection/v1`;
+- `murmurmark.evidence_only_local_note_selection_model_run/v1`;
+- `murmurmark.evidence_only_local_note_selection_report/v1`;
+- `murmurmark.evidence_only_local_note_selection_corpus_report/v1`;
+- `murmurmark.evidence_only_local_note_selection_frozen_manifest/v1`.
+
+`candidate_catalog.json` is authoritative for category, exact text, `text_sha256`, evidence
+utterance IDs and speaker provenance. The model receives a dynamic JSON Schema whose values are
+enums of known IDs and whose arrays use policy-defined `maxItems`. The response category is
+advisory: deterministic materialization routes every known ID back to its catalog category, ignores
+duplicates and drops deterministic over-limit items. Unknown IDs, non-string IDs, malformed JSON,
+missing keys or any source/provenance mismatch invalidate the selection.
+
+`selection.json.selected` copies every visible field from `candidate_catalog.json`. It stores the
+model order and deterministic normalization/drop trace separately; those fields can never become
+claim text. `transcript.md` and `quality_verdict.md` are exact copies from the source speaker-memory
+bundle. On failure, `notes.md` is also the byte-identical source note. Publication uses immutable
+bundles, fsync and an atomic current pointer, and rechecks protected source identities before and
+after writing.
+
+The local runtime is pinned `deepseek-r1:14b` through loopback-only Ollama. The runner never pulls a
+model. Prompt, model blob, license, decoding parameters, source manifest, materializer, corpus
+reporter, fixture checker and frozen decision are fingerprint-bound. Default transcript, notes,
+export, Evidence Handoff v2 and speaker-memory commands do not read this bundle.
+
+The frozen decision is `PROMOTE_OPTIONAL_EVIDENCE_SELECTION`: 6/6 sessions passed; 47
+review-marked candidates were reduced to 28; category coverage is `1.0`, speaker coverage is `0.8`,
+replay is deterministic and published model-authored claims remain zero. The corpus has no baseline
+high-confidence decision/action/risk/question items, so retention `1.0` is explicitly marked
+vacuous. Promotion authorizes only explicit local consumption of this exact selection bundle.
+Missing, stale or malformed evidence fails open to exact extractive source notes.
+
 Schema:
 
 ```json

@@ -121,9 +121,11 @@ session end. Remote Speaker Evidence Map v1 has promoted optional anonymous evid
 already authoritative remote track. Anonymous Rich Transcript Handoff v1 is now a promoted optional
 read surface over unchanged selected utterances. Reviewed Remote Speaker Naming v1 is also promoted
 in optional scope: only explicit session-local decisions can replace an anonymous display ID. The
-speaker-aware notes/export handoff is now promoted optional on 6/6 frozen sessions. The current
-isolated stage qualifies local evidence-guarded synthesis; none of these layers can alter the plain
-authoritative path or extractive fallback.
+speaker-aware notes/export handoff is now promoted optional on 6/6 frozen sessions. ID-only
+selection over exact speaker-aware statements is also promoted as an isolated opt-in view. The
+current stage adds fingerprint-bound confirmation status to exact artifacts before local evidence
+retrieval and reviewed proposal bundles; none of these layers can alter the plain authoritative
+path or extractive fallback.
 
 Target full-product path:
 

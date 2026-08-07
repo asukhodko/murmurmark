@@ -20,18 +20,18 @@ Short version:
 Local-first meeting transcription for sensitive work.
 ```
 
-## Current Technical North Star
+## Current Product North Star
 
-For the primary speaker-playback workflow, the microphone audio presented to ASR should preserve
-every confirmed word spoken by the local user while carrying no recognizable content from the
-authoritative remote track. Speech from nearby people must remain distinguishable from `Me`, and
-unexplained energy must remain auditable rather than being silently deleted.
+One command should turn a complete meeting into a truthful transcript and a short set of confirmed
+work artifacts. Every displayed decision, action, risk or question must retain exact source text,
+speaker provenance and utterance evidence. The same local evidence should then be searchable and
+usable for reviewed work proposals without hidden external writes.
 
-This is an operational target, not a claim of mathematically perfect waveform separation. Word
-retention, attribution, chronology and double-talk safety are authoritative. Every uncertain or
-unsupported session must return to the exact promoted fallback. The current program will either
-promote a materially stronger pre-ASR separator or record the reproducible limit of the models,
-data and compute presently available.
+Audio quality remains a hard invariant. For speaker playback, ASR input should preserve every
+confirmed local word while carrying no recognizable authoritative remote; nearby people and
+unexplained energy remain explicit. Speaker-Preserving Neural Echo v2.17 is the current safe
+production plateau. Stronger local separators reached a reproducible presence/absence limit, so the
+audio track reopens only with new independent Target-Me presence evidence.
 
 The product is for situations where a user needs memory and follow-up from a call, but cannot safely
 create a shared cloud recording: 1 on 1 meetings, retrospectives, incident reviews, architecture
@@ -82,11 +82,12 @@ Target-Me frontier is closed after SepFormer failed reliable presence/absence se
 production v2.17 remains the exact plateau. Reviewed Speaker-Aware Meeting Memory v1 now connects
 explicit session-local labels to evidence-backed notes and export through a promoted opt-in
 handoff. A pinned local free-text model then failed qualification: independent evidence checks
-rejected too many authored claims, so no generated-text mode was exposed. The current bounded step
-keeps model assistance behind an ID-only selector whose displayed text must remain exact source
-evidence.
-Voice similarity never assigns a person's identity;
-cross-meeting matching and external writes remain separate gates.
+rejected too many authored claims, so no generated-text mode was exposed. The bounded ID-only
+alternative passed as an explicit optional view: it selects only known statements and keeps exact
+source evidence. The current step adds explicit `confirmed`, `rejected` or `unresolved` status to
+meeting artifacts, followed by local evidence retrieval and reviewed proposal bundles. A stale or
+missing selector keeps the deterministic exact source. Voice similarity never assigns a person's
+identity; cross-meeting matching and external writes remain separate gates.
 
 ## Primary User
 

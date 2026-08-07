@@ -71,7 +71,9 @@ Read in this order:
 67. [Remote Speaker Evidence Map v1 result](testing/2026-08-06-remote-speaker-evidence-map-v1.md)
 68. [Evidence-Guarded Local Synthesis runbook](runbooks/evidence-guarded-local-synthesis.md)
 69. [Evidence-Guarded Local Synthesis result](research/2026-08-07-evidence-guarded-local-synthesis-v1.md)
-70. [Planning and development history](history/README.md)
+70. [Evidence-Only Local Note Selection runbook](runbooks/evidence-only-local-note-selection.md)
+71. [Evidence-Only Local Note Selection result](research/2026-08-07-evidence-only-local-note-selection-v1.md)
+72. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
@@ -85,9 +87,11 @@ Evidence-Guarded Local Synthesis Qualification v1 is now complete with reproduci
 `DO_NOT_PROMOTE`. On six frozen sessions the pinned 14.8B model produced 142 claims; 49 passed, 69
 failed independent support checks and 24 were hidden as duplicates or output overflow. All replays
 and references were deterministic, unsupported published claims stayed at zero and ordinary output
-bytes did not change. The current goal is Evidence-Only Local Note Selection v1: preserve possible
-model ranking value while allowing the model to return only existing statement IDs. Published text,
-speaker provenance and utterance IDs must remain exact source evidence.
+bytes did not change. Evidence-Only Local Note Selection v1 then passed 6/6 sessions with
+`PROMOTE_OPTIONAL_EVIDENCE_SELECTION`: 47 review-marked candidates became 28 and published
+model-authored claims stayed at zero. The current goal is Reviewed Meeting Artifacts v1: assign
+`confirmed`, `rejected` or `unresolved` states to exact candidates without changing their wording
+or evidence. Local Evidence Retrieval v1 and Reviewed Work Proposals v1 follow that checkpoint.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

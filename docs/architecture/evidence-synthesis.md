@@ -4,7 +4,9 @@ Synthesis is the stage that turns transcript evidence into useful work artifacts
 
 Status, 2026-08-07: MurmurMark has a production local extractive synthesis path over the current
 transcript and Evidence Handoff v2 artifacts. A pinned local free-text synthesis qualification was
-completed with `DO_NOT_PROMOTE`; docs patch plans and external export flows remain future work.
+completed with `DO_NOT_PROMOTE`. Evidence-Only Local Note Selection v1 is promoted as an isolated
+opt-in view; reviewed meeting artifacts, local retrieval and external proposal flows remain future
+work.
 
 The current `transcript-simple` outputs are useful enough for evidence-backed extractive notes, but they are not the final evidence package:
 
@@ -82,9 +84,18 @@ stayed at zero and ordinary outputs remained byte-identical. The independent ver
 69/142 proposals for evidence or provenance failures, above the frozen `0.35` rejection limit; peak
 RSS also exceeded 13 GB. The result is `DO_NOT_PROMOTE`, so no generated-text CLI surface exists.
 
-The next bounded hypothesis is ID-only evidence selection. A model may choose or rank existing
-statement IDs, but displayed wording, speaker provenance and utterance IDs must be copied exactly
-from the source handoff.
+Evidence-Only Local Note Selection v1 tested the safer bounded alternative. The same pinned model
+may choose or rank only known statement IDs under a dynamic JSON Schema. Displayed wording, speaker
+provenance and utterance IDs are copied exactly from the source handoff. The frozen result is
+`PROMOTE_OPTIONAL_EVIDENCE_SELECTION`: 6/6 sessions, 47 review-marked candidates reduced to 28,
+category coverage `1.0`, speaker coverage `0.8`, deterministic replay and zero model-authored
+published claims. The 14.8B runtime used up to about 12.5 GB RAM, so it remains an explicit optional
+view and is not part of the ordinary meeting path.
+
+The frozen corpus contains no baseline high-confidence decision/action/risk/question items. Its
+retention ratio is therefore vacuous and cannot justify dropping such items later. Reviewed Meeting
+Artifacts v1 must preserve that boundary while asking the user to confirm, reject or leave exact
+candidates unresolved.
 
 An empty selected dialogue is not always a pipeline failure. For a complete no-show or silent call,
 the synthesis layer may emit `session_classification: verified_no_speech` and a `good` verdict. This

@@ -5,7 +5,7 @@ export are complete. Speaker-Preserving Neural Echo v2.17 is the compatible prod
 plateau. The bounded pre-ASR frontier is complete after SepFormer stopped before dev on unreliable
 Target-Me presence evidence. Reviewed Speaker-Aware Meeting Memory v1 is promoted optional;
 free-text local synthesis completed with `DO_NOT_PROMOTE`. Evidence-Only Local Note Selection v1 is
-the current product step.
+promoted as an exact-text opt-in view. Reviewed Meeting Artifacts v1 is the current product step.
 Date: 2026-08-07
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
@@ -459,11 +459,14 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Evidence-Only Local Note Selection v1: разрешить pinned local model выбирать и ранжировать только
-существующие statement IDs; копировать published text, speaker provenance и utterance IDs
-byte-for-byte из speaker-aware memory; сохранять exact extractive fallback и завершить PROMOTE либо
-честным DO_NOT_PROMOTE без cloud, external writes, cross-session identity или default-output changes.
+Reviewed Meeting Artifacts v1: превратить exact decisions, actions, risks и open questions в
+fingerprint-bound очередь confirmed/rejected/unresolved; использовать ID selector только при
+валидном handoff, иначе exact source catalog; не переписывать text/provenance и не считать
+unresolved подтверждённым обязательством.
 ```
+
+После этого Local Evidence Retrieval v1 ищет только существующие evidence records, а Reviewed Work
+Proposals v1 создаёт локальные proposal bundles без автоматической записи во внешние системы.
 
 ## Consultation Prompt
 
@@ -471,14 +474,16 @@ Use this prompt if external consultation is needed:
 
 ```text
 Мы строим MurmurMark: локальный macOS CLI-пайплайн для рабочих созвонов. Свободная генерация
-meeting memory завершилась DO_NOT_PROMOTE: independent verifier отклонил 69/142 claims. Текущая
-цель — проверить ID-only selection, при котором модель не пишет пользовательский текст.
+meeting memory завершилась DO_NOT_PROMOTE. ID-only selection затем прошёл optional PROMOTE: модель
+выбирает только exact statement IDs и не пишет пользовательский текст. Текущая цель — безопасно
+подтверждать или отклонять meeting artifacts.
 
 Имеется:
 - authoritative selected dialogue и Evidence Handoff v2;
 - anonymous rich transcript: 6/6 sessions, 1235 exact remote references;
 - explicit fingerprint-bound reviewed naming with anonymous fail-open;
 - deterministic extractive notes, quality verdict и guarded export;
+- optional exact-text selector: 6/6 sessions, 47 review candidates reduced to 28;
 - closed pre-ASR frontier; production v2.17 remains exact audio plateau.
 
 North Star: каждое имя в meeting memory доказано explicit review текущей сессии, а каждый
