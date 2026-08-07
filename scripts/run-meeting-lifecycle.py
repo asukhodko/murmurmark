@@ -520,6 +520,7 @@ class MeetingLifecycle:
                     return "interrupted"
                 if timed_out:
                     duration = rounded(time.monotonic() - started)
+                    self.mark_deferred_pipeline_budget_exhausted()
                     action_state["status"] = "deferred_budget_exhausted"
                     action_state["finished_at"] = now_iso()
                     action_state["duration_sec"] = duration
@@ -969,6 +970,22 @@ class MeetingLifecycle:
 
     def deferred_report_path(self) -> Path:
         return self.session / "derived" / "pipeline-run" / "deferred_enrichment_report.json"
+
+    def mark_deferred_pipeline_budget_exhausted(self) -> None:
+        path = self.session / "derived" / "pipeline-run" / "pipeline_run_state.json"
+        payload = read_json(path)
+        if (
+            payload is None
+            or payload.get("schema") != "murmurmark.pipeline_run_state/v1"
+            or payload.get("phase") != "deferred_enrichment"
+        ):
+            return
+        payload["status"] = "deferred_budget_exhausted"
+        payload["updated_at"] = now_iso()
+        payload["message"] = "deferred_enrichment_budget_exhausted"
+        payload["resume_command"] = f"murmurmark enrich {display_path(self.session)}"
+        payload["safe_interrupt"] = True
+        write_json(path, payload)
 
     def authoritative_handoff_path(self) -> Path:
         return self.session / "derived" / "pipeline-run" / "authoritative_handoff.json"

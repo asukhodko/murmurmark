@@ -112,6 +112,9 @@ Conditional actions are chosen from structured JSON:
   Speaker-Preserving Neural Echo candidate evaluation belong to deferred enrichment;
 - `enrich` is skipped when the full pipeline report or the authoritative deferred checkpoint proves
   that the work is complete, or when the post-stop budget is exhausted;
+- a later `reviewed_v1` read surface does not invalidate the frozen authoritative transcript for
+  deferred resume: `enrich` verifies the handoff transcript path, size and SHA-256, then the final
+  refresh returns to that authoritative profile before review decisions are reapplied;
 - suggested preview is used only for a review gate;
 - suggested apply is used only when `suggested_closure_auto_rows > 0`;
 - `finish` is used only when the outcome explicitly allows export.
@@ -216,6 +219,11 @@ result must expose either an allowlisted executable next action or a bounded man
 Stage budgets and deferred-work reasons must be machine-readable; exceeding a budget cannot be
 reported as silent success or leave a stale `running` action. The measured pre-change baseline is in
 `docs/testing/2026-08-05-reliable-final-handoff-baseline.md`.
+
+When the supervisor stops optional enrichment at its budget, `pipeline_run_state.json` records
+`deferred_budget_exhausted`. A compatible newer lifecycle result (`ready` or `ready_with_review`)
+therefore remains the user-facing status; an internal interrupted child cannot hide the readable
+authoritative transcript.
 
 `murmurmark status SESSION` accepts a lifecycle result only when the report schema is current, raw is
 preserved, the selected profile matches readiness, the selected transcript exists and the report is

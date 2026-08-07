@@ -15354,10 +15354,22 @@ enum ReadinessPrinter {
         guard status == "running" || status == "interrupted" else {
             return nil
         }
-        if string(payload["phase"]) == "deferred_enrichment",
-           EvidenceHandoffState.payload(session) != nil
-            || AuthoritativeHandoffState.payload(session) != nil {
-            return nil
+        if string(payload["phase"]) == "deferred_enrichment" {
+            if EvidenceHandoffState.payload(session) != nil
+                || AuthoritativeHandoffState.payload(session) != nil {
+                return nil
+            }
+            let lifecycleURL = session.appendingPathComponent("derived/meeting-lifecycle/report.json")
+            if let lifecycle = try? JSONFiles.object(lifecycleURL),
+               string(lifecycle["schema"]) == "murmurmark.meeting_lifecycle_report/v1",
+               ["ready", "ready_with_review"].contains(string(lifecycle["result"]) ?? ""),
+               bool((lifecycle["raw"] as? [String: Any])?["preserved"]) == true,
+               bool((lifecycle["deferred_work"] as? [String: Any])?["blocking"]) == false,
+               let stateDate = modificationDate(stateURL),
+               let lifecycleDate = modificationDate(lifecycleURL),
+               lifecycleDate >= stateDate {
+                return nil
+            }
         }
         let reportURL = session.appendingPathComponent("derived/pipeline-run/pipeline_run_report.json")
         if let stateDate = modificationDate(stateURL),

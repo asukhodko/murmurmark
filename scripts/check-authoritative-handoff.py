@@ -212,6 +212,7 @@ def main() -> int:
         readiness["selected_profile"] = "reviewed_v1"
         write_json(readiness_path, readiness)
         assert not MODULE.handoff_fingerprint_matches(updated, session)
+        assert MODULE.handoff_artifact_fingerprint_matches(updated, session)
         readiness["selected_profile"] = "audit_cleanup_v2"
         write_json(readiness_path, readiness)
         assert MODULE.handoff_fingerprint_matches(updated, session)

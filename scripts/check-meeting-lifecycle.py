@@ -162,7 +162,22 @@ if command == "enrich":
     if scenario == "enrich_failed":
         raise SystemExit(7)
     if scenario == "enrich_slow":
-        signal.signal(signal.SIGINT, lambda signum, _frame: sys.exit(128 + signum))
+        state_path = session / "derived/pipeline-run/pipeline_run_state.json"
+        state = {
+            "schema": "murmurmark.pipeline_run_state/v1",
+            "status": "running",
+            "phase": "deferred_enrichment",
+            "message": "pipeline_started",
+        }
+        write(state_path, state)
+
+        def interrupt_enrich(signum, _frame):
+            state["status"] = "interrupted"
+            state["message"] = "pipeline_finished"
+            write(state_path, state)
+            raise SystemExit(128 + signum)
+
+        signal.signal(signal.SIGINT, interrupt_enrich)
         time.sleep(30)
     if scenario == "mutate_raw":
         with (session / "audio/mic/000001.caf").open("ab") as handle:
@@ -710,6 +725,34 @@ def main() -> None:
         assert budget_timeout_report["budgets"]["enrichment_budget_sec"] <= 0.2
         assert budget_timeout_report["raw"]["preserved"] is True
         assert "Traceback" not in budget_timeout_run.stderr
+        budget_pipeline_state_path = (
+            budget_timeout_session / "derived/pipeline-run/pipeline_run_state.json"
+        )
+        budget_pipeline_state = json.loads(
+            budget_pipeline_state_path.read_text(encoding="utf-8")
+        )
+        assert budget_pipeline_state["status"] == "deferred_budget_exhausted"
+        assert budget_pipeline_state["message"] == "deferred_enrichment_budget_exhausted"
+
+        if cli_value:
+            budget_pipeline_state["status"] = "interrupted"
+            budget_pipeline_state["message"] = "pipeline_finished"
+            write_json(budget_pipeline_state_path, budget_pipeline_state)
+            lifecycle_report_path = budget_timeout_session / "derived/meeting-lifecycle/report.json"
+            lifecycle_mtime = lifecycle_report_path.stat().st_mtime
+            os.utime(budget_pipeline_state_path, (lifecycle_mtime - 1, lifecycle_mtime - 1))
+            status_run = subprocess.run(
+                [str(cli_bin), "status", str(budget_timeout_session)],
+                cwd=root,
+                env=cli_env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+            assert status_run.returncode == 0, (status_run.stdout, status_run.stderr)
+            assert "status: process_interrupted" not in status_run.stdout
+            assert "can_read_notes: true" in status_run.stdout
 
         stale_finish_session = write_session(root, "stale-finish")
         stale_manifest = root / "exports/private" / stale_finish_session.name / "export_manifest.json"

@@ -1294,7 +1294,7 @@ def readiness_output_path(readiness: dict[str, Any], key: str, session: Path) ->
     return path if path.is_absolute() else session / path
 
 
-def handoff_fingerprint_matches(payload: dict[str, Any] | None, session: Path) -> bool:
+def handoff_artifact_fingerprint_matches(payload: dict[str, Any] | None, session: Path) -> bool:
     if not isinstance(payload, dict) or payload.get("schema") != HANDOFF_SCHEMA:
         return False
     if payload.get("status") not in {"ready", "review_required"}:
@@ -1314,6 +1314,21 @@ def handoff_fingerprint_matches(payload: dict[str, Any] | None, session: Path) -
     paths = payload.get("paths")
     if not isinstance(paths, dict) or paths.get("transcript") != raw_path:
         return False
+    if isinstance(expected_size, int) and path.stat().st_size != expected_size:
+        return False
+    return sha256_file(path) == expected_sha
+
+
+def handoff_fingerprint_matches(payload: dict[str, Any] | None, session: Path) -> bool:
+    if not handoff_artifact_fingerprint_matches(payload, session):
+        return False
+    assert isinstance(payload, dict)
+    fingerprint = payload["transcript_fingerprint"]
+    assert isinstance(fingerprint, dict)
+    raw_path = fingerprint["path"]
+    assert isinstance(raw_path, str)
+    path = Path(raw_path)
+    path = path if path.is_absolute() else session / path
     readiness = read_json(session / "derived/readiness/session_readiness.json")
     selected_profile = payload.get("selected_transcript_profile")
     if not isinstance(readiness, dict) or readiness.get("selected_profile") != selected_profile:
@@ -1321,9 +1336,7 @@ def handoff_fingerprint_matches(payload: dict[str, Any] | None, session: Path) -
     readiness_transcript = readiness_output_path(readiness, "transcript", session)
     if readiness_transcript is None or readiness_transcript.resolve() != path.resolve():
         return False
-    if isinstance(expected_size, int) and path.stat().st_size != expected_size:
-        return False
-    return sha256_file(path) == expected_sha
+    return True
 
 
 def asr_provenance(session: Path) -> dict[str, Any]:
@@ -2226,7 +2239,9 @@ def main() -> int:
         print_authoritative_handoff(existing_handoff, session, repo_root)
         build_evidence_handoff(session=session, repo_root=repo_root)
         return 0
-    if requested_phase == "deferred" and not handoff_fingerprint_matches(existing_handoff, session):
+    if requested_phase == "deferred" and not handoff_artifact_fingerprint_matches(
+        existing_handoff, session
+    ):
         print("deferred enrichment blocked: authoritative handoff is missing or stale", file=sys.stderr)
         print(f"next: murmurmark process {rel(session, repo_root)}", file=sys.stderr)
         return 2
