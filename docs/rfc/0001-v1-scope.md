@@ -2,18 +2,19 @@
 
 Status: implemented
 Date: 2026-06-22
-Last updated: 2026-08-06
+Last updated: 2026-08-07
 
 ## Summary
 
-Build MurmurMark v1 as a local-first macOS meeting capture and notes pipeline.
+Build MurmurMark v1 as a local-first macOS meeting transcription pipeline with optional evidence
+derivatives.
 
 v1 proves:
 
 - reliable two-track local capture;
 - explicit session package;
 - local heavy transcription pipeline;
-- evidence-backed synthesis;
+- speaker attribution and evidence-backed quality review;
 - privacy and retention controls.
 
 Current implementation status, 2026-08-07:
@@ -45,9 +46,11 @@ Current implementation status, 2026-08-07:
   handoff; ordinary outputs remain authoritative fallback;
 - committed-PCM live preview exists as an advisory shadow, while batch remains authoritative;
 - Evidence-Guarded Local Synthesis v1 completed with `DO_NOT_PROMOTE`; ID-only local evidence
-  selection is promoted as an explicit exact-text opt-in view. Reviewed Meeting Artifacts v1 is
-  current, followed by local evidence retrieval and reviewed proposal bundles. Authoritative
-  cross-session identity, cloud/external writes and UI remain future or optional work.
+  selection remains an explicit optional derivative;
+- Remote Speaker Diarization v2 is current. It must raise anonymous remote attribution coverage
+  from `50.3892%` to at least `85%`, preserve every selected word and fail open to aggregate
+  `Colleagues`. Transcript Perfection Corpus v1 follows. Cross-session identity, summaries,
+  cloud/external writes and UI remain future or optional work.
 
 ## Goals
 
@@ -56,12 +59,12 @@ Current implementation status, 2026-08-07:
 - No meeting app routing changes.
 - CLI-first workflow with future menubar app on the same core.
 - Durable session package with `session.json` and `events.jsonl`.
-- Local transcription profile with ASR, `Me`/`Colleagues` reconciliation, correction and quality
-  report. Anonymous per-remote-speaker evidence is optional; the selected plain transcript remains
-  aggregate until a later gate.
+- Local transcription profile with ASR, `Me`/remote reconciliation, correction, quality report and
+  qualified session-local remote speaker turns. Weak attribution remains explicit and plain
+  aggregate transcript is the exact fallback.
 - Echo diagnostics so remote audio leaking into mic is not attributed to the user.
 - Long-meeting support through windowing and reconciliation.
-- Synthesis that cites transcript evidence.
+- Optional synthesis may cite transcript evidence but does not define v1 transcript quality.
 
 ## Non-Goals
 
@@ -173,10 +176,12 @@ Current M5 acceptance:
 - remote-like mic utterances are not treated as the user's speech;
 - `clean_dialogue*.json`, `quality_report*.json`, `transcript*.md`, quality verdict and notes emitted.
 
-Future M5+ acceptance:
+Current M5+ target:
 
-- remote diarization processed independently;
-- `transcript.rich.json` and `speaker_map.json` emitted as stable rich artifacts.
+- remote diarization processed independently at word/frame level;
+- internal speaker changes and overlap represented without word loss or duplication;
+- `transcript.rich.json` and `speaker_map.json` emitted as stable rich artifacts with aggregate
+  fallback.
 
 ### M6: Evidence-Backed Synthesis
 

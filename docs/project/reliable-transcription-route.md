@@ -3,9 +3,9 @@
 Status: active product route; durable capture, one-command processing, evidence handoff and guarded
 export are complete. Speaker-Preserving Neural Echo v2.17 is the compatible production pre-ASR
 plateau. The bounded pre-ASR frontier is complete after SepFormer stopped before dev on unreliable
-Target-Me presence evidence. Reviewed Speaker-Aware Meeting Memory v1 is promoted optional;
-free-text local synthesis completed with `DO_NOT_PROMOTE`. Evidence-Only Local Note Selection v1 is
-promoted as an exact-text opt-in view. Reviewed Meeting Artifacts v1 is the current product step.
+Target-Me presence evidence. Remote Speaker Evidence Map v1 proved useful anonymous attribution but
+covers only `50.3892%` of remote speech. Remote Speaker Diarization v2 is the current product step;
+notes, retrieval and work proposals are optional derivatives outside the critical route.
 Date: 2026-08-07
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
@@ -45,13 +45,13 @@ source segments and audio evidence.
 ## Why This Exists
 
 MurmurMark is already useful, but it still asks too much from the operator. A user can record a real
-meeting and receive notes, yet the pipeline may take a long time, require review, block export, or
+meeting and receive a transcript, yet the pipeline may take a long time, require review, block export, or
 leave the user unsure whether the transcript can be trusted.
 
 The next product target is not "one more clever cleanup heuristic". The target is a dependable route:
 
 ```text
-record meeting -> process unattended -> get a transcript, notes, verdict and exact next action
+record meeting -> process unattended -> get a speaker-resolved transcript, verdict and exact next action
 ```
 
 If the result is good, MurmurMark should say so. If the result is risky, it should say exactly why,
@@ -459,48 +459,46 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Reviewed Meeting Artifacts v1: превратить exact decisions, actions, risks и open questions в
-fingerprint-bound очередь confirmed/rejected/unresolved; использовать ID selector только при
-валидном handoff, иначе exact source catalog; не переписывать text/provenance и не считать
-unresolved подтверждённым обязательством.
+Remote Speaker Diarization v2: заменить audit-only utterance clustering локальной word/frame-level
+diarization authoritative remote audio; сохранять words/order/timestamps, назначать session-local
+anonymous speaker либо unknown и проходить coverage/precision/boundary gates с aggregate fallback.
 ```
 
-После этого Local Evidence Retrieval v1 ищет только существующие evidence records, а Reviewed Work
-Proposals v1 создаёт локальные proposal bundles без автоматической записи во внешние системы.
+После этого Transcript Perfection Corpus v1 объединяет text/order/role/speaker/acoustic gates и
+выбирает следующий крупнейший измеренный остаток. Производные workflows остаются optional.
 
 ## Consultation Prompt
 
 Use this prompt if external consultation is needed:
 
 ```text
-Мы строим MurmurMark: локальный macOS CLI-пайплайн для рабочих созвонов. Свободная генерация
-meeting memory завершилась DO_NOT_PROMOTE. ID-only selection затем прошёл optional PROMOTE: модель
-выбирает только exact statement IDs и не пишет пользовательский текст. Текущая цель — безопасно
-подтверждать или отклонять meeting artifacts.
+Мы строим MurmurMark: локальный macOS CLI-пайплайн для надёжной speaker-resolved транскрибации
+1x1 и групповых созвонов. Текущая цель — Remote Speaker Diarization v2.
 
 Имеется:
 - authoritative selected dialogue и Evidence Handoff v2;
-- anonymous rich transcript: 6/6 sessions, 1235 exact remote references;
+- Remote Speaker Evidence Map v1: 6 frozen sessions, attributed-only B-cubed F1 0.913884, но
+  attributable remote speech ratio только 0.503892;
+- anonymous rich transcript: 1235 exact remote references, 629 attributed и 606 aggregate;
 - explicit fingerprint-bound reviewed naming with anonymous fail-open;
-- deterministic extractive notes, quality verdict и guarded export;
-- optional exact-text selector: 6/6 sessions, 47 review candidates reduced to 28;
+- selected ASR words/order/timestamps должны оставаться неизменными;
 - closed pre-ASR frontier; production v2.17 remains exact audio plateau.
 
-North Star: каждое имя в meeting memory доказано explicit review текущей сессии, а каждый
-показываемый пункт byte-for-byte взят из exact statement/utterance evidence.
+North Star: каждое remote word получает правильный session-local anonymous speaker либо explicit
+unknown; слова, порядок и роли не теряются, а имя никогда не выводится только по голосу.
 
 Ограничения:
-- default transcript, notes и export не менять;
+- default transcript, Me role, ASR text и export не менять до corpus-wide promotion;
 - stale, missing или partial review обязан вернуть anonymous/aggregate fallback;
 - voice-only identity и cross-session roster запрещены;
-- модель возвращает только known statement IDs и ranking metadata;
-- external writes и generated factual wording вне цели.
+- capture, Echo Guard, primary ASR и external writes вне цели;
+- weak attribution не форсируется ради coverage.
 
 Вопросы:
-1. Какой минимальный versioned manifest связывает выбранный statement ID с exact source text,
-   reviewed label и evidence utterances?
-2. Какие deterministic gates запрещают unknown IDs, category drift, duplicate selection и потерю
-   baseline high-confidence items?
-3. Как измерить полезное сжатие review-marked candidates без human labels и model self-grading?
-4. Как доказать exact extractive fallback при stale model, prompt, source или selection bundle?
+1. Какой pinned local frame/word diarization backend даст coverage >= 0.85 при B-cubed F1 >= 0.90
+   и pairwise precision >= 0.90 на этом frozen corpus?
+2. Как reconcile diarization boundaries с immutable ASR words, internal switches и overlap без
+   word loss/duplication?
+3. Какие speaker-count, boundary-error, unknown и single-speaker control gates нужны до запуска?
+4. Как доказать deterministic offline replay и exact aggregate fallback при stale/missing runtime?
 ```

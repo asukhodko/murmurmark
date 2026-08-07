@@ -60,12 +60,8 @@ CRITICAL_PATH = (
     "research-rich-transcript",
     "research-speaker-map",
     "quality-pre-asr-target-me-isolation-limit-v1",
-    "product-reviewed-speaker-memory-v1",
-    "research-evidence-guarded-llm",
-    "research-evidence-only-local-note-selection-v1",
-    "product-reviewed-meeting-artifacts-v1",
-    "product-local-evidence-retrieval-v1",
-    "product-reviewed-work-proposals-v1",
+    "quality-remote-speaker-diarization-v2",
+    "quality-transcript-perfection-corpus-v1",
 )
 
 EXPECTED_STATUSES = {"done", "current", "next", "later", "idea", "optional", "blocked"}
@@ -251,6 +247,25 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
         "quality-pre-asr-target-me-isolation-limit-v1"
         in nodes["product-reviewed-speaker-memory-v1"].get("deps", []),
         "speaker-aware meeting memory must resume after the active audio frontier",
+    )
+    require(
+        "quality-pre-asr-target-me-isolation-limit-v1"
+        in nodes["quality-remote-speaker-diarization-v2"].get("deps", []),
+        "remote diarization v2 must follow the completed audio frontier",
+    )
+    require(
+        "research-remote-diarization"
+        in nodes["quality-remote-speaker-diarization-v2"].get("deps", []),
+        "remote diarization v2 must build on the audit-only speaker evidence",
+    )
+    require(
+        "quality-remote-speaker-diarization-v2"
+        in nodes["quality-transcript-perfection-corpus-v1"].get("deps", []),
+        "transcript perfection corpus must follow remote diarization v2",
+    )
+    require(
+        nodes["optional-derived-transcript-workflows"].get("status") == "optional",
+        "notes and work workflows must remain outside the critical transcript path",
     )
     require(nodes["parked-live-promotion"].get("status") == "blocked", "live promotion must stay blocked")
     require("parked-ui" not in nodes, "UI must not occupy the active CLI roadmap")

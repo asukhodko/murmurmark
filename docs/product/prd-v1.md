@@ -1,8 +1,10 @@
 # Product Requirements: v1
 
-v1 is the first usable local workflow, not a polished commercial product.
+v1 is the first usable local speaker-resolved transcription workflow, not a polished commercial
+product.
 
-It must prove the architecture: safe capture, durable session package, local transcription path, evidence-backed notes, and deletion policy.
+It must prove safe capture, a durable session package, local transcription, evidence-backed speaker
+attribution and an explicit deletion policy. Notes are optional derivatives.
 
 ## Current Status
 
@@ -93,14 +95,18 @@ Current operating point, 2026-08-07:
   train assignment but failed Target-Me presence separation, ending in
   `DO_NOT_ADVANCE_STRONGER_SEPARATOR` before dev. Reviewed Speaker-Aware Meeting Memory v1 is
   promoted optional on 6/6 sessions. Evidence-Guarded Local Synthesis v1 completed with
-  `DO_NOT_PROMOTE`; Evidence-Only Local Note Selection v1 completed with an optional
-  `PROMOTE`, and Reviewed Meeting Artifacts v1 is current;
+  `DO_NOT_PROMOTE`; Evidence-Only Local Note Selection v1 remains an optional derivative;
+- Remote Speaker Diarization v2 is current: move from `50.3892%` audit-only coverage to a
+  word/frame-level speaker-resolved profile with at least `85%` attributable remote speech, exact
+  selected-word conservation and aggregate fallback;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 
-The current technical North Star is to retain every independently confirmed local word while
-removing recognizable authoritative remote content before primary ASR. `other_local` speech and
-unexplained residual must stay explicit rather than being silently assigned to `Me` or deleted.
+The current technical North Star is an authoritative transcript that preserves words, chronology
+and roles, retains every independently confirmed local word, removes recognizable remote content
+from the mic ASR input and attributes remote words to supported session-local anonymous speakers.
+`other_local`, overlap and unexplained evidence must stay explicit rather than being silently
+assigned or deleted.
 The personalized Echo selector activates only with compatible local enrollment, promotion evidence
 and the v2.17-pinned transcriber/cache runtime; every unsupported acoustic mode, incompatibility or
 regression uses exact `local_fir_role_masked`.
@@ -108,9 +114,9 @@ Any later separator remains isolated until a corpus-wide decision and cannot use
 audio quality alone as evidence of correct word attribution. Post-ASR duplicate cleanup receives no
 promotion credit. Reopening the audio frontier requires an independently qualified abstaining
 Target-Me presence detector. Free-text LLM synthesis remains unpromoted; ID-only evidence selection
-is a promoted explicit opt-in view with exact source text. The current stage is fingerprint-bound
-meeting-artifact confirmation, followed by local exact-evidence retrieval and reviewed local work
-proposals. External writes and UI remain optional work.
+is an explicit opt-in view with exact source text. The current stage is Remote Speaker Diarization
+v2, followed by Transcript Perfection Corpus v1. Notes, retrieval, external writes and UI remain
+optional work.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.
 
@@ -206,22 +212,22 @@ Possible controls:
 
 ### Transcription
 
-Future heavy-local validators or replacements may support:
+The active remote-diarization qualification and future heavy-local replacements may support:
 
 - remote primary ASR through VibeVoice-ASR;
-- remote diarization through pyannote Community-1;
+- remote diarization through a pinned local backend such as pyannote Community-1;
 - mic ASR through GigaAM-v3;
 - strict domain correction through a local LLM adapter;
 - quality report with uncertain regions;
 - Markdown export as a view, not source of truth.
 
-Current MVP transcription is narrower:
+Current selected transcript is narrower:
 
 - one local `whisper.cpp` model for both tracks;
 - `remote` is treated as authoritative `Colleagues`;
 - `mic` is treated as candidate `Me`;
 - no per-person labels in the selected plain `Colleagues` transcript; optional anonymous evidence
-  remains separate;
+  currently covers about half of remote speech and v2 qualification targets the gap;
 - short overlapping ASR windows are reconciled into a global timeline;
 - timeline repair and micro-ASR recover local islands when Whisper glues `Me` and `remote` turns together;
 - `transcript.shadow_v2.md` is the best candidate only when `repair_comparison.json` passes.

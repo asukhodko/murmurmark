@@ -1,12 +1,13 @@
 # Evidence and Synthesis Architecture
 
-Synthesis is the stage that turns transcript evidence into useful work artifacts. It must not be mixed into ASR.
+Synthesis is an optional stage that turns transcript evidence into useful work artifacts. It must
+not be mixed into ASR or compete with speaker-resolved transcript quality.
 
 Status, 2026-08-07: MurmurMark has a production local extractive synthesis path over the current
 transcript and Evidence Handoff v2 artifacts. A pinned local free-text synthesis qualification was
-completed with `DO_NOT_PROMOTE`. Evidence-Only Local Note Selection v1 is promoted as an isolated
-opt-in view; reviewed meeting artifacts, local retrieval and external proposal flows remain future
-work.
+completed with `DO_NOT_PROMOTE`; Evidence-Only Local Note Selection v1 is an isolated opt-in view.
+Further synthesis, retrieval and proposal work is parked until the transcript-quality program
+reaches its speaker and corpus gates.
 
 The current `transcript-simple` outputs are useful enough for evidence-backed extractive notes, but they are not the final evidence package:
 

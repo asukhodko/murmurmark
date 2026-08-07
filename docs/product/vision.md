@@ -1,138 +1,119 @@
 # Product Vision
 
-MurmurMark turns sensitive meetings into reliable local transcripts and reviewable work artifacts
-without relying on the meeting platform's cloud recording.
+MurmurMark turns locally captured meetings into reliable, speaker-resolved and auditable
+transcripts without relying on the meeting platform's cloud recording.
 
 ## Mission
 
-MurmurMark exists to turn important work calls into local, reliable and useful artifacts:
-transcript, notes, decisions, actions and risks. It should preserve privacy, source evidence and user
-control instead of asking the user to trust a cloud recorder, a meeting bot or unsupported generated
-summaries.
+MurmurMark exists to solve the difficult part of meeting memory: reconstruct what was said, when it
+was said and by whom. It must work for 1 on 1 and group calls, distinguish participants mixed into
+the remote track by voice, preserve genuine local speech and expose uncertainty instead of silently
+guessing.
 
-The practical mission is stricter than "produce some text". For a complete recording, MurmurMark
-should process unattended and return a truthful outcome: ready for notes, review first, or blocked
-with an explicit reason. A risky transcript must stay visibly risky.
+The normal local scenario has one person behind the laptop and therefore one `Me` role. The
+architecture must not make that assumption permanent: if several local people participate through
+one microphone, a future qualified layer should distinguish Target-Me, other local speakers and
+unknown by evidence.
+
+Notes, summaries, decisions, action lists, search and work-system updates are useful derivatives of
+a reliable transcript. They are outside the core mission and stay optional until transcript quality
+has converged. MurmurMark must not compensate for a weak transcript by producing polished prose.
 
 Short version:
 
 ```text
-Local-first meeting transcription for sensitive work.
+Local-first, speaker-resolved meeting transcription that shows its evidence and uncertainty.
 ```
 
 ## Current Product North Star
 
-One command should turn a complete meeting into a truthful transcript and a short set of confirmed
-work artifacts. Every displayed decision, action, risk or question must retain exact source text,
-speaker provenance and utterance evidence. The same local evidence should then be searchable and
-usable for reviewed work proposals without hidden external writes.
+One command should turn a complete local recording into an authoritative transcript in which:
 
-Audio quality remains a hard invariant. For speaker playback, ASR input should preserve every
-confirmed local word while carrying no recognizable authoritative remote; nearby people and
-unexplained energy remain explicit. Speaker-Preserving Neural Echo v2.17 is the current safe
-production plateau. Stronger local separators reached a reproducible presence/absence limit, so the
-audio track reopens only with new independent Target-Me presence evidence.
+- recognized words and chronology are conserved;
+- `Me` and remote speech are separated without deleting genuine local speech;
+- remote participants receive stable anonymous IDs inside the session when voice evidence supports
+  the attribution;
+- overlapping or weakly supported words remain explicit `unknown` rather than being force-assigned;
+- a display name appears only after explicit session-local review;
+- every quality decision has reproducible local evidence and an exact fallback.
 
-The product is for situations where a user needs memory and follow-up from a call, but cannot safely
-create a shared cloud recording: 1 on 1 meetings, retrospectives, incident reviews, architecture
-reviews, planning sessions, and internal discussions with sensitive context.
+Operationally, "ideal" does not mean a document with no warning labels. It means every supported
+decision is correct and every unsupported decision is visibly unresolved. Corpus gates, not visual
+smoothness, determine progress.
 
 ## Product Promise
 
-MurmurMark records only what is needed, keeps it local by default, produces a transcript with a
-quality verdict, creates evidence-backed notes, and deletes raw audio under an explicit policy.
+MurmurMark records durable mic and remote tracks, processes them locally, returns a transcript with
+an honest quality verdict and preserves enough evidence to audit or reproduce the result. Raw audio
+is deleted only under an explicit retention policy.
 
-The product should feel boring in the best way: clear permissions, visible health, resumable
-processing, local files, no surprise network activity, no hidden recording routes, no magical claims
-about speaker identity.
+The product should feel boring in the best way: one lifecycle command, clear permissions, resumable
+processing, local files, no surprise network activity, no hidden recording route and no invented
+speaker identity.
 
 ## Development Principle
 
-Development converges from evidence, not from adding output profiles. Each quality step freezes its
-input, changes one bounded error class, and either passes corpus-wide promotion gates or records a
-reproducible evidence limit. Failed promotion never weakens the selected transcript. Proven missing
-local speech now has a bounded completion profile and an executable text-review lane. The product
-path hides safe pipeline mechanics behind `murmurmark meeting`, while retaining checkpoints,
-review evidence and honest failure.
+Development converges from a frozen corpus. Each quality step changes one bounded error class and
+either passes corpus-wide promotion gates or records a reproducible limit. Failed promotion never
+weakens the selected transcript. The next goal is chosen from the largest measured residual class,
+not from whichever unusual session arrived last.
 
-Speech-quality work is audio-first. Remote audio leaking into the microphone must be removed before
-the primary ASR while genuine local speech remains intact. Transcript cleanup is a safety net and
-an audit layer; it cannot count as successful Echo suppression or hide a weak audio candidate.
-Classical and end-to-end neural trials established that aggressive remote suppression can delete
-short near-end speech during overlap. The promoted personalized hybrid now uses controlled
-Target-Me enrollment, remote evidence, bounded attenuation and direct whisper.cpp gates; every
-unsupported or unsafe session returns to exact `local_fir`. Reference-conditioned three-stem
-research showed that exact remix alone cannot identify another nearby speaker. The follow-up
-speaker-disjoint corpus and paired enrollment controls proved that speaker identity is present in
-the data, but the small scratch-trained separator still missed immutable dev waveform-quality and
-absent-speaker gates. Both experiments stopped before hard-test and left production unchanged.
+Speech-quality work remains audio-first. Recognizable remote leaking into the microphone should be
+removed before primary ASR while genuine local speech remains intact. Transcript cleanup is a
+safety net and audit layer, not a substitute for Echo suppression. The current personalized
+Speaker-Preserving Neural Echo v2.17 is the safe production plateau; unsupported acoustic modes or
+failed evidence return to exact `local_fir`.
 
-Evidence Notes And Export v2 now binds the selected transcript, verdict, review evidence, notes and
-export into one verifiable handoff without depending on profile-specific filenames. Release-quality
-CLI packages that boundary into a supported, deterministic and upgrade-safe local release. Reliable
-Final Handoff v1 now makes cached/resumed completion bounded and actionable. Authoritative
-Incremental ASR and exact remote production are complete, but remote-only work does not shorten the
-parallel mic critical path. Causal Canonical Mic ASR v1 then measured the exact post-Echo boundary
-and closed with `DO_NOT_PROMOTE`: current local-FIR and Speaker-Preserving selection depend on the
-complete session, and `0/147` candidate mic windows matched final canonical PCM.
+Speaker attribution is evidence-first. Voice can establish session-local similarity, not a durable
+human identity. The current Remote Speaker Evidence Map v1 has strong attributed-only quality but
+only about half of remote speech is covered. Remote Speaker Diarization v2 therefore replaces
+derivative note work as the active goal.
 
-Remote Speaker Evidence Map v1, Anonymous Rich Transcript Handoff v1 and explicit reviewed naming
-now provide promoted optional speaker views over authoritative remote audio. The bounded Pre-ASR
-Target-Me frontier is closed after SepFormer failed reliable presence/absence separation before dev;
-production v2.17 remains the exact plateau. Reviewed Speaker-Aware Meeting Memory v1 now connects
-explicit session-local labels to evidence-backed notes and export through a promoted opt-in
-handoff. A pinned local free-text model then failed qualification: independent evidence checks
-rejected too many authored claims, so no generated-text mode was exposed. The bounded ID-only
-alternative passed as an explicit optional view: it selects only known statements and keeps exact
-source evidence. The current step adds explicit `confirmed`, `rejected` or `unresolved` status to
-meeting artifacts, followed by local evidence retrieval and reviewed proposal bundles. A stale or
-missing selector keeps the deterministic exact source. Voice similarity never assigns a person's
-identity; cross-meeting matching and external writes remain separate gates.
+## Core User Jobs
 
-## Primary User
+- Start and stop one reliable local recording without supervising internal stages.
+- Recover processing after interruption without repeating capture or completed ASR.
+- Read the best available transcript with correct words, chronology and speaker turns.
+- Tell `Me`, each supported remote speaker and unresolved speech apart.
+- See why a region is uncertain and inspect the supporting audio or audit evidence.
+- Export or retain the transcript without silently publishing risky or stale output.
 
-A technical person on macOS who participates in meetings and wants:
+## Optional Derivatives
 
-- a reliable local record of their own microphone and the remote meeting audio;
-- a speaker-aware transcript;
-- meeting notes tied to transcript evidence;
-- controlled integration with Obsidian, Markdown, issue trackers or docs repositories;
-- strong privacy defaults.
+These may remain available, but they do not define product success:
 
-## Core Jobs
+- extractive notes and quality summaries;
+- decisions, actions, risks and open questions;
+- reviewed speaker-aware meeting memory;
+- local evidence retrieval;
+- Markdown, Obsidian or work-system proposal bundles;
+- local or controlled LLM synthesis.
 
-- Record a meeting locally without changing Teams/Zoom/Meet audio settings.
-- Keep the user's microphone separate from remote participants.
-- Detect empty or broken recordings before it is too late.
-- Convert the session into a structured transcript.
-- Identify uncertain speaker/text regions instead of hiding uncertainty.
-- Produce notes, decisions, action items and risks with citations.
-- Delete raw audio after successful processing when policy says so.
+They may consume only versioned transcript evidence, must preserve citations and cannot change the
+authoritative transcript. No major roadmap investment goes here before transcript-quality gates are
+met, unless an explicit product decision changes the priority.
 
-## Non-Goals for v1
+## Non-Goals For The Critical Path
 
-- No general-purpose podcast recorder.
-- No cloud meeting bot.
-- No automatic publishing to Confluence/Jira/Git without review.
-- No always-on ambient recorder.
-- No promise that remote participants are named correctly without confidence or review.
-- No raw audio upload to external APIs by default.
-- No virtual microphone or virtual speaker as the default architecture.
+- inferring names or cross-session identity from voice alone;
+- cloud recording or mandatory cloud ASR;
+- summaries that hide transcript uncertainty;
+- automatic writes to issue trackers, repositories or shared docs;
+- UI or menu-bar work before the CLI transcript path is mature;
+- forced speaker attribution to make coverage metrics look complete.
 
-## Product Language
+## Near-Term Direction
 
-Use `MurmurMark` for the product and UI. Use `murmurmark` for repository, CLI, package names and machine identifiers.
+1. **Remote Speaker Diarization v2:** word/frame-level remote speaker turns, internal boundary
+   splitting, explicit unknown and corpus-wide quality gates.
+2. **Transcript Perfection Corpus v1:** one benchmark for text, chronology, roles, speakers, overlap,
+   acoustic modes and known residual defects.
+3. **Local Mic Multi-Speaker Diarization v1:** only after a real multi-person local scenario and
+   labelled corpus exist.
 
-Short description:
+## Long-Term Direction
 
-```text
-Local-first macOS meeting transcription and notes pipeline.
-```
-
-Long description:
-
-```text
-MurmurMark records your microphone and the selected meeting application's audio into separate local
-tracks, builds a speaker-aware transcript with a quality verdict, and turns it into evidence-backed
-meeting notes under an explicit privacy and retention policy.
-```
+MurmurMark should become a local transcription engine that can be trusted independently of meeting
+platform, participant count and ordinary acoustic variation. Different ASR, diarization and audio
+backends may evolve behind stable contracts. The invariant is the same: conserve evidence, abstain
+when it is insufficient and never trade a plausible-looking transcript for an unmeasured error.

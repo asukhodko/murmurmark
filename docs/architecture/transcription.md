@@ -168,19 +168,36 @@ Track hints:
 Remote Speaker Evidence Map v1 uses the selected remote utterance boundaries and a local
 Resemblyzer d-vector model to publish conservative session-local anonymous clusters. It covers only
 major, stable clusters; unsupported intervals remain aggregate `Colleagues`. The frozen corpus
-decision is `PROMOTE_AUDIT_ONLY`, so this evidence does not replace the selected transcript.
+decision is `PROMOTE_AUDIT_ONLY`: attributed-only B-cubed F1 is `0.913884`, but only `50.3892%` of
+remote speech is attributed, so this evidence does not replace the selected transcript.
 
 Anonymous Rich Transcript Handoff v1 is promoted in optional scope. It binds current passing
 speaker evidence to unchanged utterances and exposes `murmurmark transcript SESSION --rich` without
 changing the authoritative view. Reviewed Remote Speaker Naming v1 adds only explicit session-local
 labels through `--rich --reviewed-speakers`; stale decisions fail open to the anonymous view.
-Participant identity is never inferred from voice. Optional speaker-aware notes/export, cross-session
-matching, frame-level splitting and the heavier pyannote/Sortformer architecture below remain
-separate gates.
+Participant identity is never inferred from voice. Optional speaker-aware notes/export and
+cross-session matching remain separate gates.
+
+## Current Remote Diarization Goal
+
+Remote Speaker Diarization v2 moves speaker evidence to authoritative remote frames and selected
+ASR words. It must split supported internal speaker changes, represent overlap and assign each
+remote word to a session-local anonymous speaker or explicit `unknown`. Coverage cannot be bought
+with forced attribution. Selected words and chronology are immutable; missing, stale or failed
+runtime returns the exact aggregate `Colleagues` view.
+
+The initial locked corpus targets are attributable speech `>= 0.85`, attributed-only B-cubed F1
+`>= 0.90`, pairwise precision `>= 0.90`, zero word loss/duplication and deterministic replay.
+Display names remain explicit session review only.
+
+Mic multi-speaker diarization is a later profile. It starts only after a real multi-person local
+scenario and labelled corpus exist, and must distinguish Target-Me, other local speakers and
+unknown without weakening current Target-Me protection.
 
 ## Heavy-Local v1 Profile
 
-Status: target architecture, not the current implementation.
+Status: remote diarization backend qualification is current; the replacement ASR and correction
+components remain target architecture, not current production.
 
 Primary:
 

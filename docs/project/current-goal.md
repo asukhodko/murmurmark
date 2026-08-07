@@ -4,88 +4,92 @@ Status: current
 
 Updated: 2026-08-07
 
-The supported product path remains `murmurmark meeting -> first Ctrl-C -> authoritative result`.
-Plain transcript, extractive notes and guarded export stay authoritative. Optional model-assisted
-views may advance only through frozen local evidence gates and must fail open to exact source
-artifacts.
+MurmurMark exists to produce the most reliable local meeting transcript that the available
+evidence can support. The transcript must preserve words, chronology and roles, distinguish remote
+participants by voice inside a session, and expose uncertainty. Notes, summaries, retrieval and
+work-system updates are optional derivatives and do not hold the critical path.
 
 Roadmap status and dependencies live in `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`.
 `scripts/check-planning-consistency.py` keeps the README, roadmap and OpsKarta wording aligned.
 
-## Reviewed Meeting Artifacts v1
+## Remote Speaker Diarization v2
 
-OpsKarta nearest goal: Reviewed Meeting Artifacts v1: превратить exact decisions, actions, risks и open questions из current Reviewed Speaker-Aware Meeting Memory v1, используя promoted Evidence-Only Local Note Selection v1 только при валидном handoff, в короткую fingerprint-bound очередь confirmed/rejected/unresolved; создать deterministic review template, apply и isolated artifact bundle, копируя text, speaker provenance и evidence utterance IDs byte-for-byte и никогда не считая unresolved подтверждённым; при missing/stale/malformed selector fail open к deterministic exact source catalog; заморозить тот же six-session corpus и проверить review burden, evidence integrity, deterministic replay, stale-input rejection и ordinary-output non-regression; default transcript/notes/export, capture, Echo Guard, ASR, retention, cloud/external writes, cross-session identity и UI не менять; добавить tests/report, согласовать README, contracts, runbook, current goal, roadmap и OpsKarta, закоммитить и отправить в origin/main.
+OpsKarta nearest goal: Remote Speaker Diarization v2: заменить audit-only utterance-level clustering полноценной локальной word/frame-level diarization authoritative remote audio; заморозить speaker-labelled reference и 1x1/group controls, сравнить pinned local backends и выбрать воспроизводимый профиль; обнаруживать internal speaker changes и привязывать каждое remote word к session-local anonymous speaker либо explicit unknown, сохраняя selected text, chronology и timestamps без потерь и не выводя имя по голосу; добиться на frozen corpus attributable remote speech >= 0.85, attributed-only B-cubed F1 >= 0.90, pairwise precision >= 0.90, корректных speaker-count/overlap/boundary gates и zero word loss/duplication; при missing/stale/model failure fail open к exact aggregate Colleagues; продвигать speaker-resolved read surface только после corpus-wide PROMOTE, иначе зафиксировать воспроизводимый DO_NOT_PROMOTE; default transcript, Me role, capture, Echo Guard, ASR text, retention, cloud/external writes и cross-session identity не менять; отдельно зафиксировать future mic multi-speaker path; добавить tests/report, согласовать README, contracts, runbook, current goal, roadmap и OpsKarta, закоммитить и отправить в origin/main.
 
 ## Why Now
 
-Reviewed Speaker-Aware Meeting Memory v1 already provides 726 exact statements on 6/6 frozen
-sessions. Free-text local synthesis was rejected because 69/142 generated claims failed independent
-support checks. Evidence-Only Local Note Selection v1 removed text authorship and passed its narrow
-optional gates: 47 review-marked candidates became 28, every displayed claim remained exact source
-text and model-authored published claims stayed at zero.
+Remote Speaker Evidence Map v1 proved that the authoritative remote track contains useful speaker
+identity evidence. On six frozen sessions it reached attributed-only B-cubed F1 `0.913884`, but
+assigned only `629/1235` remote utterances and `50.3892%` of remote speech. It also cannot split an
+utterance when the speaker changes inside its current ASR boundary.
 
-The remaining product gap is explicit truth status. A candidate that looks useful is still not a
-confirmed decision, commitment, risk or open question. MurmurMark needs a short review queue and a
-durable artifact bundle before search or work proposals can safely consume meeting memory.
+That is enough evidence to stop treating diarization as a distant idea, but not enough coverage to
+call the transcript speaker-resolved. Improving notes before closing this gap would optimize a
+derivative while the primary artifact still collapses multiple people into `Colleagues`.
 
 ## Objective
 
-Create a deterministic session-local review loop for exact meeting-artifact candidates. A user or
-agent can mark each row `confirmed`, `rejected` or `unresolved`; materialization preserves the source
-statement and provenance exactly and exposes only confirmed items as confirmed artifacts.
+Build and qualify an isolated remote-diarization profile over the unchanged authoritative remote
+audio and selected ASR words. It should produce stable session-local anonymous speakers, explicit
+unknown regions and evidence for every boundary. Promotion must improve speaker attribution without
+changing recognized words, their order or the ordinary fallback transcript.
+
+Operationally, an ideal transcript means: every retained word has the correct text, time and role;
+every supported speaker attribution is correct; and every unsupported decision is visibly unknown.
+It does not mean hiding uncertainty to make the Markdown look complete.
 
 ## Required Work
 
-1. Build a stable candidate catalog from verified speaker-aware memory. Use the promoted ID selector
-   only when its handoff and fingerprints are current; otherwise use the deterministic exact source.
-2. Generate a compact fingerprint-bound review template for decisions, actions, risks and open
-   questions. Keep summary rows outside the confirmation contract.
-3. Validate complete and partial answer files, allowed states, row identity, source fingerprint and
-   immutable evidence membership. Unknown or stale decisions must fail open.
-4. Materialize an isolated bundle containing confirmed, rejected and unresolved rows plus a concise
-   reviewed Markdown view. Copy text, speaker provenance and utterance IDs byte-for-byte.
-5. Never present `unresolved` as an accepted fact or obligation. Rejected rows remain audit evidence
-   and cannot enter confirmed notes.
-6. Freeze the same six-session corpus and measure queue size, confirmation coverage, deterministic
-   replay, stale-input rejection and ordinary-output non-regression.
-7. Add fixture/corpus tests, contract and runbook documentation, then commit and push a clean tree.
+1. Freeze the six-session speaker corpus, hashes, current v1 outputs and representative 1x1/group,
+   overlap and internal-speaker-change references. Record where labels are authoritative versus
+   incomplete.
+2. Add a word/frame-level diarization adapter over authoritative remote audio. Pin models, runtime,
+   configuration and offline cache. Keep the current Resemblyzer map as a baseline.
+3. Reconcile diarization turns with immutable selected ASR words. Split speaker spans at supported
+   boundaries, represent overlap explicitly and assign weak regions to `unknown`.
+4. Publish an isolated `remote_speaker_diarization_v2` evidence profile and a speaker-resolved read
+   surface. Do not mutate plain transcript or selected ASR text during qualification.
+5. Measure coverage, B-cubed and pairwise metrics, speaker-count error, boundary error, overlap
+   behavior, word conservation, chronology and deterministic replay per session and corpus-wide.
+6. Fail open to exact aggregate `Colleagues` when evidence, models, fingerprints or runtime are
+   absent, stale or incompatible.
+7. Add fixture and corpus regressions, contract and runbook documentation, then record an explicit
+   `PROMOTE` or `DO_NOT_PROMOTE` decision and finish with a clean commit and push.
 
 ## Acceptance Gates
 
-- every review row maps to one current source statement and exact evidence provenance;
-- only `confirmed`, `rejected` and `unresolved` are accepted states;
-- selected-model output is optional input, never a source of wording or evidence;
-- missing or stale selection falls back to the deterministic exact source catalog;
-- stale, duplicate, unknown or malformed decisions cannot publish a current bundle;
-- confirmed Markdown contains only confirmed rows and exact source text;
-- repeated runs with the same inputs are deterministic and interruption-safe;
-- default transcript, notes, export and all earlier handoffs remain byte-identical;
-- the six-session report records bounded review burden and a clear promotion decision.
+- attributable remote speech ratio is at least `0.85` on the frozen corpus;
+- attributed-only B-cubed F1 is at least `0.90` and pairwise precision at least `0.90`;
+- every single-remote control resolves to one dominant remote speaker; group speaker-count and
+  boundary gates are stated before evaluation and pass on the frozen references;
+- speaker changes inside one ASR utterance can be represented without losing or duplicating words;
+- selected words, chronology and timestamps remain conserved, except for documented bounded
+  timestamp refinement that passes exact order gates;
+- overlap and weak evidence remain explicit; no word is force-assigned merely to maximize coverage;
+- speaker IDs are session-local and anonymous; display names require explicit session review;
+- missing, stale or failed diarization returns the exact aggregate transcript;
+- ordinary transcript, `Me` attribution, notes, export and raw CAF remain byte-identical;
+- repeated offline runs with the same inputs are deterministic.
 
 ## Safety Boundary
 
-- no generated or edited factual wording;
-- no automatic confirmation from model rank, score or confidence;
-- no cloud request, model pull, external write or cross-session participant identity;
-- no capture, Echo Guard, ASR, transcript selection, default notes/export, retention or UI change;
-- no claim that the optional selector's vacuous high-confidence retention proves future safety.
-
-## Completed Checkpoint
-
-Evidence-Only Local Note Selection v1 is frozen with
-`PROMOTE_OPTIONAL_EVIDENCE_SELECTION`. It passed 6/6 sessions, selected 56 of 189 source statements,
-reduced 47 review-marked candidates to 28, covered all available categories and 80% of available
-speaker occurrences, and published zero model-authored claims. Its high-confidence source
-population was empty, so that retention result is explicitly limited.
+- no cross-session identity matching and no identity inferred from voice;
+- no transcription rewrite, generated wording or factual correction in the diarization stage;
+- no change to capture, Echo Guard, primary ASR, local-role selection or raw audio;
+- no cloud model, implicit download or external publication;
+- no mandatory notes, summaries, search, work proposals or UI work;
+- no assumption that all mic speech is always one person: that remains a separate future profile.
 
 ## After This Goal
 
-1. Local Evidence Retrieval v1 indexes exact utterances and confirmed artifacts with fingerprint
-   invalidation and retention-aware deletion.
-2. Reviewed Work Proposals v1 materializes confirmed artifacts into local proposal bundles with
-   evidence and diffs.
-3. External systems remain explicit reviewed destinations; UI remains optional and does not hold
-   the CLI path.
+1. **Transcript Perfection Corpus v1** expands the frozen benchmark across wording, chronology,
+   `Me`/remote roles, speaker boundaries, overlap, office noise and acoustic modes, then drives the
+   remaining largest measured error class to `PROMOTE` or a documented limit.
+2. **Local Mic Multi-Speaker Diarization v1** becomes executable only after a real multi-person local
+   scenario and labelled corpus exist. It must distinguish Target-Me, other local speakers and
+   unknown without weakening current Target-Me protection.
+3. Summaries, retrieval and work-system proposals remain optional derivatives after transcript
+   convergence. They may consume only versioned transcript evidence and cannot redefine the mission.
 
-Raw CAF and batch output remain authoritative. Live Shadow is capture-safe but advisory, and its
-promotion remains blocked by measured quality and runtime evidence.
+Raw CAF and batch output remain authoritative. Live Shadow remains advisory and cannot select or
+publish a speaker-resolved transcript.

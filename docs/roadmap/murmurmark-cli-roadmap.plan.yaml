@@ -36,11 +36,12 @@ nodes:
     effort: 221
     notes: |
       Активная CLI-first, local-first и evidence-backed программа. Batch transcript остаётся
-      authoritative. Текущий продуктовый North Star: одной командой получить честный transcript,
-      короткие подтверждённые meeting artifacts, локальный evidence retrieval и только затем
-      reviewed work proposals. Pre-ASR audio plateau остаётся обязательным quality boundary и
-      открывается снова лишь при новом независимом Target-Me presence evidence. В работе
-      одновременно может быть только одна исполнимая цель.
+      authoritative. Текущий North Star: одной командой получить максимально надёжный transcript,
+      сохранить слова/порядок/роли и разделить remote-участников по голосу внутри сессии, оставляя
+      слабые места явным unknown. Notes, summaries, retrieval и work proposals являются optional
+      derivatives. Pre-ASR audio plateau остаётся обязательным quality boundary и открывается снова
+      лишь при новом независимом Target-Me presence evidence. В работе одновременно может быть
+      только одна исполнимая цель.
       Подробная история экспериментов сохранена в
       docs/history/murmurmark-cli-roadmap-through-2026-07-19.plan.yaml.
 
@@ -421,16 +422,6 @@ nodes:
       byte-identical local-FIR PCM. Текущие Echo statistics, delay/fit и guarded branch selection
       имеют session-end causal boundary. Raw capture, batch и production defaults не изменены.
 
-  parallel-research:
-    title: "Параллельные исследования"
-    kind: phase
-    parent: murmurmark-cli
-    status: idea
-    effort: 24
-    notes: |
-      Эти гипотезы могут создавать isolated evidence, включая heavy local ASR/audio validators, но
-      не блокируют критический CLI-путь и не меняют production defaults без собственных corpus gates.
-
   research-remote-diarization:
     title: "Remote Speaker Evidence Map v1"
     kind: task
@@ -446,7 +437,7 @@ nodes:
   research-speaker-map:
     title: "Reviewed Remote Speaker Naming v1"
     kind: task
-    parent: parallel-research
+    parent: murmurmark-cli
     deps: [research-rich-transcript]
     status: done
     effort: 5
@@ -523,7 +514,7 @@ nodes:
   research-evidence-guarded-llm:
     title: "Evidence-Guarded Local Synthesis Qualification v1"
     kind: task
-    parent: parallel-research
+    parent: murmurmark-cli
     deps: [product-reviewed-speaker-memory-v1]
     status: done
     effort: 8
@@ -549,44 +540,56 @@ nodes:
       baseline high-confidence artifacts; retention 1.0 помечен как вакуумный и не даёт права
       удалять будущие high-confidence rows.
 
-  product-reviewed-meeting-artifacts-v1:
-    title: "Reviewed Meeting Artifacts v1"
+  quality-remote-speaker-diarization-v2:
+    title: "Remote Speaker Diarization v2"
     kind: task
     parent: murmurmark-cli
-    deps: [research-evidence-only-local-note-selection-v1, product-evidence-export-v2]
+    deps: [quality-pre-asr-target-me-isolation-limit-v1, research-remote-diarization, research-rich-transcript, corpus-regression]
     status: current
-    effort: 7
+    effort: 12
     notes: |
-      Превратить exact decisions, actions, risks и open questions в короткую fingerprint-bound
-      очередь confirmed/rejected/unresolved. Использовать promoted ID selector только при current
-      verified handoff; иначе работать с deterministic exact source catalog. Добавить review
-      template/apply и isolated immutable bundle, не переписывать text/speaker provenance/evidence
-      IDs и не считать unresolved пункт подтверждённым обязательством. Проверить тот же six-session
-      corpus, stale fail-open, deterministic replay и ordinary-output non-regression.
+      Перейти от audit-only utterance clustering с coverage 0.503892 к локальной word/frame-level
+      diarization authoritative remote audio. Сохранять selected words/order, разделять internal
+      speaker changes и назначать session-local anonymous speaker либо explicit unknown. Locked
+      corpus gates: attributable speech >= 0.85, attributed-only B-cubed F1 >= 0.90, pairwise
+      precision >= 0.90, zero word loss/duplication, deterministic replay и exact aggregate fallback.
 
-  product-local-evidence-retrieval-v1:
-    title: "Local Evidence Retrieval v1"
+  quality-transcript-perfection-corpus-v1:
+    title: "Transcript Perfection Corpus v1"
     kind: task
     parent: murmurmark-cli
-    deps: [product-reviewed-meeting-artifacts-v1, corpus-regression]
+    deps: [quality-remote-speaker-diarization-v2, corpus-regression]
     status: next
+    effort: 10
+    notes: |
+      Объединить frozen references для слов, chronology, Me/remote roles, remote speakers, overlap,
+      missing Me, remote leakage и acoustic modes. Определить operational transcript perfection как
+      корректный supported результат плюс explicit unknown; выбирать последующие quality goals по
+      крупнейшему измеренному residual class и блокировать corpus regressions.
+
+  future-local-mic-diarization-v1:
+    title: "Local Mic Multi-Speaker Diarization v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-transcript-perfection-corpus-v1]
+    status: idea
+    effort: 10
+    notes: |
+      После появления реального multi-person local сценария и labelled corpus различать Target-Me,
+      other local speakers и unknown внутри mic-потока. Не считать всю локальную речь владельцем
+      ноутбука и не ослаблять текущие Target-Me protection gates.
+
+  optional-derived-transcript-workflows:
+    title: "Derived Notes, Retrieval And Workflows"
+    kind: task
+    parent: parking-lot
+    deps: [quality-transcript-perfection-corpus-v1, product-evidence-export-v2]
+    status: optional
     effort: 8
     notes: |
-      Добавить локальный поиск по сессиям, utterances и reviewed artifacts с exact citations,
-      fingerprint invalidation и retention-aware индексом. Поиск возвращает существующие evidence
-      records, не генерирует ответы и не вводит cross-session voice identity.
-
-  product-reviewed-work-proposals-v1:
-    title: "Reviewed Work Proposals v1"
-    kind: task
-    parent: murmurmark-cli
-    deps: [product-local-evidence-retrieval-v1, product-evidence-export-v2]
-    status: later
-    effort: 7
-    notes: |
-      Материализовать подтверждённые meeting artifacts как локальные Markdown/Obsidian/docs/issue
-      proposal bundles с provenance и diff. Никаких автоматических внешних записей: публикация в
-      стороннюю систему потребует отдельного явного review и собственного integration gate.
+      Notes, summaries, reviewed meeting artifacts, local retrieval и work proposals остаются
+      полезными производными. Они могут потреблять только versioned transcript evidence, не меняют
+      authoritative transcript и не получают серьёзного roadmap priority до transcript convergence.
 
   parking-lot:
     title: "Parking lot"
@@ -624,10 +627,10 @@ views:
         nodes: [working-capabilities, corpus-regression]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [product-reviewed-meeting-artifacts-v1]
+        nodes: [quality-remote-speaker-diarization-v2]
       dependent:
-        title: "Следующая продуктовая цепочка"
-        nodes: [product-local-evidence-retrieval-v1, product-reviewed-work-proposals-v1]
+        title: "Следующая quality-цепочка"
+        nodes: [quality-transcript-perfection-corpus-v1, future-local-mic-diarization-v1]
 
   critical-path:
     title: "Критический CLI-путь"
@@ -660,12 +663,8 @@ views:
           - research-rich-transcript
           - research-speaker-map
           - quality-pre-asr-target-me-isolation-limit-v1
-          - product-reviewed-speaker-memory-v1
-          - research-evidence-guarded-llm
-          - research-evidence-only-local-note-selection-v1
-          - product-reviewed-meeting-artifacts-v1
-          - product-local-evidence-retrieval-v1
-          - product-reviewed-work-proposals-v1
+          - quality-remote-speaker-diarization-v2
+          - quality-transcript-perfection-corpus-v1
 
   echo-frontier:
     title: "Пред-ASR отделение Me от remote"
@@ -699,21 +698,21 @@ views:
           - research-evidence-guarded-llm
           - research-evidence-only-local-note-selection-v1
 
-  product-value-chain:
-    title: "Путь от доказательств к полезному результату"
+  transcript-quality-chain:
+    title: "Путь к speaker-resolved transcript"
     lanes:
-      selection:
-        title: "Безопасный отбор"
-        nodes: [research-evidence-only-local-note-selection-v1]
-      confirmation:
-        title: "Подтверждение"
-        nodes: [product-reviewed-meeting-artifacts-v1]
-      retrieval:
-        title: "Повторное использование"
-        nodes: [product-local-evidence-retrieval-v1]
-      proposals:
-        title: "Контролируемое действие"
-        nodes: [product-reviewed-work-proposals-v1]
+      baseline:
+        title: "Доказанная speaker evidence"
+        nodes: [research-remote-diarization, research-rich-transcript]
+      current:
+        title: "Полная remote diarization"
+        nodes: [quality-remote-speaker-diarization-v2]
+      convergence:
+        title: "Corpus convergence"
+        nodes: [quality-transcript-perfection-corpus-v1]
+      future:
+        title: "Несколько local speakers"
+        nodes: [future-local-mic-diarization-v1]
 
   parking-lot-view:
     title: "Не держит критический путь"
@@ -722,6 +721,7 @@ views:
         title: "Parking lot"
         nodes:
           - parked-live-promotion
+          - optional-derived-transcript-workflows
 
   deps-map:
     title: "Зависимости активного плана"
@@ -759,17 +759,17 @@ views:
           - product-reviewed-speaker-memory-v1
           - research-evidence-guarded-llm
           - research-evidence-only-local-note-selection-v1
-          - product-reviewed-meeting-artifacts-v1
-          - product-local-evidence-retrieval-v1
-          - product-reviewed-work-proposals-v1
-          - parallel-research
+          - quality-remote-speaker-diarization-v2
+          - quality-transcript-perfection-corpus-v1
+          - future-local-mic-diarization-v1
+          - optional-derived-transcript-workflows
           - parking-lot
 
 x:
   exec:
     program:
-      nearest_goal: "Reviewed Meeting Artifacts v1: превратить exact decisions, actions, risks и open questions из current Reviewed Speaker-Aware Meeting Memory v1, используя promoted Evidence-Only Local Note Selection v1 только при валидном handoff, в короткую fingerprint-bound очередь confirmed/rejected/unresolved; создать deterministic review template, apply и isolated artifact bundle, копируя text, speaker provenance и evidence utterance IDs byte-for-byte и никогда не считая unresolved подтверждённым; при missing/stale/malformed selector fail open к deterministic exact source catalog; заморозить тот же six-session corpus и проверить review burden, evidence integrity, deterministic replay, stale-input rejection и ordinary-output non-regression; default transcript/notes/export, capture, Echo Guard, ASR, retention, cloud/external writes, cross-session identity и UI не менять; добавить tests/report, согласовать README, contracts, runbook, current goal, roadmap и OpsKarta, закоммитить и отправить в origin/main."
-      success_by_next_sync: "Есть deterministic review template/apply и frozen isolated meeting-artifact bundle: каждый candidate имеет confirmed/rejected/unresolved, confirmed rows сохраняют exact text/provenance, stale selector уходит к exact source catalog, ordinary outputs неизменны."
+      nearest_goal: "Remote Speaker Diarization v2: заменить audit-only utterance-level clustering полноценной локальной word/frame-level diarization authoritative remote audio; заморозить speaker-labelled reference и 1x1/group controls, сравнить pinned local backends и выбрать воспроизводимый профиль; обнаруживать internal speaker changes и привязывать каждое remote word к session-local anonymous speaker либо explicit unknown, сохраняя selected text, chronology и timestamps без потерь и не выводя имя по голосу; добиться на frozen corpus attributable remote speech >= 0.85, attributed-only B-cubed F1 >= 0.90, pairwise precision >= 0.90, корректных speaker-count/overlap/boundary gates и zero word loss/duplication; при missing/stale/model failure fail open к exact aggregate Colleagues; продвигать speaker-resolved read surface только после corpus-wide PROMOTE, иначе зафиксировать воспроизводимый DO_NOT_PROMOTE; default transcript, Me role, capture, Echo Guard, ASR text, retention, cloud/external writes и cross-session identity не менять; отдельно зафиксировать future mic multi-speaker path; добавить tests/report, согласовать README, contracts, runbook, current goal, roadmap и OpsKarta, закоммитить и отправить в origin/main."
+      success_by_next_sync: "Есть isolated word/frame-level remote diarization profile и frozen corpus decision: remote words сохраняются без потерь, >=85% речи получает точного anonymous speaker или explicit unknown, stale/missing runtime возвращает exact aggregate transcript."
     defaults:
       status_progress:
         done: 1.0
@@ -790,56 +790,33 @@ x:
           sync_note: "Durable capture, one-command lifecycle, batch transcript, review, notes/export и Live Shadow уже работают."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Закрытый pre-ASR audio frontier"
-        scope_nodes: [quality-pre-asr-target-me-isolation-limit-v1]
+        title: "Remote Speaker Diarization v2"
+        scope_nodes: [quality-remote-speaker-diarization-v2]
         kind: main
         mgmt:
-          health: green
-          sync_note: "SepFormer завершён DO_NOT_ADVANCE на train: presence/absence неразделимы, dev закрыт. Production v2.17 остаётся exact plateau; reopening требует отдельного abstaining presence detector."
-          next_sync_goal: "Не возобновлять audio frontier без нового независимого Target-Me presence evidence."
+          health: yellow
+          sync_note: "Audit-only map доказал attributed-only B-cubed F1 0.913884, но покрывает лишь 50.3892% remote speech и не разделяет internal speaker changes."
+          next_sync_goal: "Квалифицировать word/frame-level profile с coverage >= 0.85 и exact word-conservation fallback."
       dependent-path:
-        title: "Путь к рабочим артефактам"
+        title: "Сходимость транскрибации"
         scope_nodes:
-          - quality-operational-rebaseline-v1
-          - quality-speaker-mode-hardening-v1
-          - quality-evidence-backed-me-completion-v2
-          - quality-echo-suppression-promotion
-          - quality-neural-residual-echo-v1
-          - quality-speaker-preserving-echo-adaptation-corpus-v1
-          - quality-controlled-echo-supervision-lab-v1
-          - research-speaker-preserving-neural-echo-v2
-          - research-reference-conditioned-target-me-separation-v1
-          - quality-target-me-identifiability-corpus-v1
-          - research-reference-conditioned-target-me-separation-v2
-          - product-evidence-export-v2
-          - product-release-quality-cli
-          - product-reliable-final-handoff-v1
-          - product-authoritative-incremental-asr-v1
-          - product-canonical-live-asr-producer-v1
-          - product-causal-canonical-mic-asr-v1
           - research-remote-diarization
           - research-rich-transcript
-          - research-speaker-map
-          - quality-pre-asr-target-me-isolation-limit-v1
-          - product-reviewed-speaker-memory-v1
-          - research-evidence-guarded-llm
-          - research-evidence-only-local-note-selection-v1
-          - product-reviewed-meeting-artifacts-v1
-          - product-local-evidence-retrieval-v1
-          - product-reviewed-work-proposals-v1
+          - quality-remote-speaker-diarization-v2
+          - quality-transcript-perfection-corpus-v1
         kind: main
         mgmt:
-          health: green
-          sync_note: "ID-only selection завершён optional PROMOTE. Current: exact candidates получают явный confirmed/rejected/unresolved status; затем подтверждённые artifacts идут в local retrieval и reviewed proposals."
-          next_sync_goal: "Получить frozen reviewed-artifact bundle без изменения source text и ordinary outputs."
+          health: yellow
+          sync_note: "Критический путь теперь заканчивается speaker-resolved transcript и единым perfection corpus. Производные заметки выведены из миссии."
+          next_sync_goal: "После remote v2 заморозить единые word/order/role/speaker/acoustic gates и выбирать крупнейший residual class."
       research:
-        title: "Параллельные исследования"
-        scope_nodes: [parallel-research]
+        title: "Будущий local multi-speaker"
+        scope_nodes: [future-local-mic-diarization-v1]
         kind: context
         mgmt:
           health: neutral
-          sync_note: "Свободная local generation закрыта DO_NOT_PROMOTE; ID-only selector продвинут только как explicit optional read evidence."
-          next_sync_goal: "Не разрешать model rank автоматически подтверждать factual artifact и не открывать cloud/external writes."
+          sync_note: "Архитектурный путь отмечен, но реального multi-person mic corpus пока нет."
+          next_sync_goal: "Не стартовать до появления реального сценария и labelled local-speaker evidence."
       parked:
         title: "Parking lot"
         scope_nodes: [parking-lot]
@@ -847,7 +824,7 @@ x:
         progress_override: 0.0
         mgmt:
           health: neutral
-          sync_note: "Live promotion и внешние integrations не держат полезность CLI; UI остаётся вне обязательного roadmap."
+          sync_note: "Notes/summaries/retrieval, Live promotion, external integrations и UI не держат transcript-quality roadmap."
           next_sync_goal: "Не активировать без нового product signal или снятия blocker."
     edges:
       - from: working-now
@@ -873,7 +850,7 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: закрытый audio plateau, текущая проверка meeting artifacts и путь к локальному поиску и reviewed work proposals."
+        caption: "Короткая карта: доказанный audio plateau, текущая remote diarization и путь к измеримо совершенной speaker-resolved транскрибации."
         blocks:
           - working-now
           - current-quality

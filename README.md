@@ -2,18 +2,18 @@
 
 Local-first meeting transcription for sensitive work.
 
-MurmurMark records separate microphone and remote tracks, then locally produces a transcript, quality verdict, evidence-backed notes, review plan, export bundle and retention plan.
+MurmurMark records separate microphone and remote tracks, then locally produces an auditable transcript, quality verdict and optional evidence-backed derivatives.
 
 The product is CLI-first. Batch processing is authoritative. Live preview is an optional shadow that cannot replace or weaken the durable recording.
-
 ## Mission
 
-MurmurMark turns sensitive working conversations into reliable local transcripts and evidence-backed meeting memory without sending raw meeting audio to a cloud recorder.
+MurmurMark turns locally captured 1:1 and group calls into reliable, speaker-resolved transcripts
+without sending raw meeting audio to a cloud recorder.
 
-The user should be able to start and stop a meeting recording once and receive an honest result
-without launching or supervising internal stages. Uncertain regions remain explicit review items.
-Notes and exports point back to transcript or audit evidence. The current technical North Star is
-to preserve every confirmed local word and remove recognizable remote before ASR, with exact fallback.
+The user should start and stop a meeting recording once and receive an honest result without
+supervising internal stages. The transcript must preserve words, order and timing, separate remote
+participants by voice inside the session, protect genuine local speech and expose uncertainty.
+Notes, summaries and work-system updates are optional derivatives, not the product mission.
 
 ## Reliability Contract
 
@@ -286,8 +286,8 @@ is one command plus `Ctrl-C`; diagnostic commands remain available for recovery.
 Speaker-Preserving Neural Echo v2.17 requalified the unchanged selector after ASR changes: the
 12-session corpus retained `5/12` candidates, `41.940s`, 90 removed tokens and local retention `1.0`.
 
-Remote Speaker Evidence Map v1 and its anonymous rich handoff are promoted optional read surfaces.
-Generate or inspect that evidence with:
+Remote Speaker Evidence Map v1 and its anonymous rich handoff are promoted optional read surfaces,
+but only `50.3892%` of remote speech is attributed. Inspect that evidence with:
 
 ```bash
 murmurmark audit remote-speakers "$SESSION" --profile auto
@@ -306,33 +306,31 @@ murmurmark transcript "$SESSION" --rich --reviewed-speakers
 murmurmark notes "$SESSION" --reviewed-speakers
 murmurmark export "$SESSION" --format markdown --include-json --reviewed-speakers
 ```
-Speaker-aware memory passed 6/6 frozen sessions and 726 exact evidence statements. The pre-ASR
-frontier is closed with `DO_NOT_ADVANCE_STRONGER_SEPARATOR`. Evidence-Guarded Local Synthesis v1
-then completed with `DO_NOT_PROMOTE`: 69/142 claims failed independent support checks, so no
-generated-text CLI mode was activated. Evidence-Only Local Note Selection v1 then completed with
-`PROMOTE_OPTIONAL_EVIDENCE_SELECTION`: 6/6 sessions passed, 47 review-marked candidates were
-reduced to 28 and published model-authored claims stayed at zero. It remains an explicit heavy local
-view; ordinary notes/export do not consume it. **Reviewed Meeting Artifacts v1** is current.
+Speaker-aware memory and the exact-text selector are completed optional derivatives. The pre-ASR
+frontier is closed at the current resource limit with exact fallback. **Remote Speaker Diarization
+v2** is current: move from conservative utterance-level evidence to word/frame-level remote speaker
+turns with much higher coverage, internal turn splitting and frozen correctness gates.
 
 The dependent critical path is:
 
 ```text
 Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental ASR
--> Speaker-aware memory (done: PROMOTE) -> Evidence-Guarded Local Synthesis (done: DO_NOT_PROMOTE)
--> Evidence-Only Selection (done: optional PROMOTE) -> Reviewed Meeting Artifacts (current)
--> Local Evidence Retrieval -> Reviewed Work Proposals
+-> Remote Speaker Evidence (done: audit-only, 50.4% coverage)
+-> Remote Speaker Diarization v2 (current) -> Transcript Perfection Corpus (next)
 ```
 
-The current stage turns exact candidates into `confirmed`, `rejected` or `unresolved` artifacts.
-It may consume the selector only through its verified handoff and otherwise uses the deterministic
-exact source catalog. Later stages make confirmed evidence locally searchable and materialize
-reviewed proposal bundles. Free-text synthesis and external writes stay closed. See the
-[selection runbook](docs/runbooks/evidence-only-local-note-selection.md), [frozen result](docs/research/2026-08-07-evidence-only-local-note-selection-v1.md), [current goal](docs/project/current-goal.md), [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
+The current stage must conserve every selected word while assigning remote words to stable
+session-local anonymous speakers or explicit `unknown`. A later mic-speaker stage opens only if a
+real multi-person local scenario appears. Summaries, retrieval and work proposals are parked until
+the transcript-quality program reaches its corpus target. See the [current goal](docs/project/current-goal.md),
+[roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 
 ## Scope And Limitations
 
 - Ordinary selected transcripts use `Me` and aggregate `Colleagues`; `--rich` is an optional,
   fingerprint-verified anonymous-speaker view and is not an export source.
+- Current anonymous remote evidence covers about half of remote speech and does not split an
+  utterance that contains an internal speaker change; Remote Speaker Diarization v2 targets this gap.
 - `--reviewed-speakers` uses only explicit labels from the current session decision file; ordinary
   transcript, notes and export never consume those labels implicitly.
 - The personalized pre-ASR profile removes independently supported remote leakage on compatible
@@ -361,6 +359,7 @@ reviewed proposal bundles. Free-text synthesis and external writes stay closed. 
   `DO_NOT_TRAIN`; it performed no training and cannot select an audio or transcript profile.
 - Batch transcript is authoritative; live output is not used for export or retention decisions.
 - No cloud ASR or cloud raw-audio upload is required by the normal workflow.
+- Notes, summaries, retrieval and work-system proposals are optional derivatives outside the critical roadmap.
 - A future UI must reuse CLI contracts and is not required for a useful product.
 
 ## Documentation

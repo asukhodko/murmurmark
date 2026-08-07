@@ -73,7 +73,7 @@ process SESSION
        -> direct candidate whisper.cpp or exact local_fir fallback
   -> timeline/start/boundary repair candidates
   -> audit cleanup + reviewed transcript profiles
-  -> quality verdict + evidence-backed extractive notes
+  -> quality verdict + optional evidence-backed extractive notes
   -> atomic authoritative_handoff.json
        -> selected transcript + SHA-256
        -> verdict + exact next command
@@ -118,14 +118,12 @@ wall-time benefit to `2.8651%..4.1040%`. Causal Canonical Mic ASR v1 then measur
 post-Echo path and closed with `DO_NOT_PROMOTE`: `0/147` candidate windows matched and bounded
 prefixes through `120s` remained different from final PCM. The current exact mic boundary is
 session end. Remote Speaker Evidence Map v1 has promoted optional anonymous evidence over the
-already authoritative remote track. Anonymous Rich Transcript Handoff v1 is now a promoted optional
-read surface over unchanged selected utterances. Reviewed Remote Speaker Naming v1 is also promoted
-in optional scope: only explicit session-local decisions can replace an anonymous display ID. The
-speaker-aware notes/export handoff is now promoted optional on 6/6 frozen sessions. ID-only
-selection over exact speaker-aware statements is also promoted as an isolated opt-in view. The
-current stage adds fingerprint-bound confirmation status to exact artifacts before local evidence
-retrieval and reviewed proposal bundles; none of these layers can alter the plain authoritative
-path or extractive fallback.
+already authoritative remote track, but covers only `50.3892%` of remote speech. Anonymous Rich
+Transcript Handoff v1 remains an exact optional read surface and explicit session-local decisions
+are the only way to replace anonymous display IDs. Remote Speaker Diarization v2 is now the active
+stage: word/frame-level turns, internal speaker changes, explicit unknown and exact aggregate
+fallback. Notes, retrieval and work proposals remain optional consumers and cannot alter the
+authoritative path.
 
 Target full-product path:
 
@@ -212,7 +210,8 @@ Owns:
 Current implementation note:
 
 - the source of truth is `derived/transcript-simple/whisper-cpp/resolved/clean_dialogue*.json`;
-- `transcript.rich.json`, `speaker_map.json` and per-remote-speaker diarization are future target artifacts;
+- the v1 `transcript.rich.json` and `speaker_map.json` are optional audit artifacts; full
+  word/frame-level remote diarization is the active v2 target;
 - `transcript.shadow_v2.md` is a candidate export only when `repair_comparison.json` passes.
 
 Does not own:
@@ -222,6 +221,9 @@ Does not own:
 - docs updates.
 
 ### Synthesis
+
+Synthesis is an optional derivative. It does not define MurmurMark's mission or block the
+speaker-resolved transcript roadmap.
 
 Owns:
 

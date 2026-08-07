@@ -7,49 +7,50 @@ Updated: 2026-08-07
 - `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`
 
 YAML владеет статусами и зависимостями. `docs/project/current-goal.md` раскрывает единственную
-исполняемую цель. Подробности завершённых экспериментов сохранены в `docs/research/`,
-`docs/testing/` и `docs/history/`; они не определяют текущий приоритет.
+исполняемую цель. Завершённые эксперименты остаются в `docs/research/`, `docs/testing/` и
+`docs/history/`, но не определяют текущий приоритет.
 
 ## Правила Планирования
 
 - В работе находится ровно одна цель со статусом `current`.
+- Основной путь заканчивается надёжной speaker-resolved транскрибацией, а не производными заметками.
 - Завершённая гипотеза получает `PROMOTE` или `DO_NOT_PROMOTE`; оба исхода закрывают работу.
-- Отрицательный результат не меняет обычный transcript, notes или export.
-- Следующая продуктовая ступень обязана работать и после `PROMOTE`, и через точный fallback после
-  `DO_NOT_PROMOTE`.
-- UI, облако, запись во внешние системы и voice-only cross-session identity не держат CLI-путь.
+- Неуверенное слово, роль или speaker attribution остаётся явным `unknown`/review item.
+- Отрицательный эксперимент не ослабляет выбранный transcript и всегда имеет точный fallback.
+- Имена не выводятся по голосу. Разрешены только session-local anonymous IDs и явные review labels.
+- UI, облако, суммаризация и запись во внешние системы не держат критический CLI-путь.
 
 ## Миссия И North Star
 
-MurmurMark превращает чувствительный рабочий созвон в локальную, достоверную и полезную память:
-транскрипт, решения, действия, риски и вопросы, каждый из которых можно проверить по исходной
-реплике.
-
-Текущий продуктовый North Star:
+MurmurMark создаёт локальную, надёжную и проверяемую транскрибацию созвона с любым числом
+участников. Он сохраняет слова, порядок, время и роли, различает участников remote-потока по голосу
+внутри сессии и явно показывает предел доказательств. Если в будущем у одного ноутбука участвуют
+несколько людей, тот же принцип должен быть расширен на mic-поток отдельным квалифицированным слоем.
 
 ```text
-одна команда -> надёжная запись -> честный transcript -> короткие подтверждённые артефакты
-             -> локальный поиск -> контролируемые рабочие предложения
+одна команда
+  -> durable mic + remote
+  -> защищённая Me-речь и чистый вход ASR
+  -> точные слова, порядок и роли
+  -> remote words по session-local speakers либо unknown
+  -> проверяемый speaker-resolved transcript
 ```
 
-Пред-ASR качество остаётся обязательным ограничением: подтверждённая речь `Me` должна сохраняться,
-а распознаваемый authoritative remote не должен попадать в mic-ветку. Доступный предел
-аудиообработки сейчас зафиксирован: Speaker-Preserving Neural Echo v2.17 является production
-plateau, а более сильные локальные разделители не прошли presence/absence gates. Этот трек
-открывается снова только при появлении независимого abstaining Target-Me presence evidence.
+Заметки, суммаризации, поиск и рабочие предложения полезны, но легко производятся из хорошей
+транскрибации. Они остаются необязательными и не конкурируют за ресурсы с её качеством.
 
 ## Что Уже Работает
 
 ```mermaid
 flowchart LR
     C["Durable two-track capture"]
-    E["Guarded Echo preprocessing"]
+    E["Guarded Echo and Target-Me"]
     T["Authoritative transcript"]
-    R["Audit and review"]
-    M["Speaker-aware evidence memory"]
+    A["Audit and review evidence"]
+    S["Audit-only remote speaker map"]
     X["Guarded export and retention"]
 
-    C --> E --> T --> R --> M --> X
+    C --> E --> T --> A --> S --> X
 ```
 
 Поддерживаемый путь:
@@ -58,10 +59,8 @@ flowchart LR
 murmurmark meeting -> первый Ctrl-C -> bounded authoritative lifecycle -> честный результат
 ```
 
-Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; его promotion
-заблокирован доказательствами качества и времени выполнения.
-
-Ключевые достигнутые границы:
+Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; он не выбирает
+финальный текст или speaker attribution.
 
 | Область | Состояние | Доказанный результат |
 |---|---|---|
@@ -69,82 +68,81 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Echo / Target-Me | `done` | v2.17: safe personalized plateau, exact fallback |
 | Сильнее разделить mic | `done` | `DO_NOT_ADVANCE`: нет надёжного Target-Me presence gate |
 | Transcript / handoff | `done` | Authoritative batch, Evidence Handoff v2, guarded export |
-| Remote speakers | `done` | Anonymous map, rich transcript, explicit reviewed naming |
-| Meeting memory | `done` | 726 exact statements на 6/6 frozen sessions |
-| Свободный LLM-синтез | `done` | `DO_NOT_PROMOTE`: 69/142 claims отклонены verifier |
-| ID-only отбор заметок | `done` | optional `PROMOTE`: 47 review candidates сокращены до 28 без нового текста |
+| Remote speaker evidence | `done` | B-cubed F1 `0.913884` на attributed части, coverage `50.3892%` |
+| Anonymous rich view | `done` | Exact optional handoff и explicit session-local naming |
+| Производные заметки | `done/optional` | Exact evidence memory и безопасный ID-only selector доступны |
 
 ## Актуальная Цепочка
 
 ```mermaid
 flowchart LR
-    S["Done<br/>Evidence-Only Local<br/>Note Selection v1"]
-    A["Current<br/>Reviewed Meeting<br/>Artifacts v1"]
-    F["Fail open<br/>exact source catalog"]
-    Q["Next<br/>Local Evidence<br/>Retrieval v1"]
-    W["Later<br/>Reviewed Work<br/>Proposals v1"]
+    B["Done<br/>Remote Speaker<br/>Evidence Map v1"]
+    D["Current<br/>Remote Speaker<br/>Diarization v2"]
+    F["Fail open<br/>aggregate Colleagues"]
+    P["Next<br/>Transcript Perfection<br/>Corpus v1"]
+    M["Idea<br/>Local Mic Multi-Speaker<br/>Diarization v1"]
+    O["Optional<br/>Notes, retrieval,<br/>work proposals"]
 
-    S --> A
-    F --> A
-    A --> Q --> W
+    B --> D
+    F --> D
+    D --> P --> M
+    P -.-> O
 ```
 
-### 1. Evidence-Only Local Note Selection v1 — `done`
+### 1. Remote Speaker Evidence Map v1 — `done`
 
-Локальная модель может вернуть только известные statement IDs и порядок. Текст, speaker
-provenance и utterance IDs копируются byte-for-byte из Reviewed Speaker-Aware Meeting Memory v1.
-Frozen corpus завершён `PROMOTE_OPTIONAL_EVIDENCE_SELECTION`: 6/6 sessions, 47 review-marked
-candidates сокращены до 28, category/speaker coverage `1.0/0.8`, generated published claims `0`.
-Unknown/stale/malformed output возвращает exact extractive fallback. Обычные notes/export этот
-тяжёлый opt-in слой не используют.
+Selected remote utterances и local Resemblyzer дали 14 устойчивых anonymous clusters на шести
+сессиях. На уже attributed речи качество высокое, но 606 из 1235 remote utterances остаются
+aggregate `Colleagues`; internal speaker changes не разделяются. Решение `PROMOTE_AUDIT_ONLY`
+доказывает осуществимость и одновременно фиксирует текущий пробел.
 
-В frozen corpus не было baseline high-confidence artifacts, поэтому retention `1.0` вакуумен и не
-разрешает автоматически удалять такие пункты в будущем.
+### 2. Remote Speaker Diarization v2 — `current`
 
-### 2. Reviewed Meeting Artifacts v1 — `current`
+Word/frame-level diarization работает по authoritative remote audio, обнаруживает смену говорящего
+внутри ASR-реплики и связывает каждое remote word с session-local speaker или `unknown`. Текст и
+порядок не переписываются. Целевые corpus gates: coverage не ниже `0.85`, attributed-only B-cubed F1
+не ниже `0.90`, pairwise precision не ниже `0.90`, zero word loss/duplication и exact aggregate
+fallback при любой несовместимости.
 
-Decisions, actions, risks и open questions превращаются в короткую fingerprint-bound очередь:
-`confirmed`, `rejected`, `unresolved`. Promoted selector используется только через валидный handoff;
-иначе используется deterministic exact source catalog. Подтверждение не переписывает текст и
-всегда хранит evidence IDs. `unresolved` никогда не показывается как принятое обязательство.
+Результат: speaker-resolved read surface, который можно продвинуть только после corpus-wide
+`PROMOTE`; иначе остаётся воспроизводимый предел и прежний transcript.
 
-Результат: MurmurMark отличает найденный кандидатом пункт от реально принятого обязательства.
+### 3. Transcript Perfection Corpus v1 — `next`
 
-### 3. Local Evidence Retrieval v1 — `next`
+Единый корпус связывает проверку текста, порядка, ролей, speaker turns, overlap, missing `Me`,
+remote leakage, наушников, динамиков и шумного офиса. Для каждого известного дефекта есть reference,
+метрика и regression gate. Следующая инженерная цель всегда выбирается по крупнейшему измеренному
+остатку, а не по последней случайной сессии.
 
-Локальный индекс ищет по сессиям, utterances и подтверждённым артефактам. Каждый результат содержит
-точную цитату и provenance; stale fingerprint инвалидирует индекс. Retention учитывается явно.
-Слой не генерирует ответы и не выводит личность по голосу между встречами.
+Результат: конечный критерий сходимости к идеальной транскрибации и защита от бесконечной цепочки
+локальных эвристик.
 
-Результат: накопленный корпус становится рабочей памятью, а не коллекцией отдельных Markdown.
+### 4. Local Mic Multi-Speaker Diarization v1 — `idea`
 
-### 4. Reviewed Work Proposals v1 — `later`
+Когда появится реальный сценарий нескольких людей у одного ноутбука и размеченный материал, mic-речь
+будет разделяться на Target-Me, other local speakers и `unknown`. Этот этап зависит от remote v2 и
+Transcript Perfection Corpus, но не нужен для нынешнего основного сценария одного пользователя.
 
-Подтверждённые артефакты материализуются в локальные Markdown/Obsidian/docs/issue proposal bundles
-с provenance и diff. Автоматических внешних записей нет. Jira, docs repository или иной provider
-потребует отдельного явного review и собственного integration gate.
+### 5. Производные Возможности — `optional`
 
-Результат: путь от созвона до готового рабочего изменения завершён без скрытой публикации.
+Extractive notes, quality verdict, reviewed speaker memory, ID-only selection, локальный поиск и
+work proposals могут развиваться после достижения transcript gates или по отдельному явному запросу.
+Они не являются мерой качества MurmurMark и не могут менять источник транскрибации.
 
-## Параллельные И Закрытые Треки
+## Закрытые И Отложенные Треки
 
-- Пред-ASR разделение закрыто на текущем ресурсе; открыть его может только новая независимая
-  проверка присутствия Target-Me, а не ещё один separator поверх тех же данных.
-- Free-text local synthesis закрыт; повтор возможен лишь с новым runtime/model и сравнением против
-  более безопасного ID-only результата.
-- ID-only selector завершён и остаётся opt-in; его не следует переносить в критический путь из-за
-  расхода памяти и отсутствия high-confidence population в frozen corpus.
+- Пред-ASR разделение закрыто на текущем ресурсе; открыть его может новая независимая проверка
+  присутствия Target-Me, а не ещё один separator поверх тех же данных.
+- Free-text local synthesis закрыт `DO_NOT_PROMOTE`; ID-only selector остаётся opt-in.
+- Cross-session voice identity запрещена без отдельного privacy contract. Имена только из review.
 - Live promotion заблокирован; Live Shadow остаётся диагностическим черновиком.
-- Cross-session participant identity, cloud и автоматические external writes требуют отдельных
-  privacy и safety решений.
-- UI/Menu Bar остаётся optional tail после зрелого CLI.
+- Cloud, автоматические внешние записи и UI остаются необязательным хвостом.
 
 ## Ворота Продвижения
 
-Каждая гипотеза замораживает inputs, работает в отдельном профиле, проверяет deterministic replay,
-referential integrity, fallback и ordinary-output non-regression. `PROMOTE` открывает только явно
-ограниченную дополнительную поверхность. `DO_NOT_PROMOTE` фиксирует предел и оставляет production
-неизменным.
+Каждая гипотеза замораживает inputs, работает в отдельном профиле и проверяет deterministic replay,
+referential integrity, fallback, word conservation и ordinary-output non-regression. Coverage нельзя
+повышать ценой ложной уверенности: слабые интервалы остаются `unknown`.
 
 ## Проверка Плана
 

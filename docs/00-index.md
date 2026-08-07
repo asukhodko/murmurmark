@@ -78,20 +78,17 @@ Read in this order:
 ## Current Planning Entry Points
 
 Planning snapshot: 2026-08-07. Durable capture, authoritative batch transcription, guarded review,
-extractive notes/export and Speaker-Preserving Neural Echo v2.17 remain production. The bounded
+optional extractive notes/export and Speaker-Preserving Neural Echo v2.17 remain production. The bounded
 pre-ASR frontier is closed: SepFormer could assign present Target-Me stems but failed reliable
 presence/absence separation before dev. Anonymous rich transcript, explicit reviewed naming and
 Reviewed Speaker-Aware Meeting Memory v1 are promoted optional read surfaces.
 
-Evidence-Guarded Local Synthesis Qualification v1 is now complete with reproducible
-`DO_NOT_PROMOTE`. On six frozen sessions the pinned 14.8B model produced 142 claims; 49 passed, 69
-failed independent support checks and 24 were hidden as duplicates or output overflow. All replays
-and references were deterministic, unsupported published claims stayed at zero and ordinary output
-bytes did not change. Evidence-Only Local Note Selection v1 then passed 6/6 sessions with
-`PROMOTE_OPTIONAL_EVIDENCE_SELECTION`: 47 review-marked candidates became 28 and published
-model-authored claims stayed at zero. The current goal is Reviewed Meeting Artifacts v1: assign
-`confirmed`, `rejected` or `unresolved` states to exact candidates without changing their wording
-or evidence. Local Evidence Retrieval v1 and Reviewed Work Proposals v1 follow that checkpoint.
+Free-text synthesis is closed with reproducible `DO_NOT_PROMOTE`; exact ID-only selection remains an
+optional derivative. The mission now ends at a reliable speaker-resolved transcript. Remote Speaker
+Evidence Map v1 proved attributed-only B-cubed F1 `0.913884`, but covers only `50.3892%` of remote
+speech and cannot split internal speaker changes. **Remote Speaker Diarization v2** is current;
+**Transcript Perfection Corpus v1** follows. Notes, retrieval and work proposals are parked until
+the transcript-quality program reaches its corpus gates.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,
