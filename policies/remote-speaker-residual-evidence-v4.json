@@ -1,0 +1,37 @@
+{
+  "schema": "murmurmark.remote_speaker_residual_policy/v4",
+  "state": "evaluated_do_not_promote",
+  "profile": "resemblyzer_split_enrollment_bounded_residual_v4",
+  "scope": "audit_only_remote_speaker_residual_ceiling",
+  "decision": "DO_NOT_PROMOTE",
+  "reason": "safe_local_evidence_ceiling_below_coverage_target",
+  "corpus_manifest": {
+    "path": "docs/testing/remote-speaker-residual-evidence-v4-manifest.json",
+    "sha256": "e04001722b74c4443e646d6ecfc28dd073bf3709238fc7343f33d5784cfaa0f2"
+  },
+  "measured": {
+    "baseline_unknown_words": 851,
+    "baseline_unknown_seconds": 598.239509,
+    "recovered_words": 124,
+    "recovered_seconds": 83.640207,
+    "unknown_words_reduction_ratio": 0.145711,
+    "unknown_seconds_reduction_ratio": 0.139811,
+    "attributable_remote_speech_ratio": 0.947797,
+    "attributed_only_bcubed_f1": 0.962171,
+    "attributed_only_pairwise_precision": 0.961675
+  },
+  "thresholds": {
+    "unknown_words_reduction_ratio": 0.2,
+    "unknown_seconds_reduction_ratio": 0.2,
+    "attributed_only_bcubed_f1": 0.95,
+    "attributed_only_pairwise_precision": 0.95,
+    "speaker_similarity": 0.66,
+    "speaker_margin": 0.008,
+    "split_enrollment_similarity": 0.72
+  },
+  "fallback": "remote_speaker_coverage_v3",
+  "existing_v3_labels_unchanged": true,
+  "authoritative_plain_transcript_unchanged": true,
+  "identity_inference": false,
+  "cross_session_matching": false
+}

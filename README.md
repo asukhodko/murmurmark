@@ -62,9 +62,6 @@ From a developer checkout, use `source .venv/bin/activate && scripts/install-loc
 compatibility matrix and model fingerprint live in [`release/compatibility-v1.json`](release/compatibility-v1.json);
 see the [installation runbook](docs/runbooks/install-and-upgrade.md).
 
-The optional stronger audio judge uses a local faster-whisper model. Its absence must not block the
-normal pipeline; `murmurmark doctor` reports it as an optional warning.
-
 ## Stable Meeting Workflow
 
 The normal meeting path is one command:
@@ -288,10 +285,12 @@ Speaker-Preserving Neural Echo v2.17 requalified the unchanged selector after AS
 Remote Speaker Evidence Map v1 remains the conservative baseline. Remote Speaker Coverage v3 is
 promoted as the highest-coverage optional read surface: it attributes `93.9312%` of remote speech,
 preserves every selected word and can split supported speaker changes inside one ASR utterance.
-Build and inspect it with:
+Residual Evidence v4 measured a further safe ceiling but did not pass promotion, so v3 remains the
+supported source. Build and inspect both with:
 
 ```bash
 murmurmark audit remote-coverage "$SESSION"
+murmurmark audit remote-residual "$SESSION"
 murmurmark transcript "$SESSION" --rich
 ```
 
@@ -319,12 +318,13 @@ Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental 
 -> Remote Speaker Evidence (done: audit-only, 50.4% coverage)
 -> Remote Speaker Diarization v2 (done: PROMOTE, 91.9% coverage)
 -> Remote Speaker Coverage v3 (done: PROMOTE, 93.9% coverage)
--> Remote Speaker Residual Evidence v4 (current) -> Speaker-Resolved Default
+-> Remote Speaker Residual Evidence v4 (done: DO_NOT_PROMOTE, measured ceiling)
+-> Speaker-Resolved Transcript Default v1 (current)
 ```
 
-**Remote Speaker Residual Evidence v4** targets the new top residual: 851 words / `598.240s` of
-preserved remote speech without a supported speaker. It addresses each evidence cause separately and
-must not lower v3 thresholds to buy coverage. See the [current goal](docs/project/current-goal.md),
+**Speaker-Resolved Transcript Default v1** now moves the promoted, fingerprint-verified v3 view into
+the ordinary CLI read surface while retaining exact aggregate fallback for unsupported evidence.
+V4 recovered 124 words / `83.640s`, below its `20%` promotion gates, and remains audit-only. See the [current goal](docs/project/current-goal.md),
 [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 ## Scope And Limitations
 
@@ -362,7 +362,6 @@ must not lower v3 thresholds to buy coverage. See the [current goal](docs/projec
 - Batch transcript is authoritative; live output is not used for export or retention decisions.
 - No cloud ASR or cloud raw-audio upload is required by the normal workflow.
 - Notes, summaries, retrieval and work-system proposals are optional derivatives outside the critical roadmap.
-- A future UI must reuse CLI contracts and is not required for a useful product.
 ## Documentation
 
 - [Documentation index](docs/00-index.md)
@@ -376,7 +375,7 @@ must not lower v3 thresholds to buy coverage. See the [current goal](docs/projec
 - [Meeting cheat sheet](docs/runbooks/meeting-cheatsheet.md)
 - [Transcription and review runbook](docs/runbooks/transcribe-simple-whispercpp.md)
 - [Transcript Perfection Corpus contract](docs/contracts/transcript-perfection-corpus.md)
-- [Remote Speaker Coverage v3 contract](docs/contracts/remote-speaker-coverage-v3.md)
+- [Remote Speaker Coverage v3](docs/contracts/remote-speaker-coverage-v3.md) and [Residual Evidence v4](docs/contracts/remote-speaker-residual-evidence-v4.md) contracts
 
 ## Development Checks
 
@@ -386,7 +385,7 @@ swift build
 scripts/check-planning-consistency.py
 scripts/check-open-source-readiness.sh
 scripts/check.sh
-murmurmark corpus remote-coverage all --verify-existing
+murmurmark corpus remote-coverage all --verify-existing && murmurmark corpus remote-residual all --verify-existing
 murmurmark corpus perfection all --verify-existing
 ```
 The active roadmap uses OpsKarta v3. Validate and render it with the adjacent OpsKarta repository:

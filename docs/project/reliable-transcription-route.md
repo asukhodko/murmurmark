@@ -4,8 +4,8 @@ Status: active product route; durable capture, one-command processing, evidence 
 export are complete. Speaker-Preserving Neural Echo v2.17 is the compatible production pre-ASR
 plateau. The bounded pre-ASR frontier is complete after SepFormer stopped before dev on unreliable
 Target-Me presence evidence. Remote Speaker Coverage v3 is promoted with `93.9312%` attributable
-remote speech, strong private-reference precision and exact v2-label/word conservation. Remote
-Speaker Residual Evidence v4 is the current product step selected by Transcript Perfection Corpus;
+remote speech, strong private-reference precision and exact v2-label/word conservation. Residual
+Evidence v4 closed with a measured `DO_NOT_PROMOTE`; Speaker-Resolved Transcript Default v1 is current;
 notes, retrieval and work proposals are optional derivatives outside the critical route.
 Date: 2026-08-07
 
@@ -460,15 +460,15 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Remote Speaker Residual Evidence v4: сократить remaining `unknown_remote_speaker`
-с 598.240 секунды и 851 слова минимум на 20%, не ослабляя promoted v3 thresholds и не меняя
-v2/v3 speaker labels, слова, таймкоды, Me/remote роли или порядок; сохранить attributed-only
-B-cubed F1 и pairwise precision не ниже 0.95 либо зафиксировать cause-specific DO_NOT_PROMOTE.
+Speaker-Resolved Transcript Default v1: сделать promoted Coverage v3 обычным transcript, meeting
+handoff и guarded export на совместимых сессиях; сохранить слова, таймкоды, Me/remote роли и порядок;
+unsupported remote words оставить Colleagues, а stale или missing evidence вернуть к byte-identical
+aggregate transcript с явной причиной.
 ```
 
 Transcript Perfection Corpus v1 уже зафиксировал baseline и остаётся общим no-regression gate.
-После Remote Speaker Residual Evidence v4 следует закрывать оставшиеся измеренные классы по одному, затем
-квалифицировать speaker-resolved transcript как normal read surface с exact aggregate fallback.
+Residual Evidence v4 закрылся `DO_NOT_PROMOTE` после безопасных 124 words / `83.640s`; теперь
+speaker-resolved transcript квалифицируется как normal read surface с exact aggregate fallback.
 Local mic multi-speaker остаётся условной веткой и открывается только после реального сценария и
 размеченного материала. Производные workflows остаются optional.
 
@@ -478,15 +478,16 @@ Use this prompt if external consultation is needed:
 
 ```text
 Мы строим MurmurMark: локальный macOS CLI-пайплайн для надёжной speaker-resolved транскрибации
-1x1 и групповых созвонов. Coverage v3 завершён с PROMOTE; текущая цель — Remote Speaker Residual
-Evidence v4.
+1x1 и групповых созвонов. Coverage v3 завершён с PROMOTE; Residual Evidence v4 завершён с
+DO_NOT_PROMOTE; текущая цель — Speaker-Resolved Transcript Default v1.
 
 Имеется:
 - authoritative selected dialogue и Evidence Handoff v2;
 - Remote Speaker Coverage v3: PROMOTE, 6 frozen sessions, attributable speech 0.939312,
   B-cubed F1 0.962171, pairwise precision 0.961675, 5/5 internal boundaries;
 - corpus baseline проверяет 12/12 frozen sources; lexical correctness пока `not_measured`;
-- крупнейший actionable residual: unknown remote speaker, 851 слово / 598.240 секунды / 6 сессий;
+- v4 безопасно восстановил 124 слова / 83.640 секунды, но не достиг 20% coverage gates;
+- продуктовый пробел: доказанный v3 доступен только через explicit `--rich`;
 - explicit fingerprint-bound reviewed naming with anonymous fail-open;
 - selected ASR words/order/timestamps должны оставаться неизменными;
 - closed pre-ASR frontier; production v2.17 remains exact audio plateau.
@@ -502,9 +503,8 @@ roles и speakers корректны, а предел доказательств
 - weak attribution не форсируется ради coverage.
 
 Вопросы:
-1. Какие cause-specific evidence безопасно добавят speech-aware bounded windows для
-   similarity-below и embedding-unavailable, не снижая attributed-only precision?
-2. Какие независимые enrollment, similarity и margin evidence нужны для нового speaker attribution?
-3. Когда тяжёлый локальный backend действительно добавляет доказательство, а не только coverage?
-4. Как доказать минимум 20% сокращения remaining unknown при полном conservation слов, таймкодов и ролей?
+1. Где должен жить единый selector promoted v3, reviewed labels и exact aggregate fallback?
+2. Как доказать byte-identical слова, таймкоды, роли и порядок во всех read/export surfaces?
+3. Какие policy, implementation, manifest и session fingerprints обязательны до выбора v3?
+4. Как сделать fallback reason видимым в transcript, status, outcome и meeting handoff без лишнего UX?
 ```

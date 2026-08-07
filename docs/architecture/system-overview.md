@@ -123,9 +123,9 @@ Coverage v3 then raised attributable remote speech to `93.9312%` while preservin
 selected word, timestamp and aggregate fallback. `--rich` verifies the promoted policy and current
 input lineage; explicit session-local decisions remain the only way to replace anonymous display
 IDs. Transcript Perfection Corpus v1 remains the measurement baseline. Its current ranked closure is
-Remote Speaker Residual Evidence v4 over the remaining `598.240s` / 851 preserved remote words with
-unknown speaker; only after repeated residual gates pass may the speaker-resolved view become the
-normal transcript surface. Notes,
+complete: Residual Evidence v4 recovered 124 words / `83.640s` but missed both `20%` gates and closed
+with `DO_NOT_PROMOTE`. Speaker-Resolved Transcript Default v1 now qualifies promoted v3 as the
+normal transcript surface with exact aggregate fail-open. Notes,
 retrieval and work proposals remain optional consumers and cannot alter the authoritative path.
 
 Target full-product path:

@@ -71,6 +71,7 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Remote speaker evidence v1 | `done` | B-cubed F1 `0.913884` на attributed части, coverage `50.3892%` |
 | Remote speaker diarization v2 | `done` | Coverage `91.9071%`, B-cubed F1 `0.960690`, exact words |
 | Remote speaker coverage v3 | `done` | Coverage `93.9312%`, B-cubed F1 `0.962171`, exact v2 labels |
+| Remote speaker residual v4 | `done` | `DO_NOT_PROMOTE`: safe ceiling `14.57%` words / `13.98%` seconds |
 | Anonymous rich view | `done` | Exact optional handoff и explicit session-local naming |
 | Производные заметки | `done/optional` | Exact evidence memory и безопасный ID-only selector доступны |
 
@@ -83,8 +84,8 @@ flowchart LR
     F["Fail open<br/>aggregate Colleagues"]
     P["Done<br/>Transcript Perfection<br/>Corpus v1"]
     R["Done<br/>Remote Speaker<br/>Coverage v3"]
-    V["Current<br/>Remote Speaker<br/>Residual Evidence v4"]
-    H["Blocked<br/>Speaker-Resolved<br/>Default v1"]
+    V["Done: DO_NOT_PROMOTE<br/>Remote Speaker<br/>Residual Evidence v4"]
+    H["Current<br/>Speaker-Resolved<br/>Default v1"]
     M["Idea<br/>Local Mic Multi-Speaker<br/>Diarization v1"]
     O["Optional<br/>Notes, retrieval,<br/>work proposals"]
 
@@ -129,20 +130,23 @@ B-cubed F1 до `0.962171`, pairwise precision до `0.961675`.
 Результат: unknown words снижены на `30.1887%`, seconds на `25.0113%`; words, timestamps, v2 labels,
 aggregate fallback и все Transcript Perfection gates остались точными.
 
-### 5. Remote Speaker Residual Evidence v4 — `current`
+### 5. Remote Speaker Residual Evidence v4 — `done`
 
-Оставшиеся 851 words / `598.240s` разделены на пять причин. V4 начинает с speech-aware bounded
-окон для `similarity_below_threshold` (`191.081s`) и `embedding_unavailable` (`130.804s`). Thresholds
-v3 не ослабляются; conflicting speakers и protected overlap не получают метку без нового evidence.
+V4 проверил speech-aware bounded окна и независимые половины enrollment, не ослабляя thresholds v3.
+Восстановлено 124 words / `83.640s`; reductions `14.5711%` words и `13.9811%` seconds не достигли
+порогов `20%`. B-cubed F1 `0.962171`, pairwise precision `0.961675`, conservation и boundaries
+остались точными.
 
-Результат: ещё минимум `20%` сокращения unknown words и seconds при precision `>=0.95` и полном
-conservation либо cause-specific `DO_NOT_PROMOTE`, который фиксирует доступный локальный предел.
+Результат: воспроизводимый `DO_NOT_PROMOTE`. Promoted v3 остаётся поддерживаемым источником, а
+727 words / `514.599s` сохраняют честный aggregate fallback. Повторять тот же speaker backend с
+пониженными порогами не нужно.
 
-### 6. Speaker-Resolved Transcript Default v1 — `blocked`
+### 6. Speaker-Resolved Transcript Default v1 — `current`
 
-Когда release-blocking residual classes закрыты, обычный CLI read surface начинает выбирать
-speaker-resolved transcript. Слабая, отсутствующая или stale evidence по-прежнему возвращает exact
-aggregate `Colleagues`; voice-only имена и cross-session identity запрещены.
+Обычный CLI read surface, meeting handoff и guarded export начинают выбирать promoted v3 на
+совместимых сессиях. Слабая, отсутствующая или stale evidence возвращает exact aggregate
+`Colleagues`; неподдержанные v3 words остаются aggregate внутри speaker-resolved результата.
+Voice-only имена и cross-session identity запрещены.
 
 Результат: миссия видна в стандартном пользовательском результате, а не только через `--rich`.
 

@@ -99,6 +99,8 @@ Current operating point, 2026-08-07:
 - Remote Speaker Coverage v3 is promoted: `93.9312%` attributable remote speech,
   attributed-only B-cubed F1 `0.962171`, pairwise precision `0.961675`, 5/5 internal-boundary cases,
   exact v2-label and selected-word conservation plus aggregate fallback;
+- Remote Speaker Residual Evidence v4 closed with `DO_NOT_PROMOTE`: 124 words / `83.640s` recovered,
+  but `14.57%` word and `13.98%` second reductions missed both `20%` promotion gates;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 
@@ -115,7 +117,7 @@ audio quality alone as evidence of correct word attribution. Post-ASR duplicate 
 promotion credit. Reopening the audio frontier requires an independently qualified abstaining
 Target-Me presence detector. Free-text LLM synthesis remains unpromoted; ID-only evidence selection
 is an explicit opt-in view with exact source text. Transcript Perfection Corpus v1 remains the
-baseline; Remote Speaker Residual Evidence v4 is the current ranked residual closure. Notes, retrieval,
+baseline; Speaker-Resolved Transcript Default v1 is the current product closure. Notes, retrieval,
 external writes and UI remain optional work.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.
@@ -228,8 +230,8 @@ Current selected transcript is narrower:
 - `mic` is treated as candidate `Me`;
 - promoted Remote Speaker Coverage v3 provides an optional `--rich` view with `93.9312%`
   attributable remote speech, exact selected-word and v2-label conservation and explicit `unknown`;
-- the rich view does not become the default or an export source until the Transcript Perfection
-  residual and dependent promotion gates pass;
+- the rich view becomes the default or an export source only through Speaker-Resolved Transcript
+  Default v1 with exact aggregate fallback;
 - short overlapping ASR windows are reconciled into a global timeline;
 - timeline repair and micro-ASR recover local islands when Whisper glues `Me` and `remote` turns together;
 - `transcript.shadow_v2.md` is the best candidate only when `repair_comparison.json` passes.

@@ -6,80 +6,73 @@ This document expands the single executable goal from
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`.
 `scripts/check-planning-consistency.py` keeps the README, roadmap and OpsKarta wording aligned.
 
-## Remote Speaker Residual Evidence v4
+## Speaker-Resolved Transcript Default v1
 
-OpsKarta nearest goal: Remote Speaker Residual Evidence v4: сократить оставшиеся 851 remote words / 598.240 секунды explicit `unknown` после promoted Coverage v3, не ослабляя его similarity/margin gates и не меняя существующие v2/v3 speaker labels, selected words, timestamps, `Me`, роли, порядок или aggregate fallback; разбирать причины отдельно, начиная с `similarity_below_threshold` и `embedding_unavailable`, проверять bounded speech-aware окна и независимое enrollment agreement, а тяжёлый локальный backend допускать только как pinned offline-кандидат с явной лицензией, моделью и воспроизводимостью; conflicting frames и protected overlap оставлять unknown без нового независимого доказательства; продвинуть изолированный профиль только при снижении оставшихся unknown words и seconds минимум на 20%, attributed-only B-cubed F1 и pairwise precision не ниже 0.95, полном conservation и прохождении 1x1/group/boundary/fallback и Transcript Perfection gates; иначе выпустить воспроизводимый DO_NOT_PROMOTE с cause-specific evidence ceiling; capture, Echo Guard, основной ASR, local mic diarization, export и optional derivatives не менять; добавить tests/report, актуализировать README, contracts, runbook, roadmap и OpsKarta, закоммитить и отправить в origin/main.
+OpsKarta nearest goal: Speaker-Resolved Transcript Default v1: сделать promoted Remote Speaker Coverage v3 стандартным локальным результатом `murmurmark transcript`, meeting handoff и guarded export для совместимых сессий, сохранив authoritative selected words, текст, порядок, роли и timestamps без изменений; показывать доказанные session-local anonymous speaker IDs, а неподдержанные remote words оставлять aggregate `Colleagues`; принимать v3 только при совпадении policy, implementation, frozen corpus manifest и всех session input/artifact SHA-256, иначе автоматически и явно возвращать byte-identical aggregate transcript; сохранить явный `--rich` как совместимый диагностический путь и применять человеческие имена только из complete fingerprint-bound review; добавить selected-speaker-profile и fallback reason в status/outcome/handoff, проверить six-session corpus, 1x1/group, 5/5 boundaries, stale/missing/model fallback, deterministic replay, ordinary transcript/export и Transcript Perfection gates; capture, Echo Guard, основной ASR, local mic diarization, cross-session identity и optional derivatives не менять; актуализировать README, contracts, runbook, roadmap и OpsKarta, закоммитить и отправить в origin/main.
 
 ## Why Now
 
-Remote Speaker Coverage v3 reached `PROMOTE`: it recovered 368 words / `199.533s`, raised
-attributable remote speech from `0.919071` to `0.939312`, and kept B-cubed F1 `0.962171` and
-pairwise precision `0.961675`. The unified scorecard now ranks the remaining 851 words /
-`598.240s` as the largest transcript residual.
+Remote Speaker Coverage v3 is already promoted and attributes `93.9312%` of frozen remote speech
+with B-cubed F1 `0.962171` and pairwise precision `0.961675`. The remaining evidence is honest:
+unsupported words stay `unknown` and can be rendered as aggregate `Colleagues`.
 
-The residue is no longer homogeneous:
+Residual Evidence v4 tested the obvious bounded continuation. It recovered 124 words / `83.640s`,
+but reductions of `14.5711%` words and `13.9811%` seconds missed both `20%` gates. All safety gates
+passed, so v4 closed with `DO_NOT_PROMOTE`. More threshold tuning is not the shortest reliable path.
 
-- `similarity_below_threshold`: 113 words / `191.081s`;
-- `conflicting_frame_speakers`: 233 words / `131.497s`;
-- `embedding_unavailable`: 211 words / `130.804s`;
-- `margin_below_threshold`: 278 words / `110.882s`;
-- `protected_remote_overlap`: 16 words / `33.536s`.
+The product value now exists behind explicit `--rich`; this goal moves the proven result into the
+normal user path without claiming identity where evidence is absent.
 
 ## Objective
 
-Add independent evidence for the causes that can be resolved safely. Do not turn uncertainty into a
-speaker label merely by lowering v3 thresholds. The goal ends with either a promoted isolated v4
-profile or a measured `DO_NOT_PROMOTE` that states which causes remain unsupported locally.
+Make the default transcript visibly speaker-resolved on eligible sessions. Keep aggregate output as
+an exact fail-open fallback and make the selected profile and fallback reason machine-readable.
 
 ## Required Work
 
-1. Freeze the v3 queue, cause map and all source hashes; keep private text and names out of tracked
-   artifacts.
-2. Build cause-specific fixtures and ceilings. Evaluate speech-aware bounded windows first for
-   similarity and missing embeddings.
-3. Require agreement with existing session-local enrollment. Never create identity from a single
-   weak embedding or infer a human name.
-4. Evaluate a heavier local diarization backend only if the bounded path cannot meet the target and
-   runtime, model, license and offline installation are pinned.
-5. Replay the six-session speaker corpus, private reference, five internal boundaries and all
-   Transcript Perfection dimensions.
-6. Publish one decision, testing snapshot and refreshed residual ranking; update active planning,
-   commit and push.
+1. Define one selector over promoted v3, reviewed session-local labels and exact aggregate fallback.
+2. Use it consistently in `transcript`, meeting final handoff, status/outcome and guarded export.
+3. Preserve `--rich` compatibility and never infer a human name from voice.
+4. Add stale policy, manifest, implementation, input, artifact and missing-runtime fallback tests.
+5. Replay six frozen sessions, 1x1/group and five internal boundaries; keep Transcript Perfection
+   green and ordinary selected words byte-exact.
+6. Publish the decision, refresh planning, commit and push.
 
 ## Acceptance Gates
 
-- remaining unknown words and seconds each fall by at least `20%`, or decision is `DO_NOT_PROMOTE`;
-- attributed-only B-cubed F1 and pairwise precision stay `>= 0.95`;
-- every v2/v3 attributed word keeps its speaker;
-- selected words, text, timestamps, `Me`, roles, overlap and raw audio remain exact;
-- 1x1, group and 5/5 boundary controls pass;
-- conflicting frames and protected overlap remain unknown without independent evidence;
-- missing model, stale lineage or failed gate returns exact promoted v3 fallback;
-- repeated offline runs are deterministic and Transcript Perfection stays green.
+- eligible sessions select promoted v3 without an extra user flag;
+- every supported remote word renders its session-local speaker; every unsupported word remains
+  `Colleagues` rather than receiving a guessed identity;
+- selected words, text, timestamps, `Me`, roles and order stay exact;
+- stale, missing or incompatible evidence returns the exact previous aggregate transcript;
+- status, outcome and handoff expose selected speaker profile and fallback reason;
+- reviewed names require a complete current-session decision with matching fingerprints;
+- 1x1, group, 5/5 boundaries, deterministic replay, export and Transcript Perfection gates pass.
 
 ## Safety Boundary
 
-- no capture, Echo Guard, primary ASR, retention or export change;
-- no cross-session voice identity or voice-derived human names;
-- no local mic multi-speaker work without a real labeled scenario;
-- no cloud service or implicit model download;
-- no promotion of notes, summaries or other derivative work.
+- no capture, Echo Guard, primary ASR, audio selection or raw retention change;
+- no cross-session voice identity and no voice-derived human names;
+- no local mic multi-speaker claim without a real labeled scenario;
+- no cloud dependency or implicit model download;
+- no new notes, summaries or work-system behavior.
 
 ## Previous Goal Result
 
-Remote Speaker Coverage v3 completed with `PROMOTE`:
+Remote Speaker Residual Evidence v4 completed with `DO_NOT_PROMOTE`:
 
-- recovered 368 words / `199.533s` from the v2 unknown queue;
-- unknown reductions: words `30.1887%`, seconds `25.0113%`;
-- attributable speech `0.939312`, B-cubed F1 `0.962171`, pairwise precision `0.961675`;
-- all conservation, 1x1, group, boundary, fallback and deterministic replay gates passed;
-- Transcript Perfection Corpus remains 12/12 valid and now ranks `598.240s` first.
+- recovered 124 words / `83.640207s` from 851 words / `598.239509s`;
+- reductions were `14.5711%` words and `13.9811%` seconds versus `20%` gates;
+- attributable speech reached an audit-only `0.947797`;
+- B-cubed F1 stayed `0.962171`, pairwise precision `0.961675`;
+- all conservation, existing-label, 1x1/group, 5/5 boundary, raw and fallback gates passed;
+- promoted v3 and the exact aggregate fallback remain unchanged.
 
 ## After This Goal
 
-1. Re-run Transcript Perfection Corpus and take its highest remaining release blocker.
-2. Qualify Speaker-Resolved Transcript Default only when residual gates make the standard view
-   honest and useful with exact aggregate fallback.
-3. Open local mic multi-speaker diarization only after a real labeled scenario exists.
+1. Re-run Transcript Perfection Corpus and take its largest remaining transcript defect.
+2. Open local mic multi-speaker diarization only after a real labeled scenario exists.
+3. Revisit remote residuals only with a genuinely independent pinned speaker backend or stronger
+   enrollment evidence, not lower v3 thresholds.
 
 Raw CAF and batch output remain authoritative. Live Shadow remains advisory.

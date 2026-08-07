@@ -294,12 +294,12 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
         "remote speaker coverage v3 must remain a completed promoted checkpoint",
     )
     require(
-        nodes["quality-remote-speaker-residual-evidence-v4"].get("status") == "current",
-        "remote speaker residual evidence v4 must be the current quality goal",
+        nodes["quality-remote-speaker-residual-evidence-v4"].get("status") == "done",
+        "remote speaker residual evidence v4 must remain a completed measured ceiling",
     )
     require(
-        nodes["product-speaker-resolved-transcript-default-v1"].get("status") == "blocked",
-        "speaker-resolved default must stay blocked until residual gates pass",
+        nodes["product-speaker-resolved-transcript-default-v1"].get("status") == "current",
+        "speaker-resolved default must be the current product goal",
     )
     require(
         nodes["optional-derived-transcript-workflows"].get("status") == "optional",

@@ -555,26 +555,26 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-remote-speaker-coverage-v3]
-    status: current
+    status: done
     effort: 16
     notes: |
-      Разобрать remaining 851 words / 598.240s cause-specific: сначала similarity-below и missing
-      embeddings, не ослабляя v3 thresholds. PROMOTE требует >=20% unknown words/seconds reduction,
-      B-cubed F1 и pairwise precision >=0.95, exact v2/v3 labels, words, timestamps, boundaries,
-      overlap и fallback; conflicts остаются unknown без нового независимого evidence.
+      Завершено DO_NOT_PROMOTE. Split-enrollment bounded windows восстановили 124 words / 83.640s:
+      14.5711% words и 13.9811% seconds при gates 20%. B-cubed F1 0.962171, pairwise precision
+      0.961675; v3 labels, words, timestamps, boundaries, raw и fallback сохранились. Профиль
+      audit-only, promoted v3 остаётся поддерживаемым источником.
 
   product-speaker-resolved-transcript-default-v1:
     title: "Speaker-Resolved Transcript Default v1"
     kind: task
     parent: murmurmark-cli
     deps: [quality-remote-speaker-residual-evidence-v4, quality-remote-speaker-diarization-v2, product-reliable-final-handoff-v1]
-    status: blocked
+    status: current
     effort: 8
     notes: |
-      После прохождения unified release gates перевести promoted session-local anonymous speaker view
-      из explicit `--rich` в обычный CLI read surface и guarded export. Missing, stale, weak или
-      incompatible evidence обязана возвращать exact aggregate Colleagues; имена по голосу и
-      cross-session identity запрещены.
+      Перевести promoted v3 из explicit `--rich` в обычный CLI read surface, meeting handoff и
+      guarded export. Unsupported words остаются Colleagues; missing, stale, weak или incompatible
+      evidence возвращает byte-identical aggregate transcript. Имена только из complete
+      fingerprint-bound session review; voice identity и cross-session matching запрещены.
 
   future-local-mic-diarization-v1:
     title: "Local Mic Multi-Speaker Diarization v1"
@@ -628,10 +628,10 @@ views:
         nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-remote-speaker-residual-evidence-v4]
-      dependent:
-        title: "Следующая quality-цепочка"
         nodes: [product-speaker-resolved-transcript-default-v1]
+      dependent:
+        title: "Завершённый evidence ceiling"
+        nodes: [quality-remote-speaker-residual-evidence-v4]
       conditional:
         title: "Только при появлении local multi-speaker evidence"
         nodes: [future-local-mic-diarization-v1]
@@ -707,8 +707,8 @@ views:
         title: "Доказанная speaker evidence"
         nodes: [research-remote-diarization, research-rich-transcript, quality-remote-speaker-diarization-v2]
       current:
-        title: "Крупнейший measured residual"
-        nodes: [quality-remote-speaker-residual-evidence-v4]
+        title: "Стандартный speaker-resolved результат"
+        nodes: [product-speaker-resolved-transcript-default-v1]
       closure:
         title: "Unified baseline"
         nodes: [quality-transcript-perfection-corpus-v1]
@@ -772,8 +772,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Remote Speaker Residual Evidence v4: сократить оставшиеся 851 remote words / 598.240 секунды explicit `unknown` после promoted Coverage v3, не ослабляя его similarity/margin gates и не меняя существующие v2/v3 speaker labels, selected words, timestamps, `Me`, роли, порядок или aggregate fallback; разбирать причины отдельно, начиная с `similarity_below_threshold` и `embedding_unavailable`, проверять bounded speech-aware окна и независимое enrollment agreement, а тяжёлый локальный backend допускать только как pinned offline-кандидат с явной лицензией, моделью и воспроизводимостью; conflicting frames и protected overlap оставлять unknown без нового независимого доказательства; продвинуть изолированный профиль только при снижении оставшихся unknown words и seconds минимум на 20%, attributed-only B-cubed F1 и pairwise precision не ниже 0.95, полном conservation и прохождении 1x1/group/boundary/fallback и Transcript Perfection gates; иначе выпустить воспроизводимый DO_NOT_PROMOTE с cause-specific evidence ceiling; capture, Echo Guard, основной ASR, local mic diarization, export и optional derivatives не менять; добавить tests/report, актуализировать README, contracts, runbook, roadmap и OpsKarta, закоммитить и отправить в origin/main."
-      success_by_next_sync: "Remaining v3 unknown разобран по причинам; один isolated v4 profile дал >=20% reduction при precision/conservation gates либо выпущен reproducible cause-specific DO_NOT_PROMOTE ceiling."
+      nearest_goal: "Speaker-Resolved Transcript Default v1: сделать promoted Remote Speaker Coverage v3 стандартным локальным результатом `murmurmark transcript`, meeting handoff и guarded export для совместимых сессий, сохранив authoritative selected words, текст, порядок, роли и timestamps без изменений; показывать доказанные session-local anonymous speaker IDs, а неподдержанные remote words оставлять aggregate `Colleagues`; принимать v3 только при совпадении policy, implementation, frozen corpus manifest и всех session input/artifact SHA-256, иначе автоматически и явно возвращать byte-identical aggregate transcript; сохранить явный `--rich` как совместимый диагностический путь и применять человеческие имена только из complete fingerprint-bound review; добавить selected-speaker-profile и fallback reason в status/outcome/handoff, проверить six-session corpus, 1x1/group, 5/5 boundaries, stale/missing/model fallback, deterministic replay, ordinary transcript/export и Transcript Perfection gates; capture, Echo Guard, основной ASR, local mic diarization, cross-session identity и optional derivatives не менять; актуализировать README, contracts, runbook, roadmap и OpsKarta, закоммитить и отправить в origin/main."
+      success_by_next_sync: "Обычный CLI, meeting handoff и guarded export выбирают promoted v3 на совместимых сессиях и byte-identical aggregate fallback при любой слабой или stale evidence."
     defaults:
       status_progress:
         done: 1.0
@@ -794,13 +794,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle, batch transcript, review, notes/export и Live Shadow уже работают."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Remote Speaker Residual Evidence v4"
-        scope_nodes: [quality-remote-speaker-residual-evidence-v4]
+        title: "Speaker-Resolved Transcript Default v1"
+        scope_nodes: [product-speaker-resolved-transcript-default-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Coverage v3 promoted: 368 words / 199.533s recovered. Крупнейший residual теперь 598.240s / 851 remote words с explicit unknown speaker."
-          next_sync_goal: "Снизить remaining unknown минимум на 20% cause-specific evidence без потери precision, words, timestamps и fallback."
+          sync_note: "Coverage v3 promoted; residual v4 закрылся честным DO_NOT_PROMOTE после безопасных 14.57% words / 13.98% seconds. Доказанный speaker view готов к продуктовому default."
+          next_sync_goal: "Сделать promoted v3 обычным read surface с exact aggregate fail-open и видимым selection reason."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -815,7 +815,7 @@ x:
         mgmt:
           health: yellow
           sync_note: "Unified perfection corpus выбирает ровно один residual; после каждого решения ranking пересчитывается до speaker-resolved default."
-          next_sync_goal: "Закрыть следующий evidence-bounded слой unknown remote speaker, затем пересчитать ranking."
+          next_sync_goal: "Довести standard speaker-resolved transcript до corpus-qualified product handoff."
       research:
         title: "Будущий local multi-speaker"
         scope_nodes: [future-local-mic-diarization-v1]

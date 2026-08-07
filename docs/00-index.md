@@ -77,11 +77,14 @@ Read in this order:
 73. [Remote Speaker Coverage v3 contract](contracts/remote-speaker-coverage-v3.md)
 74. [Remote Speaker Coverage v3 runbook](runbooks/remote-speaker-coverage-v3.md)
 75. [Remote Speaker Coverage v3 result](testing/2026-08-07-remote-speaker-coverage-v3.md)
-76. [Evidence-Guarded Local Synthesis runbook](runbooks/evidence-guarded-local-synthesis.md)
-77. [Evidence-Guarded Local Synthesis result](research/2026-08-07-evidence-guarded-local-synthesis-v1.md)
-78. [Evidence-Only Local Note Selection runbook](runbooks/evidence-only-local-note-selection.md)
-79. [Evidence-Only Local Note Selection result](research/2026-08-07-evidence-only-local-note-selection-v1.md)
-80. [Planning and development history](history/README.md)
+76. [Remote Speaker Residual Evidence v4 contract](contracts/remote-speaker-residual-evidence-v4.md)
+77. [Remote Speaker Residual Evidence v4 runbook](runbooks/remote-speaker-residual-evidence-v4.md)
+78. [Remote Speaker Residual Evidence v4 result](testing/2026-08-07-remote-speaker-residual-evidence-v4.md)
+79. [Evidence-Guarded Local Synthesis runbook](runbooks/evidence-guarded-local-synthesis.md)
+80. [Evidence-Guarded Local Synthesis result](research/2026-08-07-evidence-guarded-local-synthesis-v1.md)
+81. [Evidence-Only Local Note Selection runbook](runbooks/evidence-only-local-note-selection.md)
+82. [Evidence-Only Local Note Selection result](research/2026-08-07-evidence-only-local-note-selection-v1.md)
+83. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
@@ -93,11 +96,12 @@ Reviewed Speaker-Aware Meeting Memory v1 are promoted optional read surfaces.
 
 Free-text synthesis is closed with reproducible `DO_NOT_PROMOTE`; exact ID-only selection remains an
 optional derivative. The mission now ends at a reliable speaker-resolved transcript. Remote Speaker
-Diarization v2 passed `PROMOTE`; Coverage v3 then raised attributable remote speech from `91.9071%`
-to `93.9312%`, recovered 368 words / `199.533s`, and preserved B-cubed F1 `0.962171`, pairwise
-precision `0.961675` and every selected word. Transcript Perfection Corpus remains 12/12 valid.
-**Remote Speaker Residual Evidence v4** is current because the refreshed scorecard ranks the
-remaining 851 words / `598.240s` first. Notes, retrieval and work proposals remain parked.
+Diarization v2 passed `PROMOTE`; Coverage v3 raised attributable remote speech to `93.9312%` while
+preserving B-cubed F1 `0.962171`, pairwise precision `0.961675` and every selected word. Residual
+Evidence v4 safely recovered another 124 words / `83.640s`, but its `14.57%` word and `13.98%`
+second reductions missed both `20%` promotion gates. It closed with reproducible `DO_NOT_PROMOTE`.
+**Speaker-Resolved Transcript Default v1** is current: expose promoted v3 through the ordinary CLI
+with exact aggregate fallback. Notes, retrieval and work proposals remain parked.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

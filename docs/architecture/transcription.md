@@ -199,8 +199,9 @@ unknown without weakening current Target-Me protection.
 
 Status: seeded local remote diarization and bounded Coverage v3 are promoted; replacement ASR and
 correction components remain target architecture, not current production. Transcript Perfection
-Corpus v1 is the frozen measurement baseline; Remote Speaker Residual Evidence v4 is the current
-cause-specific candidate stage over 851 words / `598.240s`.
+Corpus v1 is the frozen measurement baseline. Residual Evidence v4 measured its safe ceiling and
+closed `DO_NOT_PROMOTE`; Speaker-Resolved Transcript Default v1 now productizes promoted v3 with
+exact aggregate fallback.
 
 Primary:
 
