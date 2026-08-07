@@ -62,6 +62,8 @@ CRITICAL_PATH = (
     "quality-pre-asr-target-me-isolation-limit-v1",
     "quality-remote-speaker-diarization-v2",
     "quality-transcript-perfection-corpus-v1",
+    "quality-remote-speaker-coverage-v3",
+    "product-speaker-resolved-transcript-default-v1",
 )
 
 EXPECTED_STATUSES = {"done", "current", "next", "later", "idea", "optional", "blocked"}
@@ -268,8 +270,26 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
         "remote diarization v2 must remain a completed promoted checkpoint",
     )
     require(
-        nodes["quality-transcript-perfection-corpus-v1"].get("status") == "current",
-        "transcript perfection corpus must remain the current quality goal",
+        nodes["quality-transcript-perfection-corpus-v1"].get("status") == "done",
+        "transcript perfection corpus must remain a completed baseline",
+    )
+    require(
+        "quality-transcript-perfection-corpus-v1"
+        in nodes["quality-remote-speaker-coverage-v3"].get("deps", []),
+        "remote speaker coverage v3 must follow the perfection corpus baseline",
+    )
+    require(
+        "quality-remote-speaker-coverage-v3"
+        in nodes["product-speaker-resolved-transcript-default-v1"].get("deps", []),
+        "speaker-resolved default must follow the current ranked residual closure",
+    )
+    require(
+        nodes["quality-remote-speaker-coverage-v3"].get("status") == "current",
+        "remote speaker coverage v3 must be the current quality goal",
+    )
+    require(
+        nodes["product-speaker-resolved-transcript-default-v1"].get("status") == "blocked",
+        "speaker-resolved default must stay blocked until residual gates pass",
     )
     require(
         nodes["optional-derived-transcript-workflows"].get("status") == "optional",

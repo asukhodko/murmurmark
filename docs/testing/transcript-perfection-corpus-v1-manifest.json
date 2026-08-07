@@ -1,0 +1,184 @@
+{
+  "dimensions": [
+    "recognized_words",
+    "chronology",
+    "me_remote_roles",
+    "remote_speaker_turns",
+    "overlap",
+    "missing_me",
+    "remote_leakage",
+    "acoustic_modes"
+  ],
+  "policy": {
+    "abstention_is_not_correctness": true,
+    "aggregate_quality_score": false,
+    "missing_reference_status": "not_measured",
+    "operational_perfection": "correct_supported_result_plus_explicit_unknown",
+    "ranking_formula": "severity * (1 + ln(1 + seconds)) * (0.5 + 0.5 * evidence_strength) * (0.4 + 0.6 * repairability) * (1 + 0.15 * ln(1 + sessions))"
+  },
+  "schema": "murmurmark.transcript_perfection_manifest/v1",
+  "sources": [
+    {
+      "bytes": 52070,
+      "dimensions": [
+        "recognized_words",
+        "remote_speaker_turns"
+      ],
+      "evidence_level": "private_reference_plus_frozen_real_sessions",
+      "expected_schema": "murmurmark.remote_speaker_diarization_corpus_report/v2",
+      "id": "remote_speaker_diarization_v2",
+      "path": "sessions/_reports/remote-speaker-diarization-v2/remote_speaker_diarization_corpus_report.json",
+      "required": true,
+      "sha256": "c3ac832ad8bb7a148c1efd19e4067089b20f80a066986385a58950e92aafeb5d"
+    },
+    {
+      "bytes": 6755,
+      "dimensions": [
+        "recognized_words",
+        "remote_speaker_turns"
+      ],
+      "evidence_level": "portable_frozen_lineage",
+      "expected_schema": "murmurmark.remote_speaker_diarization_frozen_manifest/v2",
+      "id": "remote_speaker_diarization_v2_manifest",
+      "path": "docs/testing/remote-speaker-diarization-v2-manifest.json",
+      "required": true,
+      "sha256": "32161a77afd2a63e79c21e063111be6b5202b9b542e8ecc09978319d0c111470"
+    },
+    {
+      "bytes": 11887,
+      "dimensions": [
+        "me_remote_roles",
+        "overlap",
+        "remote_leakage"
+      ],
+      "evidence_level": "frozen_real_session_arbitration",
+      "expected_schema": "murmurmark.residual_audio_arbitration_corpus_report/v1",
+      "id": "residual_audio_arbitration_v1",
+      "path": "sessions/_reports/residual-audio-arbitration-v1/residual_audio_corpus_report.json",
+      "required": true,
+      "sha256": "0092f36988964a6f25eef944f3ba7c16535cf35f8690f8428605b522207271cb"
+    },
+    {
+      "bytes": 90312,
+      "dimensions": [
+        "me_remote_roles",
+        "overlap",
+        "remote_leakage"
+      ],
+      "evidence_level": "frozen_real_session_lineage",
+      "expected_schema": "murmurmark.residual_audio_arbitration_baseline/v1",
+      "id": "residual_audio_arbitration_v1_baseline",
+      "path": "sessions/_reports/residual-audio-arbitration-v1/baseline_manifest.json",
+      "required": true,
+      "sha256": "a63f6db5c7838f6855dc65701eac3e3dff3d97fcb9e738e26d835ab452a48a35"
+    },
+    {
+      "bytes": 8514,
+      "dimensions": [
+        "missing_me"
+      ],
+      "evidence_level": "frozen_real_session_arbitration",
+      "expected_schema": "murmurmark.residual_local_recall_corpus_report/v1",
+      "id": "residual_local_recall_v1",
+      "path": "sessions/_reports/residual-local-recall-v1/residual_local_recall_corpus_report.json",
+      "required": true,
+      "sha256": "72adabd8b931e85815e868a5ec05280aee8987243df65ce5a655cf80db2895a1"
+    },
+    {
+      "bytes": 58116,
+      "dimensions": [
+        "missing_me",
+        "chronology"
+      ],
+      "evidence_level": "frozen_real_session_lineage",
+      "expected_schema": "murmurmark.residual_local_recall_baseline/v1",
+      "id": "residual_local_recall_v1_baseline",
+      "path": "sessions/_reports/residual-local-recall-v1/residual_local_recall_baseline.json",
+      "required": true,
+      "sha256": "983ba4b5a076d00a5e7fbbfbf7884ac3d7c9de9d83cd070a93552a5515755717"
+    },
+    {
+      "bytes": 45049,
+      "dimensions": [
+        "chronology",
+        "me_remote_roles",
+        "overlap"
+      ],
+      "evidence_level": "frozen_real_session_lineage",
+      "expected_schema": "murmurmark.speaker_mode_profile_baseline/v1",
+      "id": "speaker_mode_profile_baseline",
+      "path": "sessions/_reports/speaker-mode-hardening-v1/profile_baseline_manifest.json",
+      "required": true,
+      "sha256": "74b8246e1204c03ed34c737e4105bd0b5821fe709a8ce5320052d834d2098e80"
+    },
+    {
+      "bytes": 31545,
+      "dimensions": [
+        "chronology",
+        "overlap"
+      ],
+      "evidence_level": "frozen_real_session_queue",
+      "expected_line_schema": "murmurmark.speaker_mode_risk/v1",
+      "id": "chronology_risk_queue",
+      "path": "sessions/_reports/speaker-mode-hardening-v1/chronology_risk_queue.jsonl",
+      "required": true,
+      "sha256": "7d664c15a06595a88b9d723febe6b5affdbbe17fdcea6c4d373598676ca8504b"
+    },
+    {
+      "bytes": 29440,
+      "dimensions": [
+        "acoustic_modes"
+      ],
+      "evidence_level": "labeled_real_sessions",
+      "expected_schema": "murmurmark.acoustic_mode_corpus_report/v1",
+      "id": "acoustic_mode_corpus",
+      "path": "sessions/_reports/speaker-mode-hardening-v1/acoustic_mode_corpus_report.json",
+      "required": true,
+      "sha256": "72beb4f29cf897e0b9829da83e9ec42209517bd3bf49b5259cb97c539f3bf179"
+    },
+    {
+      "bytes": 20893,
+      "dimensions": [
+        "me_remote_roles",
+        "missing_me",
+        "remote_leakage",
+        "acoustic_modes"
+      ],
+      "evidence_level": "sealed_real_session_pre_asr_corpus",
+      "expected_schema": "murmurmark.speaker_preserving_neural_echo_corpus_report/v2.17",
+      "id": "speaker_preserving_neural_echo_v2_17",
+      "path": "sessions/_reports/speaker-preserving-neural-echo-v2-17-corpus/corpus_report.json",
+      "required": true,
+      "sha256": "4af7e659d91a43eaf5da6bbdc5c916661612696081a4e1b6113864c991aa96ae"
+    },
+    {
+      "bytes": 323,
+      "dimensions": [
+        "me_remote_roles",
+        "missing_me",
+        "remote_leakage"
+      ],
+      "evidence_level": "frozen_promotion_decision",
+      "expected_schema": "murmurmark.speaker_preserving_neural_echo_promotion_decision/v2.17",
+      "id": "speaker_preserving_neural_echo_v2_17_decision",
+      "path": "sessions/_reports/speaker-preserving-neural-echo-v2-17-corpus/promotion_decision.json",
+      "required": true,
+      "sha256": "a6f084cef6d1fba4ebf90c24861e1b7ea63c2d6169e8bc1f785a1c1dedb9c187"
+    },
+    {
+      "bytes": 53229,
+      "dimensions": [
+        "chronology",
+        "me_remote_roles",
+        "overlap",
+        "missing_me"
+      ],
+      "evidence_level": "frozen_real_session_safety_gate",
+      "expected_schema": "murmurmark.authoritative_boundary_corpus_report/v1",
+      "id": "authoritative_boundary_v1",
+      "path": "sessions/_reports/authoritative-boundary-v1/boundary_corpus_report.json",
+      "required": true,
+      "sha256": "08b14907b5176b45e2a8bbbc8793b6ae2e5019393f1c1c9dbad9feb5b7015e50"
+    }
+  ]
+}

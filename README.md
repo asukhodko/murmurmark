@@ -308,9 +308,9 @@ murmurmark notes "$SESSION" --reviewed-speakers
 murmurmark export "$SESSION" --format markdown --include-json --reviewed-speakers
 ```
 Speaker-aware memory and the exact-text selector are completed optional derivatives. The pre-ASR
-frontier is closed with exact fallback. **Remote Speaker Diarization v2** passed its frozen gates;
-**Transcript Perfection Corpus v1** now combines text, chronology, roles, speaker turns, overlap and
-explicit uncertainty into one convergence benchmark.
+frontier is closed with exact fallback. **Transcript Perfection Corpus v1** established its baseline:
+12/12 frozen sources pass, lexical correctness remains explicit `not_measured`, and unlike corpus
+scopes are never collapsed into a synthetic score.
 
 The dependent critical path is:
 
@@ -318,12 +318,12 @@ The dependent critical path is:
 Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental ASR
 -> Remote Speaker Evidence (done: audit-only, 50.4% coverage)
 -> Remote Speaker Diarization v2 (done: PROMOTE, 91.9% coverage)
--> Transcript Perfection Corpus v1 (current)
+-> Transcript Perfection Corpus v1 (done) -> Remote Speaker Coverage v3 (current) -> Speaker-Resolved Default
 ```
 
-The current stage defines transcript perfection as correct supported words, roles, order and speakers
-plus visible `unknown` where evidence ends. Local mic diarization waits for a real multi-person
-scenario; derivative workflows remain parked. See the [current goal](docs/project/current-goal.md),
+**Remote Speaker Coverage v3** targets the top measured residual: 1219 words / `797.773s` of preserved
+remote speech without a supported speaker. It must reduce unknown by 25% without weakening precision,
+words, timestamps or fallback. See the [current goal](docs/project/current-goal.md),
 [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 
 ## Scope And Limitations
@@ -376,7 +376,7 @@ scenario; derivative workflows remain parked. See the [current goal](docs/projec
 - [Meeting lifecycle contract](docs/contracts/meeting-lifecycle.md)
 - [Meeting cheat sheet](docs/runbooks/meeting-cheatsheet.md)
 - [Transcription and review runbook](docs/runbooks/transcribe-simple-whispercpp.md)
-- [Transcript and evidence contracts](docs/contracts/transcript-and-evidence.md)
+- [Transcript Perfection Corpus contract](docs/contracts/transcript-perfection-corpus.md)
 
 ## Development Checks
 
@@ -386,7 +386,7 @@ swift build
 scripts/check-planning-consistency.py
 scripts/check-open-source-readiness.sh
 scripts/check.sh
-
+murmurmark corpus perfection all --verify-existing
 murmurmark corpus lifecycle all --require-frozen-inputs --require-passing-gates
 ```
 The active roadmap uses OpsKarta v3. Validate and render it with the adjacent OpsKarta repository:

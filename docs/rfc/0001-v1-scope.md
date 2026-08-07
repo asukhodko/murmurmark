@@ -49,8 +49,8 @@ Current implementation status, 2026-08-07:
   selection remains an explicit optional derivative;
 - Remote Speaker Diarization v2 is promoted with `91.9071%` attributable remote speech, exact
   selected-word conservation and aggregate `Colleagues` fallback. Transcript Perfection Corpus v1
-  is current. Cross-session identity, summaries, cloud/external writes and UI remain future or
-  optional work.
+  has established the unified baseline; Remote Speaker Coverage v3 is current. Cross-session
+  identity, summaries, cloud/external writes and UI remain future or optional work.
 
 ## Goals
 

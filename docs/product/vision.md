@@ -68,7 +68,7 @@ Speaker attribution is evidence-first. Voice can establish session-local similar
 human identity. Remote Speaker Diarization v2 is promoted with `91.9071%` attributable remote
 speech and exact selected-word conservation. Unsupported regions and a rare voice without enough
 enrollment remain explicit `unknown`. Transcript Perfection Corpus v1 now replaces derivative note
-work as the active goal.
+work as the convergence baseline. Remote Speaker Coverage v3 is the active goal selected from it.
 
 ## Core User Jobs
 
@@ -105,10 +105,16 @@ met, unless an explicit product decision changes the priority.
 
 ## Near-Term Direction
 
-1. **Transcript Perfection Corpus v1:** one benchmark for text, chronology, roles, speakers, overlap,
-   acoustic modes and known residual defects.
-2. **Local Mic Multi-Speaker Diarization v1:** only after a real multi-person local scenario and
-   labelled corpus exist.
+1. **Transcript Perfection Corpus v1:** maintain the completed 12-source benchmark for text,
+   chronology, roles, speakers, overlap, acoustic modes and known residual defects.
+2. **Remote Speaker Coverage v3:** reduce the top residual, 1219 words / `797.773s` of unknown remote
+   speaker, without weakening attributed precision or word conservation.
+3. **Measured residual loop:** rerank after every bounded `PROMOTE` or evidence ceiling and close the
+   next highest-impact class.
+4. **Speaker-Resolved Transcript Default v1:** make the promoted anonymous-speaker view the normal
+   result only after corpus-wide word, role, order, speaker and fallback gates pass.
+5. **Local Mic Multi-Speaker Diarization v1:** a conditional branch opened only by a real
+   multi-person local scenario and labelled corpus.
 
 ## Long-Term Direction
 

@@ -47,7 +47,7 @@ flowchart LR
     E["Guarded Echo and Target-Me"]
     T["Authoritative transcript"]
     A["Audit and review evidence"]
-    S["Audit-only remote speaker map"]
+    S["Promoted remote speaker diarization"]
     X["Guarded export and retention"]
 
     C --> E --> T --> A --> S --> X
@@ -68,7 +68,8 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Echo / Target-Me | `done` | v2.17: safe personalized plateau, exact fallback |
 | Сильнее разделить mic | `done` | `DO_NOT_ADVANCE`: нет надёжного Target-Me presence gate |
 | Transcript / handoff | `done` | Authoritative batch, Evidence Handoff v2, guarded export |
-| Remote speaker evidence | `done` | B-cubed F1 `0.913884` на attributed части, coverage `50.3892%` |
+| Remote speaker evidence v1 | `done` | B-cubed F1 `0.913884` на attributed части, coverage `50.3892%` |
+| Remote speaker diarization v2 | `done` | Coverage `91.9071%`, B-cubed F1 `0.960690`, exact words |
 | Anonymous rich view | `done` | Exact optional handoff и explicit session-local naming |
 | Производные заметки | `done/optional` | Exact evidence memory и безопасный ID-only selector доступны |
 
@@ -77,16 +78,18 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 ```mermaid
 flowchart LR
     B["Done<br/>Remote Speaker<br/>Evidence Map v1"]
-    D["Current<br/>Remote Speaker<br/>Diarization v2"]
+    D["Done<br/>Remote Speaker<br/>Diarization v2"]
     F["Fail open<br/>aggregate Colleagues"]
-    P["Next<br/>Transcript Perfection<br/>Corpus v1"]
+    P["Done<br/>Transcript Perfection<br/>Corpus v1"]
+    R["Current<br/>Remote Speaker<br/>Coverage v3"]
+    H["Blocked<br/>Speaker-Resolved<br/>Default v1"]
     M["Idea<br/>Local Mic Multi-Speaker<br/>Diarization v1"]
     O["Optional<br/>Notes, retrieval,<br/>work proposals"]
 
-    B --> D
+    B --> D --> P --> R --> H
     F --> D
-    D --> P --> M
-    P -.-> O
+    P -. "real local scenario" .-> M
+    H -.-> O
 ```
 
 ### 1. Remote Speaker Evidence Map v1 — `done`
@@ -103,26 +106,44 @@ Word/frame-level diarization работает по authoritative remote audio, �
 `PROMOTE`: coverage `0.919071`, attributed-only B-cubed F1 `0.960690`, pairwise precision
 `0.959564`, 5/5 boundary cases и zero selected-word loss/duplication.
 
-Результат: speaker-resolved read surface, который можно продвинуть только после corpus-wide
-`PROMOTE`; иначе остаётся воспроизводимый предел и прежний transcript.
+Результат: promoted optional speaker-resolved read surface. Plain transcript остаётся aggregate
+fallback до отдельной продуктовой квалификации; это не отменяет успешное завершение v2.
 
-### 3. Transcript Perfection Corpus v1 — `current`
+### 3. Transcript Perfection Corpus v1 — `done`
 
 Единый корпус связывает проверку текста, порядка, ролей, speaker turns, overlap, missing `Me`,
-remote leakage, наушников, динамиков и шумного офиса. Для каждого известного дефекта есть reference,
-метрика и regression gate. Следующая инженерная цель всегда выбирается по крупнейшему измеренному
-остатку, а не по последней случайной сессии.
+remote leakage и acoustic modes. Baseline `BASELINE_ESTABLISHED`: 12/12 frozen sources verified,
+восемь явных dimensions, lexical correctness честно `not_measured`, aggregate score запрещён.
 
 Результат: конечный критерий сходимости к идеальной транскрибации и защита от бесконечной цепочки
 локальных эвристик.
 
-### 4. Local Mic Multi-Speaker Diarization v1 — `idea`
+### 4. Remote Speaker Coverage v3 — `current`
+
+Corpus report выбрал крупнейший доказанный класс: 1219 remote words / `797.773s` на шести сессиях
+сохранены, но не имеют supported speaker attribution. V3 сначала разбирает причины unknown и
+проверяет bounded улучшения существующего Resemblyzer-профиля; тяжёлый backend допускается только
+как pinned offline candidate.
+
+Результат: снижение unknown words/seconds минимум на 25% при B-cubed F1 и pairwise precision не
+ниже 0.95 либо воспроизводимый `DO_NOT_PROMOTE` с точным evidence ceiling. Words, timestamps,
+aggregate fallback и остальные perfection gates не меняются.
+
+### 5. Speaker-Resolved Transcript Default v1 — `blocked`
+
+Когда release-blocking residual classes закрыты, обычный CLI read surface начинает выбирать
+speaker-resolved transcript. Слабая, отсутствующая или stale evidence по-прежнему возвращает exact
+aggregate `Colleagues`; voice-only имена и cross-session identity запрещены.
+
+Результат: миссия видна в стандартном пользовательском результате, а не только через `--rich`.
+
+### 6. Local Mic Multi-Speaker Diarization v1 — `idea`
 
 Когда появится реальный сценарий нескольких людей у одного ноутбука и размеченный материал, mic-речь
 будет разделяться на Target-Me, other local speakers и `unknown`. Этот этап зависит от remote v2 и
 Transcript Perfection Corpus, но не нужен для нынешнего основного сценария одного пользователя.
 
-### 5. Производные Возможности — `optional`
+### 7. Производные Возможности — `optional`
 
 Extractive notes, quality verdict, reviewed speaker memory, ID-only selection, локальный поиск и
 work proposals могут развиваться после достижения transcript gates или по отдельному явному запросу.

@@ -114,8 +114,9 @@ Any later separator remains isolated until a corpus-wide decision and cannot use
 audio quality alone as evidence of correct word attribution. Post-ASR duplicate cleanup receives no
 promotion credit. Reopening the audio frontier requires an independently qualified abstaining
 Target-Me presence detector. Free-text LLM synthesis remains unpromoted; ID-only evidence selection
-is an explicit opt-in view with exact source text. The current stage is Transcript Perfection
-Corpus v1. Notes, retrieval, external writes and UI remain optional work.
+is an explicit opt-in view with exact source text. Transcript Perfection Corpus v1 has established
+the baseline; Remote Speaker Coverage v3 is the current ranked residual closure. Notes, retrieval,
+external writes and UI remain optional work.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.
 
@@ -211,7 +212,7 @@ Possible controls:
 
 ### Transcription
 
-The active remote-diarization qualification and future heavy-local replacements may support:
+Future heavy-local replacements and validators may support:
 
 - remote primary ASR through VibeVoice-ASR;
 - remote diarization through a pinned local backend such as pyannote Community-1;
@@ -223,10 +224,12 @@ The active remote-diarization qualification and future heavy-local replacements 
 Current selected transcript is narrower:
 
 - one local `whisper.cpp` model for both tracks;
-- `remote` is treated as authoritative `Colleagues`;
+- `remote` remains authoritative and the plain fallback is aggregate `Colleagues`;
 - `mic` is treated as candidate `Me`;
-- no per-person labels in the selected plain `Colleagues` transcript; optional anonymous evidence
-  currently covers about half of remote speech and v2 qualification targets the gap;
+- promoted Remote Speaker Diarization v2 provides an optional `--rich` view with `91.9071%`
+  attributable remote speech, exact selected-word conservation and explicit `unknown`;
+- the rich view does not become the default or an export source until the Transcript Perfection
+  residual and dependent promotion gates pass;
 - short overlapping ASR windows are reconciled into a global timeline;
 - timeline repair and micro-ASR recover local islands when Whisper glues `Me` and `remote` turns together;
 - `transcript.shadow_v2.md` is the best candidate only when `repair_comparison.json` passes.

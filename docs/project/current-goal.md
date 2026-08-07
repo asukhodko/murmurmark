@@ -4,111 +4,104 @@ Status: current
 
 Updated: 2026-08-07
 
-MurmurMark exists to produce the most reliable local meeting transcript that the available
-evidence can support. The transcript must preserve words, chronology and roles, distinguish remote
-participants by voice inside a session, and expose uncertainty. Notes, summaries, retrieval and
-work-system updates are optional derivatives and do not hold the critical path.
+MurmurMark exists to produce the most reliable local meeting transcript that available evidence can
+support. The transcript must preserve words, chronology and roles, distinguish remote participants
+by voice inside a session, and expose uncertainty. Notes, summaries, retrieval and work-system
+updates are optional derivatives and do not hold the critical path.
 
 Roadmap status and dependencies live in `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`.
 `scripts/check-planning-consistency.py` keeps the README, roadmap and OpsKarta wording aligned.
 
-## Transcript Perfection Corpus v1
+## Remote Speaker Coverage v3
 
-OpsKarta nearest goal: Transcript Perfection Corpus v1: собрать единый локальный frozen benchmark над существующими real-session и synthetic references для recognized words, chronology, Me/remote roles, remote speaker turns, overlap, missing Me, remote leakage и acoustic modes; формально определить operational transcript perfection как корректный supported result плюс explicit unknown, не позволяя улучшать score простым abstention; добавить одну воспроизводимую corpus-команду, versioned manifest и no-regression gates, которые сохраняют отдельные safety thresholds, private references и raw CAF; измерить текущий production baseline, ранжировать residual classes по пользовательскому вреду, длительности, частоте и доказательности и выбрать один крупнейший исправимый класс как следующую цель; default transcript, capture, Echo Guard, ASR, promoted remote diarization, retention, cloud/external writes и optional synthesis не менять; добавить tests/report, согласовать README, contracts, runbook, current goal, roadmap и OpsKarta, закоммитить и отправить в origin/main.
+OpsKarta nearest goal: Remote Speaker Coverage v3: сократить крупнейший frozen residual `unknown_remote_speaker` в Transcript Perfection Corpus v1 — 797.773 секунды и 1219 слов на шести сессиях — не меняя selected words, `Me`, роли, порядок и обычный aggregate transcript; построить карту причин unknown, проверить сначала bounded улучшения существующего локального Resemblyzer-профиля, а более тяжёлый локальный backend допускать только как pinned offline-кандидат без неявного скачивания; разрешать speaker attribution лишь при независимом enrollment и достаточных similarity/margin evidence, сохраняя conflicting overlap и слабую речь как unknown; продвинуть изолированный профиль только при снижении unknown seconds и words минимум на 25%, attributed-only B-cubed F1 и pairwise precision не ниже 0.95, полном word/timestamp conservation, прохождении 1x1/group/boundary/fallback gates и отсутствии регрессий Transcript Perfection Corpus; иначе выпустить воспроизводимый DO_NOT_PROMOTE с точным evidence ceiling; default transcript, capture, Echo Guard, ASR, retention, export, local mic diarization и optional derivatives не менять; добавить tests/report, актуализировать README, contracts, runbook, current goal, roadmap и OpsKarta, закоммитить и отправить в origin/main.
 
 ## Why Now
 
-The pipeline already has many strong but separate gates: selected words, transcript order, local
-recall, remote leakage, Target-Me preservation, acoustic mode, remote speaker precision and
-speaker-boundary conservation. Remote Speaker Diarization v2 is now promoted with `91.9071%`
-attributable remote speech, B-cubed F1 `0.960690`, pairwise precision `0.959564` and exact selected
-word conservation.
+Transcript Perfection Corpus v1 established one deterministic baseline over 12 frozen sources. It
+keeps correctness, coverage, uncertainty and review burden separate and does not publish a synthetic
+aggregate score. The largest measured actionable residual is remote speech whose words are present
+but whose speaker is still `unknown`:
 
-The remaining risk is fragmentation of evidence. A new session can reveal a defect, but there is no
-single scorecard showing whether it is the largest user-visible gap, whether fixing it regresses a
-different layer, or how close the whole product is to its mission. The next useful step is therefore
-measurement convergence rather than another local heuristic.
+- `797.773s` of `9857.660s` remote speech;
+- 1219 of 18212 selected remote words;
+- six frozen sessions, including 1x1 and group calls;
+- current attributable speech ratio `0.919071`.
+
+This is larger than the remaining chronology (`62.690s`), ambiguous Me audio (`196.280s`) and
+missing-Me (`21.120s`) queues under the frozen ranking. It also maps directly to the product mission:
+the words already exist, but the transcript cannot always say which remote voice spoke them.
 
 ## Objective
 
-Build one deterministic transcript-quality benchmark and CLI report over existing frozen corpora.
-It must preserve the meaning and thresholds of each source gate while presenting one operational
-answer:
+Increase supported remote-speaker coverage without buying coverage through incorrect labels. The
+result must preserve the current high-precision attributed subset and exact aggregate fallback.
 
-- what is already correct and supported;
-- what remains explicit unknown or review;
-- which residual class causes the most user harm;
-- which exact next command or engineering goal follows;
-- whether a candidate change regresses any promoted capability.
+The goal may end in either:
 
-The corpus establishes a baseline and selection mechanism. It does not need to make the current
-transcript perfect in the same goal.
+- `PROMOTE_REMOTE_SPEAKER_COVERAGE_V3` when usefulness and safety gates pass; or
+- a scientifically complete `DO_NOT_PROMOTE` that identifies which unknown regions cannot be
+  resolved with the available local evidence and models.
 
 ## Required Work
 
-1. Inventory current frozen references and manifests for words, chronology, roles, local recall,
-   remote-forbidden leakage, acoustic modes and remote speakers. Record authoritative, partial and
-   synthetic coverage explicitly.
-2. Define a versioned `transcript_perfection/v1` contract. Separate correctness, coverage,
-   uncertainty and review burden so abstention cannot masquerade as quality.
-3. Add one local corpus command and report that reuses current artifacts where possible, verifies
-   input lineage and emits per-session, per-dimension and aggregate results.
-4. Freeze a portable manifest with session IDs and SHA-256 only. Private reference text, names and
-   raw audio stay ignored and local.
-5. Preserve every existing hard safety gate. A missing reference is `not_measured`, not a pass; a
-   stale artifact is an explicit failure or bounded skip according to the source contract.
-6. Rank residual classes by severity, affected seconds, frequency, confidence and repairability.
-   Choose one next goal from that ranking and record why alternatives are lower priority.
-7. Add synthetic and real-corpus regressions, update documentation and OpsKarta, then commit and push
-   a reproducible baseline decision.
+1. Freeze the 1219-word / `797.773s` unknown queue with session, utterance, word, frame and source
+   hashes. Do not store private transcript text or names in tracked files.
+2. Classify causes: missing seed enrollment, short speech, boundary dilution, internal change,
+   overlap, low signal, rare speaker, cluster conflict or missing token/audio alignment.
+3. Establish per-cause ceilings and the safest candidate order. Start with existing Resemblyzer
+   evidence: adaptive windows, bounded unknown-only clustering and stricter secondary enrollment.
+4. Keep every candidate isolated. A local pyannote/Sortformer-class backend may be evaluated only
+   after its model, license, hashes, runtime and offline installation are explicit.
+5. Attribute a word only when audio evidence, session-local enrollment, nearest-speaker similarity
+   and margin agree. Never infer a human name or cross-session identity from voice.
+6. Replay the six-session speaker corpus, private reference, five internal-boundary cases and the
+   complete Transcript Perfection scorecard.
+7. Publish one decision, testing snapshot and next residual ranking; update all active planning
+   documents, then commit and push.
 
 ## Acceptance Gates
 
-- one command rebuilds or verifies the benchmark and produces JSON plus a concise Markdown report;
-- every promoted source gate is represented without weakening its original threshold;
-- words, order, roles, local recall, remote leakage, remote speakers, overlap and acoustic modes have
-  explicit measured or `not_measured` status;
-- correctness and coverage are reported separately; unknown/review burden remains visible;
-- no missing or stale input is silently counted as passing;
-- the tracked manifest contains no transcript text, human names or machine-specific absolute paths;
-- repeated offline runs with the same inputs are deterministic;
-- raw CAF, selected transcripts and existing promoted artifacts remain unchanged;
-- the report identifies one largest actionable residual class and the next complete engineering
-  goal, with evidence for the choice.
+- unknown remote speech and unknown remote words each fall by at least `25%` relative to the frozen
+  v2 baseline, or the result is `DO_NOT_PROMOTE`;
+- attributed-only B-cubed F1 `>= 0.95` and pairwise precision `>= 0.95`;
+- selected word loss/duplication is zero and turn text reconstructs selected text byte for byte;
+- word timestamps remain monotonic and bounded by source utterances;
+- 1x1 dominance, expected group speaker ranges and 5/5 internal-boundary cases pass;
+- conflicting overlap and weak evidence remain explicit unknown;
+- raw audio, selected dialogue, `Me`, plain transcript, notes and export inputs are unchanged;
+- stale or missing model/evidence yields exact aggregate fallback;
+- Transcript Perfection Corpus source integrity and every existing source gate remain green;
+- replay with identical inputs is deterministic and offline.
 
 ## Safety Boundary
 
-- no new capture, Echo Guard, ASR, diarization or repair algorithm in this goal;
-- no loosening of existing corpus thresholds to make the aggregate report green;
-- no cloud model, implicit download, external publication or identity inference;
-- no mandatory notes, summaries, retrieval, work proposals or UI work;
-- no claim of perfection where a dimension lacks reference coverage.
+- no change to capture, Echo Guard, primary ASR or selected transcript text;
+- no forced label solely to satisfy coverage;
+- no voice-derived human names or cross-session identity;
+- no cloud service, external write or implicit model download;
+- no local mic multi-speaker diarization in this goal;
+- no promotion of notes, summaries or work proposals.
 
 ## Previous Goal Result
 
-Remote Speaker Diarization v2 completed with `PROMOTE`:
+Transcript Perfection Corpus v1 completed with `BASELINE_ESTABLISHED`:
 
-- frozen sessions: `6`;
-- attributable remote speech ratio: `0.919071`;
-- attributed-only B-cubed F1: `0.960690`;
-- attributed-only pairwise precision: `0.959564`;
-- frozen internal-boundary cases: `5/5`;
-- selected-word loss or duplication: `0`;
-- 1x1 and group speaker-count gates: passed;
-- stale/model/input failures: exact aggregate fallback;
-- promoted read command: `murmurmark transcript SESSION --rich` after
-  `murmurmark audit remote-diarization SESSION`.
-
-The remaining `8.0929%` of remote speech stays explicit unknown. A rare fourth voice in the private
-reference lacked enough enrollment and was not forced into a known speaker.
+- 12/12 frozen source artifacts verified by byte count, SHA-256 and schema;
+- eight transcript dimensions reported explicitly;
+- lexical correctness remains honest `not_measured`; word conservation is not treated as WER;
+- no aggregate quality score or invalid sum across unlike corpus scopes;
+- stale input test produces `INVALID_INPUTS`;
+- repeated generation is byte-identical;
+- ranked residuals: remote speaker `797.773s`, chronology `62.690s`, ambiguous Me audio
+  `196.280s`, missing Me `21.120s`.
 
 ## After This Goal
 
-1. Execute the largest measured, safely repairable residual class selected by the perfection report.
-2. Repeat the unified corpus gate after every transcript-quality change.
-3. Start Local Mic Multi-Speaker Diarization v1 only after a real multi-person local scenario and
-   labelled corpus exist.
-4. Keep summaries, retrieval and work-system proposals optional until transcript convergence.
+1. Re-run Transcript Perfection Corpus v1 and take the new highest-ranked release blocker.
+2. Repeat one isolated residual closure at a time until the speaker-resolved default gate is clear.
+3. Promote the speaker-resolved transcript as the normal CLI read surface only after those gates.
+4. Open Local Mic Multi-Speaker Diarization only after a real labeled multi-person local scenario.
 
 Raw CAF and batch output remain authoritative. Live Shadow remains advisory and cannot select or
 publish a speaker-resolved transcript.

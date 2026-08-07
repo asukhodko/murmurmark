@@ -460,14 +460,17 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Transcript Perfection Corpus v1: объединить frozen references и regression gates для words,
-chronology, Me/remote roles, remote speakers, overlap, missing Me, remote leakage и acoustic modes;
-определить supported correctness плюс explicit unknown, измерить единый baseline и выбрать
-следующий quality goal по крупнейшему доказанному residual class.
+Remote Speaker Coverage v3: сократить крупнейший frozen residual `unknown_remote_speaker`
+с 797.773 секунды и 1219 слов минимум на 25%, не меняя слова, таймкоды, Me/remote роли и порядок;
+сохранить attributed-only B-cubed F1 и pairwise precision не ниже 0.95 либо зафиксировать
+воспроизводимый DO_NOT_PROMOTE с точным пределом доступных доказательств.
 ```
 
-Производные workflows остаются optional. Local mic multi-speaker открывается только после реального
-сценария и размеченного материала.
+Transcript Perfection Corpus v1 уже зафиксировал baseline и остаётся общим no-regression gate.
+После Remote Speaker Coverage v3 следует закрывать оставшиеся измеренные классы по одному, затем
+квалифицировать speaker-resolved transcript как normal read surface с exact aggregate fallback.
+Local mic multi-speaker остаётся условной веткой и открывается только после реального сценария и
+размеченного материала. Производные workflows остаются optional.
 
 ## Consultation Prompt
 
@@ -475,13 +478,15 @@ Use this prompt if external consultation is needed:
 
 ```text
 Мы строим MurmurMark: локальный macOS CLI-пайплайн для надёжной speaker-resolved транскрибации
-1x1 и групповых созвонов. Текущая цель — Transcript Perfection Corpus v1.
+1x1 и групповых созвонов. Transcript Perfection Corpus v1 завершён; текущая цель — Remote Speaker
+Coverage v3.
 
 Имеется:
 - authoritative selected dialogue и Evidence Handoff v2;
 - Remote Speaker Diarization v2: PROMOTE, 6 frozen sessions, attributable speech 0.919071,
   B-cubed F1 0.960690, pairwise precision 0.959564, 5/5 internal boundaries;
-- отдельные frozen corpora уже существуют для text/order/local recall/remote leakage/acoustic modes;
+- corpus baseline проверяет 12/12 frozen sources; lexical correctness пока `not_measured`;
+- крупнейший actionable residual: unknown remote speaker, 1219 слов / 797.773 секунды / 6 сессий;
 - explicit fingerprint-bound reviewed naming with anonymous fail-open;
 - selected ASR words/order/timestamps должны оставаться неизменными;
 - closed pre-ASR frontier; production v2.17 remains exact audio plateau.
@@ -497,10 +502,9 @@ roles и speakers корректны, а предел доказательств
 - weak attribution не форсируется ради coverage.
 
 Вопросы:
-1. Как объединить разнородные word/order/role/speaker/acoustic references без потери их отдельных
-   safety gates?
-2. Как считать correctness и explicit unknown так, чтобы система не улучшала метрику простым
-   воздержанием?
-3. Как ранжировать residual classes по пользовательскому вреду, секундам и уверенности?
-4. Какой минимальный corpus command и frozen manifest дадут детерминированный no-regression gate?
+1. Какие причины unknown можно безопасно устранить bounded-настройкой существующего
+   Resemblyzer-профиля, не снижая attributed-only precision?
+2. Какие независимые enrollment, similarity и margin evidence нужны для нового speaker attribution?
+3. Когда тяжёлый локальный backend действительно добавляет доказательство, а не только coverage?
+4. Как доказать минимум 25% сокращения unknown при полном conservation слов, таймкодов и ролей?
 ```

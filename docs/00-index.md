@@ -71,11 +71,14 @@ Read in this order:
 67. [Remote Speaker Evidence Map v1 result](testing/2026-08-06-remote-speaker-evidence-map-v1.md)
 68. [Remote Speaker Diarization v2 contract](contracts/remote-speaker-diarization-v2.md)
 69. [Remote Speaker Diarization v2 result](testing/2026-08-07-remote-speaker-diarization-v2.md)
-70. [Evidence-Guarded Local Synthesis runbook](runbooks/evidence-guarded-local-synthesis.md)
-71. [Evidence-Guarded Local Synthesis result](research/2026-08-07-evidence-guarded-local-synthesis-v1.md)
-72. [Evidence-Only Local Note Selection runbook](runbooks/evidence-only-local-note-selection.md)
-73. [Evidence-Only Local Note Selection result](research/2026-08-07-evidence-only-local-note-selection-v1.md)
-74. [Planning and development history](history/README.md)
+70. [Transcript Perfection Corpus contract](contracts/transcript-perfection-corpus.md)
+71. [Transcript Perfection Corpus runbook](runbooks/transcript-perfection-corpus.md)
+72. [Transcript Perfection Corpus baseline](testing/2026-08-07-transcript-perfection-corpus-v1.md)
+73. [Evidence-Guarded Local Synthesis runbook](runbooks/evidence-guarded-local-synthesis.md)
+74. [Evidence-Guarded Local Synthesis result](research/2026-08-07-evidence-guarded-local-synthesis-v1.md)
+75. [Evidence-Only Local Note Selection runbook](runbooks/evidence-only-local-note-selection.md)
+76. [Evidence-Only Local Note Selection result](research/2026-08-07-evidence-only-local-note-selection-v1.md)
+77. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
@@ -88,9 +91,10 @@ Reviewed Speaker-Aware Meeting Memory v1 are promoted optional read surfaces.
 Free-text synthesis is closed with reproducible `DO_NOT_PROMOTE`; exact ID-only selection remains an
 optional derivative. The mission now ends at a reliable speaker-resolved transcript. Remote Speaker
 Diarization v2 passed `PROMOTE` with `91.9071%` attributable remote speech, B-cubed F1 `0.960690`,
-pairwise precision `0.959564` and zero selected-word loss. **Transcript Perfection Corpus v1** is
-current. Notes, retrieval and work proposals are parked until the transcript-quality program reaches
-its unified corpus gates.
+pairwise precision `0.959564` and zero selected-word loss. Transcript Perfection Corpus v1 has now
+established a 12-source baseline. **Remote Speaker Coverage v3** is current because the scorecard
+ranks 1219 words / `797.773s` of explicit unknown remote speaker first. Notes, retrieval and work
+proposals remain parked outside that path.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

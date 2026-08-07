@@ -198,8 +198,8 @@ unknown without weakening current Target-Me protection.
 ## Heavy-Local v1 Profile
 
 Status: seeded local remote diarization is promoted; the replacement ASR and correction components
-remain target architecture, not current production. Transcript Perfection Corpus v1 is the current
-measurement stage.
+remain target architecture, not current production. Transcript Perfection Corpus v1 is the frozen
+measurement baseline; Remote Speaker Coverage v3 is the current bounded candidate stage.
 
 Primary:
 

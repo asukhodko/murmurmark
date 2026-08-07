@@ -1,0 +1,708 @@
+#!/usr/bin/env python3
+"""Build a deterministic scorecard over MurmurMark's frozen transcript evidence."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import math
+from pathlib import Path
+import sys
+from typing import Any
+
+
+ROOT = Path(__file__).resolve().parents[1]
+MANIFEST_SCHEMA = "murmurmark.transcript_perfection_manifest/v1"
+REPORT_SCHEMA = "murmurmark.transcript_perfection_corpus_report/v1"
+RESIDUAL_SCHEMA = "murmurmark.transcript_perfection_residual/v1"
+DEFAULT_MANIFEST = ROOT / "docs/testing/transcript-perfection-corpus-v1-manifest.json"
+DEFAULT_OUT = ROOT / "sessions/_reports/transcript-perfection-corpus-v1"
+DIMENSIONS = (
+    "recognized_words",
+    "chronology",
+    "me_remote_roles",
+    "remote_speaker_turns",
+    "overlap",
+    "missing_me",
+    "remote_leakage",
+    "acoustic_modes",
+)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Verify frozen transcript evidence and rank the measured residual classes."
+    )
+    parser.add_argument("scope", nargs="?", default="all", choices=["all"])
+    parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
+    parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT)
+    parser.add_argument(
+        "--verify-existing",
+        action="store_true",
+        help="Verify that existing outputs exactly match a fresh deterministic build.",
+    )
+    return parser.parse_args()
+
+
+def canonical_json(payload: Any) -> bytes:
+    return (json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
+
+
+def canonical_jsonl(rows: list[dict[str, Any]]) -> bytes:
+    return b"".join(
+        (json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n").encode("utf-8") for row in rows
+    )
+
+
+def read_json(path: Path) -> dict[str, Any]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"expected JSON object: {path}")
+    return payload
+
+
+def read_jsonl(path: Path) -> list[dict[str, Any]]:
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    if not all(isinstance(row, dict) for row in rows):
+        raise ValueError(f"expected JSON objects: {path}")
+    return rows
+
+
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while chunk := handle.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def portable_path(path: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(ROOT.resolve()))
+    except ValueError as error:
+        raise ValueError(f"path is outside repository: {path}") from error
+
+
+def validate_manifest(manifest: dict[str, Any]) -> None:
+    if manifest.get("schema") != MANIFEST_SCHEMA:
+        raise ValueError(f"unsupported manifest schema: {manifest.get('schema')}")
+    if tuple(manifest.get("dimensions") or []) != DIMENSIONS:
+        raise ValueError("manifest dimensions do not match transcript_perfection/v1")
+    policy = manifest.get("policy") or {}
+    if policy.get("aggregate_quality_score") is not False:
+        raise ValueError("aggregate quality score must remain disabled")
+    if policy.get("abstention_is_not_correctness") is not True:
+        raise ValueError("manifest must preserve abstention visibility")
+    sources = manifest.get("sources") or []
+    if not sources:
+        raise ValueError("manifest has no sources")
+    ids = [str(row.get("id") or "") for row in sources]
+    if not all(ids) or len(ids) != len(set(ids)):
+        raise ValueError("manifest source ids must be non-empty and unique")
+    for row in sources:
+        path = Path(str(row.get("path") or ""))
+        if not str(path) or path.is_absolute() or ".." in path.parts:
+            raise ValueError(f"source path must be portable: {path}")
+        if not set(row.get("dimensions") or []).issubset(DIMENSIONS):
+            raise ValueError(f"unknown source dimension: {row.get('id')}")
+        if not isinstance(row.get("sha256"), str) or len(row["sha256"]) != 64:
+            raise ValueError(f"invalid source sha256: {row.get('id')}")
+
+
+def verify_sources(manifest: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any], list[str]]:
+    verified: list[dict[str, Any]] = []
+    payloads: dict[str, Any] = {}
+    failures: list[str] = []
+    for source in manifest["sources"]:
+        source_id = str(source["id"])
+        path = ROOT / str(source["path"])
+        row: dict[str, Any] = {
+            "id": source_id,
+            "path": str(source["path"]),
+            "required": bool(source.get("required", True)),
+            "status": "verified",
+        }
+        if not path.is_file():
+            row["status"] = "missing"
+            if row["required"]:
+                failures.append(f"missing:{source_id}")
+            verified.append(row)
+            continue
+        actual_bytes = path.stat().st_size
+        actual_sha = sha256(path)
+        row.update({"bytes": actual_bytes, "sha256": actual_sha})
+        if actual_bytes != int(source["bytes"]):
+            row["status"] = "size_mismatch"
+        if actual_sha != source["sha256"]:
+            row["status"] = "sha256_mismatch"
+        try:
+            if path.suffix == ".jsonl":
+                payload: Any = read_jsonl(path)
+                expected_line_schema = source.get("expected_line_schema")
+                if expected_line_schema and any(item.get("schema") != expected_line_schema for item in payload):
+                    row["status"] = "schema_mismatch"
+            else:
+                payload = read_json(path)
+                expected_schema = source.get("expected_schema")
+                if expected_schema and payload.get("schema") != expected_schema:
+                    row["status"] = "schema_mismatch"
+            payloads[source_id] = payload
+        except (ValueError, json.JSONDecodeError) as error:
+            row["status"] = "invalid_json"
+            row["error"] = str(error)
+        if row["status"] != "verified" and row["required"]:
+            failures.append(f"{row['status']}:{source_id}")
+        verified.append(row)
+    return verified, payloads, failures
+
+
+def semantic_gates(
+    payloads: dict[str, Any], verified: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], list[str]]:
+    checks: list[dict[str, Any]] = []
+    source_sha = {row["id"]: row.get("sha256") for row in verified}
+
+    def add(source: str, gate: str, passed: bool, observed: Any) -> None:
+        checks.append({"source": source, "gate": gate, "passed": bool(passed), "observed": observed})
+
+    remote = payloads.get("remote_speaker_diarization_v2") or {}
+    add("remote_speaker_diarization_v2", "decision", remote.get("decision") == "PROMOTE", remote.get("decision"))
+    add(
+        "remote_speaker_diarization_v2",
+        "all_source_gates",
+        bool(remote.get("gates")) and all(value is True for value in remote.get("gates", {}).values()),
+        remote.get("gates"),
+    )
+    remote_manifest = payloads.get("remote_speaker_diarization_v2_manifest") or {}
+    add(
+        "remote_speaker_diarization_v2_manifest",
+        "decision",
+        remote_manifest.get("decision") == "PROMOTE",
+        remote_manifest.get("decision"),
+    )
+
+    audio = payloads.get("residual_audio_arbitration_v1") or {}
+    add("residual_audio_arbitration_v1", "scientifically_complete", audio.get("gates", {}).get("scientifically_complete") is True, audio.get("gates"))
+    add("residual_audio_arbitration_v1", "no_hard_failures", not audio.get("gates", {}).get("hard_failures"), audio.get("gates", {}).get("hard_failures"))
+    audio_baseline = payloads.get("residual_audio_arbitration_v1_baseline") or {}
+    add(
+        "residual_audio_arbitration_v1",
+        "baseline_lineage",
+        audio.get("baseline_manifest_sha256") == source_sha.get("residual_audio_arbitration_v1_baseline"),
+        audio.get("baseline_manifest_sha256"),
+    )
+    add(
+        "residual_audio_arbitration_v1_baseline",
+        "queue_identity",
+        int(audio_baseline.get("queue", {}).get("item_count", -1)) == int(audio.get("summary", {}).get("frozen_queue_items", -2))
+        and abs(float(audio_baseline.get("queue", {}).get("seconds", -1)) - float(audio.get("summary", {}).get("frozen_queue_seconds", -2))) < 0.001,
+        audio_baseline.get("queue"),
+    )
+
+    recall = payloads.get("residual_local_recall_v1") or {}
+    add("residual_local_recall_v1", "decision", recall.get("decision") == "PROMOTE_RESIDUAL_LOCAL_RECALL_V1", recall.get("decision"))
+    add("residual_local_recall_v1", "source_gates", recall.get("gates", {}).get("passed") is True, recall.get("gates"))
+    recall_baseline = payloads.get("residual_local_recall_v1_baseline") or {}
+    add(
+        "residual_local_recall_v1",
+        "baseline_lineage",
+        recall.get("baseline_sha256") == source_sha.get("residual_local_recall_v1_baseline"),
+        recall.get("baseline_sha256"),
+    )
+
+    profile = payloads.get("speaker_mode_profile_baseline") or {}
+    chronology = payloads.get("chronology_risk_queue") or []
+    chronology_seconds = round(sum(float(row.get("interval", {}).get("duration_sec") or 0) for row in chronology), 6)
+    expected_chronology = profile.get("queues", {}).get("chronology", {})
+    add(
+        "chronology_risk_queue",
+        "queue_identity",
+        len(chronology) == int(expected_chronology.get("items", -1))
+        and abs(chronology_seconds - float(expected_chronology.get("seconds", -1))) < 0.001,
+        {"items": len(chronology), "seconds": chronology_seconds},
+    )
+    excluded_chronology = recall_baseline.get("excluded_queues", {}).get("transcript_order", {})
+    add(
+        "residual_local_recall_v1_baseline",
+        "chronology_isolation",
+        int(excluded_chronology.get("item_count", -1)) == len(chronology)
+        and abs(float(excluded_chronology.get("seconds", -1)) - chronology_seconds) < 0.001,
+        excluded_chronology,
+    )
+
+    acoustic = payloads.get("acoustic_mode_corpus") or {}
+    acoustic_summary = acoustic.get("summary", {})
+    add("acoustic_mode_corpus", "source_gates", acoustic.get("gates", {}).get("passed") is True, acoustic.get("gates"))
+    add(
+        "acoustic_mode_corpus",
+        "labeled_match_conservation",
+        int(acoustic_summary.get("labeled_matches", -1)) == int(acoustic_summary.get("labeled_sessions", -2)),
+        acoustic_summary,
+    )
+
+    echo = payloads.get("speaker_preserving_neural_echo_v2_17") or {}
+    echo_decision = payloads.get("speaker_preserving_neural_echo_v2_17_decision") or {}
+    add("speaker_preserving_neural_echo_v2_17", "source_gates", echo.get("passed") is True and all(value is True for value in echo.get("checks", {}).values()), echo.get("checks"))
+    add(
+        "speaker_preserving_neural_echo_v2_17_decision",
+        "decision",
+        echo_decision.get("decision") == "PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2",
+        echo_decision.get("decision"),
+    )
+
+    boundary = payloads.get("authoritative_boundary_v1") or {}
+    add("authoritative_boundary_v1", "decision", boundary.get("decision") == "PROMOTE_AUTHORITATIVE_BOUNDARY_V1", boundary.get("decision"))
+    add("authoritative_boundary_v1", "source_gates", boundary.get("gates", {}).get("passed") is True, boundary.get("gates"))
+
+    failures = [f"semantic_gate:{row['source']}:{row['gate']}" for row in checks if not row["passed"]]
+    return checks, failures
+
+
+def residual_score(severity: float, seconds: float, evidence: float, repairability: float, sessions: int) -> float:
+    score = (
+        severity
+        * (1.0 + math.log1p(max(0.0, seconds)))
+        * (0.5 + 0.5 * evidence)
+        * (0.4 + 0.6 * repairability)
+        * (1.0 + 0.15 * math.log1p(max(0, sessions)))
+    )
+    return round(score, 6)
+
+
+def build_residuals(payloads: dict[str, Any]) -> list[dict[str, Any]]:
+    remote = payloads["remote_speaker_diarization_v2"]
+    remote_summary = remote["summary"]
+    remote_seconds = round(float(remote_summary["remote_speech_sec"]) - float(remote_summary["attributed_speech_sec"]), 6)
+    remote_words = int(remote_summary["remote_words"]) - int(remote_summary["attributed_words"])
+
+    audio = payloads["residual_audio_arbitration_v1"]
+    audio_summary = audio["summary"]
+    audio_sessions = sum(1 for row in audio.get("sessions", []) if float(row.get("summary", {}).get("remaining_seconds") or 0) > 0)
+
+    chronology = payloads["chronology_risk_queue"]
+    chronology_seconds = round(sum(float(row.get("interval", {}).get("duration_sec") or 0) for row in chronology), 6)
+    chronology_sessions = len({str(row.get("session_id")) for row in chronology})
+
+    recall = payloads["residual_local_recall_v1"]
+    recall_summary = recall["summary"]
+    recall_sessions = sum(1 for row in recall.get("sessions", []) if float(row.get("summary", {}).get("remaining_seconds") or 0) > 0)
+
+    specs = [
+        {
+            "class": "unknown_remote_speaker",
+            "dimension": "remote_speaker_turns",
+            "item_count": remote_words,
+            "item_unit": "words",
+            "seconds": remote_seconds,
+            "sessions": int(remote_summary["sessions"]),
+            "severity": 4.0,
+            "evidence_strength": 1.0,
+            "repairability": 0.8,
+            "confidence": "high",
+            "source_ids": ["remote_speaker_diarization_v2"],
+            "reason": "remote words are preserved but 8.0929% of remote speech lacks supported speaker attribution",
+        },
+        {
+            "class": "ambiguous_me_audio_evidence",
+            "dimension": "me_remote_roles",
+            "item_count": int(audio_summary["remaining_items"]),
+            "item_unit": "review_rows",
+            "seconds": float(audio_summary["remaining_seconds"]),
+            "sessions": audio_sessions,
+            "severity": 5.0,
+            "evidence_strength": 0.95,
+            "repairability": 0.35,
+            "confidence": "high_queue_identity_low_classification_confidence",
+            "source_ids": ["residual_audio_arbitration_v1"],
+            "reason": "frozen Me/remote overlap rows remain unresolved after the current local evidence ceiling",
+        },
+        {
+            "class": "chronology_conflict",
+            "dimension": "chronology",
+            "item_count": len(chronology),
+            "item_unit": "review_rows",
+            "seconds": chronology_seconds,
+            "sessions": chronology_sessions,
+            "severity": 4.5,
+            "evidence_strength": 0.95,
+            "repairability": 0.75,
+            "confidence": "high",
+            "source_ids": ["chronology_risk_queue"],
+            "reason": "speaker-bounded ordering conflicts remain explicit because current repair cannot split losslessly",
+        },
+        {
+            "class": "missing_me_uncertainty",
+            "dimension": "missing_me",
+            "item_count": int(recall_summary["remaining_items"]),
+            "item_unit": "review_rows",
+            "seconds": float(recall_summary["remaining_seconds"]),
+            "sessions": recall_sessions,
+            "severity": 5.0,
+            "evidence_strength": 0.95,
+            "repairability": 0.65,
+            "confidence": "high_queue_identity_low_recovery_confidence",
+            "source_ids": ["residual_local_recall_v1"],
+            "reason": "local-only evidence exists but is insufficient for safe insertion or dismissal",
+        },
+    ]
+    rows: list[dict[str, Any]] = []
+    for spec in specs:
+        row = {
+            "schema": RESIDUAL_SCHEMA,
+            **spec,
+            "rank_score": residual_score(
+                float(spec["severity"]),
+                float(spec["seconds"]),
+                float(spec["evidence_strength"]),
+                float(spec["repairability"]),
+                int(spec["sessions"]),
+            ),
+        }
+        rows.append(row)
+    rows.sort(key=lambda row: (-float(row["rank_score"]), str(row["class"])))
+    for index, row in enumerate(rows, start=1):
+        row["rank"] = index
+    return rows
+
+
+def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    residual_by_class = {row["class"]: row for row in residuals}
+    remote = payloads["remote_speaker_diarization_v2"]
+    remote_summary = remote["summary"]
+    reference = remote.get("reference_evaluation", {}).get("attributed_only", {})
+    audio_summary = payloads["residual_audio_arbitration_v1"]["summary"]
+    recall_summary = payloads["residual_local_recall_v1"]["summary"]
+    chronology = residual_by_class["chronology_conflict"]
+    acoustic = payloads["acoustic_mode_corpus"]["summary"]
+    echo = payloads["speaker_preserving_neural_echo_v2_17"]["aggregate"]
+    boundary = payloads["authoritative_boundary_v1"]["summary"]
+
+    return [
+        {
+            "id": "recognized_words",
+            "status": "partial",
+            "correctness_status": "not_measured",
+            "coverage_status": "remote_word_conservation_measured",
+            "reference_level": "selected_output_conservation_only",
+            "source_ids": ["remote_speaker_diarization_v2"],
+            "metrics": {
+                "remote_words": int(remote_summary["remote_words"]),
+                "remote_words_conserved": bool(remote["gates"]["all_word_conservation"]),
+                "lexical_error_rate": None,
+            },
+            "residual_classes": [],
+            "note": "The corpus proves that diarization does not alter selected words; it has no whole-session human lexical reference.",
+        },
+        {
+            "id": "chronology",
+            "status": "measured_with_residual",
+            "correctness_status": "supported_subset_passed",
+            "coverage_status": "frozen_residual_visible",
+            "reference_level": "frozen_real_session_risk_queue",
+            "source_ids": ["authoritative_boundary_v1", "chronology_risk_queue"],
+            "metrics": {
+                "boundary_closed_items": int(boundary["closed_items"]),
+                "residual_items": int(chronology["item_count"]),
+                "residual_seconds": float(chronology["seconds"]),
+            },
+            "residual_classes": ["chronology_conflict"],
+        },
+        {
+            "id": "me_remote_roles",
+            "status": "measured_with_residual",
+            "correctness_status": "safe_abstention",
+            "coverage_status": "frozen_residual_visible",
+            "reference_level": "audio_state_text_arbitration",
+            "source_ids": ["residual_audio_arbitration_v1", "speaker_preserving_neural_echo_v2_17"],
+            "metrics": {
+                "remaining_items": int(audio_summary["remaining_items"]),
+                "remaining_seconds": float(audio_summary["remaining_seconds"]),
+                "pre_asr_local_retention_floor": 1.0,
+            },
+            "residual_classes": ["ambiguous_me_audio_evidence"],
+        },
+        {
+            "id": "remote_speaker_turns",
+            "status": "measured_with_unknown",
+            "correctness_status": "attributed_subset_passed",
+            "coverage_status": "explicit_unknown",
+            "reference_level": "private_named_reference_plus_frozen_boundaries",
+            "source_ids": ["remote_speaker_diarization_v2", "remote_speaker_diarization_v2_manifest"],
+            "metrics": {
+                "attributable_speech_ratio": float(remote_summary["attributable_remote_speech_ratio"]),
+                "attributed_bcubed_f1": float(reference.get("bcubed", {}).get("f1") or 0),
+                "attributed_pairwise_precision": float(reference.get("pairwise", {}).get("precision") or 0),
+                "unknown_seconds": float(residual_by_class["unknown_remote_speaker"]["seconds"]),
+                "unknown_words": int(residual_by_class["unknown_remote_speaker"]["item_count"]),
+            },
+            "residual_classes": ["unknown_remote_speaker"],
+        },
+        {
+            "id": "overlap",
+            "status": "measured_with_residual",
+            "correctness_status": "safe_abstention",
+            "coverage_status": "shared_frozen_audio_residual",
+            "reference_level": "speaker_bounded_audio_review",
+            "source_ids": ["residual_audio_arbitration_v1", "chronology_risk_queue"],
+            "metrics": {
+                "ambiguous_audio_seconds": float(audio_summary["remaining_seconds"]),
+                "chronology_overlap_seconds": float(chronology["seconds"]),
+            },
+            "residual_classes": ["ambiguous_me_audio_evidence", "chronology_conflict"],
+            "note": "Residual classes overlap semantically and are not summed.",
+        },
+        {
+            "id": "missing_me",
+            "status": "measured_with_residual",
+            "correctness_status": "safe_abstention",
+            "coverage_status": "frozen_residual_visible",
+            "reference_level": "local_only_audio_state_evidence",
+            "source_ids": ["residual_local_recall_v1", "speaker_preserving_neural_echo_v2_17"],
+            "metrics": {
+                "closed_items": int(recall_summary["closed_items"]),
+                "remaining_items": int(recall_summary["remaining_items"]),
+                "remaining_seconds": float(recall_summary["remaining_seconds"]),
+            },
+            "residual_classes": ["missing_me_uncertainty"],
+        },
+        {
+            "id": "remote_leakage",
+            "status": "measured_with_residual",
+            "correctness_status": "promoted_pre_asr_subset_passed",
+            "coverage_status": "fallback_and_ambiguous_rows_visible",
+            "reference_level": "sealed_pre_asr_corpus_plus_audio_arbitration",
+            "source_ids": ["speaker_preserving_neural_echo_v2_17", "residual_audio_arbitration_v1"],
+            "metrics": {
+                "pre_asr_candidate_sessions": int(echo["candidate_sessions"]),
+                "exact_fallback_sessions": int(echo["fallback_sessions"]),
+                "remote_supported_reduction_seconds": float(echo["remote_supported_reduction_sec"]),
+                "ambiguous_me_audio_seconds": float(audio_summary["remaining_seconds"]),
+            },
+            "residual_classes": ["ambiguous_me_audio_evidence"],
+        },
+        {
+            "id": "acoustic_modes",
+            "status": "measured",
+            "correctness_status": "labeled_subset_passed",
+            "coverage_status": "explicit_uncertain_allowed",
+            "reference_level": "labeled_real_sessions",
+            "source_ids": ["acoustic_mode_corpus", "speaker_preserving_neural_echo_v2_17"],
+            "metrics": {
+                "sessions": int(acoustic["session_count"]),
+                "labeled_sessions": int(acoustic["labeled_sessions"]),
+                "labeled_matches": int(acoustic["labeled_matches"]),
+                "by_mode": acoustic["by_mode"],
+            },
+            "residual_classes": [],
+        },
+    ]
+
+
+def markdown(report: dict[str, Any]) -> str:
+    lines = [
+        "# Transcript Perfection Corpus v1",
+        "",
+        f"Decision: `{report['decision']}`  ",
+        f"Frozen inputs: `{report['summary']['verified_sources']}/{report['summary']['required_sources']}` verified  ",
+        f"Release ready: `{'yes' if report['release']['ready'] else 'no'}`",
+        "",
+        "## Dimension Scorecard",
+        "",
+        "| Dimension | Status | Correctness | Coverage |",
+        "|---|---|---|---|",
+    ]
+    for row in report["dimensions"]:
+        lines.append(
+            f"| `{row['id']}` | `{row['status']}` | `{row['correctness_status']}` | `{row['coverage_status']}` |"
+        )
+    lines.extend(
+        [
+            "",
+            "`recognized_words` currently proves conservation, not lexical correctness. Missing lexical",
+            "reference coverage is `not_measured`; it is not counted as a pass.",
+            "",
+            "## Actionable Residuals",
+            "",
+            "Residual seconds come from different frozen scopes and must not be added together.",
+            "",
+            "| Rank | Class | Dimension | Items | Seconds | Sessions | Score |",
+            "|---:|---|---|---:|---:|---:|---:|",
+        ]
+    )
+    for row in report["residuals"]:
+        lines.append(
+            f"| {row['rank']} | `{row['class']}` | `{row['dimension']}` | {row['item_count']} {row['item_unit']} | "
+            f"{float(row['seconds']):.3f} | {row['sessions']} | {float(row['rank_score']):.3f} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Evidence Gaps",
+            "",
+        ]
+    )
+    for row in report["evidence_gaps"]:
+        lines.append(f"- `{row['dimension']}`: {row['reason']}")
+    next_goal = report["next_goal"]
+    lines.extend(
+        [
+            "",
+            "## Next Goal",
+            "",
+            f"**{next_goal['title']}**",
+            "",
+            next_goal["rationale"],
+            "",
+            "The next goal must reduce the frozen unknown-speaker residual without weakening attributed-only",
+            "precision, word conservation, timestamps, one-to-one controls or exact aggregate fallback.",
+            "",
+            "## Release Blockers",
+            "",
+        ]
+    )
+    lines.extend(f"- `{blocker}`" for blocker in report["release"]["blockers"])
+    return "\n".join(lines) + "\n"
+
+
+def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], payloads: dict[str, Any], semantic_checks: list[dict[str, Any]], failures: list[str]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    residuals = build_residuals(payloads) if not failures else []
+    dimensions = build_dimensions(payloads, residuals) if not failures else [
+        {
+            "id": dimension,
+            "status": "not_measured",
+            "correctness_status": "not_measured",
+            "coverage_status": "invalid_or_stale_inputs",
+            "source_ids": [],
+            "metrics": {},
+            "residual_classes": [],
+        }
+        for dimension in DIMENSIONS
+    ]
+    required_sources = sum(1 for row in verified if row["required"])
+    verified_sources = sum(1 for row in verified if row["required"] and row["status"] == "verified")
+    decision = "BASELINE_ESTABLISHED" if not failures else "INVALID_INPUTS"
+    release_blockers = [
+        "recognized_words.lexical_correctness_not_measured",
+        "remote_speaker_turns.unknown_remote_speaker",
+        "me_remote_roles.ambiguous_me_audio_evidence",
+        "chronology.chronology_conflict",
+        "missing_me.missing_me_uncertainty",
+    ]
+    report = {
+        "schema": REPORT_SCHEMA,
+        "generator": {"name": "report-transcript-perfection-corpus", "version": "0.1.0", "mode": "deterministic_offline"},
+        "decision": decision,
+        "manifest": {
+            "path": portable_path(Path(str(manifest["_path"]))),
+            "sha256": manifest["_sha256"],
+        },
+        "policy": manifest["policy"],
+        "input_integrity": {
+            "passed": not failures,
+            "failures": failures,
+            "sources": verified,
+            "semantic_checks": semantic_checks,
+        },
+        "summary": {
+            "required_sources": required_sources,
+            "verified_sources": verified_sources,
+            "dimensions": len(DIMENSIONS),
+            "fully_measured_dimensions": sum(1 for row in dimensions if row["status"] == "measured"),
+            "partially_or_residual_measured_dimensions": sum(1 for row in dimensions if row["status"] in {"partial", "measured_with_residual", "measured_with_unknown"}),
+            "not_measured_correctness_dimensions": sum(1 for row in dimensions if row["correctness_status"] == "not_measured"),
+            "actionable_residual_classes": len(residuals),
+            "aggregate_quality_score": None,
+            "aggregate_residual_seconds": None,
+        },
+        "dimensions": dimensions,
+        "residuals": residuals,
+        "evidence_gaps": [
+            {
+                "dimension": "recognized_words",
+                "status": "not_measured",
+                "reason": "no frozen whole-session human word reference exists; conservation is not lexical accuracy",
+                "next_evidence": "add private word-level references with portable hashes and no transcript text in the tracked manifest",
+            },
+            {
+                "dimension": "local_mic_multi_speaker",
+                "status": "not_measured",
+                "reason": "no real labeled multi-person local-mic scenario exists",
+                "next_evidence": "open only after the scenario occurs and a consented labeled corpus exists",
+            },
+        ],
+        "release": {
+            "ready": False,
+            "blockers": release_blockers if not failures else ["input_integrity"] + failures,
+        },
+        "next_goal": {
+            "id": "remote-speaker-coverage-v3",
+            "title": "Remote Speaker Coverage v3",
+            "selected_residual_class": residuals[0]["class"] if residuals else None,
+            "rationale": (
+                "The largest actionable measured residual is 797.773 seconds of preserved remote speech without "
+                "supported speaker attribution across six frozen sessions. It is central to the transcript mission, "
+                "has strong evidence, and can be improved without changing recognized words."
+                if residuals
+                else "Input integrity must be restored before selecting an engineering goal."
+            ),
+        },
+        "gates": {
+            "all_required_sources_verified": not any(row["required"] and row["status"] != "verified" for row in verified),
+            "all_source_contracts_preserved": not any(not row["passed"] for row in semantic_checks),
+            "all_dimensions_explicit": len(dimensions) == len(DIMENSIONS),
+            "missing_reference_not_passed": any(row["id"] == "recognized_words" and row["correctness_status"] == "not_measured" for row in dimensions),
+            "abstention_visible": bool(manifest["policy"]["abstention_is_not_correctness"]),
+            "aggregate_score_disabled": manifest["policy"]["aggregate_quality_score"] is False,
+        },
+    }
+    report["gates"]["passed"] = all(report["gates"].values())
+    return report, residuals
+
+
+def output_bytes(report: dict[str, Any], residuals: list[dict[str, Any]], manifest: dict[str, Any]) -> dict[str, bytes]:
+    manifest_snapshot = {key: value for key, value in manifest.items() if not key.startswith("_")}
+    return {
+        "input_manifest.json": canonical_json(manifest_snapshot),
+        "transcript_perfection_corpus_report.json": canonical_json(report),
+        "transcript_perfection_corpus_report.md": markdown(report).encode("utf-8"),
+        "residual_ranking.jsonl": canonical_jsonl(residuals),
+    }
+
+
+def main() -> int:
+    args = parse_args()
+    manifest_path = args.manifest.resolve()
+    manifest = read_json(manifest_path)
+    validate_manifest(manifest)
+    manifest["_path"] = str(manifest_path)
+    manifest["_sha256"] = sha256(manifest_path)
+    verified, payloads, failures = verify_sources(manifest)
+    semantic_checks: list[dict[str, Any]] = []
+    if not failures:
+        semantic_checks, semantic_failures = semantic_gates(payloads, verified)
+        failures.extend(semantic_failures)
+    report, residuals = build_report(manifest, verified, payloads, semantic_checks, failures)
+    outputs = output_bytes(report, residuals, manifest)
+    if args.verify_existing:
+        mismatches = [name for name, content in outputs.items() if not (args.out_dir / name).is_file() or (args.out_dir / name).read_bytes() != content]
+        if mismatches:
+            print("transcript perfection outputs are missing or stale: " + ", ".join(mismatches), file=sys.stderr)
+            return 2
+    else:
+        args.out_dir.mkdir(parents=True, exist_ok=True)
+        for name, content in outputs.items():
+            (args.out_dir / name).write_bytes(content)
+    print(f"decision: {report['decision']}")
+    print(f"sources: {report['summary']['verified_sources']}/{report['summary']['required_sources']} verified")
+    print(f"release_ready: {str(report['release']['ready']).lower()}")
+    if residuals:
+        winner = residuals[0]
+        print(f"largest_actionable_residual: {winner['class']} ({float(winner['seconds']):.3f}s)")
+        print(f"next_goal: {report['next_goal']['title']}")
+    print(f"report: {portable_path(args.out_dir / 'transcript_perfection_corpus_report.md')}")
+    return 0 if report["gates"]["passed"] else 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1280,6 +1280,7 @@ enum DoctorChecks {
             "scripts/authoritative_asr_cache.py",
             "scripts/report-asr-chunk-cache-corpus.py",
             "scripts/report-authoritative-incremental-asr.py",
+            "scripts/report-transcript-perfection-corpus.py",
             "scripts/transcribe-simple-whispercpp.py",
             "scripts/check-asr-chunk-cache.py",
             "scripts/check-capture-regressions.sh",
@@ -7220,7 +7221,7 @@ enum CorpusCommands {
             throw CLIError(
                 "corpus requires process, build, evaluate, train-audio-judge, taxonomy, gate, order, " +
                 "local-recall, local-recall-repair, boundary, remote-leak, echo-candidate, " +
-                    "echo-supervision, lifecycle, or report"
+                    "echo-supervision, perfection, lifecycle, or report"
             )
         }
         var forwarded = Array(args.dropFirst())
@@ -7440,6 +7441,18 @@ enum CorpusCommands {
                     "--allow-missing-scope",
                 ]
             )
+        case "perfection":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(
+                    try PythonRuntime.resolve(),
+                    [try script("report-transcript-perfection-corpus.py").path, "--help"]
+                )
+                return
+            }
+            try Tooling.runPath(
+                try PythonRuntime.resolve(),
+                [try script("report-transcript-perfection-corpus.py").path] + forwarded
+            )
         case "lifecycle":
             try Tooling.runPath(
                 try PythonRuntime.resolve(),
@@ -7583,6 +7596,8 @@ enum CorpusHelp {
                                              [--sessions-root ./sessions]
           murmurmark corpus echo-supervision build|replay|status [--sessions-root ./sessions]
           murmurmark corpus live [all|latest|./session...] [--refresh] [--target-live-sessions 3] [--sessions-root ./sessions]
+          murmurmark corpus perfection all [--verify-existing]
+                                        [--manifest docs/testing/transcript-perfection-corpus-v1-manifest.json]
           murmurmark corpus lifecycle [all|latest|./session...] [--freeze-inputs]
                                       [--require-frozen-inputs] [--require-passing-gates]
                                       [--sessions-root ./sessions]

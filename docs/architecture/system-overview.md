@@ -122,8 +122,10 @@ authoritative remote track. Remote Speaker Diarization v2 has promoted a `91.907
 word/frame view with internal speaker changes, explicit unknown and exact aggregate fallback.
 `--rich` verifies the promoted policy and current input lineage; explicit session-local decisions
 remain the only way to replace anonymous display IDs. Transcript Perfection Corpus v1 is now the
-active measurement stage. Notes, retrieval and work proposals remain optional consumers and cannot
-alter the authoritative path.
+completed measurement baseline. Its first ranked closure is Remote Speaker Coverage v3 over
+`797.773s` / 1219 preserved remote words with unknown speaker; only after repeated residual gates
+pass may the speaker-resolved view become the normal transcript surface. Notes,
+retrieval and work proposals remain optional consumers and cannot alter the authoritative path.
 
 Target full-product path:
 
