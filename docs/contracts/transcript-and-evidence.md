@@ -1133,6 +1133,19 @@ rows use lane `check_transcript_text` and allow `keep_me`, `needs_review` or `sk
 report also creates this lane for every selected `Me` utterance whose `quality.needs_review` remains
 true, preventing an export blocker with no executable queue.
 
+For every selected profile, the same lane also covers a narrower unsupported fallback: a `Me`
+utterance no longer than `8s`, containing at most two content tokens, whose shadow micro-ASR failed
+with `empty_micro_text` independently on `clean_local_fir`, `raw_for_asr` and
+`role_masked_for_asr`. This row allows `drop_me`, but only local stronger-audio evidence may suggest
+that decision; otherwise it remains explicit review. Targeted judging for `check_transcript_text`
+uses the full mic source set, as does local-recall review. Existing audio/order rows take precedence
+so the same utterance is not queued twice.
+
+The stronger judge may return `confirm_asr_noise` for this fallback only when all three mic decodes
+are empty or known Whisper hallucinations and covered `speaker_state` is at least 90% silence with
+no meaningful local activity. The micro-ASR failure flag is carried through the lane pack and judge
+provenance; without it, the same silent or hallucinated decode remains `uncertain`.
+
 `PROMOTE_LOCAL_SPEECH_COMPLETION_V2` requires at least 50% safe closure by both local-recall rows
 and seconds, exact frozen inputs, unchanged remote utterances, valid output fingerprints, no
 chronology/remote-like/verdict/notes-evidence regression and deterministic reruns. Auto-selection

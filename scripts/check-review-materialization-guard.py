@@ -27,6 +27,14 @@ def main() -> int:
     lane = load_module("build-review-lane-pack.py", "murmurmark_review_lane_materialization")
     apply = load_module("apply-review-decisions.py", "murmurmark_apply_review_materialization")
     outcome = load_module("evaluate-outcome.py", "murmurmark_evaluate_outcome_materialization")
+    readiness = load_module(
+        "report-operational-readiness.py",
+        "murmurmark_operational_readiness_micro_fallback",
+    )
+    stronger = load_module(
+        "audit-stronger-audio-judge.py",
+        "murmurmark_stronger_audio_micro_fallback",
+    )
 
     swift_source = (
         Path(__file__).parents[1] / "Sources/MurmurMarkCLI/MurmurMarkCLI.swift"
@@ -34,6 +42,116 @@ def main() -> int:
     assert "private static func convergeSuggestedReview(" in swift_source
     assert "let maxAdditionalPasses = 7" in swift_source
     assert 'let closed = closure["closed_by_suggestions"]' in swift_source
+    assert 'lanePack.lastPathComponent.contains("check_transcript_text")' in swift_source
+
+    unsupported_fallback = {
+        "id": "utt_micro_empty",
+        "start": 0.0,
+        "end": 6.5,
+        "role": "me",
+        "text": "Пар",
+        "quality": {
+            "needs_review": True,
+            "role_confidence": 0.55,
+            "repair": {
+                "micro_reasr": {
+                    "status": "failed",
+                    "reason": "empty_micro_text",
+                    "attempts": [
+                        {"status": "failed", "reason": "empty_micro_text", "source_label": source}
+                        for source in ("clean_local_fir", "raw_for_asr", "role_masked_for_asr")
+                    ],
+                }
+            },
+        },
+    }
+    assert readiness.unsupported_micro_asr_fallback(unsupported_fallback) is True
+    incomplete_evidence = json.loads(json.dumps(unsupported_fallback))
+    incomplete_evidence["quality"]["repair"]["micro_reasr"]["attempts"].pop()
+    assert readiness.unsupported_micro_asr_fallback(incomplete_evidence) is False
+    transcript_text_row = readiness.compact_transcript_text_utterance(
+        {"session_id": "fixture", "session": "/tmp/fixture"},
+        unsupported_fallback,
+        input_profile="reviewed_v1",
+        allow_drop=True,
+    )
+    assert transcript_text_row["input_profile"] == "reviewed_v1"
+    assert transcript_text_row["review_lane"] == "check_transcript_text"
+    assert "drop_me" in transcript_text_row["allowed_decisions"]
+    assert transcript_text_row["review_features"]["unsupported_micro_asr_fallback"] is True
+    snapshot = lane.row_feature_snapshot(transcript_text_row)
+    assert snapshot["unsupported_micro_asr_fallback"] is True
+    assert snapshot["micro_asr_reason"] == "empty_micro_text"
+    judge_item = {
+        "source_reasons": ["review_lane:check_transcript_text", "transcript_text_needs_review"],
+        "review_features": snapshot,
+        "utterances": [
+            {
+                "id": "utt_micro_empty",
+                "role": "me",
+                "source_track": "mic",
+                "start": 0.0,
+                "end": 6.5,
+                "text": "Пар",
+            }
+        ],
+    }
+    hallucination_result = {
+        "text": "Продолжение следует...",
+        "segments": [],
+        "no_speech_prob": 0.75,
+    }
+    transcripts = {
+        source: dict(hallucination_result)
+        for source in ("mic_role_masked", "mic_clean", "mic_raw", "remote")
+    }
+    metrics = stronger.source_metrics(transcripts, "Пар", "")
+    classification = stronger.classify_item(
+        judge_item,
+        None,
+        transcripts,
+        metrics,
+        {
+            "coverage_ratio": 1.0,
+            "silence_ratio": 1.0,
+            "local_active_ratio": 0.0,
+            "remote_only_ratio": 0.0,
+            "double_talk_ratio": 0.0,
+        },
+    )
+    assert classification["label"] == "confirm_asr_noise", classification
+    assert classification["confidence"] >= 0.90, classification
+    assert classification["scores"]["mic_sources_empty_or_hallucinated"] is True
+    unmarked_item = json.loads(json.dumps(judge_item))
+    unmarked_item["review_features"] = {}
+    classification = stronger.classify_item(
+        unmarked_item,
+        None,
+        transcripts,
+        metrics,
+        {
+            "coverage_ratio": 1.0,
+            "silence_ratio": 1.0,
+            "local_active_ratio": 0.0,
+            "remote_only_ratio": 0.0,
+            "double_talk_ratio": 0.0,
+        },
+    )
+    assert classification["label"] == "uncertain", classification
+    stronger_noise = {
+        "id": "fwj_micro_empty",
+        "source_pack_item_id": transcript_text_row["source_audit_id"],
+        "session_id": "fixture",
+        "utterance_ids": ["utt_micro_empty"],
+        "interval": {"start": 0.0, "end": 6.5},
+        "classification": {"label": "confirm_asr_noise", "confidence": 0.92},
+    }
+    suggestion = lane.suggested_decision_for_group(
+        [transcript_text_row],
+        {"fixture": [stronger_noise]},
+        {},
+    )
+    assert suggestion[0] == "drop_me", suggestion
 
     raw = {
         "source": "local_recall",

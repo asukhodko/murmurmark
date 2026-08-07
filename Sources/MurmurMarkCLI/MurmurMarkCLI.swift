@@ -3728,6 +3728,7 @@ enum ReviewSuggestedCommand {
         if runStrongerAudioJudge {
             let needsFullMicSources = lanePacks.contains { lanePack in
                 lanePack.lastPathComponent.contains("check_local_recall")
+                    || lanePack.lastPathComponent.contains("check_transcript_text")
             }
             var judgeArgs = [
                 try script("audit-stronger-audio-judge.py").path,

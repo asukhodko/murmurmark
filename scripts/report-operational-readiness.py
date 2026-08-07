@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.4.5"
+SCRIPT_VERSION = "0.4.6"
 SCHEMA = "murmurmark.operational_readiness_report/v1"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
@@ -1966,10 +1966,46 @@ def compact_local_speech_completion_item(session: dict[str, Any], row: dict[str,
     }
 
 
-def compact_transcript_text_utterance(session: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
+def unsupported_micro_asr_fallback(row: dict[str, Any]) -> bool:
+    quality = row.get("quality") if isinstance(row.get("quality"), dict) else {}
+    repair = quality.get("repair") if isinstance(quality.get("repair"), dict) else {}
+    micro = repair.get("micro_reasr") if isinstance(repair.get("micro_reasr"), dict) else {}
+    attempts = micro.get("attempts") if isinstance(micro.get("attempts"), list) else []
+    empty_sources = {
+        str(attempt.get("source_label") or "")
+        for attempt in attempts
+        if isinstance(attempt, dict)
+        and str(attempt.get("status") or "") == "failed"
+        and str(attempt.get("reason") or "") == "empty_micro_text"
+    }
+    start = safe_float(row.get("start"))
+    end = safe_float(row.get("end"))
+    duration = max(0.0, end - start)
+    role = str(row.get("role") or row.get("speaker_label") or "").lower()
+    return (
+        quality.get("needs_review") is True
+        and role in {"me", "mic"}
+        and str(micro.get("status") or "") == "failed"
+        and str(micro.get("reason") or "") == "empty_micro_text"
+        and {"clean_local_fir", "raw_for_asr", "role_masked_for_asr"} <= empty_sources
+        and duration <= 8.0
+        and len(low_materiality_content_tokens(row.get("text"))) <= 2
+    )
+
+
+def compact_transcript_text_utterance(
+    session: dict[str, Any],
+    row: dict[str, Any],
+    *,
+    input_profile: str = "local_speech_completion_v2",
+    allow_drop: bool = False,
+) -> dict[str, Any]:
     start = safe_float(row.get("start"))
     end_value = safe_float(row.get("end"))
     end = max(start, end_value if end_value is not None else start)
+    quality = row.get("quality") if isinstance(row.get("quality"), dict) else {}
+    repair = quality.get("repair") if isinstance(quality.get("repair"), dict) else {}
+    micro = repair.get("micro_reasr") if isinstance(repair.get("micro_reasr"), dict) else {}
     duration = max(0.0, end - start)
     session_path = str(session.get("session") or "")
     utterance_id = str(row.get("id") or "")
@@ -1983,11 +2019,15 @@ def compact_transcript_text_utterance(session: dict[str, Any], row: dict[str, An
         "label": "transcript_text_needs_review",
         "verdict": "needs_human_review",
         "confidence": safe_float((row.get("quality") or {}).get("role_confidence")),
-        "priority_score": round(duration + 160.0, 3),
-        "input_profile": "local_speech_completion_v2",
+        "priority_score": round(duration + (220.0 if allow_drop else 160.0), 3),
+        "input_profile": input_profile,
         "review_lane": "check_transcript_text",
         "review_action": "check_transcript_text",
-        "allowed_decisions": ["keep_me", "needs_review", "skip"],
+        "allowed_decisions": (
+            ["drop_me", "keep_me", "needs_review", "skip"]
+            if allow_drop
+            else ["keep_me", "needs_review", "skip"]
+        ),
         "interval": {
             "start": round(start, 3),
             "end": round(end, 3),
@@ -1998,6 +2038,11 @@ def compact_transcript_text_utterance(session: dict[str, Any], row: dict[str, An
         "utterance_ids": [utterance_id] if utterance_id else [],
         "me_utterance_ids": [utterance_id] if utterance_id else [],
         "text": [{"id": utterance_id, "role": "Me", "source_track": "mic", "text": row.get("text")}],
+        "review_features": {
+            "unsupported_micro_asr_fallback": allow_drop,
+            "micro_asr_status": micro.get("status"),
+            "micro_asr_reason": micro.get("reason"),
+        },
         "commands": {
             "mic_raw": (
                 f"ffplay -hide_banner -loglevel error -ss {listen_start:.3f} "
@@ -2008,7 +2053,11 @@ def compact_transcript_text_utterance(session: dict[str, Any], row: dict[str, An
                 f"-t {listen_duration:.3f} \"{session_path}/audio/remote/000001.caf\""
             ),
         },
-        "reason": "selected transcript marks this Me utterance as needs_review",
+        "reason": (
+            "all canonical mic micro-ASR sources returned empty text for this short Me fallback"
+            if allow_drop
+            else "selected transcript marks this Me utterance as needs_review"
+        ),
     }
 
 
@@ -2238,6 +2287,35 @@ def build_review_queue_details(sessions: list[dict[str, Any]], max_items: int) -
         transcript_order_resolved_ids = transcript_order_resolved_cache[cache_key]
         completion_open_local_ids: set[str] = set()
         completion_text_utterance_ids: set[str] = set()
+        transcript_text_candidates: list[dict[str, Any]] = []
+        reviewed_transcript_text_ids = {
+            str(utterance_id)
+            for decision in pending_review_decision_rows(session_path, profile)
+            if str(decision.get("source") or "") == "transcript_text"
+            and str(decision.get("status") or "") == "reviewed"
+            and str(decision.get("decision") or "") in {"drop_me", "keep_me", "skip"}
+            for utterance_id in decision.get("utterance_ids") or []
+            if utterance_id
+        }
+        selected_dialogue = read_json(
+            session_path
+            / "derived/transcript-simple/whisper-cpp/resolved"
+            / f"clean_dialogue{suffix(profile)}.json"
+        ) or {}
+        for utterance in selected_dialogue.get("utterances") or []:
+            if not isinstance(utterance, dict) or not unsupported_micro_asr_fallback(utterance):
+                continue
+            utterance_id = str(utterance.get("id") or "")
+            if not utterance_id or utterance_id in confirmed_me_ids or utterance_id in reviewed_transcript_text_ids:
+                continue
+            transcript_text_candidates.append(
+                compact_transcript_text_utterance(
+                    session,
+                    utterance,
+                    input_profile=profile,
+                    allow_drop=True,
+                )
+            )
         if profile == "local_speech_completion_v2":
             completion_dir = (
                 session_path
@@ -2251,12 +2329,7 @@ def build_review_queue_details(sessions: list[dict[str, Any]], max_items: int) -
                     str(value) for value in completion_row.get("utterance_ids") or [] if value
                 )
                 rows.append(compact_local_speech_completion_item(session, completion_row))
-            dialogue = read_json(
-                session_path
-                / "derived/transcript-simple/whisper-cpp/resolved"
-                / "clean_dialogue.local_speech_completion_v2.json"
-            ) or {}
-            for utterance in dialogue.get("utterances") or []:
+            for utterance in selected_dialogue.get("utterances") or []:
                 if not isinstance(utterance, dict):
                     continue
                 quality = utterance.get("quality") if isinstance(utterance.get("quality"), dict) else {}
@@ -2329,6 +2402,27 @@ def build_review_queue_details(sessions: list[dict[str, Any]], max_items: int) -
             if str(row.get("item_id") or row.get("id") or "") in transcript_order_resolved_ids:
                 continue
             rows.append(compact_transcript_order_item(session, row))
+        covered_utterance_ids = {
+            str(utterance_id)
+            for item in rows
+            if str(item.get("session_id") or "") == str(session.get("session_id") or "")
+            and str(item.get("source") or "") != "transcript_text"
+            for utterance_id in item.get("utterance_ids") or []
+            if utterance_id
+        }
+        existing_transcript_text_ids = {
+            str(utterance_id)
+            for item in rows
+            if str(item.get("session_id") or "") == str(session.get("session_id") or "")
+            and str(item.get("source") or "") == "transcript_text"
+            for utterance_id in item.get("utterance_ids") or []
+            if utterance_id
+        }
+        for candidate in transcript_text_candidates:
+            candidate_ids = {str(value) for value in candidate.get("utterance_ids") or [] if value}
+            if candidate_ids & (covered_utterance_ids | existing_transcript_text_ids):
+                continue
+            rows.append(candidate)
     rows.sort(key=review_queue_sort_key)
     selected = select_review_queue(rows, max_items)
     low_materiality_rows = [item for item in selected if review_item_low_materiality(item)]

@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.8.6"
+SCRIPT_VERSION = "0.8.7"
 REVIEW_STATE_FIELDS = {
     "decision",
     "status",
@@ -1145,6 +1145,9 @@ def row_feature_snapshot(row: dict[str, Any]) -> dict[str, Any]:
         "token_containment",
         "sequence_ratio",
         "likely_partial_me_utterance",
+        "unsupported_micro_asr_fallback",
+        "micro_asr_status",
+        "micro_asr_reason",
     )
     return {key: features[key] for key in interesting if key in features}
 
@@ -1789,6 +1792,7 @@ def main() -> int:
                     "text": group_clip_text(group_rows),
                     "evidence_text": group_evidence_text(group_rows),
                     "review_hint": review_hint,
+                    "review_features": row_feature_snapshot(row) if len(group_rows) == 1 else {},
                 }
             )
             cursor = end + args.silence_sec

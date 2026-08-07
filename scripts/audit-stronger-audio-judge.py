@@ -18,7 +18,7 @@ from typing import Any
 
 SCHEMA_ROW = "murmurmark.faster_whisper_judge/v1"
 SCHEMA_SUMMARY = "murmurmark.faster_whisper_judge_summary/v1"
-SCRIPT_VERSION = "0.1.5"
+SCRIPT_VERSION = "0.1.6"
 DEFAULT_MODEL = Path.home() / ".local/share/murmurmark/models/faster-whisper/large-v3"
 DEFAULT_MAX_ITEMS = 80
 DEFAULT_SOURCES = ("mic_role_masked", "mic_clean", "mic_raw", "remote")
@@ -66,6 +66,10 @@ MEANINGFUL_SHORT_UTTERANCES = {
     "ну",
     "вот",
 }
+KNOWN_HALLUCINATION_RE = re.compile(
+    r"^(?:редактор субтитров|продолжение следует|спасибо за просмотр|субтитры.*)$",
+    re.IGNORECASE,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -430,6 +434,11 @@ def synthetic_item_from_existing_clips(
             f"review_lane:{lane_item.get('review_lane') or 'unknown'}",
             str(lane_item.get("label") or "needs_review"),
         ],
+        "review_features": (
+            lane_item.get("review_features")
+            if isinstance(lane_item.get("review_features"), dict)
+            else {}
+        ),
         "utterance_ids": list_strings(lane_item.get("utterance_ids")),
         "utterances": rows,
         "clips": clips,
@@ -503,6 +512,11 @@ def synthetic_lane_pack_items(args: argparse.Namespace, session: Path, out_dir: 
                         f"review_lane:{item.get('review_lane') or lane_pack.get('lane') or 'unknown'}",
                         str(item.get("label") or "needs_review"),
                     ],
+                    "review_features": (
+                        item.get("review_features")
+                        if isinstance(item.get("review_features"), dict)
+                        else {}
+                    ),
                     "utterance_ids": list_strings(item.get("utterance_ids")),
                     "utterances": utterance_rows,
                     "clips": clips,
@@ -595,6 +609,12 @@ def normalize_text(value: Any) -> str:
 
 def content_tokens(value: Any) -> list[str]:
     return [token for token in normalize_text(value).split() if token not in STOP_WORDS and len(token) > 1]
+
+
+def is_known_hallucination(value: Any) -> bool:
+    text = str(value or "").lower().replace("ё", "е")
+    text = " ".join(re.sub(r"[^0-9a-zа-я]+", " ", text).split())
+    return bool(KNOWN_HALLUCINATION_RE.fullmatch(text))
 
 
 def looks_like_noise_fragment(value: Any) -> bool:
@@ -944,12 +964,17 @@ def transcribe_clip(model: Any, path: Path, args: argparse.Namespace) -> dict[st
 def source_metrics(transcripts: dict[str, dict[str, Any]], me_text: str, remote_text: str) -> dict[str, Any]:
     metrics: dict[str, Any] = {}
     decoded_remote_text = str(transcripts.get("remote", {}).get("text") or "")
+    if is_known_hallucination(decoded_remote_text):
+        decoded_remote_text = ""
     remote_reference_text = remote_text or decoded_remote_text
     for source, result in transcripts.items():
-        text = str(result.get("text") or "")
+        raw_text = str(result.get("text") or "")
+        hallucination = is_known_hallucination(raw_text)
+        text = "" if hallucination else raw_text
         metrics[source] = {
             "text_len": len(text),
             "content_token_count": len(content_tokens(text)),
+            "known_hallucination": hallucination,
             "to_me": text_similarity(text, me_text),
             "to_remote": text_similarity(text, remote_reference_text),
             "to_decoded_remote": text_similarity(text, decoded_remote_text),
@@ -1087,6 +1112,24 @@ def classify_item(
     state_remote_only = safe_float(speaker_state.get("remote_only_ratio"), 0.0)
     state_local_active = safe_float(speaker_state.get("local_active_ratio"), 0.0)
     state_double_talk = safe_float(speaker_state.get("double_talk_ratio"), 0.0)
+    state_silence = safe_float(speaker_state.get("silence_ratio"), 0.0)
+    review_features = item.get("review_features") if isinstance(item.get("review_features"), dict) else {}
+    unsupported_micro_fallback = review_features.get("unsupported_micro_asr_fallback") is True
+    canonical_mic_sources = {"mic_role_masked", "mic_clean", "mic_raw"}
+    decoded_mic_sources = canonical_mic_sources & set(transcripts)
+    mic_sources_empty_or_hallucinated = decoded_mic_sources == canonical_mic_sources and all(
+        not normalize_text((transcripts.get(source) or {}).get("text"))
+        or bool((metrics.get(source) or {}).get("known_hallucination"))
+        for source in canonical_mic_sources
+    )
+    unsupported_silence_noise = (
+        unsupported_micro_fallback
+        and very_short_me
+        and state_coverage >= 0.80
+        and state_silence >= 0.90
+        and state_local_active <= 0.05
+        and mic_sources_empty_or_hallucinated
+    )
     remote_only_keep_veto = (
         state_coverage >= 0.80
         and state_remote_only >= 0.80
@@ -1184,7 +1227,15 @@ def classify_item(
         and best_remote_in_mic >= 0.35
     )
 
-    if direct_decoded_remote_duplicate:
+    if unsupported_silence_noise:
+        label = "confirm_asr_noise"
+        suggested = "drop_me"
+        confidence = 0.92
+        reasons.append(
+            "three-source micro-ASR fallback and full-source stronger judge reject the short Me text; "
+            "speaker_state confirms silence"
+        )
+    elif direct_decoded_remote_duplicate:
         label = "confirm_remote_duplicate"
         suggested = "drop_me"
         confidence = min(0.92, max(0.88, best_decoded_remote_in_mic + 0.08))
@@ -1316,7 +1367,10 @@ def classify_item(
             "speaker_state_remote_only_ratio": round(state_remote_only, 6),
             "speaker_state_local_active_ratio": round(state_local_active, 6),
             "speaker_state_double_talk_ratio": round(state_double_talk, 6),
+            "speaker_state_silence_ratio": round(state_silence, 6),
             "speaker_state_remote_only_keep_veto": remote_only_keep_veto,
+            "unsupported_micro_asr_fallback": unsupported_micro_fallback,
+            "mic_sources_empty_or_hallucinated": mic_sources_empty_or_hallucinated,
         },
         "best_sources": {
             "me": best_me_source,
@@ -1356,6 +1410,7 @@ def audit_item(
         "sources": list(sources),
         "interval": item.get("interval"),
         "source_reasons": item.get("source_reasons") or [],
+        "review_features": item.get("review_features") or {},
         "utterance_ids": item_utterance_ids(item),
         "utterances": item.get("utterances") or [],
         "audio_review_classification": (audit_row or {}).get("classification"),
@@ -1381,6 +1436,7 @@ def refresh_cached_classification(
     speaker_state = interval_speaker_state_evidence(speaker_state_rows, item.get("interval"))
     refreshed["text_metrics"] = metrics
     refreshed["speaker_state_evidence"] = speaker_state
+    refreshed["review_features"] = item.get("review_features") or {}
     refreshed["classification"] = classify_item(item, audit_row, transcripts, metrics, speaker_state)
     refreshed["classification_policy_version"] = SCRIPT_VERSION
     return refreshed
