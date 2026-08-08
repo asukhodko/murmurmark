@@ -19,9 +19,10 @@ promoted ECAPA only as a lab candidate after hard-v4 F1 `0.948042`, known recall
 precision `1.0`, zero open-set false attribution and exact word conservation. Its real-session shadow
 then closed `DO_NOT_PROMOTE_REAL_IDENTITY`: 156 words / 211.100 seconds were proposed, but word
 recovery `0.183314` and independent machine-reference precision `0.878788` missed frozen gates.
-Shadow Error Decomposition then selected interval purification: 93/214 failures and `201.273504s`,
-with dominance margin `0.128982`. Bounded Remote Speaker Interval Purification v1 is current;
-production remains Coverage v3. Notes, retrieval and work proposals remain optional derivatives.
+Shadow Error Decomposition selected interval purification: 93/214 failures and `201.273504s`.
+The fixed crop then closed `DO_NOT_ADVANCE` after 2 new words / `4.154556s` and one new reference
+error. Session-Local Remote Speaker Enrollment Hardening v1 is current; production remains Coverage
+v3. Notes, retrieval and work proposals remain optional derivatives.
 Date: 2026-08-09
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
@@ -485,9 +486,9 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Bounded Remote Speaker Interval Purification v1: на frozen ECAPA shadow проверить один заранее
-объявленный speaker-bounded interval candidate; менять только item clips/embeddings, сохраняя
-enrollment, thresholds, words, timestamps и production transcript неизменными.
+Session-Local Remote Speaker Enrollment Hardening v1: на frozen ECAPA shadow проверить один
+exemplar-only robust centroid для 83 enrollment failures; менять только session-local enrollment,
+сохраняя item embeddings, thresholds, words, timestamps и production transcript неизменными.
 ```
 
 Remote Speaker Attribution Error Decomposition v1 завершён

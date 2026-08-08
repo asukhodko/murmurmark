@@ -50,7 +50,6 @@ CRITICAL_PATH = (
     "research-reference-conditioned-target-me-separation-v1",
     "quality-target-me-identifiability-corpus-v1",
     "research-reference-conditioned-target-me-separation-v2",
-    "product-evidence-export-v2",
     "product-release-quality-cli",
     "product-reliable-final-handoff-v1",
     "product-authoritative-incremental-asr-v1",
@@ -76,6 +75,7 @@ CRITICAL_PATH = (
     "quality-ecapa-remote-speaker-shadow-qualification-v1",
     "quality-remote-speaker-shadow-error-decomposition-v1",
     "quality-bounded-remote-speaker-interval-purification-v1",
+    "quality-session-local-remote-speaker-enrollment-hardening-v1",
 )
 
 EXPECTED_STATUSES = {"done", "current", "next", "later", "idea", "optional", "blocked"}
@@ -408,9 +408,18 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
         "bounded interval purification must follow shadow error decomposition",
     )
     require(
-        nodes["quality-bounded-remote-speaker-interval-purification-v1"].get("status")
+        nodes["quality-bounded-remote-speaker-interval-purification-v1"].get("status") == "done",
+        "bounded remote speaker interval purification must remain a completed one-shot checkpoint",
+    )
+    require(
+        "quality-bounded-remote-speaker-interval-purification-v1"
+        in nodes["quality-session-local-remote-speaker-enrollment-hardening-v1"].get("deps", []),
+        "session-local enrollment hardening must follow bounded interval purification",
+    )
+    require(
+        nodes["quality-session-local-remote-speaker-enrollment-hardening-v1"].get("status")
         == "current",
-        "bounded remote speaker interval purification must be the current quality goal",
+        "session-local remote speaker enrollment hardening must be the current quality goal",
     )
     require("parked-ui" not in nodes, "UI must not occupy the active CLI roadmap")
 

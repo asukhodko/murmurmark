@@ -123,7 +123,11 @@ Read in this order:
 119. [Remote Speaker Shadow Error Decomposition v1 runbook](runbooks/remote-speaker-shadow-error-decomposition-v1.md)
 120. [Remote Speaker Shadow Error Decomposition v1 result](testing/2026-08-09-remote-speaker-shadow-error-decomposition-v1.md)
 121. [Remote Speaker Shadow Error Decomposition v1 manifest](testing/remote-speaker-shadow-error-decomposition-v1-manifest.json)
-122. [Planning and development history](history/README.md)
+122. [Bounded Remote Speaker Interval Purification v1 contract](contracts/bounded-remote-speaker-interval-purification-v1.md)
+123. [Bounded Remote Speaker Interval Purification v1 runbook](runbooks/bounded-remote-speaker-interval-purification-v1.md)
+124. [Bounded Remote Speaker Interval Purification v1 result](testing/2026-08-09-bounded-remote-speaker-interval-purification-v1.md)
+125. [Bounded Remote Speaker Interval Purification v1 manifest](testing/bounded-remote-speaker-interval-purification-v1-manifest.json)
+126. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
@@ -161,7 +165,9 @@ B-cubed F1 `0.948042`, known recall `0.947368`, pairwise precision `1.0`, zero o
 attribution and exact 154/154 word conservation. **ECAPA Remote Speaker Shadow Qualification v1**
 then closed `DO_NOT_PROMOTE_REAL_IDENTITY`. **Remote Speaker Shadow Error Decomposition v1** routed
 93/214 failures and `201.273504s` to the dominant interval axis. **Bounded Remote Speaker Interval
-Purification v1** is current; production Coverage v3 remains unchanged. Notes and retrieval remain parked.
+Purification v1** then closed `DO_NOT_ADVANCE`: 2 new words / `4.154556s` and one new reference
+error. **Session-Local Remote Speaker Enrollment Hardening v1** is current; production Coverage v3
+remains unchanged. Notes and retrieval remain parked.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

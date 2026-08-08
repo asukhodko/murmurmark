@@ -1,0 +1,165 @@
+{
+  "artifacts": {
+    "markdown_report": {
+      "bytes": 1393,
+      "id": "markdown_report",
+      "path": "sessions/_reports/bounded-remote-speaker-interval-purification-v1/bounded_remote_speaker_interval_purification_report.md",
+      "sha256": "cd19f7a7056dc5f2019d07a7faaa7168c984cf3dd23514ba01126de169db54d0"
+    },
+    "policy": {
+      "bytes": 6588,
+      "id": "policy",
+      "path": "policies/bounded-remote-speaker-interval-purification-v1.json",
+      "sha256": "8c7ad7946d68e15956afec0467209024af47fc74cccafe4b05ac01f58d7c9e4c"
+    },
+    "public_input_manifest": {
+      "bytes": 4219,
+      "id": "public_input_manifest",
+      "path": "sessions/_reports/bounded-remote-speaker-interval-purification-v1/input_manifest.public.json",
+      "sha256": "4f3a3e75eb3f3ec7b86fee3d9fc9ca0321722da10c5c1380ecf33961881c14b3"
+    },
+    "replay_report": {
+      "bytes": 684,
+      "id": "replay_report",
+      "path": "sessions/_reports/bounded-remote-speaker-interval-purification-v1/replay_report.json",
+      "sha256": "bc89a8fe6b2fd8d8399b3be498fc148b8726fbbe66667eec7752f06421827338"
+    },
+    "report": {
+      "bytes": 3959,
+      "id": "report",
+      "path": "sessions/_reports/bounded-remote-speaker-interval-purification-v1/bounded_remote_speaker_interval_purification_report.json",
+      "sha256": "b1ed190ad5ee66c4e61db4bb6139de457ae12713bb3af7f77b9ec5eb71863815"
+    }
+  },
+  "candidate": {
+    "id": "word_span_guard_80ms_v1",
+    "materialized_items": 50,
+    "parameter_search_used": false,
+    "post_hoc_tuning_used": false,
+    "unknown_items": 43,
+    "unknown_reasons": {
+      "insufficient_audio_evidence": 35,
+      "known_context_overlaps_word_span": 1,
+      "word_span_too_short": 7
+    }
+  },
+  "comparison": {
+    "candidate": {
+      "items": 66,
+      "seconds": 209.538339,
+      "words": 154
+    },
+    "candidate_evidence": {
+      "independent_machine_reference": {
+        "correct_words": 30,
+        "evaluated_items": 10,
+        "evaluated_words": 31,
+        "incorrect_words": 1,
+        "precision": 0.967742
+      },
+      "structural_one_to_one": {
+        "correct_words": 27,
+        "evaluated_items": 22,
+        "evaluated_words": 27,
+        "incorrect_words": 0,
+        "precision": 1.0
+      }
+    },
+    "candidate_interval_scope": {
+      "items": 2,
+      "seconds": 4.154556,
+      "words": 2
+    },
+    "candidate_reference_error_words": 1,
+    "changed_accepted_speakers": 0,
+    "control": {
+      "items": 68,
+      "seconds": 211.099681,
+      "words": 156
+    },
+    "control_evidence": {
+      "independent_machine_reference": {
+        "correct_words": 29,
+        "evaluated_items": 12,
+        "evaluated_words": 33,
+        "incorrect_words": 4,
+        "precision": 0.878788
+      },
+      "structural_one_to_one": {
+        "correct_words": 27,
+        "evaluated_items": 22,
+        "evaluated_words": 27,
+        "incorrect_words": 0,
+        "precision": 1.0
+      }
+    },
+    "control_interval_scope": {
+      "items": 4,
+      "seconds": 5.715897,
+      "words": 4
+    },
+    "control_reference_error_words": 4,
+    "interval_accepted_item_gain_ratio": 0.021505,
+    "interval_recovered_seconds_gain_ratio": 0.0,
+    "new_reference_error_words": 1,
+    "newly_accepted_items": 2,
+    "newly_accepted_seconds": 4.154556,
+    "newly_accepted_words": 2,
+    "removed_control_acceptances": 4
+  },
+  "decision": "DO_NOT_ADVANCE_INTERVAL_PURIFICATION",
+  "gates": {
+    "boundary_and_chronology_no_regression": true,
+    "exact_word_and_timestamp_conservation": true,
+    "existing_coverage_labels_unchanged": true,
+    "frozen_control_reproduced": true,
+    "independent_precision_no_regression": true,
+    "materialized_candidate_items": true,
+    "minimum_interval_accepted_item_gain_ratio": false,
+    "minimum_interval_recovered_seconds_gain_ratio": false,
+    "minimum_newly_accepted_items": false,
+    "minimum_newly_accepted_seconds": false,
+    "minimum_newly_accepted_words": false,
+    "no_changed_accepted_speaker": true,
+    "no_new_reference_errors": false,
+    "production_guards_unchanged": true,
+    "silent_fail_open": true,
+    "structural_precision_no_regression": true
+  },
+  "invariants": {
+    "all_items_accounted_once": true,
+    "all_words_accounted_once": true,
+    "candidate_is_shadow_only": true,
+    "enrollment_unchanged": true,
+    "interval_scope_frozen": true,
+    "production_guards_unchanged": true,
+    "thresholds_unchanged": true
+  },
+  "private_values_excluded": true,
+  "replay_verified": true,
+  "safety": {
+    "coverage_v3_mutated": false,
+    "cross_session_voice_linking": false,
+    "echo_guard_mutated": false,
+    "enrollment_mutated": false,
+    "human_names_inferred": false,
+    "primary_asr_mutated": false,
+    "private_values_excluded": true,
+    "production_mutated": false,
+    "raw_audio_mutated": false,
+    "selected_transcript_mutated": false,
+    "shadow_only": true,
+    "thresholds_tuned": false
+  },
+  "schema": "murmurmark.bounded_remote_speaker_interval_purification_manifest/v1",
+  "scope": {
+    "guarded_sessions": 6,
+    "interval_failure_items": 93,
+    "interval_failure_seconds": 201.273504,
+    "interval_failure_words": 298,
+    "items": 278,
+    "words": 851
+  },
+  "source_fingerprint": "e9e4b551cd38b212936605024bad1f2821f0ef41caf5afe9684e0e4068232d56",
+  "version": "0.1.0"
+}

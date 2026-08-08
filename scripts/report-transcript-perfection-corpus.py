@@ -483,6 +483,34 @@ def semantic_gates(
         {"invariants": shadow_error_invariants, "safety": shadow_error_safety},
     )
 
+    interval = payloads.get("bounded_remote_speaker_interval_purification_v1") or {}
+    interval_invariants = interval.get("invariants") or {}
+    interval_safety = interval.get("safety") or {}
+    add(
+        "bounded_remote_speaker_interval_purification_v1",
+        "terminal_decision",
+        interval.get("decision")
+        in {
+            "ADVANCE_PURIFIED_SHADOW_CANDIDATE",
+            "DO_NOT_ADVANCE_INTERVAL_PURIFICATION",
+            "EVIDENCE_BOUND",
+        },
+        interval.get("decision"),
+    )
+    add(
+        "bounded_remote_speaker_interval_purification_v1",
+        "shadow_integrity",
+        bool(interval_invariants)
+        and all(value is True for value in interval_invariants.values())
+        and interval_safety.get("shadow_only") is True
+        and interval_safety.get("production_mutated") is False
+        and interval_safety.get("coverage_v3_mutated") is False
+        and interval_safety.get("selected_transcript_mutated") is False
+        and interval_safety.get("enrollment_mutated") is False
+        and interval_safety.get("thresholds_tuned") is False,
+        {"invariants": interval_invariants, "safety": interval_safety},
+    )
+
     failures = [f"semantic_gate:{row['source']}:{row['gate']}" for row in checks if not row["passed"]]
     return checks, failures
 
@@ -634,6 +662,7 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
     identity_shadow_summary = identity_shadow["summary"]
     identity_shadow_evidence = identity_shadow["evidence"]
     shadow_errors = payloads["remote_speaker_shadow_error_decomposition_v1"]
+    interval_purification = payloads["bounded_remote_speaker_interval_purification_v1"]
 
     return [
         {
@@ -713,6 +742,7 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 "stronger_remote_speaker_identity_backend_qualification_v1",
                 "ecapa_remote_speaker_shadow_qualification_v1",
                 "remote_speaker_shadow_error_decomposition_v1",
+                "bounded_remote_speaker_interval_purification_v1",
             ],
             "metrics": {
                 "attributable_speech_ratio": float(remote_summary["attributable_remote_speech_ratio"]),
@@ -845,6 +875,22 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 ]["top_axis"],
                 "shadow_error_decomposition_axis_dominance_margin": float(
                     shadow_errors["decision_evidence"]["axis_dominance_margin"]
+                ),
+                "interval_purification_decision": interval_purification["decision"],
+                "interval_purification_materialized_items": int(
+                    interval_purification["candidate"]["materialized_items"]
+                ),
+                "interval_purification_newly_accepted_items": int(
+                    interval_purification["comparison"]["newly_accepted_items"]
+                ),
+                "interval_purification_newly_accepted_seconds": float(
+                    interval_purification["comparison"]["newly_accepted_seconds"]
+                ),
+                "interval_purification_independent_precision": interval_purification[
+                    "comparison"
+                ]["candidate_evidence"]["independent_machine_reference"]["precision"],
+                "interval_purification_new_reference_error_words": int(
+                    interval_purification["comparison"]["new_reference_error_words"]
                 ),
             },
             "residual_classes": ["unknown_remote_speaker"],
@@ -1019,13 +1065,13 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
     ):
         release_blockers.insert(2, "remote_speaker_turns.ecapa_shadow_not_promoted")
     if (
-        (payloads.get("remote_speaker_shadow_error_decomposition_v1") or {}).get("decision")
-        == "ADVANCE_INTERVAL_PURIFICATION"
+        (payloads.get("bounded_remote_speaker_interval_purification_v1") or {}).get("decision")
+        != "ADVANCE_PURIFIED_SHADOW_CANDIDATE"
     ):
-        release_blockers.insert(2, "remote_speaker_turns.interval_purification_required")
+        release_blockers.insert(2, "remote_speaker_turns.interval_purification_not_advanced")
     report = {
         "schema": REPORT_SCHEMA,
-        "generator": {"name": "report-transcript-perfection-corpus", "version": "0.9.0", "mode": "deterministic_offline"},
+        "generator": {"name": "report-transcript-perfection-corpus", "version": "1.0.0", "mode": "deterministic_offline"},
         "decision": decision,
         "manifest": {
             "path": portable_path(Path(str(manifest["_path"]))),
@@ -1068,12 +1114,14 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
                     "recovered 156 words and 211.099681 seconds in real-session shadow, but missed the "
                     "frozen 20% word gate and reached only 0.878788 precision on the available coarse "
                     "independent machine reference. Frozen error decomposition assigned 93 of 214 "
-                    "failure items and 201.273504 seconds to interval purification, the only axis "
-                    "passing the predeclared materiality and dominance gates"
+                    "failure items and 201.273504 seconds to interval purification. The one-shot "
+                    "word-bounded candidate then removed four control errors and raised coarse "
+                    "independent precision to 0.967742, but recovered only two new words / 4.154556 "
+                    "seconds and introduced one new reference error"
                 ),
                 "next_evidence": (
-                    "build one bounded interval-purification candidate on the frozen shadow inputs and "
-                    "compare it against the unchanged ECAPA and Coverage v3 controls"
+                    "evaluate one predeclared session-local enrollment hardening candidate on the "
+                    "frozen 83-item enrollment axis without retuning the rejected interval crop"
                 ),
             },
             {
@@ -1098,14 +1146,13 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
             ),
         },
         "next_goal": {
-            "id": "bounded-remote-speaker-interval-purification-v1" if not failures else "restore-input-integrity",
-            "title": "Bounded Remote Speaker Interval Purification v1" if not failures else "Restore Input Integrity",
+            "id": "session-local-remote-speaker-enrollment-hardening-v1" if not failures else "restore-input-integrity",
+            "title": "Session-Local Remote Speaker Enrollment Hardening v1" if not failures else "Restore Input Integrity",
             "selected_residual_class": "unknown_remote_speaker" if not failures else None,
             "rationale": (
-                "Frozen ECAPA shadow error decomposition selected interval purification as the only "
-                "material dominant axis: 93 of 214 failure items and 201.273504 seconds. Improve only "
-                "speaker-bounded audio intervals before changing enrollment or identity; Coverage v3 "
-                "remains authoritative."
+                "The single frozen interval candidate failed material recovery and no-new-error "
+                "gates, so that branch is closed without tuning. Enrollment instability is the next "
+                "measured axis: 83 failure items and 119.920926 seconds; Coverage v3 remains authoritative."
                 if not failures
                 else "Input integrity must be restored before selecting an engineering goal."
             ),

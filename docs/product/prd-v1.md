@@ -140,9 +140,10 @@ lab candidate after a one-shot hard-v4 result of B-cubed F1 `0.948042`, known re
 pairwise precision `1.0` and zero open-set false attribution. The frozen real-session shadow later
 closed with `DO_NOT_PROMOTE_REAL_IDENTITY`: 156/851 words and 211.100/598.240 seconds were proposed,
 but the word ratio was `0.183314` and independent machine-reference precision `0.878788`. Shadow
-Error Decomposition then selected interval purification: 93/214 failures and `201.273504s`, with
-dominance margin `0.128982`. Bounded Remote Speaker Interval Purification v1 is current; production
-remains Coverage v3. Notes, external writes and UI remain optional.
+Error Decomposition selected interval purification: 93/214 failures and `201.273504s`. Its one-shot
+crop then closed `DO_NOT_ADVANCE`: 2 new words / `4.154556s` and one new reference error.
+Session-Local Remote Speaker Enrollment Hardening v1 is current; production remains Coverage v3.
+Notes, external writes and UI remain optional.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.
 

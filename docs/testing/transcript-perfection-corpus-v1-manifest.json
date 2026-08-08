@@ -287,6 +287,18 @@
       "path": "sessions/_reports/remote-speaker-shadow-error-decomposition-v1/remote_speaker_shadow_error_decomposition_report.json",
       "required": true,
       "sha256": "8cfcddac2beafdd290b2b0d8fc14be151fdcd2462e8e4242b7cc76e332dcd5e7"
+    },
+    {
+      "bytes": 3959,
+      "dimensions": [
+        "remote_speaker_turns"
+      ],
+      "evidence_level": "one_shot_frozen_real_session_interval_purification_shadow",
+      "expected_schema": "murmurmark.bounded_remote_speaker_interval_purification_report/v1",
+      "id": "bounded_remote_speaker_interval_purification_v1",
+      "path": "sessions/_reports/bounded-remote-speaker-interval-purification-v1/bounded_remote_speaker_interval_purification_report.json",
+      "required": true,
+      "sha256": "b1ed190ad5ee66c4e61db4bb6139de457ae12713bb3af7f77b9ec5eb71863815"
     }
   ]
 }

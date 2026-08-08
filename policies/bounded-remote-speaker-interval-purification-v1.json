@@ -1,0 +1,154 @@
+{
+  "schema": "murmurmark.bounded_remote_speaker_interval_purification_policy/v1",
+  "version": "0.1.0",
+  "purpose": "Evaluate one frozen word-bounded interval candidate against the unchanged ECAPA real-session shadow control.",
+  "source": {
+    "expected_items": 278,
+    "expected_words": 851,
+    "expected_interval_failure_items": 93,
+    "expected_interval_failure_seconds": 201.273504,
+    "expected_speech_supported_interval_items": 58,
+    "expected_insufficient_audio_items": 35,
+    "expected_control_accepted_items": 68,
+    "expected_control_abstentions": 210,
+    "expected_enrollment_exemplars": 28,
+    "artifacts": [
+      {
+        "id": "decomposition_policy",
+        "path": "policies/remote-speaker-shadow-error-decomposition-v1.json",
+        "sha256": "6106013bc9b03f530ade1bb9972069878a0d65f410d329e45ea6c7c10388f837"
+      },
+      {
+        "id": "decomposition_tracked_manifest",
+        "path": "docs/testing/remote-speaker-shadow-error-decomposition-v1-manifest.json",
+        "sha256": "37ce2f10d671fad9ef64f8045bb70192531889ca25e31fcc8946146c3cff4331"
+      },
+      {
+        "id": "decomposition_input_manifest",
+        "path": "sessions/_reports/remote-speaker-shadow-error-decomposition-v1/private/input_manifest.json",
+        "sha256": "73f397787b1d7ba72c48ac98905c609ab3e5f7998b8a73ee44c3e65a2f42e679"
+      },
+      {
+        "id": "decomposition_items",
+        "path": "sessions/_reports/remote-speaker-shadow-error-decomposition-v1/private/item_error_decomposition.jsonl",
+        "sha256": "fa412c0f4f5e8ff3871302c6f80854254b16b7baf8e6408d57dbfc18c7da8f04"
+      },
+      {
+        "id": "decomposition_report",
+        "path": "sessions/_reports/remote-speaker-shadow-error-decomposition-v1/remote_speaker_shadow_error_decomposition_report.json",
+        "sha256": "8cfcddac2beafdd290b2b0d8fc14be151fdcd2462e8e4242b7cc76e332dcd5e7"
+      },
+      {
+        "id": "decomposition_replay",
+        "path": "sessions/_reports/remote-speaker-shadow-error-decomposition-v1/replay_report.json",
+        "sha256": "fbd5f8a014985b8716c6379d75c4d67b4da6df3a621012e730ba7f26f5c8cf9e"
+      },
+      {
+        "id": "shadow_policy",
+        "path": "policies/ecapa-remote-speaker-shadow-qualification-v1.json",
+        "sha256": "914bfe83dd3810149317ac23e99dc6d493a1c5cfaac982fe613ff9653370a468"
+      },
+      {
+        "id": "shadow_input_manifest",
+        "path": "sessions/_reports/ecapa-remote-speaker-shadow-qualification-v1/private/input_manifest.json",
+        "sha256": "3455fc27edb157ee73e53e645dc976a12b2c2305357d704819388dc9aa714508"
+      },
+      {
+        "id": "shadow_embedding_request",
+        "path": "sessions/_reports/ecapa-remote-speaker-shadow-qualification-v1/private/embedding_request.json",
+        "sha256": "ff514ea3fd35035ff12f21e16cac95fff1a718e532048cd47b0bee5c5f186705"
+      },
+      {
+        "id": "shadow_embeddings",
+        "path": "sessions/_reports/ecapa-remote-speaker-shadow-qualification-v1/private/embeddings.json",
+        "sha256": "fc87c226b9834e8659f6a2e05b406ad6e9bb85d5db16932da860754000de8a33"
+      },
+      {
+        "id": "shadow_item_decisions",
+        "path": "sessions/_reports/ecapa-remote-speaker-shadow-qualification-v1/private/item_shadow_decisions.jsonl",
+        "sha256": "3bbbe13f89f88dcf313d37bae6c3210a138439d228ca4f8c6d83c77deb46a9ea"
+      },
+      {
+        "id": "shadow_word_decisions",
+        "path": "sessions/_reports/ecapa-remote-speaker-shadow-qualification-v1/private/word_shadow_decisions.jsonl",
+        "sha256": "27d57e84582f9c1ec7cbc470270aa61507cf6111ed40bc066e45e1c7694fc4be"
+      },
+      {
+        "id": "shadow_report",
+        "path": "sessions/_reports/ecapa-remote-speaker-shadow-qualification-v1/ecapa_remote_speaker_shadow_qualification_report.json",
+        "sha256": "7a4cc561a1aec4344e3eb4b263ed72bee0e0b2cdd77908d5eb21bfe39d56a85e"
+      }
+    ]
+  },
+  "candidate": {
+    "id": "word_span_guard_80ms_v1",
+    "scope_primary_causes": [
+      "insufficient_audio_evidence",
+      "interval_boundary_or_mixed_speech"
+    ],
+    "require_failure_scope": true,
+    "guard_sec": 0.08,
+    "known_context_separation_sec": 0.02,
+    "minimum_unpadded_span_sec": 0.4,
+    "minimum_audio_sec_for_ecapa": 1.0,
+    "output_subtype": "PCM_16",
+    "rules_in_order": [
+      "insufficient_audio_evidence_means_unknown_without_embedding",
+      "zero_or_short_word_span_means_unknown_without_embedding",
+      "known_context_overlapping_word_span_means_unknown_without_embedding",
+      "otherwise_crop_to_word_span_plus_fixed_guard",
+      "clamp_guard_before_nearest_known_context",
+      "ecapa_error_means_unknown"
+    ],
+    "parameter_search_allowed": false,
+    "post_hoc_tuning_allowed": false
+  },
+  "identity": {
+    "backend_id": "speechbrain_ecapa_voxceleb_candidate",
+    "model_id": "speechbrain/spkrec-ecapa-voxceleb",
+    "revision": "0f99f2d0ebe89ac095bcc5903c4dd8f72b367286",
+    "default_model_path": "~/.local/share/murmurmark/models/remote-speaker-identity-v1/ecapa-voxceleb",
+    "default_runtime_path": "~/.local/share/murmurmark/runtimes/remote-speaker-identity-v1",
+    "minimum_similarity": 0.5,
+    "minimum_margin": 0.3,
+    "threads": 4,
+    "nice": 20
+  },
+  "decision": {
+    "allowed_outcomes": [
+      "ADVANCE_PURIFIED_SHADOW_CANDIDATE",
+      "DO_NOT_ADVANCE_INTERVAL_PURIFICATION",
+      "EVIDENCE_BOUND"
+    ],
+    "minimum_materialized_candidate_items": 30,
+    "minimum_newly_accepted_items": 5,
+    "minimum_newly_accepted_words": 10,
+    "minimum_newly_accepted_seconds": 10.0,
+    "minimum_interval_accepted_item_gain_ratio": 0.05,
+    "minimum_interval_recovered_seconds_gain_ratio": 0.05,
+    "require_structural_precision_no_regression": true,
+    "require_independent_precision_no_regression": true,
+    "require_no_new_reference_errors": true,
+    "require_no_changed_accepted_speaker": true,
+    "require_silent_fail_open": true,
+    "require_exact_word_and_timestamp_conservation": true,
+    "require_existing_coverage_labels_unchanged": true,
+    "require_boundary_and_chronology_no_regression": true,
+    "require_deterministic_replay": true
+  },
+  "safety": {
+    "shadow_only": true,
+    "production_mutation": false,
+    "coverage_v3_mutation": false,
+    "selected_transcript_mutation": false,
+    "raw_audio_mutation": false,
+    "primary_asr_mutation": false,
+    "echo_guard_mutation": false,
+    "enrollment_mutation": false,
+    "threshold_tuning": false,
+    "human_name_inference": false,
+    "cross_session_voice_linking": false,
+    "cloud_allowed": false,
+    "manual_listening_required": false
+  }
+}

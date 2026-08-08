@@ -34,10 +34,10 @@ Expected frozen baseline:
 
 ```text
 decision: BASELINE_ESTABLISHED
-sources: 21/21 verified
+sources: 22/22 verified
 release_ready: false
 largest_actionable_residual: unknown_remote_speaker (598.240s)
-next_goal: Bounded Remote Speaker Interval Purification v1
+next_goal: Session-Local Remote Speaker Enrollment Hardening v1
 ```
 
 ## Reading The Result
@@ -53,6 +53,7 @@ next_goal: Bounded Remote Speaker Interval Purification v1
 - oracle decomposition keeps the dominant identity gain and smaller boundary/open-set gains separate.
 - one-shot hard-v4 keeps the promoted ECAPA lab candidate separate from real-session production evidence.
 - frozen real-session error decomposition routes only the dominant interval axis and keeps Coverage v3 authoritative.
+- the one-shot interval candidate is closed without tuning after only two new words and one new reference error;
 - residual seconds belong to different frozen scopes and must not be summed.
 - the first residual row selects the next bounded engineering goal.
 

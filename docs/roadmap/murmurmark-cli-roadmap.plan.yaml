@@ -33,7 +33,7 @@ nodes:
     title: "MurmurMark CLI"
     kind: summary
     status: current
-    effort: 320
+    effort: 332
     notes: |
       Активная CLI-first, local-first и evidence-backed программа. Batch transcript остаётся
       authoritative. Текущий North Star: одной командой получить максимально надёжный transcript,
@@ -320,25 +320,11 @@ nodes:
       4.107 dB non-target SNR и 8.293 dB absent-query attenuation. Immutable dev lock отклонил
       candidate; hard и sealed corpus остались unopened, production v2 byte-exact.
 
-  product-evidence-export-v2:
-    title: "Evidence Notes And Export v2"
-    kind: task
-    parent: murmurmark-cli
-    deps: [research-reference-conditioned-target-me-separation-v2]
-    status: done
-    effort: 7
-    notes: |
-      Завершено. Versioned deterministic Evidence Handoff v2 связывает выбранный transcript
-      profile, quality verdict, evidence notes, unresolved review burden и export readiness.
-      Guarded Markdown/Obsidian export читает только ready или verified no_speech handoff; `--force`
-      не обходит integrity/review gates. На 110 сессиях валидны 110/110 манифестов, stale,
-      referential-integrity и deterministic-replay failures равны нулю; corpus gate PASS.
-
   product-release-quality-cli:
     title: "Release-quality CLI"
     kind: task
     parent: murmurmark-cli
-    deps: [product-evidence-export-v2]
+    deps: [research-reference-conditioned-target-me-separation-v2]
     status: done
     effort: 7
     notes: |
@@ -494,7 +480,7 @@ nodes:
     status: done
     effort: 10
     notes: |
-      Завершено BASELINE_ESTABLISHED. После shadow error decomposition проверяет 21/21 frozen
+      Завершено BASELINE_ESTABLISHED. После interval purification проверяет 22/22 frozen
       sources; восемь dimensions разделяют correctness, coverage, uncertainty и review. Exact
       lexical subset измерен, real meetings reference-insufficient, aggregate score запрещён.
       Ranked residual leader: 598.240s / 851 unknown remote words / 6 sessions.
@@ -549,7 +535,7 @@ nodes:
       Завершено REFERENCE_INSUFFICIENT. Девять graded sources отделяют exact generated evidence от
       scripted expected и independent machine diagnostics. Exact digital subset: 67 words, WER/CER
       0, term accuracy 1.0; human-reviewed real sessions: 0. Public/tracked artifacts не содержат
-      речь, имена или absolute paths; replay детерминирован. Transcript Perfection проверяет 21/21
+      речь, имена или absolute paths; replay детерминирован. Transcript Perfection проверяет 22/22
       sources и сохраняет real-meeting lexical blocker.
 
   quality-independent-remote-speaker-evidence-v1:
@@ -677,15 +663,26 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-remote-speaker-shadow-error-decomposition-v1]
+    status: done
+    effort: 12
+    notes: |
+      Завершено DO_NOT_ADVANCE_INTERVAL_PURIFICATION. Единственный word_span_guard_80ms_v1
+      materialized 50/93 clips, удалил четыре control errors и поднял coarse independent precision
+      0.878788 -> 0.967742, но восстановил лишь 2 words / 4.154556s и создал одну новую reference
+      error. Material gates не пройдены; crop tuning на этом evidence запрещён, production неизменен.
+
+  quality-session-local-remote-speaker-enrollment-hardening-v1:
+    title: "Session-Local Remote Speaker Enrollment Hardening v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-bounded-remote-speaker-interval-purification-v1]
     status: current
     effort: 12
     notes: |
-      На frozen 278-item ECAPA control проверить ровно один заранее объявленный sample-level
-      speaker-bounded interval candidate. Изменять только item clips/embeddings; enrollment,
-      ECAPA revision, thresholds 0.50/0.30, words, timestamps и production guards неизменны.
-      Primary scope — 93 interval failures / 201.273504s. Итог только
-      ADVANCE_PURIFIED_SHADOW_CANDIDATE, DO_NOT_ADVANCE_INTERVAL_PURIFICATION либо EVIDENCE_BOUND;
-      даже положительный candidate остаётся shadow до отдельной qualification.
+      На frozen 278-item ECAPA control проверить ровно один exemplar-only robust-centroid candidate
+      для 83 enrollment failures / 119.920926s. Кандидат использует только session-local exemplar
+      similarity, leave-one-out stability и impostor margin; target-item outcomes запрещены. ECAPA,
+      item embeddings, thresholds 0.50/0.30, Coverage v3 и production остаются неизменными.
 
   future-local-mic-diarization-v1:
     title: "Local Mic Multi-Speaker Diarization v1"
@@ -716,7 +713,7 @@ views:
         nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-bounded-remote-speaker-interval-purification-v1]
+        nodes: [quality-session-local-remote-speaker-enrollment-hardening-v1]
       dependent:
         title: "Blind real-session reference blocker"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
@@ -745,7 +742,6 @@ views:
           - research-reference-conditioned-target-me-separation-v1
           - quality-target-me-identifiability-corpus-v1
           - research-reference-conditioned-target-me-separation-v2
-          - product-evidence-export-v2
           - product-release-quality-cli
           - product-reliable-final-handoff-v1
           - product-authoritative-incremental-asr-v1
@@ -771,6 +767,7 @@ views:
           - quality-ecapa-remote-speaker-shadow-qualification-v1
           - quality-remote-speaker-shadow-error-decomposition-v1
           - quality-bounded-remote-speaker-interval-purification-v1
+          - quality-session-local-remote-speaker-enrollment-hardening-v1
 
   echo-frontier:
     title: "Пред-ASR отделение Me от remote"
@@ -806,8 +803,8 @@ views:
         title: "Доказанная speaker evidence"
         nodes: [research-remote-diarization, research-rich-transcript, quality-remote-speaker-diarization-v2]
       current:
-        title: "Очистка ECAPA real-session интервалов"
-        nodes: [quality-bounded-remote-speaker-interval-purification-v1]
+        title: "Укрепление session-local enrollment"
+        nodes: [quality-session-local-remote-speaker-enrollment-hardening-v1]
       blocker:
         title: "Blind real-session reference"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
@@ -844,7 +841,6 @@ views:
           - research-reference-conditioned-target-me-separation-v1
           - quality-target-me-identifiability-corpus-v1
           - research-reference-conditioned-target-me-separation-v2
-          - product-evidence-export-v2
           - product-release-quality-cli
           - product-reliable-final-handoff-v1
           - product-authoritative-incremental-asr-v1
@@ -870,14 +866,15 @@ views:
           - quality-ecapa-remote-speaker-shadow-qualification-v1
           - quality-remote-speaker-shadow-error-decomposition-v1
           - quality-bounded-remote-speaker-interval-purification-v1
+          - quality-session-local-remote-speaker-enrollment-hardening-v1
           - future-local-mic-diarization-v1
 
 x:
   exec:
     program:
       nearest_goal: >-
-        Bounded Remote Speaker Interval Purification v1: сохранить Coverage v3, ECAPA shadow, enrollment centroids, selected transcripts, raw CAF, primary ASR и Echo Guard неизменными; SHA-256 заморозить decomposition inputs и 93 interval-axis failure items / 201.273504s; до открытия результата объявить ровно один deterministic speaker-bounded interval candidate, который удаляет padding/соседнюю и смешанную речь без изменения word IDs, text или timestamps; пересчитать только item embeddings тем же pinned ECAPA, thresholds 0.50/0.30 и неизменным enrollment; сравнить с frozen control по acceptance, independent/structural evidence, silent fail-open, chronology и per-item provenance; выпустить `ADVANCE_PURIFIED_SHADOW_CANDIDATE`, `DO_NOT_ADVANCE_INTERVAL_PURIFICATION` либо `EVIDENCE_BOUND` без production promotion; добавить CLI, fail-closed fixture/replay tests, portable report и Transcript Perfection source; обновить документацию и планирование, пройти проверки, закоммитить и отправить изменения.
-      success_by_next_sync: "Один frozen interval candidate сравнен с ECAPA control на всех 278 items, а terminal outcome выпущен без изменения production."
+        Session-Local Remote Speaker Enrollment Hardening v1: сохранить Coverage v3, ECAPA backend, selected transcripts, raw CAF, primary ASR и Echo Guard неизменными; SHA-256 заморозить 278-item shadow control, 83 enrollment-axis failure items / 119.920926s, 28 session-local exemplars, их embeddings и independent/structural evidence; до открытия результата объявить ровно один exemplar-only robust-centroid candidate, который использует только intra-session enrollment similarity, leave-one-out stability и impostor margin, но не target-item outcomes; пересчитать centroids и те же frozen item embeddings при thresholds 0.50/0.30; сравнить с control по acceptance, precision, open-set abstention, silent fail-open, chronology и provenance; выпустить `ADVANCE_HARDENED_ENROLLMENT_SHADOW`, `DO_NOT_ADVANCE_ENROLLMENT_HARDENING` либо `EVIDENCE_BOUND` без production promotion; добавить CLI, fail-closed fixture/replay tests, portable report и Transcript Perfection source; обновить документацию и планирование, пройти проверки, закоммитить и отправить изменения.
+      success_by_next_sync: "Один exemplar-only enrollment candidate сравнен с ECAPA control на всех 278 items, а terminal outcome выпущен без изменения production."
     defaults:
       status_progress:
         done: 1.0
@@ -898,13 +895,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle и batch transcript работают; three-session replay подтвердил raw/cache/speaker conservation и закрыл legacy cache preflight."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Bounded Remote Speaker Interval Purification v1"
-        scope_nodes: [quality-bounded-remote-speaker-interval-purification-v1]
+        title: "Session-Local Remote Speaker Enrollment Hardening v1"
+        scope_nodes: [quality-session-local-remote-speaker-enrollment-hardening-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Error decomposition выбрал interval axis: 93/214 failures и 201.274s, dominance margin 0.128982; production не менялся."
-          next_sync_goal: "Проверить один frozen speaker-bounded interval candidate при неизменных ECAPA, enrollment и thresholds."
+          sync_note: "Fixed interval crop закрыт DO_NOT_ADVANCE: 2 новых слова / 4.155s и одна новая reference error; production не менялся."
+          next_sync_goal: "Проверить один exemplar-only robust centroid на 83 enrollment failures при неизменных ECAPA item embeddings и thresholds."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -926,6 +923,7 @@ x:
           - quality-ecapa-remote-speaker-shadow-qualification-v1
           - quality-remote-speaker-shadow-error-decomposition-v1
           - quality-bounded-remote-speaker-interval-purification-v1
+          - quality-session-local-remote-speaker-enrollment-hardening-v1
         kind: main
         mgmt:
           health: yellow
@@ -960,7 +958,7 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: real-session error decomposition выбрал interval purification; текущий фокус — один frozen bounded candidate без изменения production."
+        caption: "Короткая карта: fixed interval crop закрыт без tuning; текущий фокус — один session-local enrollment candidate без изменения production."
         blocks:
           - working-now
           - current-quality
