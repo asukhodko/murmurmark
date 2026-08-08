@@ -114,11 +114,11 @@ met, unless an explicit product decision changes the priority.
 
 ## Near-Term Direction
 
-1. **Transcript Perfection Corpus v1:** maintain the completed 20-source benchmark for text,
+1. **Transcript Perfection Corpus v1:** maintain the completed 21-source benchmark for text,
    chronology, roles, speakers, overlap, acoustic modes and known residual defects.
-2. **Remote Speaker Shadow Error Decomposition v1:** explain why the frozen ECAPA real-session
-   shadow failed its word-recovery and independent-reference precision gates before choosing a new
-   identity backend, enrollment method or interval topology.
+2. **Bounded Remote Speaker Interval Purification v1:** test one frozen speaker-bounded audio
+   candidate after error decomposition selected interval purity as the dominant real-session limit;
+   keep ECAPA, enrollment, thresholds and production unchanged.
 3. **Remote residual blind review:** keep all real-session proposals blocked until direct human or
    exact scripted truth exists; synthetic success cannot promote them.
 4. **Human-Reviewed Lexical Seed v1:** external-evidence prerequisite; do not tune ASR from machine

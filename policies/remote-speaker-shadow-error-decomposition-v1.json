@@ -1,0 +1,169 @@
+{
+  "schema": "murmurmark.remote_speaker_shadow_error_decomposition_policy/v1",
+  "version": "0.1.0",
+  "purpose": "Explain the frozen real-session ECAPA shadow outcome without changing thresholds or production.",
+  "source": {
+    "expected_decision": "DO_NOT_PROMOTE_REAL_IDENTITY",
+    "expected_items": 278,
+    "expected_words": 851,
+    "expected_accepted_items": 68,
+    "expected_abstentions": 210,
+    "expected_embedding_requests": 306,
+    "expected_embedding_failures": 2,
+    "expected_enrollment_exemplars": 28,
+    "expected_independent_reference_wrong_words": 4,
+    "artifacts": [
+      {
+        "id": "shadow_policy",
+        "path": "policies/ecapa-remote-speaker-shadow-qualification-v1.json",
+        "sha256": "914bfe83dd3810149317ac23e99dc6d493a1c5cfaac982fe613ff9653370a468"
+      },
+      {
+        "id": "shadow_tracked_manifest",
+        "path": "docs/testing/ecapa-remote-speaker-shadow-qualification-v1-manifest.json",
+        "sha256": "8789c6a45cc1cd91c0120a601ec4ae59e7812f462f8aa802c45115aede606e4f"
+      },
+      {
+        "id": "shadow_input_manifest",
+        "path": "sessions/_reports/ecapa-remote-speaker-shadow-qualification-v1/private/input_manifest.json",
+        "sha256": "3455fc27edb157ee73e53e645dc976a12b2c2305357d704819388dc9aa714508"
+      },
+      {
+        "id": "embedding_request",
+        "path": "sessions/_reports/ecapa-remote-speaker-shadow-qualification-v1/private/embedding_request.json",
+        "sha256": "ff514ea3fd35035ff12f21e16cac95fff1a718e532048cd47b0bee5c5f186705"
+      },
+      {
+        "id": "embeddings",
+        "path": "sessions/_reports/ecapa-remote-speaker-shadow-qualification-v1/private/embeddings.json",
+        "sha256": "fc87c226b9834e8659f6a2e05b406ad6e9bb85d5db16932da860754000de8a33"
+      },
+      {
+        "id": "item_decisions",
+        "path": "sessions/_reports/ecapa-remote-speaker-shadow-qualification-v1/private/item_shadow_decisions.jsonl",
+        "sha256": "3bbbe13f89f88dcf313d37bae6c3210a138439d228ca4f8c6d83c77deb46a9ea"
+      },
+      {
+        "id": "word_decisions",
+        "path": "sessions/_reports/ecapa-remote-speaker-shadow-qualification-v1/private/word_shadow_decisions.jsonl",
+        "sha256": "27d57e84582f9c1ec7cbc470270aa61507cf6111ed40bc066e45e1c7694fc4be"
+      },
+      {
+        "id": "shadow_report",
+        "path": "sessions/_reports/ecapa-remote-speaker-shadow-qualification-v1/ecapa_remote_speaker_shadow_qualification_report.json",
+        "sha256": "7a4cc561a1aec4344e3eb4b263ed72bee0e0b2cdd77908d5eb21bfe39d56a85e"
+      },
+      {
+        "id": "shadow_replay",
+        "path": "sessions/_reports/ecapa-remote-speaker-shadow-qualification-v1/replay_report.json",
+        "sha256": "9245e3de8a4740fe2c2d811119726a98a2fbac50eb4e75c6c8be1481afa0f1a9"
+      },
+      {
+        "id": "independent_reference",
+        "path": "sessions/_reports/remote-speaker-diarization-v2/reference_evaluation.json",
+        "sha256": "79307f53f209523d1b3233c23c3834e4e50723d87351eae13988e2b943342856"
+      },
+      {
+        "id": "boundary_cases",
+        "path": "docs/testing/remote-speaker-diarization-v2-boundaries.json",
+        "sha256": "d8d26a30e8a46861ac301c3e9428fb6229bc36e9e8c25d07b1aa5e9ca70878b9"
+      },
+      {
+        "id": "coverage_v3_manifest",
+        "path": "docs/testing/remote-speaker-coverage-v3-manifest.json",
+        "sha256": "20b4073df90f98729cc29bc2ec8f3002e88155d9202afd72f6898f494cfd0a6c"
+      },
+      {
+        "id": "coverage_v3_report",
+        "path": "sessions/_reports/remote-speaker-coverage-v3/remote_speaker_coverage_corpus_report.json",
+        "sha256": "0d2d6edcb0a0153a7ea3190760a8df609c3f3f7633c075ab65252035862932d4"
+      }
+    ]
+  },
+  "measurement": {
+    "audio": {
+      "frame_ms": 25,
+      "hop_ms": 10,
+      "minimum_core_sec": 0.4,
+      "silence_rms_dbfs": -60.0,
+      "activity_floor_dbfs": -50.0,
+      "activity_above_noise_db": 10.0,
+      "minimum_active_frame_ratio": 0.15,
+      "minimum_speech_band_ratio": 0.6
+    },
+    "interval": {
+      "boundary_near_sec": 0.35,
+      "minimum_padding_to_core_rms_ratio": 1.25,
+      "multiple_context_speakers_is_risky": true,
+      "multiple_utterance_speakers_is_risky": true
+    },
+    "enrollment": {
+      "minimum_same_speaker_similarity": 0.5,
+      "minimum_impostor_margin": 0.3,
+      "minimum_loo_decision_consistency": 0.8,
+      "minimum_loo_top_speaker_consistency": 0.8
+    },
+    "identity": {
+      "minimum_similarity": 0.5,
+      "minimum_margin": 0.3
+    }
+  },
+  "classification": {
+    "primary_cause_order": [
+      "insufficient_audio_evidence",
+      "interval_boundary_or_mixed_speech",
+      "enrollment_instability",
+      "independent_reference_unmapped_speaker",
+      "identity_reference_conflict",
+      "identity_similarity_limit",
+      "identity_margin_limit",
+      "accepted_reference_supported",
+      "accepted_without_direct_reference",
+      "evidence_bound"
+    ],
+    "technical_axis_map": {
+      "insufficient_audio_evidence": "interval_purification",
+      "interval_boundary_or_mixed_speech": "interval_purification",
+      "enrollment_instability": "enrollment_hardening",
+      "identity_reference_conflict": "identity_backend",
+      "identity_similarity_limit": "identity_backend",
+      "identity_margin_limit": "identity_backend"
+    }
+  },
+  "decision": {
+    "allowed_outcomes": [
+      "ADVANCE_INTERVAL_PURIFICATION",
+      "ADVANCE_ENROLLMENT_HARDENING",
+      "ADVANCE_REFERENCE_ACQUISITION",
+      "ADVANCE_IDENTITY_BACKEND",
+      "EVIDENCE_BOUND"
+    ],
+    "minimum_technical_item_ratio": 0.35,
+    "minimum_technical_seconds_ratio": 0.3,
+    "minimum_axis_dominance_margin": 0.1,
+    "minimum_reference_gap_item_ratio": 0.6,
+    "minimum_explained_failure_item_ratio": 0.9,
+    "rules_in_order": [
+      "failed_input_or_conservation_gate_means_evidence_bound",
+      "material_dominant_interval_axis_means_advance_interval_purification",
+      "material_dominant_enrollment_axis_means_advance_enrollment_hardening",
+      "material_dominant_identity_axis_means_advance_identity_backend",
+      "material_reference_gap_without_technical_dominance_means_advance_reference_acquisition",
+      "otherwise_evidence_bound"
+    ]
+  },
+  "safety": {
+    "diagnostic_only": true,
+    "production_mutation": false,
+    "coverage_v3_mutation": false,
+    "selected_transcript_mutation": false,
+    "raw_audio_mutation": false,
+    "primary_asr_mutation": false,
+    "echo_guard_mutation": false,
+    "threshold_tuning": false,
+    "human_name_inference": false,
+    "cross_session_voice_linking": false,
+    "cloud_allowed": false,
+    "manual_listening_required": false
+  }
+}

@@ -19,9 +19,10 @@ promoted ECAPA only as a lab candidate after hard-v4 F1 `0.948042`, known recall
 precision `1.0`, zero open-set false attribution and exact word conservation. Its real-session shadow
 then closed `DO_NOT_PROMOTE_REAL_IDENTITY`: 156 words / 211.100 seconds were proposed, but word
 recovery `0.183314` and independent machine-reference precision `0.878788` missed frozen gates.
-Remote Speaker Shadow Error Decomposition v1 is current; production remains Coverage v3. Notes,
-retrieval and work proposals remain optional derivatives.
-Date: 2026-08-08
+Shadow Error Decomposition then selected interval purification: 93/214 failures and `201.273504s`,
+with dominance margin `0.128982`. Bounded Remote Speaker Interval Purification v1 is current;
+production remains Coverage v3. Notes, retrieval and work proposals remain optional derivatives.
+Date: 2026-08-09
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
 corpus-calibrated gates and explicit review burden before broader repair. Outcome Contract v1,
@@ -484,13 +485,13 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Remote Speaker Shadow Error Decomposition v1: на frozen ECAPA shadow и Coverage v3 объяснить каждый
-accepted/abstained residual interval через interval purity, enrollment stability, duration/silence,
-boundary/mixed speech, reference granularity и identity score; выбрать не более одного следующего
-инженерного направления без изменения production transcript.
+Bounded Remote Speaker Interval Purification v1: на frozen ECAPA shadow проверить один заранее
+объявленный speaker-bounded interval candidate; менять только item clips/embeddings, сохраняя
+enrollment, thresholds, words, timestamps и production transcript неизменными.
 ```
 
-Error Decomposition v1 завершён `ADVANCE_STRONGER_SPEAKER_IDENTITY` на 393 words и 64 boundaries.
+Remote Speaker Attribution Error Decomposition v1 завершён
+`ADVANCE_STRONGER_SPEAKER_IDENTITY` на 393 words и 64 boundaries.
 Speaker-Resolved Transcript Default v1 завершён `PROMOTE`: ordinary read/handoff/export выбирают v3
 на совместимых сессиях и exact aggregate fallback в остальных. Transcript Perfection Corpus остаётся
 общим no-regression gate: exact generated lexical subset измерен, real meetings остаются

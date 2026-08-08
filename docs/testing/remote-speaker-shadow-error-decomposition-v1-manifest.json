@@ -1,0 +1,123 @@
+{
+  "artifacts": {
+    "markdown_report": {
+      "bytes": 1961,
+      "id": "markdown_report",
+      "path": "sessions/_reports/remote-speaker-shadow-error-decomposition-v1/remote_speaker_shadow_error_decomposition_report.md",
+      "sha256": "3cdde206589caf76941033cf9057c33949823a743f8a0c7329281a2f9b10579d"
+    },
+    "policy": {
+      "bytes": 6658,
+      "id": "policy",
+      "path": "policies/remote-speaker-shadow-error-decomposition-v1.json",
+      "sha256": "6106013bc9b03f530ade1bb9972069878a0d65f410d329e45ea6c7c10388f837"
+    },
+    "public_input_manifest": {
+      "bytes": 2721,
+      "id": "public_input_manifest",
+      "path": "sessions/_reports/remote-speaker-shadow-error-decomposition-v1/input_manifest.public.json",
+      "sha256": "2a2b43f5f03ce08ec2210dc9b3b9e3a385ca7c9d1c1564e67a5141aebfdbb40e"
+    },
+    "replay_report": {
+      "bytes": 1281,
+      "id": "replay_report",
+      "path": "sessions/_reports/remote-speaker-shadow-error-decomposition-v1/replay_report.json",
+      "sha256": "fbd5f8a014985b8716c6379d75c4d67b4da6df3a621012e730ba7f26f5c8cf9e"
+    },
+    "report": {
+      "bytes": 6479,
+      "id": "report",
+      "path": "sessions/_reports/remote-speaker-shadow-error-decomposition-v1/remote_speaker_shadow_error_decomposition_report.json",
+      "sha256": "8cfcddac2beafdd290b2b0d8fc14be151fdcd2462e8e4242b7cc76e332dcd5e7"
+    }
+  },
+  "decision": "ADVANCE_INTERVAL_PURIFICATION",
+  "decision_evidence": {
+    "axis_dominance_margin": 0.128982,
+    "dominant": true,
+    "explained_failure_item_ratio": 1.0,
+    "reason": "material_dominant_technical_axis",
+    "reference_gap_item_ratio": 0.68705,
+    "top_axis": "interval_purification",
+    "top_material": true
+  },
+  "embedding_failures": {
+    "explanations": {
+      "silent_audio_confirmed": 2
+    },
+    "items": 2
+  },
+  "invariants": {
+    "accepted_and_abstention_counts_unchanged": true,
+    "all_items_accounted_once": true,
+    "all_words_accounted_once": true,
+    "deterministic_analysis": true,
+    "frozen_thresholds_unchanged": true,
+    "independent_reference_wrong_words_explained": true,
+    "production_guards_frozen": true,
+    "two_embedding_failures_explained": true
+  },
+  "private_values_excluded": true,
+  "reference": {
+    "contextual_truth_items": 87,
+    "human_reviewed_items": 0,
+    "independent_reference_mismatch_words": 4,
+    "machine_reference_is_human_truth": false,
+    "mismatch_explanations": {
+      "identity_reference_conflict": 1,
+      "independent_reference_unmapped_speaker": 3
+    }
+  },
+  "replay_verified": true,
+  "safety": {
+    "coverage_v3_mutated": false,
+    "cross_session_voice_linking": false,
+    "diagnostic_only": true,
+    "echo_guard_mutated": false,
+    "human_names_inferred": false,
+    "primary_asr_mutated": false,
+    "private_values_excluded": true,
+    "production_mutated": false,
+    "raw_audio_mutated": false,
+    "selected_transcript_mutated": false,
+    "thresholds_tuned": false
+  },
+  "schema": "murmurmark.remote_speaker_shadow_error_decomposition_manifest/v1",
+  "scope": {
+    "enrollment_exemplars": 28,
+    "failure_items": 214,
+    "failure_seconds": 392.415726,
+    "failure_words": 699,
+    "items": 278,
+    "seconds": 597.799509,
+    "words": 851
+  },
+  "source_fingerprint": "cc2ac146f48febd50a467d95baea5b5edea253d4af55d9e2010f0be70cd6bcd7",
+  "technical_axes": [
+    {
+      "axis": "interval_purification",
+      "item_ratio": 0.434579,
+      "items": 93,
+      "material_score": 0.434579,
+      "seconds": 201.273504,
+      "seconds_ratio": 0.512909
+    },
+    {
+      "axis": "enrollment_hardening",
+      "item_ratio": 0.38785,
+      "items": 83,
+      "material_score": 0.305597,
+      "seconds": 119.920926,
+      "seconds_ratio": 0.305597
+    },
+    {
+      "axis": "identity_backend",
+      "item_ratio": 0.17757,
+      "items": 38,
+      "material_score": 0.17757,
+      "seconds": 71.221296,
+      "seconds_ratio": 0.181495
+    }
+  ],
+  "version": "0.1.0"
+}

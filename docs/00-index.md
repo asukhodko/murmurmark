@@ -119,11 +119,15 @@ Read in this order:
 115. [ECAPA Remote Speaker Shadow Qualification v1 runbook](runbooks/ecapa-remote-speaker-shadow-qualification-v1.md)
 116. [ECAPA Remote Speaker Shadow Qualification v1 result](testing/2026-08-08-ecapa-remote-speaker-shadow-qualification-v1.md)
 117. [ECAPA Remote Speaker Shadow Qualification v1 manifest](testing/ecapa-remote-speaker-shadow-qualification-v1-manifest.json)
-118. [Planning and development history](history/README.md)
+118. [Remote Speaker Shadow Error Decomposition v1 contract](contracts/remote-speaker-shadow-error-decomposition-v1.md)
+119. [Remote Speaker Shadow Error Decomposition v1 runbook](runbooks/remote-speaker-shadow-error-decomposition-v1.md)
+120. [Remote Speaker Shadow Error Decomposition v1 result](testing/2026-08-09-remote-speaker-shadow-error-decomposition-v1.md)
+121. [Remote Speaker Shadow Error Decomposition v1 manifest](testing/remote-speaker-shadow-error-decomposition-v1-manifest.json)
+122. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
-Planning snapshot: 2026-08-08. Durable capture, authoritative batch transcription, guarded review,
+Planning snapshot: 2026-08-09. Durable capture, authoritative batch transcription, guarded review,
 optional extractive notes/export and Speaker-Preserving Neural Echo v2.17 remain production. The bounded
 pre-ASR frontier is closed: SepFormer could assign present Target-Me stems but failed reliable
 presence/absence separation before dev. Anonymous rich transcript, explicit reviewed naming and
@@ -155,7 +159,9 @@ Decomposition v1** selected identity as the dominant axis: gain `0.351382` versu
 Qualification v1** then promoted ECAPA as a lab-only candidate after a one-shot hard-v4 result of
 B-cubed F1 `0.948042`, known recall `0.947368`, pairwise precision `1.0`, zero open-set false
 attribution and exact 154/154 word conservation. **ECAPA Remote Speaker Shadow Qualification v1**
-is current; production Coverage v3 remains unchanged. Notes and retrieval remain parked.
+then closed `DO_NOT_PROMOTE_REAL_IDENTITY`. **Remote Speaker Shadow Error Decomposition v1** routed
+93/214 failures and `201.273504s` to the dominant interval axis. **Bounded Remote Speaker Interval
+Purification v1** is current; production Coverage v3 remains unchanged. Notes and retrieval remain parked.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

@@ -75,6 +75,7 @@ CRITICAL_PATH = (
     "quality-stronger-remote-speaker-identity-backend-qualification-v1",
     "quality-ecapa-remote-speaker-shadow-qualification-v1",
     "quality-remote-speaker-shadow-error-decomposition-v1",
+    "quality-bounded-remote-speaker-interval-purification-v1",
 )
 
 EXPECTED_STATUSES = {"done", "current", "next", "later", "idea", "optional", "blocked"}
@@ -258,11 +259,6 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
     )
     require(
         "quality-pre-asr-target-me-isolation-limit-v1"
-        in nodes["product-reviewed-speaker-memory-v1"].get("deps", []),
-        "speaker-aware meeting memory must resume after the active audio frontier",
-    )
-    require(
-        "quality-pre-asr-target-me-isolation-limit-v1"
         in nodes["quality-remote-speaker-diarization-v2"].get("deps", []),
         "remote diarization v2 must follow the completed audio frontier",
     )
@@ -403,8 +399,18 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
         "remote speaker shadow error decomposition must follow ECAPA real-session qualification",
     )
     require(
-        nodes["quality-remote-speaker-shadow-error-decomposition-v1"].get("status") == "current",
-        "remote speaker shadow error decomposition must be the current quality goal",
+        nodes["quality-remote-speaker-shadow-error-decomposition-v1"].get("status") == "done",
+        "remote speaker shadow error decomposition must remain a completed diagnostic checkpoint",
+    )
+    require(
+        "quality-remote-speaker-shadow-error-decomposition-v1"
+        in nodes["quality-bounded-remote-speaker-interval-purification-v1"].get("deps", []),
+        "bounded interval purification must follow shadow error decomposition",
+    )
+    require(
+        nodes["quality-bounded-remote-speaker-interval-purification-v1"].get("status")
+        == "current",
+        "bounded remote speaker interval purification must be the current quality goal",
     )
     require("parked-ui" not in nodes, "UI must not occupy the active CLI roadmap")
 

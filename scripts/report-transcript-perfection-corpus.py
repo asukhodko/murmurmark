@@ -454,6 +454,35 @@ def semantic_gates(
         {"technical_gates": shadow_technical, "safety": shadow_safety},
     )
 
+    shadow_errors = payloads.get("remote_speaker_shadow_error_decomposition_v1") or {}
+    shadow_error_invariants = shadow_errors.get("invariants") or {}
+    shadow_error_safety = shadow_errors.get("safety") or {}
+    add(
+        "remote_speaker_shadow_error_decomposition_v1",
+        "terminal_decision",
+        shadow_errors.get("decision")
+        in {
+            "ADVANCE_INTERVAL_PURIFICATION",
+            "ADVANCE_ENROLLMENT_HARDENING",
+            "ADVANCE_REFERENCE_ACQUISITION",
+            "ADVANCE_IDENTITY_BACKEND",
+            "EVIDENCE_BOUND",
+        },
+        shadow_errors.get("decision"),
+    )
+    add(
+        "remote_speaker_shadow_error_decomposition_v1",
+        "diagnostic_integrity",
+        bool(shadow_error_invariants)
+        and all(value is True for value in shadow_error_invariants.values())
+        and shadow_error_safety.get("diagnostic_only") is True
+        and shadow_error_safety.get("production_mutated") is False
+        and shadow_error_safety.get("coverage_v3_mutated") is False
+        and shadow_error_safety.get("selected_transcript_mutated") is False
+        and shadow_error_safety.get("thresholds_tuned") is False,
+        {"invariants": shadow_error_invariants, "safety": shadow_error_safety},
+    )
+
     failures = [f"semantic_gate:{row['source']}:{row['gate']}" for row in checks if not row["passed"]]
     return checks, failures
 
@@ -604,6 +633,7 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
     identity_shadow = payloads["ecapa_remote_speaker_shadow_qualification_v1"]
     identity_shadow_summary = identity_shadow["summary"]
     identity_shadow_evidence = identity_shadow["evidence"]
+    shadow_errors = payloads["remote_speaker_shadow_error_decomposition_v1"]
 
     return [
         {
@@ -682,6 +712,7 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 "remote_speaker_attribution_error_decomposition_v1",
                 "stronger_remote_speaker_identity_backend_qualification_v1",
                 "ecapa_remote_speaker_shadow_qualification_v1",
+                "remote_speaker_shadow_error_decomposition_v1",
             ],
             "metrics": {
                 "attributable_speech_ratio": float(remote_summary["attributable_remote_speech_ratio"]),
@@ -801,6 +832,19 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 ]["precision"],
                 "ecapa_real_shadow_human_reviewed_words": int(
                     identity_shadow_evidence["human_reviewed"]["evaluated_proposal_words"]
+                ),
+                "shadow_error_decomposition_decision": shadow_errors["decision"],
+                "shadow_error_decomposition_failure_items": int(
+                    shadow_errors["scope"]["failure_items"]
+                ),
+                "shadow_error_decomposition_failure_seconds": float(
+                    shadow_errors["scope"]["failure_seconds"]
+                ),
+                "shadow_error_decomposition_top_axis": shadow_errors[
+                    "decision_evidence"
+                ]["top_axis"],
+                "shadow_error_decomposition_axis_dominance_margin": float(
+                    shadow_errors["decision_evidence"]["axis_dominance_margin"]
                 ),
             },
             "residual_classes": ["unknown_remote_speaker"],
@@ -974,9 +1018,14 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
         != "PROMOTE_REAL_IDENTITY_CANDIDATE"
     ):
         release_blockers.insert(2, "remote_speaker_turns.ecapa_shadow_not_promoted")
+    if (
+        (payloads.get("remote_speaker_shadow_error_decomposition_v1") or {}).get("decision")
+        == "ADVANCE_INTERVAL_PURIFICATION"
+    ):
+        release_blockers.insert(2, "remote_speaker_turns.interval_purification_required")
     report = {
         "schema": REPORT_SCHEMA,
-        "generator": {"name": "report-transcript-perfection-corpus", "version": "0.8.0", "mode": "deterministic_offline"},
+        "generator": {"name": "report-transcript-perfection-corpus", "version": "0.9.0", "mode": "deterministic_offline"},
         "decision": decision,
         "manifest": {
             "path": portable_path(Path(str(manifest["_path"]))),
@@ -1018,11 +1067,13 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
                     "has independent human-reviewed truth; ECAPA passed the disjoint hard-v4, then "
                     "recovered 156 words and 211.099681 seconds in real-session shadow, but missed the "
                     "frozen 20% word gate and reached only 0.878788 precision on the available coarse "
-                    "independent machine reference"
+                    "independent machine reference. Frozen error decomposition assigned 93 of 214 "
+                    "failure items and 201.273504 seconds to interval purification, the only axis "
+                    "passing the predeclared materiality and dominance gates"
                 ),
                 "next_evidence": (
-                    "decompose the 68 accepted ECAPA items into interval purity, enrollment, short/silent "
-                    "audio, reference granularity and identity errors before choosing another model or fusion rule"
+                    "build one bounded interval-purification candidate on the frozen shadow inputs and "
+                    "compare it against the unchanged ECAPA and Coverage v3 controls"
                 ),
             },
             {
@@ -1047,14 +1098,14 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
             ),
         },
         "next_goal": {
-            "id": "remote-speaker-shadow-error-decomposition-v1" if not failures else "restore-input-integrity",
-            "title": "Remote Speaker Shadow Error Decomposition v1" if not failures else "Restore Input Integrity",
+            "id": "bounded-remote-speaker-interval-purification-v1" if not failures else "restore-input-integrity",
+            "title": "Bounded Remote Speaker Interval Purification v1" if not failures else "Restore Input Integrity",
             "selected_residual_class": "unknown_remote_speaker" if not failures else None,
             "rationale": (
-                "The frozen ECAPA real-session shadow failed the 20% word and 0.99 independent-reference "
-                "precision gates while recovering substantial seconds. Decompose those failures with the "
-                "existing frozen artifacts before investing in another identity backend or fusion rule; "
-                "Coverage v3 remains authoritative."
+                "Frozen ECAPA shadow error decomposition selected interval purification as the only "
+                "material dominant axis: 93 of 214 failure items and 201.273504 seconds. Improve only "
+                "speaker-bounded audio intervals before changing enrollment or identity; Coverage v3 "
+                "remains authoritative."
                 if not failures
                 else "Input integrity must be restored before selecting an engineering goal."
             ),

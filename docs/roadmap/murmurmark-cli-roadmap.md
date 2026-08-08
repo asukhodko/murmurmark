@@ -1,6 +1,6 @@
 # MurmurMark CLI Roadmap
 
-Updated: 2026-08-08
+Updated: 2026-08-09
 
 Это читаемое представление активного плана OpsKarta v3:
 
@@ -83,7 +83,8 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Stronger speaker identity backend | `done` | ECAPA lab candidate: hard-v4 F1 `0.948042`, recall `0.947368`, zero open-set false |
 | ECAPA real-session shadow | `done` | `DO_NOT_PROMOTE`: 156 words, 211.100s; word and precision gates failed |
 | Three-session current pipeline debug | `done` | Raw intact, zero gaps, exact v2 cache replay; legacy reuse rebuilds before timeline repair |
-| Remote shadow error decomposition | `current` | Explain identity, interval, enrollment and reference limits before the next backend |
+| Remote shadow error decomposition | `done` | `ADVANCE_INTERVAL_PURIFICATION`: 93/214 failures, `201.274s`, dominance `0.128982` |
+| Bounded interval purification | `current` | One fixed speaker-bounded candidate; same ECAPA, enrollment and thresholds |
 | Производные заметки | `done/optional` | Exact evidence memory и безопасный ID-only selector доступны |
 
 ## Актуальная Цепочка
@@ -106,11 +107,12 @@ flowchart LR
     E["Done: ADVANCE IDENTITY<br/>Remote Speaker Attribution<br/>Error Decomposition v1"]
     K["Done: PROMOTE LAB ECAPA<br/>Stronger Remote Speaker Identity<br/>Backend Qualification v1"]
     N["Done: DO_NOT_PROMOTE<br/>ECAPA Remote Speaker<br/>Shadow Qualification v1"]
-    Z["Current<br/>Remote Speaker Shadow<br/>Error Decomposition v1"]
+    Z["Done: ADVANCE INTERVAL<br/>Remote Speaker Shadow<br/>Error Decomposition v1"]
+    J["Current<br/>Bounded Remote Speaker<br/>Interval Purification v1"]
     M["Idea<br/>Local Mic Multi-Speaker<br/>Diarization v1"]
     O["Optional<br/>Notes, retrieval,<br/>work proposals"]
 
-    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z
+    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J
     F --> D
     P -. "real local scenario" .-> M
     L -.-> O
@@ -136,10 +138,10 @@ Word/frame-level diarization работает по authoritative remote audio, �
 ### 3. Transcript Perfection Corpus v1 — `done`
 
 Единый корпус связывает проверку текста, порядка, ролей, speaker turns, overlap, missing `Me`,
-remote leakage и acoustic modes. Baseline `BASELINE_ESTABLISHED`: 20/20 frozen sources verified,
+remote leakage и acoustic modes. Baseline `BASELINE_ESTABLISHED`: 21/21 frozen sources verified,
 восемь явных dimensions, exact lexical subset измерен, real meetings остаются
-reference-insufficient, aggregate score запрещён. После ECAPA shadow он проверяет 20/20 frozen
-sources и указывает error decomposition как следующий измеримый шаг.
+reference-insufficient, aggregate score запрещён. Error decomposition включён как 21-й frozen
+source и указывает bounded interval purification как следующий измеримый шаг.
 
 Результат: конечный критерий сходимости к идеальной транскрибации и защита от бесконечной цепочки
 локальных эвристик.
@@ -256,22 +258,21 @@ transcripts не изменены; synthetic result разрешает толь�
 Frozen ECAPA был применён только как fail-open shadow над 278 residual intervals шести реальных сессий. Заморозка охватила 851 unknown words, 28 session-local exemplars, model/runtime, clips, Coverage v3 и selected-transcript guards.
 Результат `DO_NOT_PROMOTE_REAL_IDENTITY`: восстановлено 156 words (`0.183314`) и `211.099681s` (`0.352868`), projected coverage `0.960727`. Structural 1x1 precision `1.0`, но independent machine-reference precision `0.878788`; два silent clips дали fail-open. Exact words/timestamps, Coverage v3, selected transcripts и replay сохранены. Production не изменён.
 
-### 16. Remote Speaker Shadow Error Decomposition v1 — `current`
+### 16. Remote Speaker Shadow Error Decomposition v1 — `done`
+Все 278 items / 851 words классифицированы; `ADVANCE_INTERVAL_PURIFICATION`: 93/214 failures и
+`201.273504s`, dominance margin `0.128982`. Четыре mismatch words и два silent failures объяснены,
+replay byte-exact, production и thresholds неизменны.
+### 17. Bounded Remote Speaker Interval Purification v1 — `current`
+Проверить один заранее объявленный speaker-bounded interval candidate на frozen control. Меняются
+только item clips/embeddings; ECAPA, enrollment, thresholds, words и production остаются прежними.
 
-Заморозить завершённые ECAPA item/word decisions и объяснить все 68 accepted proposals, 210 abstentions, четыре independent-reference wrong words и два silent failures. Проверяются interval purity, duration/silence, speech support, leave-one-out enrollment stability, boundary/mixed risk, score/margin и различие word-level candidate с utterance-level reference.
-Результат должен выбрать максимум один следующий axis по заранее заданной концентрации причины: interval purification, enrollment hardening, reference acquisition или новый identity backend. Если имеющихся данных недостаточно, этап закрывается `EVIDENCE_BOUND`. Tuning frozen thresholds и применение shadow labels запрещены.
-
-Параллельный operational checkpoint Three-Session Current Pipeline Quality Debug v1 завершён и не
-меняет эту цель. Он подтвердил capture/ASR/speaker conservation на трёх разных условиях, исправил
-legacy ASR-cache preflight и измерил отдельный будущий долг timeline/micro-ASR cache.
-
-### 17. Local Mic Multi-Speaker Diarization v1 — `idea`
+### 18. Local Mic Multi-Speaker Diarization v1 — `idea`
 
 Когда появится реальный сценарий нескольких людей у одного ноутбука и размеченный материал, mic-речь
 будет разделяться на Target-Me, other local speakers и `unknown`. Этот этап зависит от remote v2 и
 Transcript Perfection Corpus, но не нужен для нынешнего основного сценария одного пользователя.
 
-### 18. Производные Возможности — `optional`
+### 19. Производные Возможности — `optional`
 
 Extractive notes, quality verdict, reviewed speaker memory, ID-only selection, локальный поиск и
 work proposals могут развиваться после достижения transcript gates или по отдельному явному запросу.
