@@ -1,0 +1,80 @@
+{
+  "artifacts": {
+    "analyzer": {
+      "bytes": 55396,
+      "path": "scripts/analyze-remote-speaker-attribution-errors-v1.py",
+      "sha256": "06a954137763a9dfe8d5a9fc8e19d4b1d444960ad983a969a84eb08e5b1c5172"
+    },
+    "boundary_decomposition": {
+      "bytes": 115229,
+      "path": "sessions/_reports/remote-speaker-attribution-error-decomposition-v1/private/boundary_error_decomposition.jsonl",
+      "sha256": "577e5c15f892789810008e235f1131f0609e995efda699d4035dbb0dfed1e75f"
+    },
+    "checker": {
+      "bytes": 14745,
+      "path": "scripts/check-remote-speaker-attribution-error-decomposition-v1.py",
+      "sha256": "ba2107945b5e5771bfd85f3596e1d10b16d42b7452b6666316056a247b797a86"
+    },
+    "contract": {
+      "bytes": 3886,
+      "path": "docs/contracts/remote-speaker-attribution-error-decomposition-v1.md",
+      "sha256": "2aa2d6e5a89bc7dc229abd5684e5c326cb6c49af68946a690774ae90471849b2"
+    },
+    "input_manifest": {
+      "bytes": 15208,
+      "path": "sessions/_reports/remote-speaker-attribution-error-decomposition-v1/private/input_manifest.json",
+      "sha256": "6ed0df103526b38b0ce0ce2b17de676b849b3801f77020adb834c9a7f0effc9c"
+    },
+    "policy": {
+      "bytes": 7227,
+      "path": "policies/remote-speaker-attribution-error-decomposition-v1.json",
+      "sha256": "25916b3fcabc034835c525e3d7b0734eef5e425c3d63502b34d81d04039e18be"
+    },
+    "public_input_manifest": {
+      "bytes": 8884,
+      "path": "sessions/_reports/remote-speaker-attribution-error-decomposition-v1/input_manifest.public.json",
+      "sha256": "6d176fcb81f5963261847297243e11fa8bc218995a823d71211d07edf3108337"
+    },
+    "replay": {
+      "bytes": 387,
+      "path": "sessions/_reports/remote-speaker-attribution-error-decomposition-v1/replay_report.json",
+      "sha256": "532ada790cd0ab564e44cad0c2237426bdc4e9b252a8d5c66c1a56f012cba30f"
+    },
+    "report": {
+      "bytes": 44996,
+      "path": "sessions/_reports/remote-speaker-attribution-error-decomposition-v1/remote_speaker_attribution_error_decomposition_report.json",
+      "sha256": "2d1fc6ba6887e315450bc25e7aadf6fb9dadc28aee01783b6128ef9ed867ded5"
+    },
+    "result": {
+      "bytes": 3991,
+      "path": "docs/testing/2026-08-08-remote-speaker-attribution-error-decomposition-v1.md",
+      "sha256": "9f862a7fde3aa79e1cb9243b883146def6b52ddf56a5069cfa93d79619953705"
+    },
+    "runbook": {
+      "bytes": 1667,
+      "path": "docs/runbooks/remote-speaker-attribution-error-decomposition-v1.md",
+      "sha256": "1a646be3affc635fccbd3a0dd12d2e372007117234167ec300689da298bd3e79"
+    },
+    "word_decomposition": {
+      "bytes": 896823,
+      "path": "sessions/_reports/remote-speaker-attribution-error-decomposition-v1/private/word_error_decomposition.jsonl",
+      "sha256": "eb79edf18b3d9d25f35b11f105eef92fc5c51b01d5a44704a0f45df468f380b0"
+    }
+  },
+  "decision": "ADVANCE_STRONGER_SPEAKER_IDENTITY",
+  "generated_on": "2026-08-08",
+  "input_freeze_sha256": "710a0f6e9e2b7f0645d4974cb3557c61b80bd667a61ab6c4da8bd4ac8a3cebb8",
+  "schema": "murmurmark.remote_speaker_attribution_error_decomposition_tracked_manifest/v1",
+  "summary": {
+    "axis_gains": {
+      "overlap_open_set": 0.036364,
+      "segmentation": 0.063882,
+      "speaker_identity": 0.351382
+    },
+    "boundaries": 64,
+    "next_goal": "Stronger Remote Speaker Identity Backend Qualification v1",
+    "production_changed": false,
+    "words": 393
+  },
+  "version": "0.1.0"
+}

@@ -114,10 +114,10 @@ met, unless an explicit product decision changes the priority.
 
 ## Near-Term Direction
 
-1. **Transcript Perfection Corpus v1:** maintain the completed 17-source benchmark for text,
+1. **Transcript Perfection Corpus v1:** maintain the completed 18-source benchmark for text,
    chronology, roles, speakers, overlap, acoustic modes and known residual defects.
-2. **Remote Speaker Attribution Error Decomposition v1:** measure oracle boundary, identity and
-   overlap/open-set ceilings before selecting a qualitatively different local backend.
+2. **Stronger Remote Speaker Identity Backend Qualification v1:** compare a small frozen set of
+   genuinely different local identity models, then open one new disjoint hard-v4 exactly once.
 3. **Remote residual blind review:** keep all 53 real-session proposals blocked until direct human or
    exact scripted truth exists; synthetic success cannot promote them.
 4. **Human-Reviewed Lexical Seed v1:** external-evidence prerequisite; do not tune ASR from machine

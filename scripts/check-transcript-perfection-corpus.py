@@ -386,6 +386,56 @@ def build_fixture(root: Path) -> Path:
             },
             ["remote_speaker_turns"],
         ),
+        "remote_speaker_attribution_error_decomposition_v1": (
+            files / "remote-speaker-attribution-error-decomposition-v1.json",
+            {
+                "schema": "murmurmark.remote_speaker_attribution_error_decomposition_report/v1",
+                "decision": "ADVANCE_STRONGER_SPEAKER_IDENTITY",
+                "scope": {
+                    "diagnostic_only": True,
+                    "production_candidate_selected": False,
+                    "synthetic_labels_exported_to_real_sessions": False,
+                },
+                "invariants": {
+                    "all_words_conserved": True,
+                    "full_oracle_bcubed": True,
+                    "full_oracle_boundary_recall": True,
+                    "full_oracle_known_recall": True,
+                    "full_oracle_mixed_safe": True,
+                    "full_oracle_open_set_safe": True,
+                    "full_oracle_pairwise_precision": True,
+                    "hard_sets_not_reopened": True,
+                    "production_guards_frozen": True,
+                },
+                "aggregate_primary": {
+                    "current": {
+                        "word_count": 393,
+                        "boundary_count": 64,
+                        "known_speaker_recall": 0.571006,
+                        "boundary_recall": 0.421875,
+                    },
+                    "oracle_boundaries_current_identity": {
+                        "known_speaker_recall": 0.627219,
+                    },
+                    "current_boundaries_oracle_identity": {
+                        "known_speaker_recall": 0.934911,
+                        "boundary_recall": 0.75,
+                    },
+                    "overlap_open_set_oracle": {
+                        "open_set_false_attributions": 0,
+                    },
+                },
+                "routing_evidence": {
+                    "axis_gains": {
+                        "segmentation": 0.063882,
+                        "speaker_identity": 0.351382,
+                        "overlap_open_set": 0.036364,
+                    }
+                },
+                "production_changed": False,
+            },
+            ["remote_speaker_turns"],
+        ),
     }
     sources: list[dict[str, object]] = []
     for source_id, (path, payload, dimensions) in payloads.items():
@@ -444,14 +494,14 @@ def main() -> int:
         assert result.returncode == 0, result.stdout + result.stderr
         report = json.loads((out / "transcript_perfection_corpus_report.json").read_text())
         assert report["decision"] == "BASELINE_ESTABLISHED"
-        assert report["summary"]["verified_sources"] == 17
+        assert report["summary"]["verified_sources"] == 18
         assert report["summary"]["aggregate_quality_score"] is None
         assert report["summary"]["aggregate_residual_seconds"] is None
         words = next(row for row in report["dimensions"] if row["id"] == "recognized_words")
         assert words["correctness_status"] == "bounded_exact_subset_only"
         assert words["metrics"]["exact_subset_wer"] == 0.0
         assert report["residuals"][0]["class"] == "unknown_remote_speaker"
-        assert report["next_goal"]["id"] == "remote-speaker-attribution-error-decomposition-v1"
+        assert report["next_goal"]["id"] == "stronger-remote-speaker-identity-backend-qualification-v1"
         assert report["next_goal"]["selected_residual_class"] == "unknown_remote_speaker"
         assert report["lexical_prerequisite"]["id"] == "human-reviewed-lexical-seed-v1"
         assert report["lexical_prerequisite"]["status"] == "external_evidence_required"

@@ -76,6 +76,12 @@ decision records that longer homogeneous context still fails boundary, identity 
 `DO_NOT_PROMOTE_SEGMENT_CONTEXT` is accepted as a completed scientific result; production remains
 unchanged and the next goal must decompose the three error classes before selecting another backend.
 
+Remote Speaker Attribution Error Decomposition v1 is the eighteenth frozen source. Its exact
+oracle matrix accounts for 393 words and 64 evaluated boundaries across v1, hard-v2 and hard-v3.
+The fixed decision `ADVANCE_STRONGER_SPEAKER_IDENTITY` is accepted as a completed diagnostic result:
+identity gain is `0.351382`, versus `0.063882` for segmentation and `0.036364` for overlap/open-set.
+No candidate, production label or threshold was changed.
+
 ## Outputs
 
 The command writes only under:

@@ -33,7 +33,7 @@ nodes:
     title: "MurmurMark CLI"
     kind: summary
     status: current
-    effort: 281
+    effort: 299
     notes: |
       Активная CLI-first, local-first и evidence-backed программа. Batch transcript остаётся
       authoritative. Текущий North Star: одной командой получить максимально надёжный transcript,
@@ -522,7 +522,7 @@ nodes:
     status: done
     effort: 10
     notes: |
-      Завершено BASELINE_ESTABLISHED. После Segment-Context v1 проверяет 17/17 frozen
+      Завершено BASELINE_ESTABLISHED. После Error Decomposition v1 проверяет 18/18 frozen
       sources; восемь dimensions разделяют correctness, coverage, uncertainty и review. Exact
       lexical subset измерен, real meetings reference-insufficient, aggregate score запрещён.
       Ranked residual leader: 598.240s / 851 unknown remote words / 6 sessions.
@@ -577,7 +577,7 @@ nodes:
       Завершено REFERENCE_INSUFFICIENT. Девять graded sources отделяют exact generated evidence от
       scripted expected и independent machine diagnostics. Exact digital subset: 67 words, WER/CER
       0, term accuracy 1.0; human-reviewed real sessions: 0. Public/tracked artifacts не содержат
-      речь, имена или absolute paths; replay детерминирован. Transcript Perfection проверяет 17/17
+      речь, имена или absolute paths; replay детерминирован. Transcript Perfection проверяет 18/18
       sources и сохраняет real-meeting lexical blocker.
 
   quality-independent-remote-speaker-evidence-v1:
@@ -651,14 +651,28 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-segment-context-remote-speaker-attribution-v1]
-    status: current
+    status: done
     effort: 12
     notes: |
-      На frozen Truth Lab v1, hard-v2 и once-opened hard-v3 разложить ошибку без нового candidate:
-      oracle boundaries + current identity, current boundaries + oracle identity и отдельный
-      overlap/open-set oracle. Измерить ceiling по duration/gap/transition/corpus strata и выбрать
-      ровно один следующий качественно новый backend track либо зафиксировать current local limit.
-      Production, Coverage v3, hard ledgers и synthetic-to-real boundary остаются неизменными.
+      Завершено ADVANCE_STRONGER_SPEAKER_IDENTITY. На 393 exact words и 64 boundaries current
+      primary получил known recall 0.571006. Oracle identity при тех же boundaries поднял recall до
+      0.934911; fixed gains: identity 0.351382, segmentation 0.063882, overlap/open-set 0.036364.
+      Replay byte-exact, public artifacts portable, production и Coverage v3 не изменены.
+
+  quality-stronger-remote-speaker-identity-backend-qualification-v1:
+    title: "Stronger Remote Speaker Identity Backend Qualification v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-remote-speaker-attribution-error-decomposition-v1]
+    status: current
+    effort: 18
+    notes: |
+      Сравнить максимум три заранее frozen genuinely different local identity backend на existing
+      development truth. До выбора создать disjoint hard-v4 с новыми voices, scripts, durations,
+      transitions, overlap/open-set и one-shot ledger. Открыть hard-v4 один раз для максимум одного
+      кандидата. PROMOTE только как lab candidate при B-cubed >=0.85, pairwise precision >=0.99,
+      known recall >=0.80, zero open-set false attribution, mixed fail-closed, boundary no-regression,
+      exact word conservation и deterministic replay. Production и Coverage v3 неизменны.
 
   future-local-mic-diarization-v1:
     title: "Local Mic Multi-Speaker Diarization v1"
@@ -689,7 +703,7 @@ views:
         nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-remote-speaker-attribution-error-decomposition-v1]
+        nodes: [quality-stronger-remote-speaker-identity-backend-qualification-v1]
       dependent:
         title: "Blind real-session reference blocker"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
@@ -740,6 +754,7 @@ views:
           - quality-duration-aware-remote-speaker-attribution-v2
           - quality-segment-context-remote-speaker-attribution-v1
           - quality-remote-speaker-attribution-error-decomposition-v1
+          - quality-stronger-remote-speaker-identity-backend-qualification-v1
 
   echo-frontier:
     title: "Пред-ASR отделение Me от remote"
@@ -775,8 +790,8 @@ views:
         title: "Доказанная speaker evidence"
         nodes: [research-remote-diarization, research-rich-transcript, quality-remote-speaker-diarization-v2]
       current:
-        title: "Разложение speaker-attribution ошибки"
-        nodes: [quality-remote-speaker-attribution-error-decomposition-v1]
+        title: "Квалификация более сильного identity backend"
+        nodes: [quality-stronger-remote-speaker-identity-backend-qualification-v1]
       blocker:
         title: "Blind real-session reference"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
@@ -836,14 +851,15 @@ views:
           - quality-duration-aware-remote-speaker-attribution-v2
           - quality-segment-context-remote-speaker-attribution-v1
           - quality-remote-speaker-attribution-error-decomposition-v1
+          - quality-stronger-remote-speaker-identity-backend-qualification-v1
           - future-local-mic-diarization-v1
 
 x:
   exec:
     program:
       nearest_goal: >-
-        Remote Speaker Attribution Error Decomposition v1: заморозить SHA-256 существующих Truth Lab v1, hard-v2, once-opened hard-v3, их truth, predictions, decisions и ledgers без повторного выбора кандидата; построить детерминированную oracle-матрицу `oracle boundaries + current identity`, `current boundaries + oracle identity` и отдельный `overlap/open-set oracle`, чтобы независимо измерить потолок boundary detection, speaker identity и mixed/open-set abstention на exact word/speaker/timestamp truth; разложить ошибки по corpus, speaker, duration, gap, transition и overlap strata, сохранив все слова и provenance; по заранее заданным правилам выпустить ровно один итог `ADVANCE_DEDICATED_SEGMENTATION`, `ADVANCE_STRONGER_SPEAKER_IDENTITY`, `ADVANCE_OVERLAP_OPEN_SET_MODEL` либо `CURRENT_LOCAL_ATTRIBUTION_LIMIT`, не подбирать новый production candidate и не ослаблять gates после просмотра truth; не менять selected transcript, Coverage v3, raw CAF, primary ASR, Echo Guard, hard-v2/v3 decisions и не переносить synthetic labels в real sessions; добавить CLI, автоматические тесты и Transcript Perfection source, обновить README, contracts, runbook, current-goal, roadmap и OpsKarta, закоммитить и отправить изменения в origin/main.
-      success_by_next_sync: "Exact oracle-матрица отделяет boundary, identity и overlap/open-set bottlenecks и выбирает один следующий backend track либо воспроизводимый current local limit без изменения production."
+        Stronger Remote Speaker Identity Backend Qualification v1: сохранить frozen Error Decomposition v1, Truth Lab v1, once-opened hard-v2/hard-v3, Coverage v3 и production неизменными; до сравнения зафиксировать не более трёх действительно разных локальных speaker-verification backend, включая текущий control и минимум один независимо обученный ECAPA-class или сопоставимый backend, вместе с model, license, runtime и SHA-256 provenance; использовать существующие exact corpora только как development truth с заранее замороженными enrollment, segment partition, scoring, calibration и open-set abstention; до выбора кандидата создать и запечатать новый disjoint hard-v4 с новыми voices, scripts, durations, transitions, overlap и open-set cases, затем выбрать не более одного кандидата на development по fixed gates и открыть hard-v4 ровно один раз; выпустить `PROMOTE_LAB_IDENTITY_CANDIDATE` только при exact word conservation, B-cubed F1 не ниже `0.85`, pairwise precision не ниже `0.99`, known-speaker recall не ниже `0.80`, zero open-set false attribution, mixed fail-closed и boundary no-regression, иначе выпустить воспроизводимый `DO_NOT_PROMOTE_IDENTITY_BACKEND`; не менять selected transcript, Coverage v3, raw CAF, primary ASR, Echo Guard и synthetic-to-real boundary; добавить CLI, автоматические тесты и Transcript Perfection source, обновить README, contracts, runbook, current-goal, roadmap и OpsKarta, закоммитить и отправить изменения в origin/main.
+      success_by_next_sync: "Один новый identity backend квалифицирован или воспроизводимо отклонён на disjoint one-shot hard-v4 без изменения production и Coverage v3."
     defaults:
       status_progress:
         done: 1.0
@@ -864,13 +880,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle, batch transcript, review, notes/export и Live Shadow уже работают."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Remote Speaker Attribution Error Decomposition v1"
-        scope_nodes: [quality-remote-speaker-attribution-error-decomposition-v1]
+        title: "Stronger Remote Speaker Identity Backend Qualification v1"
+        scope_nodes: [quality-stronger-remote-speaker-identity-backend-qualification-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Duration-Aware v2 и Segment-Context v1 оба провалили untouched hard corpora; у v3 известны одновременно boundary, identity и open-set ошибки."
-          next_sync_goal: "Разделить эти причины oracle-треками до выбора нового специализированного backend."
+          sync_note: "Oracle decomposition показал dominant identity gain 0.351382 против segmentation 0.063882 и overlap/open-set 0.036364."
+          next_sync_goal: "Заморозить shortlist и hard-v4 до model comparison, затем открыть hard-v4 ровно один раз."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -888,6 +904,7 @@ x:
           - quality-duration-aware-remote-speaker-attribution-v2
           - quality-segment-context-remote-speaker-attribution-v1
           - quality-remote-speaker-attribution-error-decomposition-v1
+          - quality-stronger-remote-speaker-identity-backend-qualification-v1
         kind: main
         mgmt:
           health: yellow
@@ -922,7 +939,7 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: два embedding topology закрыты hard-проверками; текущий фокус — oracle-разложение boundary, identity и overlap/open-set ошибок."
+        caption: "Короткая карта: oracle-разложение выбрало identity bottleneck; текущий фокус — один frozen backend shortlist и one-shot hard-v4."
         blocks:
           - working-now
           - current-quality

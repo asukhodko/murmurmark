@@ -1,0 +1,196 @@
+{
+  "schema": "murmurmark.remote_speaker_attribution_error_decomposition_policy/v1",
+  "version": "0.1.0",
+  "scope": {
+    "mode": "diagnostic_only",
+    "production_candidate_selection": false,
+    "synthetic_labels_may_reach_real_sessions": false,
+    "hard_sets_may_be_reopened": false
+  },
+  "corpora": [
+    {
+      "corpus_id": "truth_lab_v1_hard",
+      "root": "sessions/_reports/controlled-remote-speaker-truth-lab-v1",
+      "split": "hard",
+      "frozen_manifest": "private/frozen_manifest.json",
+      "truth_words_glob": "private/sessions/hard/*/truth_words.jsonl",
+      "truth_boundaries_glob": "private/sessions/hard/*/truth_boundaries.jsonl",
+      "decision_report": "controlled_remote_speaker_truth_lab_report.json",
+      "expected_decision": "DO_NOT_ADVANCE",
+      "tracked_manifest": "docs/testing/controlled-remote-speaker-truth-lab-v1-manifest.json",
+      "replay_report": "replay_report.json",
+      "primary_track": {
+        "track_id": "coverage_v3_topology",
+        "predictions": "private/predictions/coverage_v3_predictions.jsonl",
+        "segment_key": "contiguous_prediction_label"
+      },
+      "control_tracks": []
+    },
+    {
+      "corpus_id": "hard_v2",
+      "root": "sessions/_reports/duration-aware-remote-speaker-attribution-v2",
+      "split": "hard_v2",
+      "frozen_manifest": "private/hard-v2/frozen_manifest.json",
+      "truth_words_glob": "private/hard-v2/sealed/sessions/hard_v2/*/truth_words.jsonl",
+      "truth_boundaries_glob": "private/hard-v2/sealed/sessions/hard_v2/*/truth_boundaries.jsonl",
+      "decision_report": "duration_aware_remote_speaker_attribution_report.json",
+      "expected_decision": "DO_NOT_PROMOTE_TOPOLOGY",
+      "opening_ledger": "private/hard-v2/hard_v2_opening_ledger.json",
+      "candidate_freeze": "private/candidate_freeze.json",
+      "private_spec": "private/hard-v2/hard_v2_spec.json",
+      "tracked_manifest": "docs/testing/duration-aware-remote-speaker-attribution-v2-manifest.json",
+      "replay_report": "replay_report.json",
+      "primary_track": {
+        "track_id": "conservative_resemblyzer_wavlm_fusion",
+        "predictions": "private/hard-v2/evaluation/candidate_predictions.jsonl",
+        "segment_key": "contiguous_prediction_label"
+      },
+      "control_tracks": [
+        {
+          "track_id": "coverage_v3_control",
+          "predictions": "private/hard-v2/evaluation/coverage_v3_control_predictions.jsonl",
+          "segment_key": "contiguous_prediction_label"
+        }
+      ]
+    },
+    {
+      "corpus_id": "hard_v3",
+      "root": "sessions/_reports/segment-context-remote-speaker-attribution-v1",
+      "split": "hard_v3",
+      "frozen_manifest": "private/hard-v3/frozen_manifest.json",
+      "truth_words_glob": "private/hard-v3/sealed/sessions/hard_v3/*/truth_words.jsonl",
+      "truth_boundaries_glob": "private/hard-v3/sealed/sessions/hard_v3/*/truth_boundaries.jsonl",
+      "decision_report": "segment_context_remote_speaker_attribution_report.json",
+      "expected_decision": "DO_NOT_PROMOTE_SEGMENT_CONTEXT",
+      "opening_ledger": "private/hard-v3/hard_v3_opening_ledger.json",
+      "candidate_freeze": "private/candidate_freeze.json",
+      "private_spec": "private/hard-v3/hard_v3_spec.json",
+      "tracked_manifest": "docs/testing/segment-context-remote-speaker-attribution-v1-manifest.json",
+      "replay_report": "replay_report.json",
+      "primary_track": {
+        "track_id": "conservative_dual_backend_context_fusion",
+        "predictions": "private/hard-v3/evaluation/candidate_predictions.jsonl",
+        "segment_key": "explicit_segment_index"
+      },
+      "control_tracks": [
+        {
+          "track_id": "coverage_v3_control",
+          "predictions": "private/hard-v3/evaluation/coverage_v3_control_predictions.jsonl",
+          "segment_key": "contiguous_prediction_label"
+        }
+      ]
+    }
+  ],
+  "production_guards": [
+    "docs/testing/remote-speaker-coverage-v3-manifest.json",
+    "sessions/_reports/remote-speaker-coverage-v3/remote_speaker_coverage_corpus_report.json"
+  ],
+  "production_guard_note": "Transcript Perfection consumes this report downstream and is excluded to avoid an input-output hash cycle.",
+  "normalization": {
+    "known_truth_label": "exact_enrolled_speaker_id",
+    "open_set_truth_label": "unknown_speaker",
+    "mixed_truth_label": "mixed",
+    "abstention_labels": [
+      "unknown_speaker",
+      "mixed"
+    ],
+    "evaluated_boundaries_only": true,
+    "aggregate_speaker_namespace": "corpus_id",
+    "implicit_segment_rule": "contiguous_words_with_equal_prediction_label_within_scenario"
+  },
+  "oracle_matrix": [
+    {
+      "track_id": "current",
+      "changes": []
+    },
+    {
+      "track_id": "oracle_boundaries_current_identity",
+      "changes": [
+        "group_words_by_exact_truth_event_boundary",
+        "project_plurality_current_identity_within_each_event"
+      ],
+      "forbidden_changes": [
+        "replace_identity_with_truth",
+        "force_open_set_or_mixed_abstention"
+      ]
+    },
+    {
+      "track_id": "current_boundaries_oracle_identity",
+      "changes": [
+        "keep_current_segment_partition",
+        "assign_each_segment_the_plurality_known_truth_identity"
+      ],
+      "forbidden_changes": [
+        "split_current_segment_on_truth_boundary",
+        "force_open_set_or_mixed_abstention"
+      ]
+    },
+    {
+      "track_id": "overlap_open_set_oracle",
+      "changes": [
+        "map_open_set_words_to_unknown_speaker",
+        "map_mixed_words_to_mixed"
+      ],
+      "forbidden_changes": [
+        "change_known_speaker_predictions",
+        "change_current_segment_partition"
+      ]
+    },
+    {
+      "track_id": "full_oracle_control",
+      "changes": [
+        "map_every_word_to_normalized_exact_truth"
+      ],
+      "use": "metric_and_input_validation_only"
+    }
+  ],
+  "strata": {
+    "word_duration_sec": [
+      0.6,
+      1.2
+    ],
+    "preceding_gap_sec": [
+      0.0,
+      0.08,
+      0.3
+    ],
+    "dimensions": [
+      "corpus",
+      "speaker",
+      "word_duration",
+      "preceding_gap",
+      "transition",
+      "overlap_state"
+    ]
+  },
+  "decision": {
+    "allowed_outcomes": [
+      "ADVANCE_DEDICATED_SEGMENTATION",
+      "ADVANCE_STRONGER_SPEAKER_IDENTITY",
+      "ADVANCE_OVERLAP_OPEN_SET_MODEL",
+      "CURRENT_LOCAL_ATTRIBUTION_LIMIT"
+    ],
+    "primary_tracks_only": true,
+    "minimum_material_axis_gain": 0.1,
+    "minimum_dominance_margin": 0.03,
+    "axis_gain_weights": {
+      "known_speaker_recall": 0.65,
+      "boundary_recall": 0.35
+    },
+    "rules_in_order": [
+      "invariant_failure_means_current_local_attribution_limit",
+      "dominant_identity_gain_means_advance_stronger_speaker_identity",
+      "material_boundary_gain_means_advance_dedicated_segmentation",
+      "remaining_special_errors_fixed_by_special_oracle_mean_advance_overlap_open_set_model",
+      "otherwise_current_local_attribution_limit"
+    ],
+    "quality_reference_gates": {
+      "minimum_bcubed_f1": 0.98,
+      "minimum_pairwise_precision": 0.98,
+      "minimum_known_speaker_recall": 0.98,
+      "minimum_boundary_recall": 1.0,
+      "maximum_open_set_false_attributions": 0,
+      "minimum_mixed_fail_closed_rate": 1.0
+    }
+  }
+}

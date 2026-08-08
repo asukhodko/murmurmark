@@ -106,6 +106,10 @@ Current operating point, 2026-08-08:
   but `14.57%` word and `13.98%` second reductions missed both `20%` promotion gates;
 - Speaker-Resolved Transcript Default v1 passed 6/6 frozen sessions and now exposes promoted
   Coverage v3 through ordinary transcript, handoff and guarded export with exact aggregate fallback;
+- Remote Speaker Attribution Error Decomposition v1 completed with
+  `ADVANCE_STRONGER_SPEAKER_IDENTITY`: across 393 words and 64 boundaries, identity gain `0.351382`
+  dominates segmentation `0.063882` and overlap/open-set `0.036364`; the next lab goal qualifies a
+  genuinely different local identity backend without changing production;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 
@@ -129,9 +133,10 @@ items and all 53 WavLM proposals without direct truth. Controlled Remote Speaker
 qualified the Coverage v3 control but rejected the WavLM candidate (`0.834325` B-cubed F1, two
 open-set false attributions). Duration-Aware v2 then rejected word-level fusion on blind hard-v2:
 known recall `0.551402`, boundary recall `0.321429`. Segment-Context v1 then failed blind hard-v3:
-known recall `0.445087`, boundaries `0/20`, two open-set errors. Remote Speaker Attribution Error
-Decomposition v1 is current and isolates boundary, identity and overlap/open-set ceilings before a
-different local backend is chosen. Notes, external writes and UI remain optional.
+known recall `0.445087`, boundaries `0/20`, two open-set errors. Error Decomposition v1 then selected
+speaker identity as the dominant axis: gain `0.351382` versus boundary `0.063882` and overlap/open-set
+`0.036364`. Stronger Remote Speaker Identity Backend Qualification v1 is current. Notes, external
+writes and UI remain optional.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.
 

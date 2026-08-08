@@ -1316,6 +1316,7 @@ enum DoctorChecks {
             "scripts/evaluate-duration-aware-remote-speaker-attribution-v2.py",
             "scripts/freeze-remote-speaker-hard-v3.py",
             "scripts/evaluate-segment-context-remote-speaker-attribution-v1.py",
+            "scripts/analyze-remote-speaker-attribution-errors-v1.py",
             "scripts/materialize-anonymous-rich-transcript.py",
             "scripts/review-remote-speaker-labels.py",
             "scripts/materialize-reviewed-speaker-memory.py",
@@ -7664,7 +7665,7 @@ enum CorpusCommands {
                 "local-recall, local-recall-repair, boundary, remote-leak, echo-candidate, " +
                 "echo-supervision, remote-coverage, speaker-default, remote-residual, " +
                 "remote-independent, remote-reference, remote-truth-lab, remote-duration-v2, " +
-                "remote-segment-context, " +
+                "remote-segment-context, remote-error-decomposition, " +
                 "perfection, lifecycle, or report"
             )
         }
@@ -8125,6 +8126,25 @@ enum CorpusCommands {
                     allowedExitCodes: [0, 1, 2]
                 )
             }
+        case "remote-error-decomposition", "remote_error_decomposition":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(
+                    try PythonRuntime.resolve(),
+                    [try script("analyze-remote-speaker-attribution-errors-v1.py").path, "--help"]
+                )
+                return
+            }
+            guard let action = forwarded.first else {
+                throw CLIError("remote-error-decomposition requires freeze, analyze, status, replay, or all")
+            }
+            guard ["freeze", "analyze", "status", "replay", "all"].contains(action) else {
+                throw CLIError("unsupported remote-error-decomposition action: \(action)")
+            }
+            _ = try Tooling.runPathAllowingExitCodes(
+                try PythonRuntime.resolve(),
+                [try script("analyze-remote-speaker-attribution-errors-v1.py").path] + forwarded,
+                allowedExitCodes: [0, 2]
+            )
         case "lifecycle":
             try Tooling.runPath(
                 try PythonRuntime.resolve(),
@@ -8281,6 +8301,8 @@ enum CorpusHelp {
                                       [--policy policies/duration-aware-remote-speaker-attribution-v2.json]
           murmurmark corpus remote-segment-context freeze|hard-status|hard-replay|develop|evaluate-hard|status|replay
                                       [--policy policies/segment-context-remote-speaker-attribution-v1.json]
+          murmurmark corpus remote-error-decomposition freeze|analyze|status|replay|all
+                                      [--policy policies/remote-speaker-attribution-error-decomposition-v1.json]
           murmurmark corpus perfection all [--verify-existing]
                                         [--manifest docs/testing/transcript-perfection-corpus-v1-manifest.json]
           murmurmark corpus lexical import SESSION SOURCE --source-id ID

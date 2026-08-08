@@ -239,6 +239,18 @@
       "path": "sessions/_reports/segment-context-remote-speaker-attribution-v1/segment_context_remote_speaker_attribution_report.json",
       "required": true,
       "sha256": "2b8151f8133a64c2b2f8f568a76c8f1c46a0f992ecf688122be2fd80d6756443"
+    },
+    {
+      "bytes": 44996,
+      "dimensions": [
+        "remote_speaker_turns"
+      ],
+      "evidence_level": "frozen_exact_oracle_error_decomposition",
+      "expected_schema": "murmurmark.remote_speaker_attribution_error_decomposition_report/v1",
+      "id": "remote_speaker_attribution_error_decomposition_v1",
+      "path": "sessions/_reports/remote-speaker-attribution-error-decomposition-v1/remote_speaker_attribution_error_decomposition_report.json",
+      "required": true,
+      "sha256": "2d1fc6ba6887e315450bc25e7aadf6fb9dadc28aee01783b6128ef9ed867ded5"
     }
   ]
 }

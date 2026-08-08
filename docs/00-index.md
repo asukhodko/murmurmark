@@ -107,7 +107,11 @@ Read in this order:
 103. [Segment-Context Remote Speaker Attribution v1 contract](contracts/segment-context-remote-speaker-attribution-v1.md)
 104. [Segment-Context Remote Speaker Attribution v1 runbook](runbooks/segment-context-remote-speaker-attribution-v1.md)
 105. [Segment-Context Remote Speaker Attribution v1 result](testing/2026-08-08-segment-context-remote-speaker-attribution-v1.md)
-106. [Planning and development history](history/README.md)
+106. [Remote Speaker Attribution Error Decomposition v1 contract](contracts/remote-speaker-attribution-error-decomposition-v1.md)
+107. [Remote Speaker Attribution Error Decomposition v1 runbook](runbooks/remote-speaker-attribution-error-decomposition-v1.md)
+108. [Remote Speaker Attribution Error Decomposition v1 result](testing/2026-08-08-remote-speaker-attribution-error-decomposition-v1.md)
+109. [Remote Speaker Attribution Error Decomposition v1 manifest](testing/remote-speaker-attribution-error-decomposition-v1-manifest.json)
+110. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
@@ -138,8 +142,9 @@ Conservative fusion kept pairwise precision `1.0` and zero open-set errors but r
 known recall and `32.1429%` boundary recall, so it closed `DO_NOT_PROMOTE_TOPOLOGY`.
 **Segment-Context Remote Speaker Attribution v1** also closed `DO_NOT_PROMOTE`: hard-v3 known recall
 `44.5087%`, boundaries `0/20` and two open-set errors. **Remote Speaker Attribution Error
-Decomposition v1** is current: separate boundary, identity and overlap/open-set ceilings before
-choosing a new backend. Notes and retrieval remain parked.
+Decomposition v1** selected identity as the dominant axis: gain `0.351382` versus boundary
+`0.063882` and overlap/open-set `0.036364`. **Stronger Remote Speaker Identity Backend
+Qualification v1** is current. Notes and retrieval remain parked.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

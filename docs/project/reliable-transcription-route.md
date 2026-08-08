@@ -12,9 +12,10 @@ exact 67-word digital subset at WER/CER `0`. Independent WavLM evidence recovere
 278 items but closed `REFERENCE_INSUFFICIENT` with 0/53 direct proposal labels. Controlled Remote
 Speaker Truth Lab v1 qualified the Coverage v3 control and rejected the WavLM candidate on exact
 hard truth. Duration-Aware v2 preserved precision but failed blind hard-v2 recall and boundary gates.
-Segment-Context v1 also failed blind hard-v3 boundary, identity and open-set gates. Remote Speaker
-Attribution Error Decomposition v1 is current: isolate those ceilings with oracle tracks before
-choosing a different backend. Notes, retrieval and work proposals remain optional derivatives.
+Segment-Context v1 also failed blind hard-v3 boundary, identity and open-set gates. Error
+Decomposition v1 measured identity as the dominant axis (`0.351382` gain versus `0.063882` boundary
+and `0.036364` overlap/open-set). Stronger Remote Speaker Identity Backend Qualification v1 is
+current. Notes, retrieval and work proposals remain optional derivatives.
 Date: 2026-08-08
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
@@ -473,11 +474,12 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Remote Speaker Attribution Error Decomposition v1: на frozen v1/hard-v2/hard-v3 раздельно измерить
-oracle-boundary, oracle-identity и overlap/open-set ceilings; выбрать один качественно новый backend
-track либо зафиксировать current local attribution limit без нового production candidate.
+Stronger Remote Speaker Identity Backend Qualification v1: сравнить максимум три заранее
+зафиксированных локальных identity backend на development truth, выбрать максимум один, затем один
+раз открыть disjoint hard-v4; production остаётся неизменным до отдельной квалификации.
 ```
 
+Error Decomposition v1 завершён `ADVANCE_STRONGER_SPEAKER_IDENTITY` на 393 words и 64 boundaries.
 Speaker-Resolved Transcript Default v1 завершён `PROMOTE`: ordinary read/handoff/export выбирают v3
 на совместимых сессиях и exact aggregate fallback в остальных. Transcript Perfection Corpus остаётся
 общим no-regression gate: exact generated lexical subset измерен, real meetings остаются

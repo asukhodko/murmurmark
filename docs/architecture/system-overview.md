@@ -134,9 +134,10 @@ Speaker Truth Lab v1 then produced exact held-out truth: the Coverage v3 control
 WavLM candidate failed short-word and unseen open-set gates. Duration-Aware v2 then preserved
 precision but reached only `55.1402%` known recall and `32.1429%` boundary recall on blind hard-v2.
 Segment-Context v1 also failed hard-v3 with `44.5087%` known recall, boundaries `0/20` and two
-open-set errors. Remote Speaker Attribution Error Decomposition v1 now separates boundary, identity
-and overlap/open-set ceilings before any new backend is selected. Synthetic evidence cannot promote
-real-session labels. Notes remain optional.
+open-set errors. Error Decomposition v1 then measured speaker identity as the dominant bottleneck:
+gain `0.351382` versus `0.063882` for segmentation and `0.036364` for overlap/open-set. The current
+lab goal qualifies a genuinely different local identity backend on a new one-shot hard-v4.
+Synthetic evidence cannot promote real-session labels. Notes remain optional.
 
 Target transcription path:
 

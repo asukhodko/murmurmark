@@ -294,17 +294,16 @@ murmurmark transcript "$SESSION" --rich --reviewed-speakers
 murmurmark notes "$SESSION" --reviewed-speakers
 murmurmark export "$SESSION" --format markdown --include-json --reviewed-speakers
 ```
-Speaker-aware memory and exact-text notes remain optional derivatives. Transcript Perfection Corpus
-keeps 17/17 frozen sources explicit and never collapses unlike quality dimensions into one score.
+Speaker-aware memory and exact-text notes remain optional derivatives. Transcript Perfection Corpus keeps 18/18 frozen sources explicit and never collapses unlike quality dimensions into one score.
 Lexical Accuracy Reference Corpus v1 measures its exact 67-word digital subset at WER/CER `0` and
 keeps real-meeting lexical correctness blocked by missing human-reviewed evidence:
-
 ```bash
 murmurmark corpus lexical status
 murmurmark corpus lexical replay --write-manifest docs/testing/lexical-accuracy-reference-corpus-v1-manifest.json
 murmurmark corpus perfection all --verify-existing
 murmurmark corpus remote-reference status && murmurmark corpus remote-reference replay
 murmurmark corpus remote-truth-lab replay && murmurmark corpus remote-duration-v2 status && murmurmark corpus remote-segment-context status
+murmurmark corpus remote-error-decomposition status && murmurmark corpus remote-error-decomposition replay
 ```
 The dependent critical path is:
 ```text
@@ -320,15 +319,16 @@ Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental 
 -> Controlled Remote Speaker Truth Lab v1 (done: Coverage v3 control qualified, WavLM rejected)
 -> Duration-Aware Remote Speaker Attribution v2 (done: DO_NOT_PROMOTE, precision safe but low recall)
 -> Segment-Context Remote Speaker Attribution v1 (done: DO_NOT_PROMOTE, boundary/open-set regression)
--> Remote Speaker Attribution Error Decomposition v1 (current)
+-> Remote Speaker Attribution Error Decomposition v1 (done: identity is the dominant bottleneck)
+-> Stronger Remote Speaker Identity Backend Qualification v1 (current)
 ```
 
 Independent WavLM recovered only `6.2280%` of residual words; the blind 278-item pack still lacks
 direct truth. Exact synthetic truth qualified the Coverage v3 control (`0.983505` B-cubed F1, zero
 open-set errors). Blind hard-v2 then rejected conservative word-level fusion despite precision `1.0`:
-known recall was `0.551402`, boundary recall `0.321429`. Segment-Context v1 also failed hard-v3:
-known recall `0.445087`, boundaries `0/20`, two open-set false attributions. **Remote Speaker
-Attribution Error Decomposition v1** now isolates boundary, identity and overlap/open-set ceilings.
+known recall was `0.551402`, boundary recall `0.321429`. Oracle decomposition over 393 exact words
+measured identity gain `0.351382` versus segmentation `0.063882` and overlap/open-set `0.036364`.
+**Stronger Remote Speaker Identity Backend Qualification v1** is the current bounded next step.
 See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 ## Scope And Limitations
 

@@ -378,6 +378,31 @@ def semantic_gates(
         {name: segment_gates.get(name) for name in segment_structural_gates},
     )
 
+    decomposition = payloads.get("remote_speaker_attribution_error_decomposition_v1") or {}
+    allowed_decomposition_decisions = {
+        "ADVANCE_DEDICATED_SEGMENTATION",
+        "ADVANCE_STRONGER_SPEAKER_IDENTITY",
+        "ADVANCE_OVERLAP_OPEN_SET_MODEL",
+        "CURRENT_LOCAL_ATTRIBUTION_LIMIT",
+    }
+    decomposition_invariants = decomposition.get("invariants") or {}
+    add(
+        "remote_speaker_attribution_error_decomposition_v1",
+        "diagnostic_decision",
+        decomposition.get("decision") in allowed_decomposition_decisions,
+        decomposition.get("decision"),
+    )
+    add(
+        "remote_speaker_attribution_error_decomposition_v1",
+        "frozen_oracle_integrity",
+        bool(decomposition_invariants)
+        and all(value is True for value in decomposition_invariants.values())
+        and decomposition.get("production_changed") is False
+        and decomposition.get("scope", {}).get("production_candidate_selected") is False
+        and decomposition.get("scope", {}).get("synthetic_labels_exported_to_real_sessions") is False,
+        decomposition_invariants,
+    )
+
     failures = [f"semantic_gate:{row['source']}:{row['gate']}" for row in checks if not row["passed"]]
     return checks, failures
 
@@ -517,6 +542,11 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
     segment_context = payloads["segment_context_remote_speaker_attribution_v1"]
     segment_hard = segment_context["hard_v3_metrics"]
     segment_control = segment_context["coverage_v3_control_metrics"]
+    decomposition = payloads["remote_speaker_attribution_error_decomposition_v1"]
+    decomposition_current = decomposition["aggregate_primary"]["current"]
+    decomposition_boundary = decomposition["aggregate_primary"]["oracle_boundaries_current_identity"]
+    decomposition_identity = decomposition["aggregate_primary"]["current_boundaries_oracle_identity"]
+    decomposition_special = decomposition["aggregate_primary"]["overlap_open_set_oracle"]
 
     return [
         {
@@ -592,6 +622,7 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 "controlled_remote_speaker_truth_lab_v1",
                 "duration_aware_remote_speaker_attribution_v2",
                 "segment_context_remote_speaker_attribution_v1",
+                "remote_speaker_attribution_error_decomposition_v1",
             ],
             "metrics": {
                 "attributable_speech_ratio": float(remote_summary["attributable_remote_speech_ratio"]),
@@ -655,6 +686,28 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 "segment_context_control_known_speaker_recall": float(
                     segment_control["known_speaker_recall"]
                 ),
+                "error_decomposition_decision": decomposition["decision"],
+                "error_decomposition_words": int(decomposition_current["word_count"]),
+                "error_decomposition_boundaries": int(decomposition_current["boundary_count"]),
+                "error_decomposition_current_known_speaker_recall": float(
+                    decomposition_current["known_speaker_recall"]
+                ),
+                "error_decomposition_current_boundary_recall": float(
+                    decomposition_current["boundary_recall"]
+                ),
+                "error_decomposition_boundary_oracle_known_speaker_recall": float(
+                    decomposition_boundary["known_speaker_recall"]
+                ),
+                "error_decomposition_identity_oracle_known_speaker_recall": float(
+                    decomposition_identity["known_speaker_recall"]
+                ),
+                "error_decomposition_identity_oracle_boundary_recall": float(
+                    decomposition_identity["boundary_recall"]
+                ),
+                "error_decomposition_special_oracle_false_attributions": int(
+                    decomposition_special["open_set_false_attributions"]
+                ),
+                "error_decomposition_axis_gains": decomposition["routing_evidence"]["axis_gains"],
             },
             "residual_classes": ["unknown_remote_speaker"],
         },
@@ -824,7 +877,7 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
         release_blockers.insert(2, "remote_speaker_turns.residual_reference_insufficient")
     report = {
         "schema": REPORT_SCHEMA,
-        "generator": {"name": "report-transcript-perfection-corpus", "version": "0.5.0", "mode": "deterministic_offline"},
+        "generator": {"name": "report-transcript-perfection-corpus", "version": "0.6.0", "mode": "deterministic_offline"},
         "decision": decision,
         "manifest": {
             "path": portable_path(Path(str(manifest["_path"]))),
@@ -865,11 +918,12 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
                     "the blind 851-word residual pack is frozen, but none of its 53 WavLM proposals "
                     "has independent human-reviewed or exact-scripted truth; exact synthetic hard "
                     "truth qualified the Coverage v3 control, while duration-aware and segment-context "
-                    "candidates both failed their untouched hard corpora"
+                    "candidates both failed their untouched hard corpora; oracle decomposition now "
+                    "isolates speaker identity as the dominant recoverable axis"
                 ),
                 "next_evidence": (
-                    "decompose boundary, identity and overlap/open-set errors on the three exact corpora "
-                    "before selecting any dedicated diarization or embedding backend"
+                    "qualify a stronger local speaker-identity backend on development truth, then open a "
+                    "new disjoint exact hard corpus once without changing Coverage v3 production"
                 ),
             },
             {
@@ -894,13 +948,13 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
             ),
         },
         "next_goal": {
-            "id": "remote-speaker-attribution-error-decomposition-v1" if not failures else "restore-input-integrity",
-            "title": "Remote Speaker Attribution Error Decomposition v1" if not failures else "Restore Input Integrity",
+            "id": "stronger-remote-speaker-identity-backend-qualification-v1" if not failures else "restore-input-integrity",
+            "title": "Stronger Remote Speaker Identity Backend Qualification v1" if not failures else "Restore Input Integrity",
             "selected_residual_class": "unknown_remote_speaker" if not failures else None,
             "rationale": (
-                "Duration-aware and segment-context candidates both failed untouched exact corpora. Measure oracle "
-                "boundary, oracle identity and overlap/open-set ceilings separately before choosing a qualitatively "
-                "different local diarization or speaker-embedding backend."
+                "Frozen oracle decomposition measured speaker-identity gain 0.351382 versus segmentation "
+                "0.063882 and overlap/open-set 0.036364. Qualify a genuinely stronger local identity backend "
+                "without retuning the rejected topologies or changing production attribution."
                 if not failures
                 else "Input integrity must be restored before selecting an engineering goal."
             ),
