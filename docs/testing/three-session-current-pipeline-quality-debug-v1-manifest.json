@@ -1,0 +1,72 @@
+{
+  "schema": "murmurmark.three_session_current_pipeline_quality_debug_manifest/v1",
+  "generated_at": "2026-08-08",
+  "decision": "FIX_LEGACY_CACHE_PREFLIGHT_KEEP_QUALITY_FALLBACKS",
+  "privacy": {
+    "speech_text_included": false,
+    "private_paths_included": false,
+    "audio_hashes_included": false,
+    "human_truth_claimed": false
+  },
+  "scenarios": [
+    {
+      "id": "group_multi_remote_speaker_playback",
+      "duration_sec": 5897.418,
+      "raw_unchanged": true,
+      "capture_gap_count": 0,
+      "selected_profile_before": "reviewed_v1",
+      "selected_profile_after": "reviewed_v1",
+      "verdict_before": "usable_with_review",
+      "verdict_after": "usable_with_review",
+      "local_recall_before": 0.916667,
+      "local_recall_after": 0.916667,
+      "review_seconds_before": 24.6,
+      "review_seconds_after": 24.6,
+      "speaker_evidence": {
+        "published_speakers": 3,
+        "attributable_remote_speech_ratio": 0.946258,
+        "word_conservation": true
+      }
+    },
+    {
+      "id": "one_to_one_speaker_playback",
+      "duration_sec": 1884.346,
+      "raw_unchanged": true,
+      "capture_gap_count": 0,
+      "selected_profile_before": "reviewed_v1",
+      "selected_profile_after": "reviewed_v1",
+      "verdict_before": "usable_with_review",
+      "verdict_after": "usable_with_review",
+      "local_recall_before": 0.925,
+      "local_recall_after": 0.925,
+      "review_seconds_before": 17.8,
+      "review_seconds_after": 17.8,
+      "speaker_evidence": {
+        "published_speakers": 1,
+        "attributable_remote_speech_ratio": 0.920996,
+        "word_conservation": true
+      }
+    },
+    {
+      "id": "group_headset_noisy_office",
+      "duration_sec": 3293.409,
+      "raw_unchanged": true,
+      "capture_gap_count": 0,
+      "selected_profile_before": "audit_cleanup_v2",
+      "selected_profile_after": "audit_cleanup_v2",
+      "verdict_before": "usable_with_review",
+      "verdict_after": "usable_with_review",
+      "local_recall_before": 0.782609,
+      "local_recall_after": 0.928571,
+      "review_seconds_before": 148.03,
+      "review_seconds_after": 133.03,
+      "speaker_evidence": {
+        "published_speakers": 4,
+        "attributable_remote_speech_ratio": 0.922873,
+        "word_conservation": true
+      }
+    }
+  ],
+  "regression_test": "scripts/smoke-process-chunk-resume.sh",
+  "report": "docs/testing/2026-08-08-three-session-current-pipeline-quality-debug-v1.md"
+}

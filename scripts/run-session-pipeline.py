@@ -28,7 +28,7 @@ from murmurmark_resource_policy import (
     resolve_resource_policy,
 )
 
-SCRIPT_VERSION = "0.2.5"
+SCRIPT_VERSION = "0.2.6"
 SCHEMA = "murmurmark.session_pipeline_run/v1"
 RUN_STATE_SCHEMA = "murmurmark.pipeline_run_state/v1"
 HANDOFF_SCHEMA = "murmurmark.authoritative_handoff/v1"
@@ -295,6 +295,69 @@ def read_json(path: Path) -> dict[str, Any] | None:
     except (OSError, json.JSONDecodeError):
         return None
     return value if isinstance(value, dict) else None
+
+
+def authoritative_asr_cache_reuse_preflight(session: Path, repo_root: Path) -> dict[str, Any]:
+    with tempfile.TemporaryDirectory(prefix="murmurmark-asr-cache-preflight-") as temp_dir:
+        report_path = Path(temp_dir) / "chunk_rebuild_check.json"
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(repo_root / "scripts/check-asr-chunk-cache.py"),
+                str(session),
+                "--out",
+                str(report_path),
+                "--require-chunks",
+                "--require-authoritative",
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+        report = read_json(report_path) or {}
+    source_tracks = report.get("tracks") if isinstance(report.get("tracks"), list) else []
+    tracks: list[dict[str, Any]] = []
+    for track in source_tracks:
+        if not isinstance(track, dict):
+            continue
+        compatible = track.get("status") == "pass"
+        reason = str(track.get("reason") or "cache_preflight_failed")
+        tracks.append(
+            {
+                "track": track.get("track"),
+                "compatible": compatible,
+                "reasons": [] if compatible else [reason],
+                "chunk_report": track.get("chunk_report"),
+                "authoritative_schema": track.get("authoritative_schema"),
+                "byte_identical": track.get("byte_identical"),
+                "integrity_errors": track.get("integrity_errors") or [],
+                "chunks_total": int(track.get("chunks_total") or 0),
+                "chunks_completed": int(track.get("chunks_completed") or 0),
+            }
+        )
+    compatible = (
+        result.returncode == 0
+        and report.get("status") == "passed"
+        and len(tracks) == 2
+        and all(track["compatible"] for track in tracks)
+    )
+    if not tracks:
+        detail = (result.stderr or result.stdout or "cache_preflight_failed").strip().splitlines()
+        tracks = [
+            {
+                "track": None,
+                "compatible": False,
+                "reasons": [detail[-1] if detail else "cache_preflight_failed"],
+            }
+        ]
+    return {
+        "requested": True,
+        "effective": compatible,
+        "reason": "authoritative_cache_available" if compatible else "authoritative_cache_rebuild_required",
+        "tracks": tracks,
+    }
 
 
 def deferred_echo_budget_decision(repo_root: Path, session: Path) -> dict[str, Any]:
@@ -813,7 +876,7 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
     ]
     if args.force_asr:
         current_transcribe.append("--force")
-    if args.reuse_asr_cache:
+    if getattr(args, "reuse_asr_cache_effective", args.reuse_asr_cache):
         current_transcribe.append("--skip-transcribe")
 
     live_cache_materialize = [
@@ -1207,7 +1270,7 @@ def step_cost_hint(item: dict[str, Any]) -> dict[str, str] | None:
     command = item.get("command") if isinstance(item.get("command"), list) else []
     if item.get("name") == "transcribe_current" and "--skip-transcribe" in command:
         cost = "light"
-        reason = "reuses cached raw ASR JSON because --reuse-asr-cache was requested"
+        reason = "reuses a preflight-validated authoritative raw ASR cache"
     return {"cost": cost, "reason": reason}
 
 
@@ -1350,6 +1413,9 @@ def append_authoritative_handoff_run(
             "micro_asr_workers": args.micro_asr_workers,
             "force_asr": bool(args.force_asr),
             "reuse_asr_cache": bool(args.reuse_asr_cache),
+            "reuse_asr_cache_effective": bool(
+                getattr(args, "reuse_asr_cache_effective", args.reuse_asr_cache)
+            ),
         },
         "quality_metrics": readiness.get("metrics") if isinstance(readiness.get("metrics"), dict) else {},
     }
@@ -1489,18 +1555,23 @@ def asr_provenance(session: Path) -> dict[str, Any]:
 
 
 def asr_invocation(args: argparse.Namespace) -> dict[str, Any]:
+    reuse_effective = bool(getattr(args, "reuse_asr_cache_effective", args.reuse_asr_cache))
     if args.skip_transcription:
         mode = "transcription_skipped"
+    elif args.reuse_asr_cache and reuse_effective:
+        mode = "authoritative_cache_reuse"
+    elif args.reuse_asr_cache:
+        mode = "authoritative_cache_rebuild"
     elif args.force_asr:
         mode = "forced_batch"
-    elif args.reuse_asr_cache:
-        mode = "cache_reuse_requested"
     else:
         mode = "default"
     return {
         "mode": mode,
         "force_asr": bool(args.force_asr),
         "reuse_asr_cache": bool(args.reuse_asr_cache),
+        "reuse_asr_cache_effective": reuse_effective,
+        "reuse_asr_cache_preflight": getattr(args, "reuse_asr_cache_preflight", None),
         "skip_transcription": bool(args.skip_transcription),
         "resource_profile": args.resource_profile,
         "max_compute_threads": args.max_compute_threads,
@@ -2030,16 +2101,23 @@ def run_step(
                             reused = int(chunk_progress.get("chunks_reused") or 0)
                             transcribed = int(chunk_progress.get("chunks_transcribed") or 0)
                             if chunks_total:
-                                estimate = estimate_remaining_runtime(chunk_progress, elapsed)
-                                eta_text = ""
-                                if isinstance(estimate, dict) and estimate.get("estimated_wall_sec") is not None:
-                                    eta_text = f", eta~{format_duration(float(estimate['estimated_wall_sec']))}"
-                                chunk_text = (
-                                    f"; ASR chunks {chunks_completed}/{chunks_total}"
-                                    f" ({format_duration(completed_sec)}/{format_duration(total_sec)}),"
-                                    f" remaining={format_duration(remaining_sec)},"
-                                    f" reused={reused}, transcribed={transcribed}{eta_text}"
-                                )
+                                cache_reuse = "--skip-transcribe" in item.get("command", [])
+                                if cache_reuse:
+                                    chunk_text = (
+                                        f"; ASR cache {chunks_completed}/{chunks_total} validated;"
+                                        " timeline repair still running"
+                                    )
+                                else:
+                                    estimate = estimate_remaining_runtime(chunk_progress, elapsed)
+                                    eta_text = ""
+                                    if isinstance(estimate, dict) and estimate.get("estimated_wall_sec") is not None:
+                                        eta_text = f", eta~{format_duration(float(estimate['estimated_wall_sec']))}"
+                                    chunk_text = (
+                                        f"; ASR chunks {chunks_completed}/{chunks_total}"
+                                        f" ({format_duration(completed_sec)}/{format_duration(total_sec)}),"
+                                        f" remaining={format_duration(remaining_sec)},"
+                                        f" reused={reused}, transcribed={transcribed}{eta_text}"
+                                    )
                         reason = str(hint.get("reason") or "working")
                         print(
                             f"[run] {step_name} still running ({format_duration(elapsed)})"
@@ -2340,6 +2418,32 @@ def main() -> int:
     repo_root = Path(__file__).resolve().parents[1]
     args.murmurmark_bin = resolve_murmurmark_bin(args.murmurmark_bin, repo_root)
     session = args.session.expanduser()
+    if args.reuse_asr_cache:
+        args.reuse_asr_cache_preflight = authoritative_asr_cache_reuse_preflight(session, repo_root)
+        args.reuse_asr_cache_effective = bool(args.reuse_asr_cache_preflight["effective"])
+        if not args.reuse_asr_cache_effective:
+            print(
+                "warning: --reuse-asr-cache cannot reuse this legacy or incomplete cache; "
+                "rebuilding authoritative ASR chunks instead",
+                file=sys.stderr,
+                flush=True,
+            )
+            for track in args.reuse_asr_cache_preflight["tracks"]:
+                if track["compatible"]:
+                    continue
+                print(
+                    f"warning: {track['track']} cache: {', '.join(track['reasons'])}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+    else:
+        args.reuse_asr_cache_effective = False
+        args.reuse_asr_cache_preflight = {
+            "requested": False,
+            "effective": False,
+            "reason": "not_requested",
+            "tracks": [],
+        }
     existing_handoff = read_json(authoritative_handoff_path(session))
     reusable_handoff = handoff_fingerprint_matches(existing_handoff, session) and default_handoff_reuse_allowed(args)
 
@@ -2377,6 +2481,7 @@ def main() -> int:
     effective_phase = "deferred" if requested_phase == "full" and reusable_handoff else requested_phase
     steps = steps_for_phase(all_steps, effective_phase)
     plan_metadata = build_plan_metadata(steps, session, report_path, repo_root, plan_only=args.plan_only)
+    plan_metadata["asr_cache_reuse"] = args.reuse_asr_cache_preflight
     results: list[dict[str, Any]] = []
     started_at = datetime.now(timezone.utc).isoformat()
     started_clock = time.monotonic()
@@ -2656,6 +2761,7 @@ def main() -> int:
             "asr_track_workers": args.asr_track_workers,
             "asr_threads": args.asr_threads,
             "micro_asr_workers": args.micro_asr_workers,
+            "asr_invocation": asr_invocation(args),
         },
         "outputs": {
             "quality_verdict": rel(quality_path, session) if quality_path.exists() else None,

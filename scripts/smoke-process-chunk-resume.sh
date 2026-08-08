@@ -180,6 +180,30 @@ jq -e '
 
 echo "process chunk resume smoke ok"
 
+"$python_bin" scripts/run-session-pipeline.py "$session" \
+  --murmurmark-bin "$murmurmark_bin" \
+  --model "$workdir/fake-model.bin" \
+  --force-asr \
+  --reuse-asr-cache \
+  --skip-build \
+  --skip-preprocess \
+  --skip-audits \
+  --skip-cleanup \
+  --asr-track-workers 1 \
+  --micro-asr-workers 1 \
+  --progress-interval-sec 1 >"$workdir/reuse.log" 2>&1
+
+jq -e '
+  .inputs.asr_invocation.mode == "authoritative_cache_reuse"
+  and .inputs.asr_invocation.reuse_asr_cache == true
+  and .inputs.asr_invocation.reuse_asr_cache_effective == true
+  and .plan.asr_cache_reuse.reason == "authoritative_cache_available"
+  and all(.plan.asr_cache_reuse.tracks[]; .compatible == true)
+  and any(.steps[]; .name == "transcribe_current" and (.command | index("--skip-transcribe")) != null)
+' "$session/derived/pipeline-run/pipeline_run_report.json" >/dev/null
+
+echo "process authoritative raw-cache reuse smoke ok"
+
 legacy_workdir="$(mktemp -d "${TMPDIR:-/tmp}/murmurmark-process-legacy-cache.XXXXXX")"
 legacy_session="$legacy_workdir/session"
 mkdir -p "$legacy_session/audio/mic" "$legacy_session/audio/remote" \
@@ -261,6 +285,8 @@ jq -n \
 "$python_bin" scripts/run-session-pipeline.py "$legacy_session" \
   --murmurmark-bin "$murmurmark_bin" \
   --model "$workdir/fake-model.bin" \
+  --force-asr \
+  --reuse-asr-cache \
   --skip-build \
   --skip-preprocess \
   --skip-audits \
@@ -268,6 +294,16 @@ jq -n \
   --asr-track-workers 1 \
   --micro-asr-workers 1 \
   --progress-interval-sec 1 >"$legacy_workdir/process.log" 2>&1
+
+grep -q -- '--reuse-asr-cache cannot reuse this legacy or incomplete cache' \
+  "$legacy_workdir/process.log"
+jq -e '
+  .inputs.asr_invocation.mode == "authoritative_cache_rebuild"
+  and .inputs.asr_invocation.reuse_asr_cache == true
+  and .inputs.asr_invocation.reuse_asr_cache_effective == false
+  and .plan.asr_cache_reuse.reason == "authoritative_cache_rebuild_required"
+  and all(.plan.asr_cache_reuse.tracks[]; .compatible == false)
+' "$legacy_session/derived/pipeline-run/pipeline_run_report.json" >/dev/null
 
 jq -e '.status == "passed"' \
   "$legacy_session/derived/transcript-simple/whisper-cpp/raw/chunk_rebuild_check.json" >/dev/null

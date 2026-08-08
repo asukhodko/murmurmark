@@ -382,6 +382,10 @@ black box.
 Near-term work:
 
 - keep ASR chunk cache and rebuild checks as hard gates;
+- preflight explicit cache reuse and rebuild legacy or incompatible caches before expensive
+  timeline work;
+- add deterministic timeline/micro-ASR checkpoints: current raw-cache reuse still spends about
+  four minutes on a 31-minute 1x1 and ten minutes on a 98-minute group session;
 - expand chunk-cache coverage over the real corpus;
 - keep `--live-pipeline` quarantined until the async bounded segment queue proves capture-safety;
 - do not collect real live-pipeline meetings while live capture-safety and parity evidence is missing;
@@ -390,7 +394,8 @@ Near-term work:
 Acceptance:
 
 - interrupted processing can be resumed with one command and reused chunks are visible in reports;
-- `process` explains whether it is recomputing or reusing cache;
+- `process` explains whether it is recomputing or reusing cache, and distinguishes validated raw
+  cache from downstream timeline work;
 - live mode never weakens batch readiness gates.
 
 Minimum run-state contract:

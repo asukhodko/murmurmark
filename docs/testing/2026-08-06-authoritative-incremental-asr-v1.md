@@ -51,3 +51,9 @@ the safe fallback.
 Strict interrupted-batch reuse is enabled. Live-origin reuse remains disabled until Canonical Live
 ASR Producer v1 emits exact canonical 60s/5s windows and proof for both tracks. Raw CAF, selected
 transcript, quality gates, Evidence Handoff v2 and guarded export are unchanged.
+
+The 2026-08-08 three-session replay found and closed one compatibility gap: explicit
+`--force-asr --reuse-asr-cache` could previously skip a legacy v1 cache and fail only after expensive
+timeline repair. Reuse now runs authoritative byte replay first and automatically rebuilds legacy
+or invalid caches. `scripts/smoke-process-chunk-resume.sh` covers the regression; see
+`docs/testing/2026-08-08-three-session-current-pipeline-quality-debug-v1.md`.

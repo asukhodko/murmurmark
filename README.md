@@ -119,6 +119,9 @@ not used by `meeting`. `--force-asr` and `--allow-partial` are diagnostics only 
 by the meeting supervisor. A repeated `process --skip-build` may reuse a compatible authoritative
 handoff; the flag changes build work, not ASR compatibility.
 
+Low-level `--reuse-asr-cache` reuses only an exact v2 raw cache; invalid or legacy inputs rebuild
+automatically, while deterministic timeline/micro-ASR work still runs.
+
 ## Resource Use
 
 Derived work runs with the `background` resource profile by default. MurmurMark sets `nice=20`,
@@ -381,6 +384,7 @@ See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](do
 - [Independent evidence](docs/contracts/independent-remote-speaker-evidence-v1.md) and [residual reference](docs/contracts/remote-speaker-residual-reference-corpus-v1.md)
 - [Controlled Truth Lab v1](docs/contracts/controlled-remote-speaker-truth-lab-v1.md), [Duration-Aware v2](docs/contracts/duration-aware-remote-speaker-attribution-v2.md) and [Segment-Context v1](docs/contracts/segment-context-remote-speaker-attribution-v1.md)
 - [Stronger Identity Backend Qualification](docs/contracts/stronger-remote-speaker-identity-backend-qualification-v1.md), [ECAPA real-session shadow](docs/contracts/ecapa-remote-speaker-shadow-qualification-v1.md), its [runbook](docs/runbooks/ecapa-remote-speaker-shadow-qualification-v1.md), and [Speaker-Resolved Default](docs/contracts/speaker-resolved-transcript-default-v1.md)
+- [Three-session current-pipeline quality debug](docs/testing/2026-08-08-three-session-current-pipeline-quality-debug-v1.md)
 
 ## Development Checks
 ```bash
@@ -393,8 +397,4 @@ murmurmark corpus remote-independent all --verify-existing && murmurmark corpus 
 murmurmark corpus speaker-default all --verify-existing
 murmurmark corpus remote-identity-v1 preflight && murmurmark corpus remote-identity-v1 replay
 murmurmark corpus perfection all --verify-existing
-```
-Validate the active OpsKarta v3 roadmap with the adjacent repository:
-```bash
-PYTHONPATH=../opskarta .venv/bin/python -m specs.v3.tools.cli validate docs/roadmap/murmurmark-cli-roadmap.plan.yaml
 ```

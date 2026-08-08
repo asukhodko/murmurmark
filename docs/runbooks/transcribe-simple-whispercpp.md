@@ -140,10 +140,15 @@ When the authoritative verdict still requires review and deferred work is pendin
 `murmurmark next SESSION` recommend `murmurmark enrich SESSION` before any manual review command.
 Run `murmurmark next SESSION` again after enrichment to see only the unresolved remainder. Use
 `--force-asr` when you need to regenerate Whisper output, and `--reuse-asr-cache` when you only want
-to rebuild repair, cleanup, synthesis and reports from cached ASR JSON. The runner prints each stage
-with `[run]`, `[passed]`, `[failed]` or `[skip]`, prints heartbeat lines for long-running stages, and
-stores the final stage list in `derived/pipeline-run/pipeline_run_report.json`. While the run is
-active it also writes `derived/pipeline-run/pipeline_run_state.json`, which lets
+to rebuild repair, cleanup, synthesis and reports from cached ASR JSON. Before honoring reuse, the
+runner executes the authoritative chunk rebuild check. A complete v2 cache is reused; a legacy,
+incomplete or corrupt cache is rebuilt automatically and the reason is written per track to
+`plan.asr_cache_reuse`. `--reuse-asr-cache` does not cache timeline/micro-ASR work, so a long session
+can still spend minutes in `transcribe_current` after the raw cache is reported as validated. The
+runner prints each stage with `[run]`, `[passed]`, `[failed]` or `[skip]`, prints heartbeat lines for
+long-running stages, and stores the final stage list in
+`derived/pipeline-run/pipeline_run_report.json`. While the run is active it also writes
+`derived/pipeline-run/pipeline_run_state.json`, which lets
 `murmurmark status SESSION` and `murmurmark next SESSION` show the active step, ASR chunk progress,
 safe interrupt hint and resume command instead of trusting stale readiness. Heartbeats include the
 step reason, checkpoint count when the step has known outputs, and a resume command, so a slow ASR

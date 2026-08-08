@@ -86,7 +86,11 @@ nodes:
     notes: |
       Resumable whisper.cpp processing, timeline repair, fast authoritative handoff и isolated
       profiles. `local_speech_completion_v2` выбран для frozen promotion scope;
-      `residual_local_recall_v1` остаётся fallback для остальных сессий.
+      `residual_local_recall_v1` остаётся fallback для остальных сессий. Three-session replay
+      подтвердил raw/session immutability, zero capture gaps и exact v2 ASR byte replay. Explicit
+      cache reuse теперь preflight-проверяется и legacy/corrupt cache перестраивается заранее.
+      Fingerprint-bound timeline/micro-ASR cache остаётся измеренным later debt: validated raw reuse
+      оставляет около 4 минут на 31-минутном 1x1 и 10 минут на 98-минутной group session.
 
   capability-review-evidence:
     title: "Audit, evidence и review loop"
@@ -890,7 +894,7 @@ x:
         kind: main
         mgmt:
           health: green
-          sync_note: "Durable capture, one-command lifecycle, batch transcript, review, notes/export и Live Shadow уже работают."
+          sync_note: "Durable capture, one-command lifecycle и batch transcript работают; three-session replay подтвердил raw/cache/speaker conservation и закрыл legacy cache preflight."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
         title: "Remote Speaker Shadow Error Decomposition v1"

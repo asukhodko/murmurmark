@@ -5448,7 +5448,16 @@ Schema:
 
 The normal pipeline invokes `check-asr-chunk-cache.py --require-chunks --require-authoritative`.
 `status: failed` is a hard failure. Legacy v1 reports remain inspectable but cannot satisfy the
-authoritative gate; they are recomputed on a new ASR run.
+authoritative gate; they are recomputed on a new ASR run. When `--reuse-asr-cache` is requested, the
+same exact check runs before `transcribe_current`. Its decision is recorded in
+`plan.asr_cache_reuse` and `inputs.asr_invocation`:
+
+- `authoritative_cache_reuse` means both tracks passed schema, identity, integrity and byte replay;
+- `authoritative_cache_rebuild` means at least one track was missing, legacy, incomplete or corrupt,
+  so the runner ignores the reuse request and rebuilds normal ASR outputs safely.
+
+The post-transcription check remains mandatory. Preflight prevents a known late failure, while the
+post-check protects against changes or corruption during the run.
 
 Corpus aggregation writes:
 

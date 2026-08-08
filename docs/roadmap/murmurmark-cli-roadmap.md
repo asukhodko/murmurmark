@@ -82,6 +82,7 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Speaker-attribution error decomposition | `done` | Identity gain `0.351382` dominates boundary `0.063882` and special `0.036364` |
 | Stronger speaker identity backend | `done` | ECAPA lab candidate: hard-v4 F1 `0.948042`, recall `0.947368`, zero open-set false |
 | ECAPA real-session shadow | `done` | `DO_NOT_PROMOTE`: 156 words, 211.100s; word and precision gates failed |
+| Three-session current pipeline debug | `done` | Raw intact, zero gaps, exact v2 cache replay; legacy reuse rebuilds before timeline repair |
 | Remote shadow error decomposition | `current` | Explain identity, interval, enrollment and reference limits before the next backend |
 | Производные заметки | `done/optional` | Exact evidence memory и безопасный ID-only selector доступны |
 
@@ -260,6 +261,10 @@ Frozen ECAPA был применён только как fail-open shadow над
 Заморозить завершённые ECAPA item/word decisions и объяснить все 68 accepted proposals, 210 abstentions, четыре independent-reference wrong words и два silent failures. Проверяются interval purity, duration/silence, speech support, leave-one-out enrollment stability, boundary/mixed risk, score/margin и различие word-level candidate с utterance-level reference.
 Результат должен выбрать максимум один следующий axis по заранее заданной концентрации причины: interval purification, enrollment hardening, reference acquisition или новый identity backend. Если имеющихся данных недостаточно, этап закрывается `EVIDENCE_BOUND`. Tuning frozen thresholds и применение shadow labels запрещены.
 
+Параллельный operational checkpoint Three-Session Current Pipeline Quality Debug v1 завершён и не
+меняет эту цель. Он подтвердил capture/ASR/speaker conservation на трёх разных условиях, исправил
+legacy ASR-cache preflight и измерил отдельный будущий долг timeline/micro-ASR cache.
+
 ### 17. Local Mic Multi-Speaker Diarization v1 — `idea`
 
 Когда появится реальный сценарий нескольких людей у одного ноутбука и размеченный материал, mic-речь
@@ -290,10 +295,5 @@ referential integrity, fallback, word conservation и ordinary-output non-regres
 повышать ценой ложной уверенности: слабые интервалы остаются `unknown`.
 
 ## Проверка Плана
-
-```bash
-scripts/check-planning-consistency.py
-PYTHONPATH=../opskarta .venv/bin/python -m specs.v3.tools.cli validate docs/roadmap/murmurmark-cli-roadmap.plan.yaml
-PYTHONPATH=../opskarta .venv/bin/python -m specs.v3.tools.cli render tree docs/roadmap/murmurmark-cli-roadmap.plan.yaml
-PYTHONPATH=../opskarta .venv/bin/python -m specs.v3.tools.cli render executive docs/roadmap/murmurmark-cli-roadmap.plan.yaml --view exec-top
-```
+`scripts/check-planning-consistency.py`
+`PYTHONPATH=../opskarta .venv/bin/python -m specs.v3.tools.cli validate docs/roadmap/murmurmark-cli-roadmap.plan.yaml`

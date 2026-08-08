@@ -80,6 +80,16 @@ ECAPA Remote Speaker Shadow Qualification v1 завершён `DO_NOT_PROMOTE_RE
 timestamp conservation, chronology, selected transcripts, Coverage v3 и production guards
 сохранены. Replay byte-identical. Transcript Perfection проверяет 20/20 sources.
 
+## Current Pipeline Validation Checkpoint
+
+Перед продолжением этой цели завершён Three-Session Current Pipeline Quality Debug v1. На
+анонимизированном срезе group/1x1/noisy-headset подтверждены неизменные raw CAF, нулевые capture
+gaps, authoritative v2 byte replay, fail-open Echo selection и exact word conservation у
+speaker-resolved view. Исправлен общий поздний отказ `--force-asr --reuse-asr-cache`: legacy или
+повреждённый cache теперь выявляется до timeline repair и безопасно перестраивается. Production
+speaker attribution и текущая цель не менялись. Подробности:
+`docs/testing/2026-08-08-three-session-current-pipeline-quality-debug-v1.md`.
+
 ## After This Goal
 
 1. Материальный interval-purity предел открывает bounded interval purification.
