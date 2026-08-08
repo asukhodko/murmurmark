@@ -353,6 +353,7 @@ struct MurmurMark {
           murmurmark corpus local-recall [all|latest|./session...] [--audit] [--sessions-root ./sessions]
           murmurmark corpus local-recall-repair [all|latest|./session...] [--repair] [--sessions-root ./sessions]
           murmurmark corpus remote-leak [all|latest|./session...] [--plan] [--sessions-root ./sessions]
+          murmurmark corpus remote-identity-shadow-v1 preflight|freeze|evaluate|status|replay|finalize|all
           murmurmark corpus echo-supervision build|replay|status [--sessions-root ./sessions]
           murmurmark corpus live [all|latest|./session...] [--refresh] [--target-live-sessions 3] [--sessions-root ./sessions]
           murmurmark corpus lifecycle [all|latest|./session...] [--freeze-inputs] [--require-passing-gates]
@@ -1320,6 +1321,7 @@ enum DoctorChecks {
             "scripts/setup-remote-speaker-identity-backend-v1.py",
             "scripts/ecapa-speaker-embedding-worker.py",
             "scripts/qualify-stronger-remote-speaker-identity-backend-v1.py",
+            "scripts/qualify-ecapa-remote-speaker-shadow-v1.py",
             "scripts/materialize-anonymous-rich-transcript.py",
             "scripts/review-remote-speaker-labels.py",
             "scripts/materialize-reviewed-speaker-memory.py",
@@ -8185,6 +8187,29 @@ enum CorpusCommands {
                     allowedExitCodes: [0, 1, 2]
                 )
             }
+        case "remote-identity-shadow-v1", "remote_identity_shadow_v1":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(
+                    try PythonRuntime.resolve(),
+                    [try script("qualify-ecapa-remote-speaker-shadow-v1.py").path, "--help"]
+                )
+                return
+            }
+            guard let action = forwarded.first else {
+                throw CLIError(
+                    "remote-identity-shadow-v1 requires preflight, freeze, evaluate, status, replay, finalize, or all"
+                )
+            }
+            guard [
+                "preflight", "freeze", "evaluate", "status", "replay", "finalize", "all",
+            ].contains(action) else {
+                throw CLIError("unsupported remote-identity-shadow-v1 action: \(action)")
+            }
+            _ = try Tooling.runPathAllowingExitCodes(
+                try PythonRuntime.resolve(),
+                [try script("qualify-ecapa-remote-speaker-shadow-v1.py").path] + forwarded,
+                allowedExitCodes: [0, 1, 2]
+            )
         case "lifecycle":
             try Tooling.runPath(
                 try PythonRuntime.resolve(),
@@ -8345,6 +8370,8 @@ enum CorpusHelp {
                                       [--policy policies/remote-speaker-attribution-error-decomposition-v1.json]
           murmurmark corpus remote-identity-v1 setup|install|preflight|freeze|hard-status|develop|evaluate-hard|status|replay|all
                                       [--policy policies/stronger-remote-speaker-identity-backend-qualification-v1.json]
+          murmurmark corpus remote-identity-shadow-v1 preflight|freeze|evaluate|status|replay|finalize|all
+                                      [--policy policies/ecapa-remote-speaker-shadow-qualification-v1.json]
           murmurmark corpus perfection all [--verify-existing]
                                         [--manifest docs/testing/transcript-perfection-corpus-v1-manifest.json]
           murmurmark corpus lexical import SESSION SOURCE --source-id ID

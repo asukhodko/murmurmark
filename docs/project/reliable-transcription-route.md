@@ -16,9 +16,11 @@ Segment-Context v1 also failed blind hard-v3 boundary, identity and open-set gat
 Decomposition v1 measured identity as the dominant axis (`0.351382` gain versus `0.063882` boundary
 and `0.036364` overlap/open-set). Stronger Remote Speaker Identity Backend Qualification v1 then
 promoted ECAPA only as a lab candidate after hard-v4 F1 `0.948042`, known recall `0.947368`,
-precision `1.0`, zero open-set false attribution and exact word conservation. ECAPA Remote Speaker
-Shadow Qualification v1 is current; production remains Coverage v3. Notes, retrieval and work
-proposals remain optional derivatives.
+precision `1.0`, zero open-set false attribution and exact word conservation. Its real-session shadow
+then closed `DO_NOT_PROMOTE_REAL_IDENTITY`: 156 words / 211.100 seconds were proposed, but word
+recovery `0.183314` and independent machine-reference precision `0.878788` missed frozen gates.
+Remote Speaker Shadow Error Decomposition v1 is current; production remains Coverage v3. Notes,
+retrieval and work proposals remain optional derivatives.
 Date: 2026-08-08
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
@@ -477,9 +479,10 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-ECAPA Remote Speaker Shadow Qualification v1: проверить frozen lab candidate только как fail-open
-shadow на реальных frozen sessions с reviewed session-local evidence; сравнить с Coverage v3 по
-точности, coverage, abstention, boundary/order и runtime, не меняя production transcript.
+Remote Speaker Shadow Error Decomposition v1: на frozen ECAPA shadow и Coverage v3 объяснить каждый
+accepted/abstained residual interval через interval purity, enrollment stability, duration/silence,
+boundary/mixed speech, reference granularity и identity score; выбрать не более одного следующего
+инженерного направления без изменения production transcript.
 ```
 
 Error Decomposition v1 завершён `ADVANCE_STRONGER_SPEAKER_IDENTITY` на 393 words и 64 boundaries.
@@ -512,5 +515,6 @@ known recall `0.551402` and boundaries `9/28`. Segment-Context v1 then failed ha
 `0.475586`, known recall `0.445087`, boundaries `0/20` and two open-set false attribution. Error
 Decomposition selected identity, after which ECAPA passed the one-shot disjoint hard-v4 with
 B-cubed `0.948042`, known recall `0.947368`, precision `1.0` and zero open-set false attribution.
-Synthetic evidence still
-cannot replace blind review of real-session proposals.
+The real-session shadow nevertheless failed its fixed word-recovery and independent-reference
+precision gates. Synthetic and machine-reference evidence still cannot replace blind review of
+real-session proposals.

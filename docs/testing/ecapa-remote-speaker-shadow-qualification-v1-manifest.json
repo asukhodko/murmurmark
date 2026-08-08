@@ -1,0 +1,42 @@
+{
+  "decision": "DO_NOT_PROMOTE_REAL_IDENTITY",
+  "policy": {
+    "bytes": 5564,
+    "path": "policies/ecapa-remote-speaker-shadow-qualification-v1.json",
+    "sha256": "914bfe83dd3810149317ac23e99dc6d493a1c5cfaac982fe613ff9653370a468"
+  },
+  "private_values_excluded": true,
+  "production_mutated": false,
+  "public_input_manifest": {
+    "bytes": 2220,
+    "path": "sessions/_reports/ecapa-remote-speaker-shadow-qualification-v1/input_manifest.public.json",
+    "sha256": "b91be2d0befd0ab3f62dda15fe7426c7916330524e1888253d6589466c20e5b9"
+  },
+  "qualification_report": {
+    "bytes": 4603,
+    "path": "sessions/_reports/ecapa-remote-speaker-shadow-qualification-v1/ecapa_remote_speaker_shadow_qualification_report.json",
+    "sha256": "7a4cc561a1aec4344e3eb4b263ed72bee0e0b2cdd77908d5eb21bfe39d56a85e"
+  },
+  "reference_status": "INSUFFICIENT",
+  "replay_report": {
+    "bytes": 622,
+    "path": "sessions/_reports/ecapa-remote-speaker-shadow-qualification-v1/replay_report.json",
+    "sha256": "9245e3de8a4740fe2c2d811119726a98a2fbac50eb4e75c6c8be1481afa0f1a9"
+  },
+  "schema": "murmurmark.ecapa_remote_speaker_shadow_qualification_manifest/v1",
+  "summary": {
+    "accepted_items": 68,
+    "coverage_v3_ratio": 0.939312,
+    "embedding_failures": 2,
+    "projected_shadow_ratio": 0.960727,
+    "recovered_seconds": 211.099681,
+    "recovered_seconds_ratio": 0.352868,
+    "recovered_word_ratio": 0.183314,
+    "recovered_words": 156,
+    "remaining_unknown_seconds": 387.139828,
+    "remaining_unknown_words": 695,
+    "runtime_sec": 9.278614
+  },
+  "technical_status": "FAIL",
+  "version": "0.1.0"
+}

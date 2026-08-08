@@ -477,6 +477,45 @@ def build_fixture(root: Path) -> Path:
             },
             ["remote_speaker_turns"],
         ),
+        "ecapa_remote_speaker_shadow_qualification_v1": (
+            files / "ecapa-remote-speaker-shadow-qualification-v1.json",
+            {
+                "schema": "murmurmark.ecapa_remote_speaker_shadow_qualification_report/v1",
+                "decision": "DO_NOT_PROMOTE_REAL_IDENTITY",
+                "technical_status": "FAIL",
+                "reference_status": "INSUFFICIENT",
+                "summary": {
+                    "recovered_words": 156,
+                    "recovered_word_ratio": 0.183314,
+                    "recovered_seconds": 211.099681,
+                    "recovered_seconds_ratio": 0.352868,
+                },
+                "evidence": {
+                    "independent_machine_reference": {"precision": 0.878788},
+                    "human_reviewed": {"evaluated_proposal_words": 0},
+                },
+                "technical_gates": {
+                    "boundary_and_chronology_no_regression": True,
+                    "deterministic_replay": True,
+                    "exact_word_and_timestamp_conservation": True,
+                    "existing_labels_unchanged": True,
+                    "minimum_independent_reference_precision": False,
+                    "minimum_recovered_seconds_ratio": True,
+                    "minimum_recovered_word_ratio": False,
+                    "minimum_structural_one_to_one_precision": True,
+                    "runtime_bounded": True,
+                    "zero_reviewed_false_attributions": True,
+                },
+                "safety": {
+                    "production_mutated": False,
+                    "coverage_v3_mutated": False,
+                    "selected_transcript_mutated": False,
+                    "human_names_inferred": False,
+                    "cross_session_voice_linking": False,
+                },
+            },
+            ["remote_speaker_turns"],
+        ),
     }
     sources: list[dict[str, object]] = []
     for source_id, (path, payload, dimensions) in payloads.items():
@@ -527,6 +566,9 @@ def run(manifest: Path, out: Path) -> subprocess.CompletedProcess[str]:
 
 
 def main() -> int:
+    runbook = (ROOT / "docs/runbooks/transcript-perfection-corpus.md").read_text(encoding="utf-8")
+    assert "next_goal: Remote Speaker Shadow Error Decomposition v1" in runbook
+    assert "next_goal: ECAPA Remote Speaker Shadow Qualification v1" not in runbook
     with tempfile.TemporaryDirectory(prefix=".transcript-perfection-fixture-", dir=ROOT) as temporary:
         root = Path(temporary)
         manifest = build_fixture(root)
@@ -535,14 +577,14 @@ def main() -> int:
         assert result.returncode == 0, result.stdout + result.stderr
         report = json.loads((out / "transcript_perfection_corpus_report.json").read_text())
         assert report["decision"] == "BASELINE_ESTABLISHED"
-        assert report["summary"]["verified_sources"] == 19
+        assert report["summary"]["verified_sources"] == 20
         assert report["summary"]["aggregate_quality_score"] is None
         assert report["summary"]["aggregate_residual_seconds"] is None
         words = next(row for row in report["dimensions"] if row["id"] == "recognized_words")
         assert words["correctness_status"] == "bounded_exact_subset_only"
         assert words["metrics"]["exact_subset_wer"] == 0.0
         assert report["residuals"][0]["class"] == "unknown_remote_speaker"
-        assert report["next_goal"]["id"] == "ecapa-remote-speaker-shadow-qualification-v1"
+        assert report["next_goal"]["id"] == "remote-speaker-shadow-error-decomposition-v1"
         assert report["next_goal"]["selected_residual_class"] == "unknown_remote_speaker"
         assert report["lexical_prerequisite"]["id"] == "human-reviewed-lexical-seed-v1"
         assert report["lexical_prerequisite"]["status"] == "external_evidence_required"

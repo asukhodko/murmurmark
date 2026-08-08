@@ -137,9 +137,11 @@ known recall `0.445087`, boundaries `0/20`, two open-set errors. Error Decomposi
 speaker identity as the dominant axis: gain `0.351382` versus boundary `0.063882` and overlap/open-set
 `0.036364`. Stronger Remote Speaker Identity Backend Qualification v1 then promoted ECAPA only as a
 lab candidate after a one-shot hard-v4 result of B-cubed F1 `0.948042`, known recall `0.947368`,
-pairwise precision `1.0` and zero open-set false attribution. ECAPA Remote Speaker Shadow
-Qualification v1 is current; production remains Coverage v3. Notes, external writes and UI remain
-optional.
+pairwise precision `1.0` and zero open-set false attribution. The frozen real-session shadow later
+closed with `DO_NOT_PROMOTE_REAL_IDENTITY`: 156/851 words and 211.100/598.240 seconds were proposed,
+but the word ratio was `0.183314` and independent machine-reference precision `0.878788`. Remote
+Speaker Shadow Error Decomposition v1 is current; production remains Coverage v3. Notes, external
+writes and UI remain optional.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.
 

@@ -2190,6 +2190,18 @@ precision `0.961675`, 5/5 internal-boundary cases and exact selected-word plus v
 The remaining 851 words / `598.240s` stay explicit `unknown`. Reviewed display names remain on the
 explicit v1 review path: `--rich --reviewed-speakers` never infers a name from voice evidence.
 
+The stronger ECAPA backend remains shadow-only after its real-session qualification. It recovered
+156 words / `211.100s`, but failed the fixed 20% word and 0.99 independent-reference precision
+gates. Inspect the completed result with:
+
+```bash
+murmurmark corpus remote-identity-shadow-v1 status
+murmurmark corpus remote-identity-shadow-v1 replay
+```
+
+Do not lower its thresholds or copy its private decisions into a session profile. Coverage v3 stays
+authoritative while the accepted and rejected shadow intervals are decomposed by error class.
+
 To replace useful anonymous IDs with explicit session-local labels, generate a review file:
 
 ```bash
@@ -2526,7 +2538,9 @@ preprocessing or transcript paths remains forbidden.
 - `whisper.cpp` may hallucinate repeated short phrases on long silence.
 - The script filters obvious subtitle-credit hallucinations, repeated goodbye tails, weak isolated short phrases, and likely remote leakage in mic.
 - Reconciliation is rule-based and still conservative; inspect `role_decisions.json` and `overlaps.json` for hard cases.
-- Track roles are only first-level roles. `Colleagues` is not diarized into individual people.
+- Supported sessions can render anonymous session-local remote speakers. Weak or unsupported words
+  remain aggregate `Colleagues`; human names require explicit review. Multiple people at the local
+  microphone are not diarized.
 - The bridge can pass a compact domain prompt to `whisper.cpp`, but it still does not perform
   glossary-based post-correction or semantic correction.
 - The personalized Echo profile can add bounded/full-shadow ASR work on applicable speaker sessions;

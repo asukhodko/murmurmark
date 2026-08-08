@@ -98,35 +98,48 @@ def main() -> int:
         overrides={"pretrained_path": str(model_path)},
         run_opts={"device": "cpu"},
     )
+    allow_errors = bool(request.get("allow_errors", False))
     results = []
+    errors = []
     for row in sorted(rows, key=lambda item: str(item["key"])):
-        values = audio_slice(
-            Path(str(row["path"])).expanduser().resolve(),
-            float(row["start"]),
-            float(row["end"]),
-            float(row["minimum_sec"]),
-        )
-        waveform = torch.from_numpy(values).unsqueeze(0)
-        with torch.inference_mode():
-            vector = classifier.encode_batch(waveform).reshape(-1).detach().cpu().numpy()
-        norm = float(np.linalg.norm(vector))
-        if not np.isfinite(norm) or norm <= 0:
-            raise ValueError(f"invalid embedding: {row['key']}")
-        vector = np.asarray(vector / norm, dtype=np.float32)
-        results.append(
-            {
-                "key": str(row["key"]),
-                "embedding": [round(float(value), 9) for value in vector],
-            }
-        )
+        try:
+            values = audio_slice(
+                Path(str(row["path"])).expanduser().resolve(),
+                float(row["start"]),
+                float(row["end"]),
+                float(row["minimum_sec"]),
+            )
+            waveform = torch.from_numpy(values).unsqueeze(0)
+            with torch.inference_mode():
+                vector = classifier.encode_batch(waveform).reshape(-1).detach().cpu().numpy()
+            norm = float(np.linalg.norm(vector))
+            if not np.isfinite(norm) or norm <= 0:
+                raise ValueError(f"invalid embedding: {row['key']}")
+            vector = np.asarray(vector / norm, dtype=np.float32)
+            results.append(
+                {
+                    "key": str(row["key"]),
+                    "embedding": [round(float(value), 9) for value in vector],
+                }
+            )
+        except (OSError, RuntimeError, ValueError) as error:
+            if not allow_errors:
+                raise
+            errors.append(
+                {
+                    "key": str(row["key"]),
+                    "reason": f"{type(error).__name__}:{str(error)[:240]}",
+                }
+            )
     payload = {
         "schema": OUTPUT_SCHEMA,
         "request_sha256": sha256(request_path),
         "model_id": request["model_id"],
         "model_revision": request["model_revision"],
         "embedding_count": len(results),
-        "embedding_dimensions": len(results[0]["embedding"]),
+        "embedding_dimensions": len(results[0]["embedding"]) if results else 0,
         "rows": results,
+        "errors": errors,
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
     temporary = output_path.with_name(f".{output_path.name}.{os.getpid()}.tmp")

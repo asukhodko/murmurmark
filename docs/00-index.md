@@ -115,7 +115,11 @@ Read in this order:
 111. [Stronger Remote Speaker Identity Backend Qualification v1 runbook](runbooks/stronger-remote-speaker-identity-backend-qualification-v1.md)
 112. [Stronger Remote Speaker Identity Backend Qualification v1 result](testing/2026-08-08-stronger-remote-speaker-identity-backend-qualification-v1.md)
 113. [Stronger Remote Speaker Identity Backend Qualification v1 manifest](testing/stronger-remote-speaker-identity-backend-qualification-v1-manifest.json)
-114. [Planning and development history](history/README.md)
+114. [ECAPA Remote Speaker Shadow Qualification v1 contract](contracts/ecapa-remote-speaker-shadow-qualification-v1.md)
+115. [ECAPA Remote Speaker Shadow Qualification v1 runbook](runbooks/ecapa-remote-speaker-shadow-qualification-v1.md)
+116. [ECAPA Remote Speaker Shadow Qualification v1 result](testing/2026-08-08-ecapa-remote-speaker-shadow-qualification-v1.md)
+117. [ECAPA Remote Speaker Shadow Qualification v1 manifest](testing/ecapa-remote-speaker-shadow-qualification-v1-manifest.json)
+118. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 

@@ -1,0 +1,142 @@
+{
+  "schema": "murmurmark.ecapa_remote_speaker_shadow_qualification_policy/v1",
+  "version": "0.1.0",
+  "purpose": "Qualify the frozen ECAPA lab candidate on real session-local residual speaker intervals without changing production.",
+  "candidate": {
+    "backend_id": "speechbrain_ecapa_voxceleb_candidate",
+    "model_id": "speechbrain/spkrec-ecapa-voxceleb",
+    "revision": "0f99f2d0ebe89ac095bcc5903c4dd8f72b367286",
+    "default_model_path": "~/.local/share/murmurmark/models/remote-speaker-identity-v1/ecapa-voxceleb",
+    "default_runtime_path": "~/.local/share/murmurmark/runtimes/remote-speaker-identity-v1",
+    "minimum_similarity": 0.5,
+    "minimum_margin": 0.3,
+    "minimum_audio_sec": 1.0,
+    "threads": 4,
+    "nice": 20,
+    "maximum_runtime_sec": 900
+  },
+  "frozen_inputs": [
+    {
+      "id": "identity_policy",
+      "path": "policies/stronger-remote-speaker-identity-backend-qualification-v1.json",
+      "sha256": "81fe9bd5fdcc3ebb4eddcd5fafa2acebd13235a1ae258c36b38a2d852bbb5720"
+    },
+    {
+      "id": "identity_manifest",
+      "path": "docs/testing/stronger-remote-speaker-identity-backend-qualification-v1-manifest.json",
+      "sha256": "0d72d977f35dfbbb80e3799d91842ac820a5a132f6214f6eb7d317b0b0b88cb4"
+    },
+    {
+      "id": "candidate_freeze",
+      "path": "sessions/_reports/stronger-remote-speaker-identity-backend-qualification-v1/private/candidate_freeze.json",
+      "sha256": "db85ecfe1347654d6ffa8507ef03df5244bfef7b7897d0587fec77a9c2328c6a"
+    },
+    {
+      "id": "residual_pack",
+      "path": "sessions/_reports/remote-speaker-residual-reference-corpus-v1/private/pack.json",
+      "sha256": "0a61f4870d31acb30f9e17ae54b9961c8552eea32e25ce580502793696670444"
+    },
+    {
+      "id": "residual_items",
+      "path": "sessions/_reports/remote-speaker-residual-reference-corpus-v1/private/review_items.jsonl",
+      "sha256": "423ee3ff23fa73f170001dd597d09d97f5c50d759e064b95563b80ecfc161166"
+    },
+    {
+      "id": "speaker_exemplars",
+      "path": "sessions/_reports/remote-speaker-residual-reference-corpus-v1/private/speaker_exemplars.jsonl",
+      "sha256": "ceefed9e36cd30000a65000d7656f733a5a48c46d54a1263dc2327cab6cf5e82"
+    },
+    {
+      "id": "reviewed_answers",
+      "path": "sessions/_reports/remote-speaker-residual-reference-corpus-v1/private/answers.jsonl",
+      "sha256": "0dcc57348aaa06d401e7e59b79faea99650a99a0c9aabff5ce6a0eb0098f52c9"
+    },
+    {
+      "id": "residual_reference_report",
+      "path": "sessions/_reports/remote-speaker-residual-reference-corpus-v1/remote_speaker_residual_reference_report.json",
+      "sha256": "0bd7ef4868467dea070569d402ac48a134680da53da72b61113cbe36da0a6f1a"
+    },
+    {
+      "id": "residual_reference_manifest",
+      "path": "docs/testing/remote-speaker-residual-reference-corpus-v1-manifest.json",
+      "sha256": "65b1c9a71b7404f4c6a0ff25b48449fd708976ebf093c926056f6f0b17d7c37e"
+    },
+    {
+      "id": "coverage_v3_report",
+      "path": "sessions/_reports/remote-speaker-coverage-v3/remote_speaker_coverage_corpus_report.json",
+      "sha256": "0d2d6edcb0a0153a7ea3190760a8df609c3f3f7633c075ab65252035862932d4"
+    },
+    {
+      "id": "coverage_v3_manifest",
+      "path": "docs/testing/remote-speaker-coverage-v3-manifest.json",
+      "sha256": "20b4073df90f98729cc29bc2ec8f3002e88155d9202afd72f6898f494cfd0a6c"
+    },
+    {
+      "id": "independent_reference_evaluation",
+      "path": "sessions/_reports/remote-speaker-diarization-v2/reference_evaluation.json",
+      "sha256": "79307f53f209523d1b3233c23c3834e4e50723d87351eae13988e2b943342856"
+    },
+    {
+      "id": "boundary_cases",
+      "path": "docs/testing/remote-speaker-diarization-v2-boundaries.json",
+      "sha256": "d8d26a30e8a46861ac301c3e9428fb6229bc36e9e8c25d07b1aa5e9ca70878b9"
+    }
+  ],
+  "truth_strata": {
+    "human_reviewed": {
+      "eligible_for_promotion": true,
+      "source": "reviewed_answers"
+    },
+    "structural_one_to_one": {
+      "eligible_for_promotion": false,
+      "sessions": [
+        "2026-06-23_14-04-37",
+        "2026-06-24_15-03-52"
+      ]
+    },
+    "independent_machine_reference": {
+      "eligible_for_promotion": false,
+      "sessions": [
+        "2026-07-14_15-01-19-live"
+      ]
+    },
+    "anonymous_machine_baseline": {
+      "eligible_for_promotion": false
+    }
+  },
+  "technical_gates": {
+    "minimum_recovered_word_ratio": 0.2,
+    "minimum_recovered_seconds_ratio": 0.2,
+    "minimum_independent_reference_precision": 0.99,
+    "minimum_structural_one_to_one_precision": 1.0,
+    "maximum_reviewed_false_attributions": 0,
+    "require_exact_word_and_timestamp_conservation": true,
+    "require_existing_labels_unchanged": true,
+    "require_boundary_and_chronology_no_regression": true,
+    "require_deterministic_replay": true
+  },
+  "promotion_evidence_gates": {
+    "minimum_human_reviewed_proposal_words": 50,
+    "minimum_human_reviewed_group_sessions": 1,
+    "minimum_human_reviewed_speakers": 2,
+    "minimum_human_reviewed_negative_or_unknown_words": 10
+  },
+  "terminal_decisions": [
+    "PROMOTE_REAL_IDENTITY_CANDIDATE",
+    "DO_NOT_PROMOTE_REAL_IDENTITY",
+    "REFERENCE_INSUFFICIENT"
+  ],
+  "safety": {
+    "shadow_only": true,
+    "production_mutation": false,
+    "coverage_v3_mutation": false,
+    "selected_transcript_mutation": false,
+    "raw_audio_mutation": false,
+    "primary_asr_mutation": false,
+    "echo_guard_mutation": false,
+    "human_name_inference": false,
+    "cross_session_voice_linking": false,
+    "synthetic_to_real_identity_transfer": false,
+    "cloud_allowed": false
+  }
+}

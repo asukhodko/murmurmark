@@ -74,6 +74,7 @@ CRITICAL_PATH = (
     "quality-remote-speaker-attribution-error-decomposition-v1",
     "quality-stronger-remote-speaker-identity-backend-qualification-v1",
     "quality-ecapa-remote-speaker-shadow-qualification-v1",
+    "quality-remote-speaker-shadow-error-decomposition-v1",
 )
 
 EXPECTED_STATUSES = {"done", "current", "next", "later", "idea", "optional", "blocked"}
@@ -393,8 +394,17 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
         "ECAPA real-session shadow qualification must follow the completed lab qualification",
     )
     require(
-        nodes["quality-ecapa-remote-speaker-shadow-qualification-v1"].get("status") == "current",
-        "ECAPA remote speaker shadow qualification must be the current quality goal",
+        nodes["quality-ecapa-remote-speaker-shadow-qualification-v1"].get("status") == "done",
+        "ECAPA remote speaker shadow qualification must remain a completed real-session checkpoint",
+    )
+    require(
+        "quality-ecapa-remote-speaker-shadow-qualification-v1"
+        in nodes["quality-remote-speaker-shadow-error-decomposition-v1"].get("deps", []),
+        "remote speaker shadow error decomposition must follow ECAPA real-session qualification",
+    )
+    require(
+        nodes["quality-remote-speaker-shadow-error-decomposition-v1"].get("status") == "current",
+        "remote speaker shadow error decomposition must be the current quality goal",
     )
     require("parked-ui" not in nodes, "UI must not occupy the active CLI roadmap")
 

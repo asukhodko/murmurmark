@@ -34,10 +34,10 @@ Expected frozen baseline:
 
 ```text
 decision: BASELINE_ESTABLISHED
-sources: 19/19 verified
+sources: 20/20 verified
 release_ready: false
 largest_actionable_residual: unknown_remote_speaker (598.240s)
-next_goal: ECAPA Remote Speaker Shadow Qualification v1
+next_goal: Remote Speaker Shadow Error Decomposition v1
 ```
 
 ## Reading The Result

@@ -50,7 +50,7 @@ failure.
 - replay is byte-identical;
 - hard-v4 opening ledger remains at `open_count: 1`;
 - public artifacts contain no scripts, renderer voices, audio or absolute paths;
-- Transcript Perfection verifies 19/19 frozen sources;
+- Transcript Perfection verified 19/19 frozen sources at this checkpoint (later stages extend it);
 - selected transcripts, Coverage v3, raw CAF, primary ASR and Echo Guard are unchanged.
 
 ## Interpretation

@@ -425,6 +425,35 @@ def semantic_gates(
         {"gates": identity_gates, "open_count": identity.get("hard_v4_open_count")},
     )
 
+    shadow = payloads.get("ecapa_remote_speaker_shadow_qualification_v1") or {}
+    shadow_technical = shadow.get("technical_gates") or {}
+    shadow_safety = shadow.get("safety") or {}
+    add(
+        "ecapa_remote_speaker_shadow_qualification_v1",
+        "terminal_decision",
+        shadow.get("decision")
+        in {
+            "PROMOTE_REAL_IDENTITY_CANDIDATE",
+            "DO_NOT_PROMOTE_REAL_IDENTITY",
+            "REFERENCE_INSUFFICIENT",
+        },
+        shadow.get("decision"),
+    )
+    add(
+        "ecapa_remote_speaker_shadow_qualification_v1",
+        "shadow_integrity",
+        shadow_technical.get("exact_word_and_timestamp_conservation") is True
+        and shadow_technical.get("existing_labels_unchanged") is True
+        and shadow_technical.get("boundary_and_chronology_no_regression") is True
+        and shadow_technical.get("deterministic_replay") is True
+        and shadow_safety.get("production_mutated") is False
+        and shadow_safety.get("coverage_v3_mutated") is False
+        and shadow_safety.get("selected_transcript_mutated") is False
+        and shadow_safety.get("human_names_inferred") is False
+        and shadow_safety.get("cross_session_voice_linking") is False,
+        {"technical_gates": shadow_technical, "safety": shadow_safety},
+    )
+
     failures = [f"semantic_gate:{row['source']}:{row['gate']}" for row in checks if not row["passed"]]
     return checks, failures
 
@@ -572,6 +601,9 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
     identity = payloads["stronger_remote_speaker_identity_backend_qualification_v1"]
     identity_candidate = identity["hard_v4"]["candidate"]["metrics"]
     identity_control = identity["hard_v4"]["control"]["metrics"]
+    identity_shadow = payloads["ecapa_remote_speaker_shadow_qualification_v1"]
+    identity_shadow_summary = identity_shadow["summary"]
+    identity_shadow_evidence = identity_shadow["evidence"]
 
     return [
         {
@@ -649,6 +681,7 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 "segment_context_remote_speaker_attribution_v1",
                 "remote_speaker_attribution_error_decomposition_v1",
                 "stronger_remote_speaker_identity_backend_qualification_v1",
+                "ecapa_remote_speaker_shadow_qualification_v1",
             ],
             "metrics": {
                 "attributable_speech_ratio": float(remote_summary["attributable_remote_speech_ratio"]),
@@ -749,6 +782,25 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 ),
                 "identity_control_hard_v4_known_speaker_recall": float(
                     identity_control["known_attribution_recall"]
+                ),
+                "ecapa_real_shadow_decision": identity_shadow["decision"],
+                "ecapa_real_shadow_recovered_words": int(
+                    identity_shadow_summary["recovered_words"]
+                ),
+                "ecapa_real_shadow_recovered_word_ratio": float(
+                    identity_shadow_summary["recovered_word_ratio"]
+                ),
+                "ecapa_real_shadow_recovered_seconds": float(
+                    identity_shadow_summary["recovered_seconds"]
+                ),
+                "ecapa_real_shadow_recovered_seconds_ratio": float(
+                    identity_shadow_summary["recovered_seconds_ratio"]
+                ),
+                "ecapa_real_shadow_independent_precision": identity_shadow_evidence[
+                    "independent_machine_reference"
+                ]["precision"],
+                "ecapa_real_shadow_human_reviewed_words": int(
+                    identity_shadow_evidence["human_reviewed"]["evaluated_proposal_words"]
                 ),
             },
             "residual_classes": ["unknown_remote_speaker"],
@@ -917,9 +969,14 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
     ]
     if not remote_reference_ready:
         release_blockers.insert(2, "remote_speaker_turns.residual_reference_insufficient")
+    if (
+        (payloads.get("ecapa_remote_speaker_shadow_qualification_v1") or {}).get("decision")
+        != "PROMOTE_REAL_IDENTITY_CANDIDATE"
+    ):
+        release_blockers.insert(2, "remote_speaker_turns.ecapa_shadow_not_promoted")
     report = {
         "schema": REPORT_SCHEMA,
-        "generator": {"name": "report-transcript-perfection-corpus", "version": "0.7.0", "mode": "deterministic_offline"},
+        "generator": {"name": "report-transcript-perfection-corpus", "version": "0.8.0", "mode": "deterministic_offline"},
         "decision": decision,
         "manifest": {
             "path": portable_path(Path(str(manifest["_path"]))),
@@ -958,13 +1015,14 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
                 "status": "reference_insufficient",
                 "reason": (
                     "the blind 851-word residual pack is frozen, but none of its 53 WavLM proposals "
-                    "has independent human-reviewed truth; the independently trained ECAPA candidate "
-                    "passed the one-shot disjoint exact hard-v4 with B-cubed F1 0.948042, pairwise "
-                    "precision 1.0 and zero open-set false attribution, but remains synthetic-only"
+                    "has independent human-reviewed truth; ECAPA passed the disjoint hard-v4, then "
+                    "recovered 156 words and 211.099681 seconds in real-session shadow, but missed the "
+                    "frozen 20% word gate and reached only 0.878788 precision on the available coarse "
+                    "independent machine reference"
                 ),
                 "next_evidence": (
-                    "run the frozen ECAPA candidate as a fail-open shadow on frozen real sessions, compare "
-                    "it with existing reviewed evidence and keep Coverage v3 authoritative until real gates pass"
+                    "decompose the 68 accepted ECAPA items into interval purity, enrollment, short/silent "
+                    "audio, reference granularity and identity errors before choosing another model or fusion rule"
                 ),
             },
             {
@@ -989,13 +1047,14 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
             ),
         },
         "next_goal": {
-            "id": "ecapa-remote-speaker-shadow-qualification-v1" if not failures else "restore-input-integrity",
-            "title": "ECAPA Remote Speaker Shadow Qualification v1" if not failures else "Restore Input Integrity",
+            "id": "remote-speaker-shadow-error-decomposition-v1" if not failures else "restore-input-integrity",
+            "title": "Remote Speaker Shadow Error Decomposition v1" if not failures else "Restore Input Integrity",
             "selected_residual_class": "unknown_remote_speaker" if not failures else None,
             "rationale": (
-                "ECAPA captured most of the synthetic identity ceiling on one-shot hard-v4. The next honest "
-                "step is a fail-open real-session shadow qualification against frozen reviewed evidence; "
-                "production and Coverage v3 remain authoritative until those gates pass."
+                "The frozen ECAPA real-session shadow failed the 20% word and 0.99 independent-reference "
+                "precision gates while recovering substantial seconds. Decompose those failures with the "
+                "existing frozen artifacts before investing in another identity backend or fusion rule; "
+                "Coverage v3 remains authoritative."
                 if not failures
                 else "Input integrity must be restored before selecting an engineering goal."
             ),

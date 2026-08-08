@@ -81,7 +81,8 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Segment-context speaker attribution | `done` | `DO_NOT_PROMOTE`: hard-v3 recall `44.51%`, boundaries `0/20` |
 | Speaker-attribution error decomposition | `done` | Identity gain `0.351382` dominates boundary `0.063882` and special `0.036364` |
 | Stronger speaker identity backend | `done` | ECAPA lab candidate: hard-v4 F1 `0.948042`, recall `0.947368`, zero open-set false |
-| ECAPA real-session shadow | `current` | Fail-open comparison against Coverage v3 on frozen reviewed sessions |
+| ECAPA real-session shadow | `done` | `DO_NOT_PROMOTE`: 156 words, 211.100s; word and precision gates failed |
+| Remote shadow error decomposition | `current` | Explain identity, interval, enrollment and reference limits before the next backend |
 | Производные заметки | `done/optional` | Exact evidence memory и безопасный ID-only selector доступны |
 
 ## Актуальная Цепочка
@@ -103,11 +104,12 @@ flowchart LR
     S["Done: DO_NOT_PROMOTE<br/>Segment-Context Remote Speaker<br/>Attribution v1"]
     E["Done: ADVANCE IDENTITY<br/>Remote Speaker Attribution<br/>Error Decomposition v1"]
     K["Done: PROMOTE LAB ECAPA<br/>Stronger Remote Speaker Identity<br/>Backend Qualification v1"]
-    N["Current<br/>ECAPA Remote Speaker<br/>Shadow Qualification v1"]
+    N["Done: DO_NOT_PROMOTE<br/>ECAPA Remote Speaker<br/>Shadow Qualification v1"]
+    Z["Current<br/>Remote Speaker Shadow<br/>Error Decomposition v1"]
     M["Idea<br/>Local Mic Multi-Speaker<br/>Diarization v1"]
     O["Optional<br/>Notes, retrieval,<br/>work proposals"]
 
-    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N
+    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z
     F --> D
     P -. "real local scenario" .-> M
     L -.-> O
@@ -133,9 +135,10 @@ Word/frame-level diarization работает по authoritative remote audio, �
 ### 3. Transcript Perfection Corpus v1 — `done`
 
 Единый корпус связывает проверку текста, порядка, ролей, speaker turns, overlap, missing `Me`,
-remote leakage и acoustic modes. Baseline `BASELINE_ESTABLISHED`: 19/19 frozen sources verified,
+remote leakage и acoustic modes. Baseline `BASELINE_ESTABLISHED`: 20/20 frozen sources verified,
 восемь явных dimensions, exact lexical subset измерен, real meetings остаются
-reference-insufficient, aggregate score запрещён.
+reference-insufficient, aggregate score запрещён. После ECAPA shadow он проверяет 20/20 frozen
+sources и указывает error decomposition как следующий измеримый шаг.
 
 Результат: конечный критерий сходимости к идеальной транскрибации и защита от бесконечной цепочки
 локальных эвристик.
@@ -247,24 +250,23 @@ disjoint hard-v4 был создан и запечатан до выбора, з
 fail-closed и exact 154/154 words. Replay byte-exact. Production, Coverage v3 и selected
 transcripts не изменены; synthetic result разрешает только отдельную real-session shadow проверку.
 
-### 15. ECAPA Remote Speaker Shadow Qualification v1 — `current`
+### 15. ECAPA Remote Speaker Shadow Qualification v1 — `done`
 
-Frozen ECAPA применяется только как fail-open shadow над существующими remote intervals
-замороженных реальных сессий. Session-local enrollment строится из уже разрешённой reviewed и
-anonymous evidence; synthetic voices, human-name inference и cross-session identity запрещены.
+Frozen ECAPA был применён только как fail-open shadow над 278 residual intervals шести реальных сессий. Заморозка охватила 851 unknown words, 28 session-local exemplars, model/runtime, clips, Coverage v3 и selected-transcript guards.
+Результат `DO_NOT_PROMOTE_REAL_IDENTITY`: восстановлено 156 words (`0.183314`) и `211.099681s` (`0.352868`), projected coverage `0.960727`. Structural 1x1 precision `1.0`, но independent machine-reference precision `0.878788`; два silent clips дали fail-open. Exact words/timestamps, Coverage v3, selected transcripts и replay сохранены. Production не изменён.
 
-Этап сравнит ECAPA с Coverage v3 по exact word conservation, attributed precision, reviewed
-coverage, unknown/open-set safety, boundary/order и runtime. Только corpus-wide no-regression и
-воспроизводимое улучшение могут открыть отдельное production promotion решение. Иначе будет
-зафиксирован `DO_NOT_PROMOTE_REAL_IDENTITY`.
+### 16. Remote Speaker Shadow Error Decomposition v1 — `current`
 
-### 16. Local Mic Multi-Speaker Diarization v1 — `idea`
+Заморозить завершённые ECAPA item/word decisions и объяснить все 68 accepted proposals, 210 abstentions, четыре independent-reference wrong words и два silent failures. Проверяются interval purity, duration/silence, speech support, leave-one-out enrollment stability, boundary/mixed risk, score/margin и различие word-level candidate с utterance-level reference.
+Результат должен выбрать максимум один следующий axis по заранее заданной концентрации причины: interval purification, enrollment hardening, reference acquisition или новый identity backend. Если имеющихся данных недостаточно, этап закрывается `EVIDENCE_BOUND`. Tuning frozen thresholds и применение shadow labels запрещены.
+
+### 17. Local Mic Multi-Speaker Diarization v1 — `idea`
 
 Когда появится реальный сценарий нескольких людей у одного ноутбука и размеченный материал, mic-речь
 будет разделяться на Target-Me, other local speakers и `unknown`. Этот этап зависит от remote v2 и
 Transcript Perfection Corpus, но не нужен для нынешнего основного сценария одного пользователя.
 
-### 17. Производные Возможности — `optional`
+### 18. Производные Возможности — `optional`
 
 Extractive notes, quality verdict, reviewed speaker memory, ID-only selection, локальный поиск и
 work proposals могут развиваться после достижения transcript gates или по отдельному явному запросу.
