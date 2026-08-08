@@ -114,12 +114,12 @@ met, unless an explicit product decision changes the priority.
 
 ## Near-Term Direction
 
-1. **Transcript Perfection Corpus v1:** maintain the completed 23-source benchmark for text,
+1. **Transcript Perfection Corpus v1:** maintain the completed 24-source benchmark for text,
    chronology, roles, speakers, overlap, acoustic modes and known residual defects.
-2. **Remote Speaker Direct Truth Seed v1:** freeze a small stratified blind seed covering all 16
-   enrollment/control changes, stable controls, abstentions and available open-set/mixed cases.
-3. **Remote residual blind review:** accept only anonymous session-local speaker, unknown, mixed or
-   unusable labels; synthetic or machine agreement cannot promote a real-session candidate.
+2. **Remote Speaker Blind Review Completion v1:** complete the frozen 33-item seed and 8 hidden
+   repeats; accept only anonymous session-local speaker, unknown, mixed or unusable labels.
+3. **Next identity qualification:** open only after direct review is repeatable; synthetic or machine
+   agreement cannot promote a real-session candidate.
 4. **Human-Reviewed Lexical Seed v1:** external-evidence prerequisite; do not tune ASR from machine
    agreement while it is absent.
 5. **Measured residual loop:** rerank after every bounded `PROMOTE` or evidence ceiling and close the

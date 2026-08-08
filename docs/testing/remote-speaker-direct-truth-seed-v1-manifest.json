@@ -1,0 +1,71 @@
+{
+  "decision": "REFERENCE_INSUFFICIENT",
+  "gates": {
+    "all_changed_answers": false,
+    "all_primary_answers": false,
+    "all_repeat_answers": false,
+    "minimum_attributed_answers": false,
+    "repeat_consistency": false
+  },
+  "invariants": {
+    "all_changed_items_once": true,
+    "all_seed_items_unique": true,
+    "all_seed_words_unique": true,
+    "blind_queue_has_no_forbidden_keys": true,
+    "frozen_artifacts_verified": true,
+    "repeat_count_exact": true,
+    "seed_item_count_exact": true,
+    "seed_seconds_exact": true,
+    "seed_word_count_exact": true,
+    "session_count_exact": true,
+    "source_and_production_guards_verified": true
+  },
+  "report": {
+    "bytes": 2040,
+    "path": "sessions/_reports/remote-speaker-direct-truth-seed-v1/remote_speaker_direct_truth_seed_report.json",
+    "sha256": "c50157d30392890aa875b0258f71abff7ae19fc3f667cfc6a98e33f6a8f1b5e1"
+  },
+  "review": {
+    "answered_strata": {},
+    "attributed_primary_answers": 0,
+    "changed_answers": 0,
+    "primary_answers": 0,
+    "remaining_slots": 41,
+    "repeat_answers": 0,
+    "repeat_compared": 0,
+    "repeat_consistency": null,
+    "repeat_matches": 0
+  },
+  "safety": {
+    "blind_review_without_model_suggestion": true,
+    "coverage_v3_mutated": false,
+    "cross_session_identity_used": false,
+    "ecapa_shadow_mutated": false,
+    "echo_guard_mutated": false,
+    "human_names_recorded": false,
+    "interval_or_enrollment_retuned": false,
+    "primary_asr_mutated": false,
+    "production_promoted": false,
+    "raw_audio_mutated": false,
+    "selected_transcript_mutated": false,
+    "speech_text_public": false
+  },
+  "schema": "murmurmark.remote_speaker_direct_truth_seed_manifest/v1",
+  "scope": {
+    "repeat_items": 8,
+    "seed_items": 33,
+    "seed_seconds": 90.10082,
+    "seed_words": 116,
+    "sessions": 6,
+    "source_items": 278,
+    "source_words": 851,
+    "strata": {
+      "mixed_candidate": 3,
+      "newly_accepted": 11,
+      "removed_acceptance": 5,
+      "stable_abstention": 6,
+      "stable_accept": 6,
+      "unusable_candidate": 2
+    }
+  }
+}

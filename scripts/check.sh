@@ -68,6 +68,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-remote-speaker-shadow-error-decomposition-v1.py
 "$python_bin" scripts/check-bounded-remote-speaker-interval-purification-v1.py
 "$python_bin" scripts/check-session-local-remote-speaker-enrollment-hardening-v1.py
+"$python_bin" scripts/check-remote-speaker-direct-truth-seed-v1.py
 "$python_bin" scripts/check-lexical-accuracy-reference-corpus.py
 "$python_bin" scripts/check-transcript-perfection-corpus.py
 "$python_bin" scripts/check-anonymous-rich-transcript.py

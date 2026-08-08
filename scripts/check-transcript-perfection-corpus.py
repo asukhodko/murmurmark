@@ -630,6 +630,49 @@ def build_fixture(root: Path) -> Path:
             },
             ["remote_speaker_turns"],
         ),
+        "remote_speaker_direct_truth_seed_v1": (
+            files / "remote-speaker-direct-truth-seed-v1.json",
+            {
+                "schema": "murmurmark.remote_speaker_direct_truth_seed_report/v1",
+                "decision": "REFERENCE_INSUFFICIENT",
+                "scope": {
+                    "source_items": 278,
+                    "source_words": 851,
+                    "seed_items": 33,
+                    "seed_words": 116,
+                    "seed_seconds": 90.10082,
+                    "sessions": 6,
+                    "repeat_items": 8,
+                },
+                "review": {
+                    "primary_answers": 0,
+                    "repeat_answers": 0,
+                },
+                "invariants": {
+                    "all_seed_items_unique": True,
+                    "all_seed_words_unique": True,
+                    "all_changed_items_once": True,
+                    "seed_item_count_exact": True,
+                    "seed_word_count_exact": True,
+                    "seed_seconds_exact": True,
+                    "session_count_exact": True,
+                    "repeat_count_exact": True,
+                    "blind_queue_has_no_forbidden_keys": True,
+                    "frozen_artifacts_verified": True,
+                    "source_and_production_guards_verified": True,
+                },
+                "safety": {
+                    "blind_review_without_model_suggestion": True,
+                    "human_names_recorded": False,
+                    "cross_session_identity_used": False,
+                    "raw_audio_mutated": False,
+                    "selected_transcript_mutated": False,
+                    "coverage_v3_mutated": False,
+                    "production_promoted": False,
+                },
+            },
+            ["remote_speaker_turns"],
+        ),
     }
     sources: list[dict[str, object]] = []
     for source_id, (path, payload, dimensions) in payloads.items():
@@ -681,8 +724,8 @@ def run(manifest: Path, out: Path) -> subprocess.CompletedProcess[str]:
 
 def main() -> int:
     runbook = (ROOT / "docs/runbooks/transcript-perfection-corpus.md").read_text(encoding="utf-8")
-    assert "next_goal: Remote Speaker Direct Truth Seed v1" in runbook
-    assert "next_goal: Session-Local Remote Speaker Enrollment Hardening v1" not in runbook
+    assert "next_goal: Remote Speaker Blind Review Completion v1" in runbook
+    assert "next_goal: Remote Speaker Direct Truth Seed v1" not in runbook
     with tempfile.TemporaryDirectory(prefix=".transcript-perfection-fixture-", dir=ROOT) as temporary:
         root = Path(temporary)
         manifest = build_fixture(root)
@@ -691,14 +734,14 @@ def main() -> int:
         assert result.returncode == 0, result.stdout + result.stderr
         report = json.loads((out / "transcript_perfection_corpus_report.json").read_text())
         assert report["decision"] == "BASELINE_ESTABLISHED"
-        assert report["summary"]["verified_sources"] == 23
+        assert report["summary"]["verified_sources"] == 24
         assert report["summary"]["aggregate_quality_score"] is None
         assert report["summary"]["aggregate_residual_seconds"] is None
         words = next(row for row in report["dimensions"] if row["id"] == "recognized_words")
         assert words["correctness_status"] == "bounded_exact_subset_only"
         assert words["metrics"]["exact_subset_wer"] == 0.0
         assert report["residuals"][0]["class"] == "unknown_remote_speaker"
-        assert report["next_goal"]["id"] == "remote-speaker-direct-truth-seed-v1"
+        assert report["next_goal"]["id"] == "remote-speaker-blind-review-completion-v1"
         assert report["next_goal"]["selected_residual_class"] == "unknown_remote_speaker"
         assert report["lexical_prerequisite"]["id"] == "human-reviewed-lexical-seed-v1"
         assert report["lexical_prerequisite"]["status"] == "external_evidence_required"

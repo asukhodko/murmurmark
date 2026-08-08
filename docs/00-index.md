@@ -131,7 +131,11 @@ Read in this order:
 127. [Session-Local Remote Speaker Enrollment Hardening v1 runbook](runbooks/session-local-remote-speaker-enrollment-hardening-v1.md)
 128. [Session-Local Remote Speaker Enrollment Hardening v1 result](testing/2026-08-09-session-local-remote-speaker-enrollment-hardening-v1.md)
 129. [Session-Local Remote Speaker Enrollment Hardening v1 manifest](testing/session-local-remote-speaker-enrollment-hardening-v1-manifest.json)
-130. [Planning and development history](history/README.md)
+130. [Remote Speaker Direct Truth Seed v1 contract](contracts/remote-speaker-direct-truth-seed-v1.md)
+131. [Remote Speaker Direct Truth Seed v1 runbook](runbooks/remote-speaker-direct-truth-seed-v1.md)
+132. [Remote Speaker Direct Truth Seed v1 result](testing/2026-08-09-remote-speaker-direct-truth-seed-v1.md)
+133. [Remote Speaker Direct Truth Seed v1 manifest](testing/remote-speaker-direct-truth-seed-v1-manifest.json)
+134. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
@@ -172,8 +176,10 @@ then closed `DO_NOT_PROMOTE_REAL_IDENTITY`. **Remote Speaker Shadow Error Decomp
 Purification v1** then closed `DO_NOT_ADVANCE`: 2 new words / `4.154556s` and one new reference
 error. **Session-Local Remote Speaker Enrollment Hardening v1** also closed `DO_NOT_ADVANCE`: 11
 new acceptances / `44.694004s`, five removed controls and only 4/83 target failures recovered.
-**Remote Speaker Direct Truth Seed v1** is current; production Coverage v3 remains unchanged. Notes
-and retrieval remain parked.
+**Remote Speaker Direct Truth Seed v1** then froze 33 primary items / 116 words / `90.100820s` and
+8 hidden repeats across six sessions. Its engineering gates pass, but 41 blind slots are unanswered,
+so it closed `REFERENCE_INSUFFICIENT`. **Remote Speaker Blind Review Completion v1** is current;
+production Coverage v3 remains unchanged. Notes and retrieval remain parked.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

@@ -539,6 +539,31 @@ def semantic_gates(
         {"invariants": enrollment_invariants, "safety": enrollment_safety},
     )
 
+    direct_truth = payloads.get("remote_speaker_direct_truth_seed_v1") or {}
+    direct_truth_invariants = direct_truth.get("invariants") or {}
+    direct_truth_safety = direct_truth.get("safety") or {}
+    add(
+        "remote_speaker_direct_truth_seed_v1",
+        "terminal_decision",
+        direct_truth.get("decision")
+        in {"DIRECT_TRUTH_SEED_READY", "REFERENCE_INSUFFICIENT", "EVIDENCE_BOUND"},
+        direct_truth.get("decision"),
+    )
+    add(
+        "remote_speaker_direct_truth_seed_v1",
+        "blind_seed_integrity",
+        bool(direct_truth_invariants)
+        and all(value is True for value in direct_truth_invariants.values())
+        and direct_truth_safety.get("blind_review_without_model_suggestion") is True
+        and direct_truth_safety.get("human_names_recorded") is False
+        and direct_truth_safety.get("cross_session_identity_used") is False
+        and direct_truth_safety.get("raw_audio_mutated") is False
+        and direct_truth_safety.get("selected_transcript_mutated") is False
+        and direct_truth_safety.get("coverage_v3_mutated") is False
+        and direct_truth_safety.get("production_promoted") is False,
+        {"invariants": direct_truth_invariants, "safety": direct_truth_safety},
+    )
+
     failures = [f"semantic_gate:{row['source']}:{row['gate']}" for row in checks if not row["passed"]]
     return checks, failures
 
@@ -692,6 +717,7 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
     shadow_errors = payloads["remote_speaker_shadow_error_decomposition_v1"]
     interval_purification = payloads["bounded_remote_speaker_interval_purification_v1"]
     enrollment_hardening = payloads["session_local_remote_speaker_enrollment_hardening_v1"]
+    direct_truth_seed = payloads["remote_speaker_direct_truth_seed_v1"]
 
     return [
         {
@@ -773,6 +799,7 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 "remote_speaker_shadow_error_decomposition_v1",
                 "bounded_remote_speaker_interval_purification_v1",
                 "session_local_remote_speaker_enrollment_hardening_v1",
+                "remote_speaker_direct_truth_seed_v1",
             ],
             "metrics": {
                 "attributable_speech_ratio": float(remote_summary["attributable_remote_speech_ratio"]),
@@ -938,6 +965,13 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 "enrollment_hardening_new_reference_error_words": int(
                     enrollment_hardening["comparison"]["new_reference_error_words"]
                 ),
+                "direct_truth_seed_decision": direct_truth_seed["decision"],
+                "direct_truth_seed_items": int(direct_truth_seed["scope"]["seed_items"]),
+                "direct_truth_seed_words": int(direct_truth_seed["scope"]["seed_words"]),
+                "direct_truth_seed_review_slots": int(direct_truth_seed["scope"]["seed_items"])
+                + int(direct_truth_seed["scope"]["repeat_items"]),
+                "direct_truth_seed_primary_answers": int(direct_truth_seed["review"]["primary_answers"]),
+                "direct_truth_seed_repeat_answers": int(direct_truth_seed["review"]["repeat_answers"]),
             },
             "residual_classes": ["unknown_remote_speaker"],
         },
@@ -1120,9 +1154,14 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
         != "ADVANCE_HARDENED_ENROLLMENT_SHADOW"
     ):
         release_blockers.insert(2, "remote_speaker_turns.enrollment_hardening_not_advanced")
+    if (
+        (payloads.get("remote_speaker_direct_truth_seed_v1") or {}).get("decision")
+        != "DIRECT_TRUTH_SEED_READY"
+    ):
+        release_blockers.insert(2, "remote_speaker_turns.direct_truth_seed_incomplete")
     report = {
         "schema": REPORT_SCHEMA,
-        "generator": {"name": "report-transcript-perfection-corpus", "version": "1.1.0", "mode": "deterministic_offline"},
+        "generator": {"name": "report-transcript-perfection-corpus", "version": "1.2.0", "mode": "deterministic_offline"},
         "decision": decision,
         "manifest": {
             "path": portable_path(Path(str(manifest["_path"]))),
@@ -1170,11 +1209,13 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
                     "independent precision to 0.967742, but recovered only two new words / 4.154556 "
                     "seconds and introduced one new reference error. The frozen enrollment candidate "
                     "then found 11 new items / 44.694004 seconds without new measured reference errors, "
-                    "but removed five control acceptances and recovered only 4/83 enrollment-scope items"
+                    "but removed five control acceptances and recovered only 4/83 enrollment-scope items. "
+                    "A 33-item blind direct-truth seed plus eight hidden repeats is frozen, but its "
+                    "41 review slots do not yet contain direct answers"
                 ),
                 "next_evidence": (
-                    "freeze a small direct real-session group-speaker truth seed covering new accepts, "
-                    "removed control accepts, abstentions and open-set negatives before another backend"
+                    "complete the frozen 41-slot blind review without model suggestions, then replay "
+                    "repeat consistency before another identity backend"
                 ),
             },
             {
@@ -1199,14 +1240,13 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
             ),
         },
         "next_goal": {
-            "id": "remote-speaker-direct-truth-seed-v1" if not failures else "restore-input-integrity",
-            "title": "Remote Speaker Direct Truth Seed v1" if not failures else "Restore Input Integrity",
+            "id": "remote-speaker-blind-review-completion-v1" if not failures else "restore-input-integrity",
+            "title": "Remote Speaker Blind Review Completion v1" if not failures else "Restore Input Integrity",
             "selected_residual_class": "unknown_remote_speaker" if not failures else None,
             "rationale": (
-                "The frozen enrollment candidate produced material gross recovery, but lost five "
-                "control acceptances and missed the 5% enrollment-scope item gate. Interval and "
-                "enrollment retuning are now closed on this evidence. Direct real-session speaker truth "
-                "is required to distinguish genuine backend progress from another self-consistent proxy."
+                "The 33-item seed and eight hidden repeats are frozen and structurally valid, but all "
+                "41 blind review slots remain unanswered. Direct anonymous session-local truth must be "
+                "completed before another identity backend can be measured honestly."
                 if not failures
                 else "Input integrity must be restored before selecting an engineering goal."
             ),

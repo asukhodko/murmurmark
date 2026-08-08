@@ -82,6 +82,15 @@ The fixed decision `ADVANCE_STRONGER_SPEAKER_IDENTITY` is accepted as a complete
 identity gain is `0.351382`, versus `0.063882` for segmentation and `0.036364` for overlap/open-set.
 No candidate, production label or threshold was changed.
 
+The nineteenth through twenty-third frozen sources qualify the ECAPA identity candidate, reject its
+real-session promotion, decompose the residual, and close bounded interval and enrollment changes.
+Their completed negative outcomes remain evidence and never weaken Coverage v3.
+
+Remote Speaker Direct Truth Seed v1 is the twenty-fourth frozen source. It preserves the 278-item
+residual pack and freezes 33 primary items, 8 hidden repeats and 41 blind review slots. Its
+`REFERENCE_INSUFFICIENT` decision is valid measured evidence while answers remain 0/41; it cannot be
+reinterpreted as speaker correctness or production promotion.
+
 ## Outputs
 
 The command writes only under:

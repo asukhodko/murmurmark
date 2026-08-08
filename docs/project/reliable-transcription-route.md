@@ -488,10 +488,9 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Remote Speaker Direct Truth Seed v1: заморозить небольшой blind real-session seed из всех 16
-изменившихся enrollment/control случаев, стабильных controls, abstentions и доступных
-open-set/mixed случаев; получить только anonymous session-local labels без model suggestion,
-проверить blinded repeat consistency и не менять production transcript.
+Remote Speaker Blind Review Completion v1: заполнить только 41 opaque slot уже замороженного
+Direct Truth Seed v1, принять только session-local anonymous speaker, unknown, mixed или unusable,
+получить repeat consistency не ниже 0.875 и не менять production transcript.
 ```
 
 Remote Speaker Attribution Error Decomposition v1 завершён
@@ -528,3 +527,8 @@ B-cubed `0.948042`, known recall `0.947368`, precision `1.0` and zero open-set f
 The real-session shadow nevertheless failed its fixed word-recovery and independent-reference
 precision gates. Synthetic and machine-reference evidence still cannot replace blind review of
 real-session proposals.
+
+Direct Truth Seed v1 сделал этот review конечным: 33 primary items / 116 words / `90.100820s`, 8
+hidden repeats, 41 opaque slots и 355 inherited production guards. Механизм и replay проходят, но
+прямые ответы отсутствуют, поэтому результат `REFERENCE_INSUFFICIENT`. Новые backend и threshold
+experiments закрыты до завершения этой фиксированной очереди.

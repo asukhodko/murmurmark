@@ -144,7 +144,9 @@ Error Decomposition selected interval purification: 93/214 failures and `201.273
 crop then closed `DO_NOT_ADVANCE`: 2 new words / `4.154556s` and one new reference error.
 Session-Local Remote Speaker Enrollment Hardening v1 closed `DO_NOT_ADVANCE`: 11 new acceptances,
 five removed controls and only 4/83 target failures recovered. Remote Speaker Direct Truth Seed v1
-is current; production remains Coverage v3.
+then froze 33 primary items / 116 words / `90.100820s`, 8 hidden repeats and 41 blind slots across
+six sessions. It closed `REFERENCE_INSUFFICIENT` with 0/41 direct answers. Remote Speaker Blind
+Review Completion v1 is current; production remains Coverage v3.
 Notes, external writes and UI remain optional.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.

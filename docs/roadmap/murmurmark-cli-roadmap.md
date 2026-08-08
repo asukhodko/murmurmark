@@ -11,7 +11,6 @@ YAML владеет статусами и зависимостями. `docs/proj
 `docs/history/`, но не определяют текущий приоритет.
 
 ## Правила Планирования
-
 - В работе находится ровно одна цель со статусом `current`.
 - Основной путь заканчивается надёжной speaker-resolved транскрибацией, а не производными заметками.
 - Завершённая гипотеза получает `PROMOTE` или `DO_NOT_PROMOTE`; оба исхода закрывают работу.
@@ -21,7 +20,6 @@ YAML владеет статусами и зависимостями. `docs/proj
 - UI, облако, суммаризация и запись во внешние системы не держат критический CLI-путь.
 
 ## Миссия И North Star
-
 MurmurMark создаёт локальную, надёжную и проверяемую транскрибацию созвона с любым числом
 участников. Он сохраняет слова, порядок, время и роли, различает участников remote-потока по голосу
 внутри сессии и явно показывает предел доказательств. Если в будущем у одного ноутбука участвуют
@@ -40,7 +38,6 @@ MurmurMark создаёт локальную, надёжную и проверя
 транскрибации. Они остаются необязательными и не конкурируют за ресурсы с её качеством.
 
 ## Что Уже Работает
-
 ```mermaid
 flowchart LR
     C["Durable two-track capture"]
@@ -86,11 +83,11 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Remote shadow error decomposition | `done` | `ADVANCE_INTERVAL_PURIFICATION`: 93/214 failures, `201.274s`, dominance `0.128982` |
 | Bounded interval purification | `done` | `DO_NOT_ADVANCE`: 2 new words / 4.155s, one new reference error |
 | Session-local enrollment hardening | `done` | `DO_NOT_ADVANCE`: 11 gains / 44.694s, but five control accepts lost |
-| Direct remote-speaker truth seed | `current` | Small blind real-session seed before another backend candidate |
+| Direct remote-speaker truth seed | `done/blocker` | 33 primary + 8 repeats frozen; `REFERENCE_INSUFFICIENT`, 0/41 answers |
+| Blind remote-speaker review | `current` | Complete only the frozen 41 opaque slots; production unchanged |
 | Производные заметки | `done/optional` | Exact evidence memory и безопасный ID-only selector доступны |
 
 ## Актуальная Цепочка
-
 ```mermaid
 flowchart LR
     B["Done<br/>Remote Speaker<br/>Evidence Map v1"]
@@ -112,11 +109,12 @@ flowchart LR
     Z["Done: ADVANCE INTERVAL<br/>Remote Speaker Shadow<br/>Error Decomposition v1"]
     J["Done: DO NOT ADVANCE<br/>Bounded Remote Speaker<br/>Interval Purification v1"]
     G["Done: DO NOT ADVANCE<br/>Session-Local Remote Speaker<br/>Enrollment Hardening v1"]
-    T["Current<br/>Remote Speaker<br/>Direct Truth Seed v1"]
+    T["Done: REFERENCE_INSUFFICIENT<br/>Remote Speaker<br/>Direct Truth Seed v1"]
+    U["Current<br/>Remote Speaker Blind<br/>Review Completion v1"]
     M["Idea<br/>Local Mic Multi-Speaker<br/>Diarization v1"]
     O["Optional<br/>Notes, retrieval,<br/>work proposals"]
 
-    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T
+    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> U
     F --> D
     P -. "real local scenario" .-> M
     L -.-> O
@@ -140,7 +138,7 @@ Word/frame-level diarization работает по authoritative remote audio, �
 ### 3. Transcript Perfection Corpus v1 — `done`
 
 Единый корпус связывает проверку текста, порядка, ролей, speaker turns, overlap, missing `Me`,
-remote leakage и acoustic modes. Baseline `BASELINE_ESTABLISHED`: 23/23 frozen sources verified,
+remote leakage и acoustic modes. Baseline `BASELINE_ESTABLISHED`: 24/24 frozen sources verified,
 восемь явных dimensions, exact lexical subset измерен, real meetings остаются
 reference-insufficient, aggregate score запрещён. Interval и enrollment results включены frozen
 sources и указывают direct speaker truth как следующий измеримый шаг.
@@ -268,18 +266,20 @@ replay byte-exact, production и thresholds неизменны.
 ### 18. Session-Local Remote Speaker Enrollment Hardening v1 — `done`
 Один exemplar-only candidate добавил 11 items / `44.694004s` без новых measured errors, но удалил
 пять control acceptances и восстановил лишь 4/83 scope items. `DO_NOT_ADVANCE`; retuning запрещён.
-### 19. Remote Speaker Direct Truth Seed v1 — `current`
-Заморозить малый blind seed из всех 16 changed cases и стратифицированных controls/abstentions.
-Прямые anonymous labels должны появиться до нового backend experiment; production не меняется.
-### 20. Local Mic Multi-Speaker Diarization v1 — `idea`
+### 19. Remote Speaker Direct Truth Seed v1 — `done`
+Заморожены 33 primary items / 116 words / `90.100820s`, все 16 changed cases и 8 hidden repeats.
+Replay и 355 guards проходят; `REFERENCE_INSUFFICIENT`, потому что direct answers остаются 0/41.
+### 20. Remote Speaker Blind Review Completion v1 — `current`
+Заполнить только 41 opaque slot без model suggestion; допустимы session-local anonymous speaker,
+`unknown_speaker`, `mixed` и `unusable`. Production и все эксперименты остаются неизменными.
+### 21. Local Mic Multi-Speaker Diarization v1 — `idea`
 Когда появится реальный сценарий нескольких людей у одного ноутбука и размеченный материал, mic-речь
 будет разделяться на Target-Me, other local speakers и `unknown`. Этот этап зависит от remote v2 и
 Transcript Perfection Corpus, но не нужен для нынешнего основного сценария одного пользователя.
-### 21. Производные Возможности — `optional`
+### 22. Производные Возможности — `optional`
 Extractive notes, quality verdict, reviewed speaker memory, ID-only selection, локальный поиск и
 work proposals могут развиваться после достижения transcript gates или по отдельному явному запросу.
 Они не являются мерой качества MurmurMark и не могут менять источник транскрибации.
-
 ## Закрытые И Отложенные Треки
 - Human-Reviewed Lexical Seed заблокирован отсутствием проверенного реального reference; machine
   disagreement не является заменой.
