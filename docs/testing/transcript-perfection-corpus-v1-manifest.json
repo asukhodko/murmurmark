@@ -251,6 +251,18 @@
       "path": "sessions/_reports/remote-speaker-attribution-error-decomposition-v1/remote_speaker_attribution_error_decomposition_report.json",
       "required": true,
       "sha256": "2d1fc6ba6887e315450bc25e7aadf6fb9dadc28aee01783b6128ef9ed867ded5"
+    },
+    {
+      "bytes": 13332,
+      "dimensions": [
+        "remote_speaker_turns"
+      ],
+      "evidence_level": "one_shot_disjoint_exact_identity_hard_v4",
+      "expected_schema": "murmurmark.stronger_remote_speaker_identity_backend_qualification_report/v1",
+      "id": "stronger_remote_speaker_identity_backend_qualification_v1",
+      "path": "sessions/_reports/stronger-remote-speaker-identity-backend-qualification-v1/remote_speaker_identity_backend_qualification_report.json",
+      "required": true,
+      "sha256": "002280f4e26fe4b253f74d26c1283a59e309fda09660825169d2ccbae47d54d3"
     }
   ]
 }

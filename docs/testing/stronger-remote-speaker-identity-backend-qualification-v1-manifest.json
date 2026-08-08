@@ -1,0 +1,30 @@
+{
+  "decision": "PROMOTE_LAB_IDENTITY_CANDIDATE",
+  "hard_v4_corpus_sha256": "78560dc89172af3d7c5aa46568dd38396e09a6d24404e7cfdcc92b4837b330cc",
+  "hard_v4_open_count": 1,
+  "hard_v4_public_manifest": {
+    "bytes": 650,
+    "path": "sessions/_reports/stronger-remote-speaker-identity-backend-qualification-v1/hard_v4_public_manifest.json",
+    "sha256": "faba7dadd0af730c86e4ec68fd0963a984877f8d4f7970609e526d93dddeb85f"
+  },
+  "policy": {
+    "bytes": 10917,
+    "path": "policies/stronger-remote-speaker-identity-backend-qualification-v1.json",
+    "sha256": "81fe9bd5fdcc3ebb4eddcd5fafa2acebd13235a1ae258c36b38a2d852bbb5720"
+  },
+  "private_values_excluded": true,
+  "production_mutated": false,
+  "qualification_report": {
+    "bytes": 13332,
+    "path": "sessions/_reports/stronger-remote-speaker-identity-backend-qualification-v1/remote_speaker_identity_backend_qualification_report.json",
+    "sha256": "002280f4e26fe4b253f74d26c1283a59e309fda09660825169d2ccbae47d54d3"
+  },
+  "replay_report": {
+    "bytes": 379,
+    "path": "sessions/_reports/stronger-remote-speaker-identity-backend-qualification-v1/replay_report.json",
+    "sha256": "d6227f2146115a6d6bd835cd58427618918ea8e5774370da25d25d39ed90113a"
+  },
+  "schema": "murmurmark.stronger_remote_speaker_identity_backend_qualification_manifest/v1",
+  "selected_candidate_id": "speechbrain_ecapa_voxceleb_candidate",
+  "version": "0.1.0"
+}

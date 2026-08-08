@@ -436,6 +436,47 @@ def build_fixture(root: Path) -> Path:
             },
             ["remote_speaker_turns"],
         ),
+        "stronger_remote_speaker_identity_backend_qualification_v1": (
+            files / "remote-speaker-identity-backend-qualification-v1.json",
+            {
+                "schema": "murmurmark.stronger_remote_speaker_identity_backend_qualification_report/v1",
+                "decision": "PROMOTE_LAB_IDENTITY_CANDIDATE",
+                "selected_candidate_id": "speechbrain_ecapa_voxceleb_candidate",
+                "hard_v4_open_count": 1,
+                "promotion_gates": {
+                    "boundary_no_regression": True,
+                    "exact_word_conservation": True,
+                    "minimum_bcubed_f1": True,
+                    "minimum_known_speaker_recall": True,
+                    "minimum_pairwise_precision": True,
+                    "mixed_fail_closed": True,
+                    "single_candidate": True,
+                    "zero_open_set_false_attribution": True,
+                },
+                "hard_v4": {
+                    "control": {
+                        "metrics": {
+                            "known_attribution_recall": 0.0,
+                        }
+                    },
+                    "candidate": {
+                        "metrics": {
+                            "bcubed": {"f1": 0.948042},
+                            "pairwise": {"precision": 1.0},
+                            "known_attribution_recall": 0.947368,
+                            "boundary_recall": 0.565217,
+                            "open_set_false_attributions": 0,
+                        }
+                    },
+                },
+                "safety": {
+                    "production_mutated": False,
+                    "coverage_v3_mutated": False,
+                    "synthetic_identity_transferred_to_real_sessions": False,
+                },
+            },
+            ["remote_speaker_turns"],
+        ),
     }
     sources: list[dict[str, object]] = []
     for source_id, (path, payload, dimensions) in payloads.items():
@@ -494,14 +535,14 @@ def main() -> int:
         assert result.returncode == 0, result.stdout + result.stderr
         report = json.loads((out / "transcript_perfection_corpus_report.json").read_text())
         assert report["decision"] == "BASELINE_ESTABLISHED"
-        assert report["summary"]["verified_sources"] == 18
+        assert report["summary"]["verified_sources"] == 19
         assert report["summary"]["aggregate_quality_score"] is None
         assert report["summary"]["aggregate_residual_seconds"] is None
         words = next(row for row in report["dimensions"] if row["id"] == "recognized_words")
         assert words["correctness_status"] == "bounded_exact_subset_only"
         assert words["metrics"]["exact_subset_wer"] == 0.0
         assert report["residuals"][0]["class"] == "unknown_remote_speaker"
-        assert report["next_goal"]["id"] == "stronger-remote-speaker-identity-backend-qualification-v1"
+        assert report["next_goal"]["id"] == "ecapa-remote-speaker-shadow-qualification-v1"
         assert report["next_goal"]["selected_residual_class"] == "unknown_remote_speaker"
         assert report["lexical_prerequisite"]["id"] == "human-reviewed-lexical-seed-v1"
         assert report["lexical_prerequisite"]["status"] == "external_evidence_required"

@@ -1317,6 +1317,9 @@ enum DoctorChecks {
             "scripts/freeze-remote-speaker-hard-v3.py",
             "scripts/evaluate-segment-context-remote-speaker-attribution-v1.py",
             "scripts/analyze-remote-speaker-attribution-errors-v1.py",
+            "scripts/setup-remote-speaker-identity-backend-v1.py",
+            "scripts/ecapa-speaker-embedding-worker.py",
+            "scripts/qualify-stronger-remote-speaker-identity-backend-v1.py",
             "scripts/materialize-anonymous-rich-transcript.py",
             "scripts/review-remote-speaker-labels.py",
             "scripts/materialize-reviewed-speaker-memory.py",
@@ -8145,6 +8148,43 @@ enum CorpusCommands {
                 [try script("analyze-remote-speaker-attribution-errors-v1.py").path] + forwarded,
                 allowedExitCodes: [0, 2]
             )
+        case "remote-identity-v1", "remote_identity_v1":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(
+                    try PythonRuntime.resolve(),
+                    [try script("qualify-stronger-remote-speaker-identity-backend-v1.py").path, "--help"]
+                )
+                return
+            }
+            guard let action = forwarded.first else {
+                throw CLIError(
+                    "remote-identity-v1 requires setup, install, preflight, freeze, hard-status, develop, evaluate-hard, status, replay, or all"
+                )
+            }
+            let tail = Array(forwarded.dropFirst())
+            let python = try PythonRuntime.resolve()
+            if action == "setup" || action == "install" {
+                _ = try Tooling.runPathAllowingExitCodes(
+                    python,
+                    [
+                        try script("setup-remote-speaker-identity-backend-v1.py").path,
+                        action == "install" ? "install" : "status",
+                    ] + tail,
+                    allowedExitCodes: [0, 2]
+                )
+            } else {
+                guard [
+                    "preflight", "freeze", "hard-status", "develop", "evaluate-hard",
+                    "status", "replay", "all",
+                ].contains(action) else {
+                    throw CLIError("unsupported remote-identity-v1 action: \(action)")
+                }
+                _ = try Tooling.runPathAllowingExitCodes(
+                    python,
+                    [try script("qualify-stronger-remote-speaker-identity-backend-v1.py").path] + forwarded,
+                    allowedExitCodes: [0, 1, 2]
+                )
+            }
         case "lifecycle":
             try Tooling.runPath(
                 try PythonRuntime.resolve(),
@@ -8303,6 +8343,8 @@ enum CorpusHelp {
                                       [--policy policies/segment-context-remote-speaker-attribution-v1.json]
           murmurmark corpus remote-error-decomposition freeze|analyze|status|replay|all
                                       [--policy policies/remote-speaker-attribution-error-decomposition-v1.json]
+          murmurmark corpus remote-identity-v1 setup|install|preflight|freeze|hard-status|develop|evaluate-hard|status|replay|all
+                                      [--policy policies/stronger-remote-speaker-identity-backend-qualification-v1.json]
           murmurmark corpus perfection all [--verify-existing]
                                         [--manifest docs/testing/transcript-perfection-corpus-v1-manifest.json]
           murmurmark corpus lexical import SESSION SOURCE --source-id ID

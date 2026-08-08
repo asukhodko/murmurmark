@@ -14,8 +14,11 @@ Speaker Truth Lab v1 qualified the Coverage v3 control and rejected the WavLM ca
 hard truth. Duration-Aware v2 preserved precision but failed blind hard-v2 recall and boundary gates.
 Segment-Context v1 also failed blind hard-v3 boundary, identity and open-set gates. Error
 Decomposition v1 measured identity as the dominant axis (`0.351382` gain versus `0.063882` boundary
-and `0.036364` overlap/open-set). Stronger Remote Speaker Identity Backend Qualification v1 is
-current. Notes, retrieval and work proposals remain optional derivatives.
+and `0.036364` overlap/open-set). Stronger Remote Speaker Identity Backend Qualification v1 then
+promoted ECAPA only as a lab candidate after hard-v4 F1 `0.948042`, known recall `0.947368`,
+precision `1.0`, zero open-set false attribution and exact word conservation. ECAPA Remote Speaker
+Shadow Qualification v1 is current; production remains Coverage v3. Notes, retrieval and work
+proposals remain optional derivatives.
 Date: 2026-08-08
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
@@ -474,9 +477,9 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Stronger Remote Speaker Identity Backend Qualification v1: сравнить максимум три заранее
-зафиксированных локальных identity backend на development truth, выбрать максимум один, затем один
-раз открыть disjoint hard-v4; production остаётся неизменным до отдельной квалификации.
+ECAPA Remote Speaker Shadow Qualification v1: проверить frozen lab candidate только как fail-open
+shadow на реальных frozen sessions с reviewed session-local evidence; сравнить с Coverage v3 по
+точности, coverage, abstention, boundary/order и runtime, не меняя production transcript.
 ```
 
 Error Decomposition v1 завершён `ADVANCE_STRONGER_SPEAKER_IDENTITY` на 393 words и 64 boundaries.
@@ -506,6 +509,8 @@ pairwise precision `1.0`, boundaries `16/16` and zero open-set errors. The WavLM
 `0.834325`, `0.950920`, `10/16` and two false attributions. Duration-Aware v2 then opened a separate
 hard-v2 once: fusion kept precision `1.0` and zero open-set errors but reached B-cubed `0.499381`,
 known recall `0.551402` and boundaries `9/28`. Segment-Context v1 then failed hard-v3 at B-cubed
-`0.475586`, known recall `0.445087`, boundaries `0/20` and two open-set false attribution. The next
-autonomous step decomposes boundary, identity and overlap/open-set errors. Synthetic evidence still
+`0.475586`, known recall `0.445087`, boundaries `0/20` and two open-set false attribution. Error
+Decomposition selected identity, after which ECAPA passed the one-shot disjoint hard-v4 with
+B-cubed `0.948042`, known recall `0.947368`, precision `1.0` and zero open-set false attribution.
+Synthetic evidence still
 cannot replace blind review of real-session proposals.

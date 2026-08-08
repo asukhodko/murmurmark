@@ -34,10 +34,10 @@ Expected frozen baseline:
 
 ```text
 decision: BASELINE_ESTABLISHED
-sources: 18/18 verified
+sources: 19/19 verified
 release_ready: false
 largest_actionable_residual: unknown_remote_speaker (598.240s)
-next_goal: Stronger Remote Speaker Identity Backend Qualification v1
+next_goal: ECAPA Remote Speaker Shadow Qualification v1
 ```
 
 ## Reading The Result
@@ -51,6 +51,7 @@ next_goal: Stronger Remote Speaker Identity Backend Qualification v1
   a rejected candidate; synthetic evidence never resolves a real speaker label.
 - segment-context hard-v3 metrics keep boundary, identity and open-set failures explicit;
 - oracle decomposition keeps the dominant identity gain and smaller boundary/open-set gains separate.
+- one-shot hard-v4 keeps the promoted ECAPA lab candidate separate from real-session production evidence.
 - residual seconds belong to different frozen scopes and must not be summed.
 - the first residual row selects the next bounded engineering goal.
 

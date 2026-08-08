@@ -1,0 +1,236 @@
+{
+  "schema": "murmurmark.stronger_remote_speaker_identity_backend_qualification_policy/v1",
+  "version": "0.1.0",
+  "purpose": "Qualify one independently trained local speaker-identity backend without changing production.",
+  "shortlist": [
+    {
+      "id": "wavlm_xvector_control",
+      "role": "control",
+      "family": "wavlm_xvector",
+      "model_id": "microsoft/wavlm-base-plus-sv",
+      "revision": "existing_frozen_local_model",
+      "license": "CC-BY-SA-3.0",
+      "license_url": "https://github.com/microsoft/UniSpeech/blob/main/LICENSE",
+      "model_card_url": "https://huggingface.co/microsoft/wavlm-base-plus-sv",
+      "default_path": "~/.local/share/murmurmark/models/target-me/wavlm-base-plus-sv",
+      "redistributed_by_murmurmark": false,
+      "files": {
+        "README.md": "97f5513cde351b3adb4e182b60ec23154dadba7ca83e667ceace237177855b8e",
+        "config.json": "c6ac8c0ce55b18d4612677931036fe5ce78093e87361c552a173f00a0bb07514",
+        "preprocessor_config.json": "99272fe8ccfab114b68b478681ea47ee3a1ce62bb788cb92dd6e4f69fb1f1da2",
+        "pytorch_model.bin": "e906bce2fa42fb497a1d1a9ecf81548adb7e03b12a5644e32d2f42f0d6500fad"
+      },
+      "runtime": {
+        "python": ".venv/bin/python",
+        "torch": "2.12.0",
+        "transformers": "5.10.2",
+        "numpy": "2.4.6",
+        "soundfile": "0.14.0"
+      }
+    },
+    {
+      "id": "speechbrain_ecapa_voxceleb_candidate",
+      "role": "candidate",
+      "family": "ecapa_tdnn",
+      "model_id": "speechbrain/spkrec-ecapa-voxceleb",
+      "revision": "0f99f2d0ebe89ac095bcc5903c4dd8f72b367286",
+      "license": "Apache-2.0",
+      "license_url": "https://www.apache.org/licenses/LICENSE-2.0",
+      "model_card_url": "https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb/tree/0f99f2d0ebe89ac095bcc5903c4dd8f72b367286",
+      "default_path": "~/.local/share/murmurmark/models/remote-speaker-identity-v1/ecapa-voxceleb",
+      "default_runtime": "~/.local/share/murmurmark/runtimes/remote-speaker-identity-v1",
+      "redistributed_by_murmurmark": false,
+      "files": {
+        "README.md": "00f58c3cbd7a7510de9374080da0e82a4c4e8f4df567f7338fe6efe108be705a",
+        "classifier.ckpt": "fd9e3634fe68bd0a427c95e354c0c677374f62b3f434e45b78599950d860d535",
+        "config.json": "15ff7afad09adec0936c31493a7397c13f855914f4579a8393fe82649778a664",
+        "embedding_model.ckpt": "0575cb64845e6b9a10db9bcb74d5ac32b326b8dc90352671d345e2ee3d0126a2",
+        "hyperparams.yaml": "6f78854fa04ba59e761437b76a2575d3aba5e5016de3e9b69f0c9a5077fb1a41",
+        "label_encoder.txt": "e13c3a167bb4112685670ee896d20e2b565af16b3a4ceeaa8689fa4d22adb8b9",
+        "mean_var_norm_emb.ckpt": "cd70225b05b37be64fc5a95e24395d804231d43f74b2e1e5a513db7b69b34c33"
+      },
+      "runtime": {
+        "torch": "2.11.0",
+        "torchaudio": "2.11.0",
+        "speechbrain": "1.1.0",
+        "numpy": "2.5.1",
+        "scipy": "1.18.0",
+        "soundfile": "0.14.0"
+      }
+    }
+  ],
+  "upstream_guards": [
+    {
+      "id": "error_decomposition_manifest",
+      "path": "docs/testing/remote-speaker-attribution-error-decomposition-v1-manifest.json",
+      "sha256": "ac3f187c2cc39f6cfcf38a6da838547ccfcc2df191e6993550114eda82cec9c7"
+    },
+    {
+      "id": "error_decomposition_report",
+      "path": "sessions/_reports/remote-speaker-attribution-error-decomposition-v1/remote_speaker_attribution_error_decomposition_report.json",
+      "sha256": "2d1fc6ba6887e315450bc25e7aadf6fb9dadc28aee01783b6128ef9ed867ded5"
+    },
+    {
+      "id": "coverage_v3_manifest",
+      "path": "docs/testing/remote-speaker-coverage-v3-manifest.json",
+      "sha256": "20b4073df90f98729cc29bc2ec8f3002e88155d9202afd72f6898f494cfd0a6c"
+    },
+    {
+      "id": "coverage_v3_report",
+      "path": "sessions/_reports/remote-speaker-coverage-v3/remote_speaker_coverage_corpus_report.json",
+      "sha256": "0d2d6edcb0a0153a7ea3190760a8df609c3f3f7633c075ab65252035862932d4"
+    }
+  ],
+  "development_corpora": [
+    {
+      "id": "truth_lab_v1",
+      "kind": "truth_lab",
+      "root": "sessions/_reports/controlled-remote-speaker-truth-lab-v1/private",
+      "frozen_manifest": "sessions/_reports/controlled-remote-speaker-truth-lab-v1/private/frozen_manifest.json",
+      "frozen_manifest_sha256": "26074894aeb311b75eedb42f1833db4e0be147e4378a9ff5c6bbe520b453ab6a",
+      "evaluation_splits": ["dev", "hard"]
+    },
+    {
+      "id": "hard_v2",
+      "kind": "sealed_hard",
+      "root": "sessions/_reports/duration-aware-remote-speaker-attribution-v2/private/hard-v2",
+      "frozen_manifest": "sessions/_reports/duration-aware-remote-speaker-attribution-v2/private/hard-v2/frozen_manifest.json",
+      "frozen_manifest_sha256": "695edf8fdba5c145cd237414cca47581c8bd9a5ef7873ac76d2bba2293ad3d40",
+      "opening_ledger": "sessions/_reports/duration-aware-remote-speaker-attribution-v2/private/hard-v2/hard_v2_opening_ledger.json",
+      "opening_ledger_sha256": "5954348cd266783d6f12a3688795e76e793243beea219dfab2f43c632eb571f7",
+      "sealed_split": "hard_v2"
+    },
+    {
+      "id": "hard_v3",
+      "kind": "sealed_hard",
+      "root": "sessions/_reports/segment-context-remote-speaker-attribution-v1/private/hard-v3",
+      "frozen_manifest": "sessions/_reports/segment-context-remote-speaker-attribution-v1/private/hard-v3/frozen_manifest.json",
+      "frozen_manifest_sha256": "a60968e32686609dd5d2ac3051fa7141ccf124a334680b43f2daa570ed194beb",
+      "opening_ledger": "sessions/_reports/segment-context-remote-speaker-attribution-v1/private/hard-v3/hard_v3_opening_ledger.json",
+      "opening_ledger_sha256": "9d539693b8c11ad8deba977682cc79ebc9131335e5e88659d7a2c2ed2a8a1ac6",
+      "sealed_split": "hard_v3"
+    }
+  ],
+  "audio_preparation": {
+    "sample_rate": 16000,
+    "channels": 1,
+    "minimum_segment_sec": 1.0,
+    "minimum_enrollment_sec": 2.0,
+    "short_segment_padding": "symmetric_zero",
+    "partition": "exact_event_boundaries",
+    "evaluation_audio": "mixture",
+    "enrollment_audio": "clean_enrollment_or_nonoverlap_train_event"
+  },
+  "calibration": {
+    "similarity_grid": [-0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
+    "margin_grid": [0.0, 0.02, 0.04, 0.06, 0.08, 0.1, 0.15, 0.2, 0.3],
+    "selection_order": [
+      "zero_open_set_false_attribution",
+      "mixed_fail_closed",
+      "pairwise_precision",
+      "known_speaker_recall",
+      "bcubed_f1",
+      "boundary_recall",
+      "higher_similarity_threshold",
+      "higher_margin_threshold"
+    ],
+    "maximum_selected_candidates": 1
+  },
+  "hard_v4": {
+    "renderer": {
+      "command": "say",
+      "sample_rate": 16000,
+      "audio_subtype": "PCM_16",
+      "rate_words_per_minute": 176,
+      "word_peak": 0.18,
+      "word_edge_padding_sec": 0.025,
+      "minimum_word_sec": 0.34,
+      "inter_word_gap_sec": 0.06,
+      "enrollment_words_per_speaker": 18,
+      "enrolled_speaker_count": 4,
+      "open_set_speaker_count": 2,
+      "eligible_unused_voices": [
+        "Alva", "Amira", "Aru", "Carmit", "Damayanti", "Daria", "Ellen",
+        "Geeta", "Joana", "Laura", "Lekha", "Melina", "Milena", "Sara", "Satu",
+        "Shelley", "Thomas", "Tina", "Yelda", "Yuna", "Zosia", "Zuzana"
+      ]
+    },
+    "private_token_generator": {
+      "token_count": 280,
+      "minimum_syllables": 2,
+      "maximum_syllables": 4
+    },
+    "scenario_templates": {
+      "hard_v4_duration_boundary": {
+        "meeting_mode": "group",
+        "events": [
+          {"speaker_slot": "enrolled_1", "word_count": 15, "gap_before_sec": 0.6},
+          {"speaker_slot": "enrolled_2", "word_count": 2, "gap_before_sec": 0.02},
+          {"speaker_slot": "enrolled_1", "word_count": 4, "gap_before_sec": 0.01},
+          {"speaker_slot": "enrolled_3", "word_count": 13, "gap_before_sec": 0.28},
+          {"speaker_slot": "enrolled_4", "word_count": 1, "gap_before_sec": 0.02},
+          {"speaker_slot": "enrolled_2", "word_count": 9, "gap_before_sec": 0.08}
+        ]
+      },
+      "hard_v4_rare_open_intrusion": {
+        "meeting_mode": "group",
+        "events": [
+          {"speaker_slot": "enrolled_1", "word_count": 12, "gap_before_sec": 0.5},
+          {"speaker_slot": "enrolled_4", "word_count": 2, "gap_before_sec": 0.04},
+          {"speaker_slot": "enrolled_1", "word_count": 9, "gap_before_sec": 0.16},
+          {"speaker_slot": "open_set_1", "word_count": 5, "gap_before_sec": 0.03},
+          {"speaker_slot": "enrolled_2", "word_count": 7, "gap_before_sec": 0.12},
+          {"speaker_slot": "enrolled_4", "word_count": 1, "gap_before_sec": 0.01},
+          {"speaker_slot": "open_set_2", "word_count": 4, "gap_before_sec": 0.04},
+          {"speaker_slot": "enrolled_3", "word_count": 8, "gap_before_sec": 0.12}
+        ]
+      },
+      "hard_v4_overlap_mixed": {
+        "meeting_mode": "group",
+        "events": [
+          {"speaker_slot": "enrolled_1", "word_count": 9, "gap_before_sec": 0.5},
+          {"speaker_slot": "enrolled_2", "word_count": 8, "overlap_previous_sec": 0.65},
+          {"speaker_slot": "enrolled_3", "word_count": 3, "gap_before_sec": 0.02},
+          {"speaker_slot": "open_set_1", "word_count": 5, "overlap_previous_sec": 0.45},
+          {"speaker_slot": "enrolled_4", "word_count": 12, "gap_before_sec": 0.2},
+          {"speaker_slot": "enrolled_2", "word_count": 4, "overlap_previous_sec": 0.35}
+        ]
+      },
+      "hard_v4_short_transitions": {
+        "meeting_mode": "group",
+        "events": [
+          {"speaker_slot": "enrolled_1", "word_count": 3, "gap_before_sec": 0.4},
+          {"speaker_slot": "enrolled_2", "word_count": 1, "gap_before_sec": 0.01},
+          {"speaker_slot": "enrolled_3", "word_count": 2, "gap_before_sec": 0.02},
+          {"speaker_slot": "enrolled_1", "word_count": 1, "gap_before_sec": 0.01},
+          {"speaker_slot": "enrolled_4", "word_count": 3, "gap_before_sec": 0.03},
+          {"speaker_slot": "enrolled_2", "word_count": 2, "gap_before_sec": 0.01},
+          {"speaker_slot": "enrolled_3", "word_count": 1, "gap_before_sec": 0.02},
+          {"speaker_slot": "enrolled_4", "word_count": 2, "gap_before_sec": 0.01},
+          {"speaker_slot": "open_set_2", "word_count": 2, "gap_before_sec": 0.02},
+          {"speaker_slot": "enrolled_1", "word_count": 4, "gap_before_sec": 0.03}
+        ]
+      }
+    }
+  },
+  "promotion_gates": {
+    "minimum_bcubed_f1": 0.85,
+    "minimum_pairwise_precision": 0.99,
+    "minimum_known_speaker_recall": 0.8,
+    "maximum_open_set_false_attributions": 0,
+    "require_exact_word_conservation": true,
+    "require_all_mixed_fail_closed": true,
+    "require_boundary_no_regression_against_control": true
+  },
+  "terminal_decisions": [
+    "PROMOTE_LAB_IDENTITY_CANDIDATE",
+    "DO_NOT_PROMOTE_IDENTITY_BACKEND"
+  ],
+  "safety": {
+    "production_mutation": false,
+    "coverage_v3_mutation": false,
+    "synthetic_to_real_identity_transfer": false,
+    "cloud_allowed": false,
+    "hard_v4_open_count": 1
+  }
+}

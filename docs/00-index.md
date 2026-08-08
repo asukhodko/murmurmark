@@ -111,7 +111,11 @@ Read in this order:
 107. [Remote Speaker Attribution Error Decomposition v1 runbook](runbooks/remote-speaker-attribution-error-decomposition-v1.md)
 108. [Remote Speaker Attribution Error Decomposition v1 result](testing/2026-08-08-remote-speaker-attribution-error-decomposition-v1.md)
 109. [Remote Speaker Attribution Error Decomposition v1 manifest](testing/remote-speaker-attribution-error-decomposition-v1-manifest.json)
-110. [Planning and development history](history/README.md)
+110. [Stronger Remote Speaker Identity Backend Qualification v1 contract](contracts/stronger-remote-speaker-identity-backend-qualification-v1.md)
+111. [Stronger Remote Speaker Identity Backend Qualification v1 runbook](runbooks/stronger-remote-speaker-identity-backend-qualification-v1.md)
+112. [Stronger Remote Speaker Identity Backend Qualification v1 result](testing/2026-08-08-stronger-remote-speaker-identity-backend-qualification-v1.md)
+113. [Stronger Remote Speaker Identity Backend Qualification v1 manifest](testing/stronger-remote-speaker-identity-backend-qualification-v1-manifest.json)
+114. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
@@ -144,7 +148,10 @@ known recall and `32.1429%` boundary recall, so it closed `DO_NOT_PROMOTE_TOPOLO
 `44.5087%`, boundaries `0/20` and two open-set errors. **Remote Speaker Attribution Error
 Decomposition v1** selected identity as the dominant axis: gain `0.351382` versus boundary
 `0.063882` and overlap/open-set `0.036364`. **Stronger Remote Speaker Identity Backend
-Qualification v1** is current. Notes and retrieval remain parked.
+Qualification v1** then promoted ECAPA as a lab-only candidate after a one-shot hard-v4 result of
+B-cubed F1 `0.948042`, known recall `0.947368`, pairwise precision `1.0`, zero open-set false
+attribution and exact 154/154 word conservation. **ECAPA Remote Speaker Shadow Qualification v1**
+is current; production Coverage v3 remains unchanged. Notes and retrieval remain parked.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

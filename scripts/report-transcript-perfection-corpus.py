@@ -403,6 +403,28 @@ def semantic_gates(
         decomposition_invariants,
     )
 
+    identity = payloads.get("stronger_remote_speaker_identity_backend_qualification_v1") or {}
+    identity_gates = identity.get("promotion_gates") or {}
+    add(
+        "stronger_remote_speaker_identity_backend_qualification_v1",
+        "qualification_decision",
+        identity.get("decision")
+        in {"PROMOTE_LAB_IDENTITY_CANDIDATE", "DO_NOT_PROMOTE_IDENTITY_BACKEND"},
+        identity.get("decision"),
+    )
+    add(
+        "stronger_remote_speaker_identity_backend_qualification_v1",
+        "one_shot_hard_v4_integrity",
+        identity_gates.get("exact_word_conservation") is True
+        and identity_gates.get("single_candidate") is True
+        and identity.get("hard_v4_open_count") == 1
+        and identity.get("safety", {}).get("production_mutated") is False
+        and identity.get("safety", {}).get("coverage_v3_mutated") is False
+        and identity.get("safety", {}).get("synthetic_identity_transferred_to_real_sessions")
+        is False,
+        {"gates": identity_gates, "open_count": identity.get("hard_v4_open_count")},
+    )
+
     failures = [f"semantic_gate:{row['source']}:{row['gate']}" for row in checks if not row["passed"]]
     return checks, failures
 
@@ -547,6 +569,9 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
     decomposition_boundary = decomposition["aggregate_primary"]["oracle_boundaries_current_identity"]
     decomposition_identity = decomposition["aggregate_primary"]["current_boundaries_oracle_identity"]
     decomposition_special = decomposition["aggregate_primary"]["overlap_open_set_oracle"]
+    identity = payloads["stronger_remote_speaker_identity_backend_qualification_v1"]
+    identity_candidate = identity["hard_v4"]["candidate"]["metrics"]
+    identity_control = identity["hard_v4"]["control"]["metrics"]
 
     return [
         {
@@ -623,6 +648,7 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 "duration_aware_remote_speaker_attribution_v2",
                 "segment_context_remote_speaker_attribution_v1",
                 "remote_speaker_attribution_error_decomposition_v1",
+                "stronger_remote_speaker_identity_backend_qualification_v1",
             ],
             "metrics": {
                 "attributable_speech_ratio": float(remote_summary["attributable_remote_speech_ratio"]),
@@ -708,6 +734,22 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                     decomposition_special["open_set_false_attributions"]
                 ),
                 "error_decomposition_axis_gains": decomposition["routing_evidence"]["axis_gains"],
+                "identity_backend_qualification_decision": identity["decision"],
+                "identity_backend_selected_candidate": identity["selected_candidate_id"],
+                "identity_hard_v4_bcubed_f1": float(identity_candidate["bcubed"]["f1"]),
+                "identity_hard_v4_pairwise_precision": float(
+                    identity_candidate["pairwise"]["precision"]
+                ),
+                "identity_hard_v4_known_speaker_recall": float(
+                    identity_candidate["known_attribution_recall"]
+                ),
+                "identity_hard_v4_boundary_recall": float(identity_candidate["boundary_recall"]),
+                "identity_hard_v4_open_set_false_attributions": int(
+                    identity_candidate["open_set_false_attributions"]
+                ),
+                "identity_control_hard_v4_known_speaker_recall": float(
+                    identity_control["known_attribution_recall"]
+                ),
             },
             "residual_classes": ["unknown_remote_speaker"],
         },
@@ -877,7 +919,7 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
         release_blockers.insert(2, "remote_speaker_turns.residual_reference_insufficient")
     report = {
         "schema": REPORT_SCHEMA,
-        "generator": {"name": "report-transcript-perfection-corpus", "version": "0.6.0", "mode": "deterministic_offline"},
+        "generator": {"name": "report-transcript-perfection-corpus", "version": "0.7.0", "mode": "deterministic_offline"},
         "decision": decision,
         "manifest": {
             "path": portable_path(Path(str(manifest["_path"]))),
@@ -916,14 +958,13 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
                 "status": "reference_insufficient",
                 "reason": (
                     "the blind 851-word residual pack is frozen, but none of its 53 WavLM proposals "
-                    "has independent human-reviewed or exact-scripted truth; exact synthetic hard "
-                    "truth qualified the Coverage v3 control, while duration-aware and segment-context "
-                    "candidates both failed their untouched hard corpora; oracle decomposition now "
-                    "isolates speaker identity as the dominant recoverable axis"
+                    "has independent human-reviewed truth; the independently trained ECAPA candidate "
+                    "passed the one-shot disjoint exact hard-v4 with B-cubed F1 0.948042, pairwise "
+                    "precision 1.0 and zero open-set false attribution, but remains synthetic-only"
                 ),
                 "next_evidence": (
-                    "qualify a stronger local speaker-identity backend on development truth, then open a "
-                    "new disjoint exact hard corpus once without changing Coverage v3 production"
+                    "run the frozen ECAPA candidate as a fail-open shadow on frozen real sessions, compare "
+                    "it with existing reviewed evidence and keep Coverage v3 authoritative until real gates pass"
                 ),
             },
             {
@@ -948,13 +989,13 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
             ),
         },
         "next_goal": {
-            "id": "stronger-remote-speaker-identity-backend-qualification-v1" if not failures else "restore-input-integrity",
-            "title": "Stronger Remote Speaker Identity Backend Qualification v1" if not failures else "Restore Input Integrity",
+            "id": "ecapa-remote-speaker-shadow-qualification-v1" if not failures else "restore-input-integrity",
+            "title": "ECAPA Remote Speaker Shadow Qualification v1" if not failures else "Restore Input Integrity",
             "selected_residual_class": "unknown_remote_speaker" if not failures else None,
             "rationale": (
-                "Frozen oracle decomposition measured speaker-identity gain 0.351382 versus segmentation "
-                "0.063882 and overlap/open-set 0.036364. Qualify a genuinely stronger local identity backend "
-                "without retuning the rejected topologies or changing production attribution."
+                "ECAPA captured most of the synthetic identity ceiling on one-shot hard-v4. The next honest "
+                "step is a fail-open real-session shadow qualification against frozen reviewed evidence; "
+                "production and Coverage v3 remain authoritative until those gates pass."
                 if not failures
                 else "Input integrity must be restored before selecting an engineering goal."
             ),

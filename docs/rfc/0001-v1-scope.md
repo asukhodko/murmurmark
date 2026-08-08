@@ -52,8 +52,10 @@ Current implementation status, 2026-08-07:
   Corpus v1 remains the unified baseline. Residual Evidence v4 closed `DO_NOT_PROMOTE` at its measured
   safe ceiling; Speaker-Resolved Transcript Default v1 is promoted. Exact speaker labs rejected both
   Duration-Aware v2 and Segment-Context v1 candidates. Error Decomposition v1 identified speaker
-  identity as the dominant error axis; Stronger Remote Speaker Identity Backend Qualification v1 is
-  current. Cross-session identity, summaries, cloud/external writes and UI remain future or optional.
+  identity as the dominant error axis. Stronger Remote Speaker Identity Backend Qualification v1
+  promoted ECAPA only as a synthetic lab candidate; ECAPA Remote Speaker Shadow Qualification v1 is
+  current and production remains Coverage v3. Cross-session identity, summaries, cloud/external
+  writes and UI remain future or optional.
 
 ## Goals
 

@@ -114,10 +114,10 @@ met, unless an explicit product decision changes the priority.
 
 ## Near-Term Direction
 
-1. **Transcript Perfection Corpus v1:** maintain the completed 18-source benchmark for text,
+1. **Transcript Perfection Corpus v1:** maintain the completed 19-source benchmark for text,
    chronology, roles, speakers, overlap, acoustic modes and known residual defects.
-2. **Stronger Remote Speaker Identity Backend Qualification v1:** compare a small frozen set of
-   genuinely different local identity models, then open one new disjoint hard-v4 exactly once.
+2. **ECAPA Remote Speaker Shadow Qualification v1:** test the promoted lab-only ECAPA candidate
+   fail-open on frozen real sessions against reviewed session-local evidence and Coverage v3.
 3. **Remote residual blind review:** keep all 53 real-session proposals blocked until direct human or
    exact scripted truth exists; synthetic success cannot promote them.
 4. **Human-Reviewed Lexical Seed v1:** external-evidence prerequisite; do not tune ASR from machine

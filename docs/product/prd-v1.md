@@ -135,8 +135,11 @@ open-set false attributions). Duration-Aware v2 then rejected word-level fusion 
 known recall `0.551402`, boundary recall `0.321429`. Segment-Context v1 then failed blind hard-v3:
 known recall `0.445087`, boundaries `0/20`, two open-set errors. Error Decomposition v1 then selected
 speaker identity as the dominant axis: gain `0.351382` versus boundary `0.063882` and overlap/open-set
-`0.036364`. Stronger Remote Speaker Identity Backend Qualification v1 is current. Notes, external
-writes and UI remain optional.
+`0.036364`. Stronger Remote Speaker Identity Backend Qualification v1 then promoted ECAPA only as a
+lab candidate after a one-shot hard-v4 result of B-cubed F1 `0.948042`, known recall `0.947368`,
+pairwise precision `1.0` and zero open-set false attribution. ECAPA Remote Speaker Shadow
+Qualification v1 is current; production remains Coverage v3. Notes, external writes and UI remain
+optional.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.
 

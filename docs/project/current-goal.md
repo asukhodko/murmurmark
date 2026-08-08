@@ -6,84 +6,79 @@ This document expands the single executable goal from
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`.
 `scripts/check-planning-consistency.py` keeps the README, roadmap and OpsKarta wording aligned.
 
-## Stronger Remote Speaker Identity Backend Qualification v1
+## ECAPA Remote Speaker Shadow Qualification v1
 
-OpsKarta nearest goal: Stronger Remote Speaker Identity Backend Qualification v1: сохранить frozen
-Error Decomposition v1, Truth Lab v1, once-opened hard-v2/hard-v3, Coverage v3 и production
-неизменными; до сравнения зафиксировать не более трёх действительно разных локальных
-speaker-verification backend, включая текущий control и минимум один независимо обученный
-ECAPA-class или сопоставимый backend, вместе с model, license, runtime и SHA-256 provenance;
-использовать существующие exact corpora только как development truth с заранее замороженными
-enrollment, segment partition, scoring, calibration и open-set abstention; до выбора кандидата
-создать и запечатать новый disjoint hard-v4 с новыми voices, scripts, durations, transitions,
-overlap и open-set cases, затем выбрать не более одного кандидата на development по fixed gates и
-открыть hard-v4 ровно один раз; выпустить `PROMOTE_LAB_IDENTITY_CANDIDATE` только при exact word
-conservation, B-cubed F1 не ниже `0.85`, pairwise precision не ниже `0.99`, known-speaker recall не
-ниже `0.80`, zero open-set false attribution, mixed fail-closed и boundary no-regression, иначе
-выпустить воспроизводимый `DO_NOT_PROMOTE_IDENTITY_BACKEND`; не менять selected transcript,
-Coverage v3, raw CAF, primary ASR, Echo Guard и synthetic-to-real boundary; добавить CLI,
-автоматические тесты и Transcript Perfection source, обновить README, contracts, runbook,
-current-goal, roadmap и OpsKarta, закоммитить и отправить изменения в origin/main.
+OpsKarta nearest goal: ECAPA Remote Speaker Shadow Qualification v1: сохранить promoted lab
+candidate, one-shot hard-v4, Coverage v3 и selected transcripts неизменными; встроить frozen ECAPA
+backend только как fail-open shadow над существующими remote-speaker intervals реальных frozen
+sessions; использовать только уже разрешённые reviewed speaker labels и anonymous within-session
+evidence, не переносить synthetic voices или identity между сессиями; сравнить ECAPA с Coverage v3
+по exact word conservation, attributed precision, known reviewed coverage, open-set/unknown safety,
+boundary/order и runtime; публиковать shadow artifacts и corpus report с полной model/input
+provenance; разрешить отдельное production promotion решение только при no-regression, нулевой
+ложной уверенности на reviewed negatives и воспроизводимом улучшении real-session coverage, иначе
+выпустить `DO_NOT_PROMOTE_REAL_IDENTITY`; добавить автоматические тесты и Transcript Perfection
+source, обновить документацию и планирование, закоммитить и отправить изменения.
 
 ## Why Now
 
-Error Decomposition v1 учёл 393 exact words и 64 boundaries на трёх корпусах. Текущий primary track
-получил known-speaker recall `0.571006` и boundary recall `0.421875`. Oracle-матрица дала приросты:
+Stronger Remote Speaker Identity Backend Qualification v1 закрыл лабораторный вопрос. ECAPA
+получил на новом one-shot hard-v4 B-cubed F1 `0.948042`, pairwise precision `1.0`, known-speaker
+recall `0.947368`, ноль open-set false attribution и сохранил 154/154 words. Текущий WavLM control
+на том же hard-v4 воздержался почти везде и получил known recall `0`.
 
-- speaker identity: `0.351382`;
-- segmentation: `0.063882`;
-- overlap/open-set: `0.036364`.
-
-Identity oracle при текущих границах достигает known-speaker recall `0.934911` и B-cubed F1
-`0.886021`. Это существенно больший резерв, чем повторная настройка boundary или overlap эвристик.
+Это достаточное основание проверить ECAPA на реальных встречах. Оно не доказывает production
+качество: synthetic voices, clean enrollment и exact event boundaries проще реального звука,
+кодеков, коротких реплик и overlap.
 
 ## Objective
 
-Проверить, существует ли доступный локальный speaker-verification backend, который реализует
-существенную часть измеренного identity ceiling и сохраняет консервативное abstention. Этап
-квалифицирует только лабораторного кандидата; production меняется лишь отдельной будущей целью.
+Проверить, даёт ли frozen ECAPA backend воспроизводимое и безопасное улучшение anonymous
+remote-speaker attribution на замороженных реальных сессиях. Весь этап работает в shadow и не
+меняет выбранный transcript. Итогом должен быть отдельный аргументированный `PROMOTE`-кандидат для
+production-решения либо `DO_NOT_PROMOTE_REAL_IDENTITY`.
 
 ## Required Work
 
-1. Заморозить Error Decomposition result и все upstream hashes как неизменяемый control.
-2. До метрик объявить максимум три backend, model/license/runtime provenance и fixed selection rule.
-3. Нормализовать enrollment и score calibration без утечки hard-v4 voices или scripts.
-4. Построить disjoint hard-v4 до выбора кандидата и запечатать one-shot opening ledger.
-5. На development truth выбрать максимум один backend, не перенастраивая rejected topology.
-6. Открыть hard-v4 ровно один раз и применить фиксированные promotion gates.
-7. Сохранить word-level provenance, model outputs, replay и portable public report.
-8. Добавить CLI, тесты и новый Transcript Perfection source.
+1. Заморозить ECAPA model/runtime provenance, hard-v4 result и входные real-session profiles.
+2. Выбрать только сессии с уже разрешёнными reviewed labels и явными negative/unknown примерами.
+3. Построить session-local enrollment без human-name inference и межсессионного связывания голоса.
+4. Запустить ECAPA над существующими remote intervals в отдельном fail-open shadow профиле.
+5. Сравнить его с Coverage v3 по словам, точности, coverage, boundary/order, abstention и времени.
+6. Сохранить каждое решение с model, input, interval, enrollment и score provenance.
+7. Зафиксировать corpus-wide решение без изменения production и selected transcript.
+8. Добавить CLI, тесты, portable manifest и новый Transcript Perfection source.
 
 ## Acceptance Gates
 
-- model artifacts, licenses, runtimes, truth, predictions and ledgers are SHA-256 frozen;
-- hard-v4 speakers, scripts and enrollment are disjoint from development data;
-- every exact word and timestamp is conserved and accounted once;
-- hard-v4 B-cubed F1 is at least `0.85`, pairwise precision at least `0.99` and known recall at least
-  `0.80`;
-- open-set false attribution is zero, mixed speech fails closed and boundaries do not regress;
-- repeated runs are byte-identical;
-- missing model or incompatible runtime fails closed without changing production;
-- exactly one terminal decision is published.
+- every input transcript, interval, reviewed label, model and runtime is SHA-256 frozen;
+- every selected word and timestamp is conserved exactly;
+- no reviewed negative or unknown speaker receives a false confident attribution;
+- reviewed attributed precision and chronology do not regress against Coverage v3;
+- real-session reviewed coverage improves reproducibly by a predeclared material amount;
+- missing model, weak enrollment or conflicting evidence yields `unknown` and exact fallback;
+- no synthetic or cross-session identity enters real outputs;
+- repeated runs are deterministic and production artifacts remain byte-exact.
 
 ## Safety Boundary
 
-- v1, hard-v2 and hard-v3 are development evidence and cannot be called blind again;
-- hard-v4 remains unopened until backend and gates are frozen;
-- synthetic labels never enter real sessions;
-- no cloud service, inferred human name or cross-session production identity;
-- no selected transcript, Coverage v3, Echo Guard, ASR or raw CAF mutation.
+- ECAPA remains shadow-only throughout this goal;
+- no human name is inferred from voice;
+- no speaker identity is linked across sessions;
+- reviewed labels are evidence, not training data for hidden production behavior;
+- no cloud service, raw CAF mutation, primary ASR change or Echo Guard change;
+- production promotion, if justified, is a separate explicit goal.
 
 ## Previous Goal Result
 
-Remote Speaker Attribution Error Decomposition v1 completed with
-`ADVANCE_STRONGER_SPEAKER_IDENTITY`: identity is the dominant measured bottleneck, replay is
-byte-exact, public artifacts contain no private speech or machine path, and Transcript Perfection
-verifies `18/18` frozen sources.
+Stronger Remote Speaker Identity Backend Qualification v1 completed with
+`PROMOTE_LAB_IDENTITY_CANDIDATE`. The disjoint hard-v4 was frozen before candidate selection and
+opened once. ECAPA passed every fixed gate, replay is byte-identical, public artifacts are portable,
+and Transcript Perfection verifies `19/19` frozen sources. Coverage v3 and all selected transcripts
+remain unchanged.
 
 ## After This Goal
 
-1. A passing lab candidate opens a separate real-session, fail-open production qualification.
-2. A negative decision establishes the current local identity-model limit and moves the route to a
-   new model family or direct reviewed evidence.
-3. Dedicated segmentation remains deferred until identity is no longer the dominant measured axis.
+1. A passing shadow result opens a separate production integration and promotion goal.
+2. A negative result records the synthetic-to-real gap and keeps Coverage v3 as the supported path.
+3. Dedicated segmentation resumes only if real ECAPA evidence shows identity is no longer dominant.

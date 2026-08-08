@@ -53,7 +53,8 @@ nodes:
     effort: 45
     notes: |
       Подтверждённая основа продукта. Эти возможности поддерживаются regression-тестами, но не
-      считаются активной разработкой только из-за постоянного использования.
+      считаются активной разработкой только из-за постоянного использования. Основа включает
+      doctor, self-test, acceptance, local installer, public docs, license и readiness checks.
 
   capability-durable-capture:
     title: "Durable two-track capture и session package"
@@ -115,14 +116,6 @@ nodes:
     notes: |
       Committed-PCM sidecar даёт advisory preview и fail-open isolation. Live output не участвует
       в authoritative transcript, export или retention.
-
-  capability-cli-release-foundation:
-    title: "CLI installation и open-source foundation"
-    kind: task
-    parent: working-capabilities
-    status: done
-    effort: 4
-    notes: "doctor, self-test, acceptance, local installer, public docs, license и readiness checks."
 
   product-one-command-meeting-lifecycle-v1:
     title: "One-Command Meeting Lifecycle v1"
@@ -522,7 +515,7 @@ nodes:
     status: done
     effort: 10
     notes: |
-      Завершено BASELINE_ESTABLISHED. После Error Decomposition v1 проверяет 18/18 frozen
+      Завершено BASELINE_ESTABLISHED. После Identity Backend Qualification v1 проверяет 19/19 frozen
       sources; восемь dimensions разделяют correctness, coverage, uncertainty и review. Exact
       lexical subset измерен, real meetings reference-insufficient, aggregate score запрещён.
       Ranked residual leader: 598.240s / 851 unknown remote words / 6 sessions.
@@ -577,7 +570,7 @@ nodes:
       Завершено REFERENCE_INSUFFICIENT. Девять graded sources отделяют exact generated evidence от
       scripted expected и independent machine diagnostics. Exact digital subset: 67 words, WER/CER
       0, term accuracy 1.0; human-reviewed real sessions: 0. Public/tracked artifacts не содержат
-      речь, имена или absolute paths; replay детерминирован. Transcript Perfection проверяет 18/18
+      речь, имена или absolute paths; replay детерминирован. Transcript Perfection проверяет 19/19
       sources и сохраняет real-meeting lexical blocker.
 
   quality-independent-remote-speaker-evidence-v1:
@@ -664,15 +657,29 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-remote-speaker-attribution-error-decomposition-v1]
+    status: done
+    effort: 18
+    notes: |
+      Завершено PROMOTE_LAB_IDENTITY_CANDIDATE. SpeechBrain ECAPA выбран на frozen development и
+      прошёл один раз открытый disjoint hard-v4: B-cubed F1 0.948042, pairwise precision 1.0, known
+      recall 0.947368, boundaries 13/23, zero open-set false attribution, mixed 6/6 fail-closed и
+      exact 154/154 words. Replay byte-exact; production, Coverage v3 и selected transcripts
+      неизменны. Результат остаётся synthetic lab evidence.
+
+  quality-ecapa-remote-speaker-shadow-qualification-v1:
+    title: "ECAPA Remote Speaker Shadow Qualification v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-stronger-remote-speaker-identity-backend-qualification-v1]
     status: current
     effort: 18
     notes: |
-      Сравнить максимум три заранее frozen genuinely different local identity backend на existing
-      development truth. До выбора создать disjoint hard-v4 с новыми voices, scripts, durations,
-      transitions, overlap/open-set и one-shot ledger. Открыть hard-v4 один раз для максимум одного
-      кандидата. PROMOTE только как lab candidate при B-cubed >=0.85, pairwise precision >=0.99,
-      known recall >=0.80, zero open-set false attribution, mixed fail-closed, boundary no-regression,
-      exact word conservation и deterministic replay. Production и Coverage v3 неизменны.
+      Frozen ECAPA работает только как fail-open shadow над существующими remote intervals реальных
+      frozen sessions с уже разрешённой reviewed и anonymous session-local evidence. Сравнить с
+      Coverage v3 по exact words, attributed precision, reviewed coverage, unknown/open-set safety,
+      boundary/order и runtime. Synthetic identity, human-name inference, cross-session linking и
+      production mutation запрещены; terminal outcome PROMOTE candidate for a separate production
+      decision либо DO_NOT_PROMOTE_REAL_IDENTITY.
 
   future-local-mic-diarization-v1:
     title: "Local Mic Multi-Speaker Diarization v1"
@@ -703,7 +710,7 @@ views:
         nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-stronger-remote-speaker-identity-backend-qualification-v1]
+        nodes: [quality-ecapa-remote-speaker-shadow-qualification-v1]
       dependent:
         title: "Blind real-session reference blocker"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
@@ -755,6 +762,7 @@ views:
           - quality-segment-context-remote-speaker-attribution-v1
           - quality-remote-speaker-attribution-error-decomposition-v1
           - quality-stronger-remote-speaker-identity-backend-qualification-v1
+          - quality-ecapa-remote-speaker-shadow-qualification-v1
 
   echo-frontier:
     title: "Пред-ASR отделение Me от remote"
@@ -790,8 +798,8 @@ views:
         title: "Доказанная speaker evidence"
         nodes: [research-remote-diarization, research-rich-transcript, quality-remote-speaker-diarization-v2]
       current:
-        title: "Квалификация более сильного identity backend"
-        nodes: [quality-stronger-remote-speaker-identity-backend-qualification-v1]
+        title: "Проверка ECAPA на реальных frozen sessions"
+        nodes: [quality-ecapa-remote-speaker-shadow-qualification-v1]
       blocker:
         title: "Blind real-session reference"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
@@ -852,14 +860,15 @@ views:
           - quality-segment-context-remote-speaker-attribution-v1
           - quality-remote-speaker-attribution-error-decomposition-v1
           - quality-stronger-remote-speaker-identity-backend-qualification-v1
+          - quality-ecapa-remote-speaker-shadow-qualification-v1
           - future-local-mic-diarization-v1
 
 x:
   exec:
     program:
       nearest_goal: >-
-        Stronger Remote Speaker Identity Backend Qualification v1: сохранить frozen Error Decomposition v1, Truth Lab v1, once-opened hard-v2/hard-v3, Coverage v3 и production неизменными; до сравнения зафиксировать не более трёх действительно разных локальных speaker-verification backend, включая текущий control и минимум один независимо обученный ECAPA-class или сопоставимый backend, вместе с model, license, runtime и SHA-256 provenance; использовать существующие exact corpora только как development truth с заранее замороженными enrollment, segment partition, scoring, calibration и open-set abstention; до выбора кандидата создать и запечатать новый disjoint hard-v4 с новыми voices, scripts, durations, transitions, overlap и open-set cases, затем выбрать не более одного кандидата на development по fixed gates и открыть hard-v4 ровно один раз; выпустить `PROMOTE_LAB_IDENTITY_CANDIDATE` только при exact word conservation, B-cubed F1 не ниже `0.85`, pairwise precision не ниже `0.99`, known-speaker recall не ниже `0.80`, zero open-set false attribution, mixed fail-closed и boundary no-regression, иначе выпустить воспроизводимый `DO_NOT_PROMOTE_IDENTITY_BACKEND`; не менять selected transcript, Coverage v3, raw CAF, primary ASR, Echo Guard и synthetic-to-real boundary; добавить CLI, автоматические тесты и Transcript Perfection source, обновить README, contracts, runbook, current-goal, roadmap и OpsKarta, закоммитить и отправить изменения в origin/main.
-      success_by_next_sync: "Один новый identity backend квалифицирован или воспроизводимо отклонён на disjoint one-shot hard-v4 без изменения production и Coverage v3."
+        ECAPA Remote Speaker Shadow Qualification v1: сохранить promoted lab candidate, one-shot hard-v4, Coverage v3 и selected transcripts неизменными; встроить frozen ECAPA backend только как fail-open shadow над существующими remote-speaker intervals реальных frozen sessions; использовать только уже разрешённые reviewed speaker labels и anonymous within-session evidence, не переносить synthetic voices или identity между сессиями; сравнить ECAPA с Coverage v3 по exact word conservation, attributed precision, known reviewed coverage, open-set/unknown safety, boundary/order и runtime; публиковать shadow artifacts и corpus report с полной model/input provenance; разрешить отдельное production promotion решение только при no-regression, нулевой ложной уверенности на reviewed negatives и воспроизводимом улучшении real-session coverage, иначе выпустить `DO_NOT_PROMOTE_REAL_IDENTITY`; добавить автоматические тесты и Transcript Perfection source, обновить документацию и планирование, закоммитить и отправить изменения.
+      success_by_next_sync: "ECAPA воспроизводимо квалифицирован или отклонён на frozen real-session shadow corpus без изменения Coverage v3 и selected transcripts."
     defaults:
       status_progress:
         done: 1.0
@@ -880,13 +889,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle, batch transcript, review, notes/export и Live Shadow уже работают."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Stronger Remote Speaker Identity Backend Qualification v1"
-        scope_nodes: [quality-stronger-remote-speaker-identity-backend-qualification-v1]
+        title: "ECAPA Remote Speaker Shadow Qualification v1"
+        scope_nodes: [quality-ecapa-remote-speaker-shadow-qualification-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Oracle decomposition показал dominant identity gain 0.351382 против segmentation 0.063882 и overlap/open-set 0.036364."
-          next_sync_goal: "Заморозить shortlist и hard-v4 до model comparison, затем открыть hard-v4 ровно один раз."
+          sync_note: "ECAPA прошёл one-shot hard-v4 с F1 0.948042, known recall 0.947368, precision 1.0 и zero open-set false attribution; production не менялся."
+          next_sync_goal: "Проверить frozen ECAPA fail-open на реальных reviewed session-local intervals против Coverage v3."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -905,6 +914,7 @@ x:
           - quality-segment-context-remote-speaker-attribution-v1
           - quality-remote-speaker-attribution-error-decomposition-v1
           - quality-stronger-remote-speaker-identity-backend-qualification-v1
+          - quality-ecapa-remote-speaker-shadow-qualification-v1
         kind: main
         mgmt:
           health: yellow
@@ -939,7 +949,7 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: oracle-разложение выбрало identity bottleneck; текущий фокус — один frozen backend shortlist и one-shot hard-v4."
+        caption: "Короткая карта: ECAPA прошёл synthetic hard-v4; текущий фокус — fail-open shadow на frozen real sessions без изменения production."
         blocks:
           - working-now
           - current-quality
