@@ -125,8 +125,10 @@ is an explicit opt-in view with exact source text. Speaker-Resolved Transcript D
 promoted. Lexical Accuracy Reference Corpus v1 closes `REFERENCE_INSUFFICIENT`: the exact generated
 67-word subset has WER/CER `0`, while real-meeting correctness still lacks human-reviewed evidence.
 Remote Speaker Residual Reference Corpus v1 closed `REFERENCE_INSUFFICIENT` after freezing 278 blind
-items and all 53 WavLM proposals without direct truth. Controlled Remote Speaker Truth Lab v1 is the
-current quality goal. Notes, retrieval, external writes and UI remain optional work.
+items and all 53 WavLM proposals without direct truth. Controlled Remote Speaker Truth Lab v1 then
+qualified the Coverage v3 control but rejected the WavLM candidate (`0.834325` B-cubed F1, two
+open-set false attributions). Duration-Aware Remote Speaker Attribution v2 is current and freezes a
+new hard-v2 before any topology changes. Notes, retrieval, external writes and UI remain optional work.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.
 

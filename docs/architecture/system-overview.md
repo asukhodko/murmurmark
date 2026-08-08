@@ -130,8 +130,10 @@ surface with exact aggregate fail-open. Lexical Accuracy Reference Corpus v1 clo
 `REFERENCE_INSUFFICIENT`. Independent WavLM recovered 53 words / `23.357s`, missed both coverage
 gates and closed `DO_NOT_PROMOTE`. Remote Speaker Residual Reference Corpus v1 froze 278 blind items
 and closed `REFERENCE_INSUFFICIENT` because direct truth covers 0/53 proposals. Controlled Remote
-Speaker Truth Lab v1 is the current quality step; it can qualify topology on exact scripted evidence
-but cannot promote real-session labels. Notes, retrieval and work proposals remain optional.
+Speaker Truth Lab v1 then produced exact held-out truth: the Coverage v3 control qualified, while the
+WavLM candidate failed short-word and unseen open-set gates. Duration-Aware Remote Speaker
+Attribution v2 is current and must freeze a new hard-v2 before prototype or fusion work. None of the
+synthetic evidence can promote real-session labels. Notes, retrieval and work proposals remain optional.
 
 Target transcription path:
 

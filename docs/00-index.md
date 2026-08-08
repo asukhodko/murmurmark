@@ -98,7 +98,10 @@ Read in this order:
 94. [Remote Speaker Residual Reference Corpus v1 contract](contracts/remote-speaker-residual-reference-corpus-v1.md)
 95. [Remote Speaker Residual Reference Corpus v1 runbook](runbooks/remote-speaker-residual-reference-corpus-v1.md)
 96. [Remote Speaker Residual Reference Corpus v1 result](testing/2026-08-08-remote-speaker-residual-reference-corpus-v1.md)
-97. [Planning and development history](history/README.md)
+97. [Controlled Remote Speaker Truth Lab v1 contract](contracts/controlled-remote-speaker-truth-lab-v1.md)
+98. [Controlled Remote Speaker Truth Lab v1 runbook](runbooks/controlled-remote-speaker-truth-lab-v1.md)
+99. [Controlled Remote Speaker Truth Lab v1 result](testing/2026-08-08-controlled-remote-speaker-truth-lab-v1.md)
+100. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
@@ -122,8 +125,10 @@ correctness still lacks human-reviewed evidence. The independent WavLM experimen
 direct candidate truth.
 **Remote Speaker Residual Reference Corpus v1** materialized 278 blind items but closed
 `REFERENCE_INSUFFICIENT`: all 53 proposals still lack direct truth. **Controlled Remote Speaker
-Truth Lab v1** is current and measures constrained/open-set attribution against exact local scripted
-truth before any further real-session tuning. Notes, retrieval and work proposals remain parked.
+Truth Lab v1** then froze 8 sessions and 240 exact words. The Coverage v3 control qualified on hard,
+while the WavLM candidate closed `DO_NOT_ADVANCE` after two unseen open-set false attributions.
+**Duration-Aware Remote Speaker Attribution v2** is current: it must freeze a new untouched hard-v2
+before prototype or score-fusion development. Notes, retrieval and work proposals remain parked.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

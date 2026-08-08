@@ -1311,6 +1311,7 @@ enum DoctorChecks {
             "scripts/audit-independent-remote-speaker-evidence-v1.py",
             "scripts/report-independent-remote-speaker-evidence-v1-corpus.py",
             "scripts/report-remote-speaker-residual-reference-corpus.py",
+            "scripts/controlled-remote-speaker-truth-lab-v1.py",
             "scripts/materialize-anonymous-rich-transcript.py",
             "scripts/review-remote-speaker-labels.py",
             "scripts/materialize-reviewed-speaker-memory.py",
@@ -7658,7 +7659,7 @@ enum CorpusCommands {
                 "corpus requires process, build, evaluate, train-audio-judge, taxonomy, gate, order, " +
                 "local-recall, local-recall-repair, boundary, remote-leak, echo-candidate, " +
                 "echo-supervision, remote-coverage, speaker-default, remote-residual, " +
-                "remote-independent, remote-reference, perfection, lifecycle, or report"
+                "remote-independent, remote-reference, remote-truth-lab, perfection, lifecycle, or report"
             )
         }
         var forwarded = Array(args.dropFirst())
@@ -8017,6 +8018,19 @@ enum CorpusCommands {
                     + ["--sessions-root", sessionsRoot.path],
                 allowedExitCodes: [0, 2]
             )
+        case "remote-truth-lab", "remote_truth_lab":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(
+                    try PythonRuntime.resolve(),
+                    [try script("controlled-remote-speaker-truth-lab-v1.py").path, "--help"]
+                )
+                return
+            }
+            _ = try Tooling.runPathAllowingExitCodes(
+                try PythonRuntime.resolve(),
+                [try script("controlled-remote-speaker-truth-lab-v1.py").path] + forwarded,
+                allowedExitCodes: [0, 2]
+            )
         case "lifecycle":
             try Tooling.runPath(
                 try PythonRuntime.resolve(),
@@ -8167,6 +8181,8 @@ enum CorpusHelp {
           murmurmark corpus remote-independent all [--verify-existing] [--sessions-root ./sessions]
           murmurmark corpus remote-reference build|next|grade|status|replay
                                       [--sessions-root ./sessions]
+          murmurmark corpus remote-truth-lab build|evaluate|status|replay
+                                      [--policy policies/controlled-remote-speaker-truth-lab-v1.json]
           murmurmark corpus perfection all [--verify-existing]
                                         [--manifest docs/testing/transcript-perfection-corpus-v1-manifest.json]
           murmurmark corpus lexical import SESSION SOURCE --source-id ID

@@ -1,0 +1,216 @@
+{
+  "schema": "murmurmark.controlled_remote_speaker_truth_lab_policy/v1",
+  "state": "evaluated_do_not_advance",
+  "seed": "murmurmark-controlled-remote-speaker-truth-lab-v1",
+  "renderer": {
+    "command": "say",
+    "rate_words_per_minute": 170,
+    "sample_rate": 16000,
+    "word_peak": 0.12,
+    "minimum_word_sec": 0.65,
+    "word_edge_padding_sec": 0.08,
+    "inter_word_gap_sec": 0.08,
+    "audio_subtype": "PCM_16",
+    "speakers": [
+      {
+        "speaker_id": "remote_speaker_01",
+        "system_voice": "Samantha",
+        "enrolled": true
+      },
+      {
+        "speaker_id": "remote_speaker_02",
+        "system_voice": "Daniel",
+        "enrolled": true
+      },
+      {
+        "speaker_id": "remote_speaker_03",
+        "system_voice": "Moira",
+        "enrolled": true
+      },
+      {
+        "speaker_id": "remote_speaker_04",
+        "system_voice": "Ralph",
+        "enrolled": true
+      },
+      {
+        "speaker_id": "open_set_speaker_dev",
+        "system_voice": "Karen",
+        "enrolled": false
+      },
+      {
+        "speaker_id": "open_set_speaker_hard",
+        "system_voice": "Kathy",
+        "enrolled": false
+      }
+    ]
+  },
+  "corpus": {
+    "splits": {
+      "train": [
+        "train_1x1",
+        "train_group",
+        "train_balance"
+      ],
+      "dev": [
+        "dev_internal_boundaries",
+        "dev_open_set"
+      ],
+      "hard": [
+        "hard_short_turns",
+        "hard_group_rare_silence",
+        "hard_overlap_open_set"
+      ]
+    },
+    "scenarios": {
+      "train_1x1": {
+        "meeting_mode": "1x1",
+        "events": [
+          {"speaker_id": "remote_speaker_01", "word_count": 8, "gap_before_sec": 0.6},
+          {"speaker_id": "remote_speaker_02", "word_count": 8, "gap_before_sec": 0.35},
+          {"speaker_id": "remote_speaker_01", "word_count": 7, "gap_before_sec": 0.25},
+          {"speaker_id": "remote_speaker_02", "word_count": 7, "gap_before_sec": 0.25}
+        ]
+      },
+      "train_group": {
+        "meeting_mode": "group",
+        "events": [
+          {"speaker_id": "remote_speaker_01", "word_count": 6, "gap_before_sec": 0.5},
+          {"speaker_id": "remote_speaker_03", "word_count": 7, "gap_before_sec": 0.3},
+          {"speaker_id": "remote_speaker_04", "word_count": 6, "gap_before_sec": 0.3},
+          {"speaker_id": "remote_speaker_02", "word_count": 7, "gap_before_sec": 0.3},
+          {"speaker_id": "remote_speaker_03", "word_count": 6, "gap_before_sec": 0.2},
+          {"speaker_id": "remote_speaker_01", "word_count": 6, "gap_before_sec": 0.2},
+          {"speaker_id": "remote_speaker_04", "word_count": 6, "gap_before_sec": 0.2},
+          {"speaker_id": "remote_speaker_02", "word_count": 6, "gap_before_sec": 0.2}
+        ]
+      },
+      "train_balance": {
+        "meeting_mode": "group",
+        "events": [
+          {"speaker_id": "remote_speaker_01", "word_count": 6, "gap_before_sec": 0.5},
+          {"speaker_id": "remote_speaker_02", "word_count": 6, "gap_before_sec": 0.25},
+          {"speaker_id": "remote_speaker_03", "word_count": 6, "gap_before_sec": 0.25},
+          {"speaker_id": "remote_speaker_04", "word_count": 6, "gap_before_sec": 0.25},
+          {"speaker_id": "remote_speaker_01", "word_count": 6, "gap_before_sec": 0.25},
+          {"speaker_id": "remote_speaker_02", "word_count": 6, "gap_before_sec": 0.25},
+          {"speaker_id": "remote_speaker_03", "word_count": 6, "gap_before_sec": 0.25},
+          {"speaker_id": "remote_speaker_04", "word_count": 6, "gap_before_sec": 0.25}
+        ]
+      },
+      "dev_internal_boundaries": {
+        "meeting_mode": "group",
+        "events": [
+          {"speaker_id": "remote_speaker_01", "word_count": 3, "gap_before_sec": 0.5},
+          {"speaker_id": "remote_speaker_02", "word_count": 3, "gap_before_sec": 0.08},
+          {"speaker_id": "remote_speaker_01", "word_count": 3, "gap_before_sec": 0.08},
+          {"speaker_id": "remote_speaker_03", "word_count": 3, "gap_before_sec": 0.08},
+          {"speaker_id": "remote_speaker_04", "word_count": 3, "gap_before_sec": 0.08},
+          {"speaker_id": "remote_speaker_02", "word_count": 3, "gap_before_sec": 0.08}
+        ]
+      },
+      "dev_open_set": {
+        "meeting_mode": "group",
+        "events": [
+          {"speaker_id": "remote_speaker_01", "word_count": 4, "gap_before_sec": 0.5},
+          {"speaker_id": "open_set_speaker_dev", "word_count": 4, "gap_before_sec": 0.2},
+          {"speaker_id": "remote_speaker_02", "word_count": 4, "gap_before_sec": 0.2},
+          {"speaker_id": "open_set_speaker_dev", "word_count": 3, "gap_before_sec": 0.2},
+          {"speaker_id": "remote_speaker_03", "word_count": 4, "gap_before_sec": 0.2},
+          {"speaker_id": "remote_speaker_04", "word_count": 4, "gap_before_sec": 0.2}
+        ]
+      },
+      "hard_short_turns": {
+        "meeting_mode": "group",
+        "events": [
+          {"speaker_id": "remote_speaker_01", "word_count": 1, "gap_before_sec": 0.5},
+          {"speaker_id": "remote_speaker_02", "word_count": 2, "gap_before_sec": 0.06},
+          {"speaker_id": "remote_speaker_03", "word_count": 1, "gap_before_sec": 0.06},
+          {"speaker_id": "remote_speaker_04", "word_count": 2, "gap_before_sec": 0.06},
+          {"speaker_id": "remote_speaker_01", "word_count": 2, "gap_before_sec": 0.06},
+          {"speaker_id": "remote_speaker_02", "word_count": 1, "gap_before_sec": 0.06},
+          {"speaker_id": "remote_speaker_03", "word_count": 2, "gap_before_sec": 0.06},
+          {"speaker_id": "remote_speaker_04", "word_count": 1, "gap_before_sec": 0.06}
+        ]
+      },
+      "hard_group_rare_silence": {
+        "meeting_mode": "group",
+        "events": [
+          {"speaker_id": "remote_speaker_01", "word_count": 6, "gap_before_sec": 0.5},
+          {"speaker_id": "remote_speaker_02", "word_count": 5, "gap_before_sec": 0.25},
+          {"speaker_id": "remote_speaker_03", "word_count": 5, "gap_before_sec": 2.5},
+          {"speaker_id": "remote_speaker_01", "word_count": 4, "gap_before_sec": 0.2},
+          {"speaker_id": "remote_speaker_04", "word_count": 1, "gap_before_sec": 0.1},
+          {"speaker_id": "remote_speaker_02", "word_count": 5, "gap_before_sec": 0.1},
+          {"speaker_id": "remote_speaker_03", "word_count": 4, "gap_before_sec": 0.2}
+        ]
+      },
+      "hard_overlap_open_set": {
+        "meeting_mode": "group",
+        "events": [
+          {"speaker_id": "remote_speaker_01", "word_count": 5, "gap_before_sec": 0.5},
+          {"speaker_id": "remote_speaker_02", "word_count": 4, "overlap_previous_sec": 1.4},
+          {"speaker_id": "open_set_speaker_hard", "word_count": 4, "gap_before_sec": 0.35},
+          {"speaker_id": "remote_speaker_03", "word_count": 5, "gap_before_sec": 0.2},
+          {"speaker_id": "remote_speaker_01", "word_count": 4, "gap_before_sec": 0.2},
+          {"speaker_id": "open_set_speaker_hard", "word_count": 3, "overlap_previous_sec": 1.0},
+          {"speaker_id": "remote_speaker_04", "word_count": 4, "gap_before_sec": 0.35}
+        ]
+      }
+    }
+  },
+  "analysis": {
+    "minimum_analysis_sec": 0.65,
+    "overlap_min_sec": 0.04,
+    "boundary_tolerance_sec": 0.12,
+    "wavlm_batch_size": 8,
+    "dev_similarity_grid": [0.7, 0.75, 0.8, 0.85, 0.88, 0.9, 0.92, 0.94, 0.96],
+    "dev_margin_grid": [0.0, 0.01, 0.02, 0.04, 0.06, 0.08, 0.1, 0.12],
+    "coverage_v3_similarity": 0.82,
+    "coverage_v3_margin": 0.08
+  },
+  "gates": {
+    "minimum_anonymous_enrolled_speakers": 4,
+    "minimum_held_out_bcubed_f1": 0.98,
+    "minimum_held_out_pairwise_precision": 0.98,
+    "minimum_boundary_recall": 1.0,
+    "maximum_open_set_false_attributions": 0,
+    "maximum_mixture_reconstruction_sample_error": 0,
+    "require_all_words_conserved": true,
+    "require_direct_truth_coverage": true,
+    "require_session_disjoint_splits": true,
+    "require_hard_split_untuned": true,
+    "require_public_artifacts_private_safe": true,
+    "synthetic_evidence_cannot_promote_real_transcripts": true
+  },
+  "corpus_result": {
+    "evaluated_on": "2026-08-08",
+    "decision": "DO_NOT_ADVANCE",
+    "scenarios": 8,
+    "total_words": 240,
+    "hard_words": 71,
+    "hard_known_single_speaker_words": 58,
+    "hard_mixed_words": 8,
+    "hard_open_set_words": 5,
+    "maximum_reconstruction_sample_error": 0,
+    "coverage_v3_topology": {
+      "decision": "CONTROL_QUALIFIED",
+      "bcubed_f1": 0.983505,
+      "pairwise_precision": 1.0,
+      "boundary_recall": 1.0,
+      "open_set_false_attributions": 0,
+      "known_attribution_recall": 0.982759
+    },
+    "wavlm_open_set_candidate": {
+      "decision": "DO_NOT_ADVANCE",
+      "minimum_similarity": 0.85,
+      "minimum_margin": 0.04,
+      "bcubed_f1": 0.834325,
+      "pairwise_precision": 0.95092,
+      "boundary_recall": 0.625,
+      "open_set_false_attributions": 2,
+      "known_attribution_recall": 0.862069
+    },
+    "hard_used_for_tuning": false,
+    "reason": "the independent WavLM candidate lost short-word coverage and falsely attributed an unseen open-set voice; the frozen Coverage v3 topology remained the qualified control"
+  }
+}

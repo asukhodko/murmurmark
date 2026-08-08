@@ -10,7 +10,9 @@ promoted. Lexical Accuracy Reference Corpus v1 closed `REFERENCE_INSUFFICIENT` a
 exact 67-word digital subset at WER/CER `0`. Independent WavLM evidence recovered 53 words /
 `23.357s`, missed both coverage gates and closed `DO_NOT_PROMOTE`. The blind residual corpus froze
 278 items but closed `REFERENCE_INSUFFICIENT` with 0/53 direct proposal labels. Controlled Remote
-Speaker Truth Lab v1 is current; notes, retrieval and work proposals remain optional derivatives.
+Speaker Truth Lab v1 qualified the Coverage v3 control and rejected the WavLM candidate on exact
+hard truth. Duration-Aware Remote Speaker Attribution v2 is current and freezes a new hard-v2 before
+topology development; notes, retrieval and work proposals remain optional derivatives.
 Date: 2026-08-08
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
@@ -469,9 +471,9 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Controlled Remote Speaker Truth Lab v1: создать exact-scripted local multi-speaker remote corpus,
-проверить constrained/open-set attribution на held-out truth и не переносить synthetic success в
-real-session promotion.
+Duration-Aware Remote Speaker Attribution v2: до topology work заморозить новый untouched hard-v2,
+выбрать duration-aware prototype/normalization/fusion candidate только на v1 development evidence,
+затем один раз проверить hard-v2 без переноса synthetic labels в real-session promotion.
 ```
 
 Speaker-Resolved Transcript Default v1 завершён `PROMOTE`: ordinary read/handoff/export выбирают v3
@@ -495,6 +497,8 @@ missed both `20%` gates. The subsequent blind corpus froze all 851 residual word
 and all 53 proposals; structural gates pass, while direct truth remains 0/53. That stage therefore
 closed `REFERENCE_INSUFFICIENT` without changing Coverage v3.
 
-The autonomous next step is exact scripted evidence: local source stems, known speaker/word/time
-truth, disjoint held-out mixtures and explicit open-set speakers. It can decide whether a constrained
-WavLM topology is technically sound. It cannot replace blind review of real-session proposals.
+Exact scripted evidence is now complete. The Coverage v3 control passed hard at B-cubed `0.983505`,
+pairwise precision `1.0`, boundaries `16/16` and zero open-set errors. The WavLM candidate failed at
+`0.834325`, `0.950920`, `10/16` and two false attributions. The next autonomous step freezes an
+unseen hard-v2 before duration-aware prototypes or score fusion are developed. It still cannot
+replace blind review of real-session proposals.

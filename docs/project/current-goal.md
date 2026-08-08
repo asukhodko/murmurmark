@@ -6,76 +6,76 @@ This document expands the single executable goal from
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`.
 `scripts/check-planning-consistency.py` keeps the README, roadmap and OpsKarta wording aligned.
 
-## Controlled Remote Speaker Truth Lab v1
+## Duration-Aware Remote Speaker Attribution v2
 
-OpsKarta nearest goal: Controlled Remote Speaker Truth Lab v1: создать полностью локальный детерминированный exact-scripted multi-speaker remote corpus с отдельными source stems, canonical mixtures, word/speaker/timestamp truth, SHA-256 и session-disjoint train/dev/hard splits; покрыть минимум четыре anonymous voices, 1x1 и group turns, внутрисегментные speaker changes, short turns, silence, overlap, rare speaker и open-set speaker без enrollment; запускать promoted Coverage v3 и candidate constrained/open-set WavLM topology только как audit, не считать machine agreement truth и не использовать real-session residual для настройки; завершить LAB_READY только при полном word conservation, direct truth coverage, deterministic replay, held-out B-cubed F1 и pairwise precision >=0.98, open-set false attribution ==0 и boundary recall 100%, иначе DO_NOT_ADVANCE; не менять selected transcript, Coverage v3, raw CAF, primary ASR или Echo Guard; хранить generated speech в private ignored artifacts, tracked outputs ограничить aggregate metrics, portable paths и hashes; добавить CLI, тесты и corpus report, обновить README, contracts, runbook, roadmap и OpsKarta, закоммитить и отправить в origin/main.
+OpsKarta nearest goal: Duration-Aware Remote Speaker Attribution v2: до любых изменений алгоритма заморозить новый private exact-scripted hard-v2 с ранее не использованными scripts, renderer voices, source stems, word/speaker/timestamp truth и SHA-256; считать Truth Lab v1 train/dev/hard только development evidence и не использовать hard-v2 до окончательного freeze кандидата; реализовать и сравнить не более трёх заранее объявленных topology — duration-binned prototype bank, cohort-normalized WavLM и conservative Resemblyzer/WavLM fusion — с timestamp-only mixed detection и fail-open unknown; выбрать кандидата только по development, запустить hard-v2 ровно один раз и завершить PROMOTE_LAB_CANDIDATE лишь при exact word conservation, deterministic replay, B-cubed F1 и pairwise precision >=0.98, known-speaker recall >=0.98, boundary recall 100%, zero open-set false attribution и полном non-regression Coverage v3 control, иначе выпустить DO_NOT_PROMOTE_TOPOLOGY; не менять selected transcript, Coverage v3, raw CAF, primary ASR или Echo Guard и не переносить synthetic labels в real sessions; хранить generated speech и truth в private ignored artifacts, tracked outputs ограничить агрегатами, portable paths и hashes; добавить CLI, тесты и corpus report, обновить README, contracts, runbook, current-goal, roadmap и OpsKarta, закоммитить и отправить в origin/main.
 
 ## Why Now
 
-Independent WavLM recovered 53 residual words / `23.357s`, but direct truth covers none of them.
-Remote Speaker Residual Reference Corpus v1 produced a correct blind queue of 278 items and closed
-`REFERENCE_INSUFFICIENT`: a real-meeting promotion decision cannot be manufactured autonomously.
+Truth Lab v1 supplied direct exact evidence instead of model agreement. Its clean held-out control
+qualified the frozen Coverage v3 decision shape, while the independent WavLM candidate failed on
+short words and a previously unseen open-set voice.
 
-The next useful autonomous step is an exact local laboratory. It can reveal whether constrained and
-open-set attribution is technically viable before asking for real blind review, while keeping the
-real-session residual untouched.
+The v1 hard split has now been observed and must never become the final test for another candidate.
+The next honest step is to freeze a new hard-v2 before topology development, use v1 only as
+development evidence, and run hard-v2 once after the candidate is sealed.
 
 ## Objective
 
-Generate known multi-speaker remote sources and mixtures, freeze exact speaker/word/time truth, and
-evaluate the existing and candidate diarization topology on disjoint held-out material. End with
-`LAB_READY` or reproducible `DO_NOT_ADVANCE`.
+Determine whether duration-matched prototypes, cohort score normalization or conservative backend
+fusion can retain the Coverage v3 control quality while adding genuinely independent open-set
+evidence. End with `PROMOTE_LAB_CANDIDATE` or reproducible `DO_NOT_PROMOTE_TOPOLOGY`.
 
 ## Required Work
 
-1. Pin local source voices/renderers and fingerprint every stem and mixture.
-2. Build train/dev/hard scenarios with at least four anonymous speakers, short turns, internal
-   changes, overlap, silence, rare speaker and open-set speaker.
-3. Store exact script, speaker, word and boundary truth privately; publish only aggregate hashes and
-   metrics.
-4. Run Coverage v3 and candidate constrained/open-set WavLM without learning from held-out data.
-5. Measure word conservation, direct attribution, B-cubed, pairwise precision, boundary recall and
-   open-set false attribution.
-6. Add CLI build/status/replay, deterministic tests and a corpus report.
-7. Keep real-session promotion blocked regardless of a synthetic `LAB_READY` result.
+1. Freeze a private hard-v2 with new scripts, source hashes and renderer voices not present in v1.
+2. Record the freeze before implementing or selecting any candidate topology.
+3. Treat all v1 splits as development; do not report v1 hard as fresh held-out evidence again.
+4. Predeclare at most three candidates: duration-binned prototypes, cohort-normalized WavLM and
+   conservative Resemblyzer/WavLM fusion.
+5. Use only timestamps and audio for mixed/open-set decisions; truth remains evaluation-only.
+6. Select one candidate on development, seal its configuration, then open hard-v2 once.
+7. Add deterministic replay, privacy checks, CLI, tests and aggregate corpus reporting.
 
 ## Acceptance Gates
 
-- source stems reconstruct each canonical mixture within the declared tolerance;
-- every reference word has one stable ID, speaker, start and end;
-- train/dev/hard speakers and source hashes obey the frozen split contract;
-- all held-out words are conserved exactly;
-- held-out B-cubed F1 and pairwise precision are at least 0.98;
-- all scripted speaker boundaries are recovered;
-- no open-set word is forced into an enrolled speaker;
-- replay is byte-stable and public artifacts contain no speech, names or absolute paths;
-- any failed gate produces `DO_NOT_ADVANCE`, never a weaker production threshold.
+- exact hard-v2 word conservation and direct scripted truth coverage;
+- source stems reconstruct every mixture with zero PCM sample error;
+- hard-v2 inputs predate candidate freeze and are not used for tuning;
+- B-cubed F1 and pairwise precision are at least `0.98`;
+- known-speaker attribution recall is at least `0.98`;
+- all scripted boundaries are recovered;
+- no unseen open-set word is assigned to an enrolled speaker;
+- Coverage v3 control metrics and safety behavior do not regress;
+- replay is deterministic and public artifacts contain no speech, names or absolute paths.
+
+Any failed gate produces `DO_NOT_PROMOTE_TOPOLOGY`. Threshold relaxation after hard-v2 is opened is
+forbidden.
 
 ## Safety Boundary
 
-- synthetic lab evidence cannot promote or edit a real transcript;
-- no capture, Echo Guard, primary ASR, Coverage v3 or raw CAF changes;
-- no cloud speech service, voice-derived name or cross-session identity;
-- no tuning on the frozen six-session residual;
-- no notes, summaries, UI or external writes.
+- lab promotion is not real-session promotion;
+- selected transcript, Coverage v3, raw CAF, primary ASR and Echo Guard remain unchanged;
+- no synthetic label enters a real session or reviewed speaker memory;
+- no cloud speech service or cross-session human identity;
+- real residual proposals stay blocked without direct blind truth.
 
 ## Previous Goal Result
 
-Remote Speaker Residual Reference Corpus v1 completed `REFERENCE_INSUFFICIENT`:
+Controlled Remote Speaker Truth Lab v1 completed with a split result:
 
-- 851 words / `598.239509s` frozen across six sessions;
-- 278 blind review items and 28 session-local exemplars;
-- all 53 WavLM proposals / `23.356997s` sealed separately;
-- 0 reviewed items and 0 directly referenced proposal words;
-- structural, privacy, replay and no-mutation gates pass;
-- Coverage v3 remains the exact fallback.
+- 8 sessions, 6 anonymous local voices and 240 exact words;
+- exact stems/mixtures/truth, zero-sample reconstruction error and deterministic replay;
+- Coverage v3 control: B-cubed `0.983505`, pairwise precision `1.0`, boundaries `16/16`, open-set
+  false attribution `0`;
+- WavLM candidate: B-cubed `0.834325`, pairwise precision `0.950920`, boundaries `10/16`, open-set
+  false attribution `2`;
+- overall candidate decision: `DO_NOT_ADVANCE`;
+- production and the six-session real residual remain unchanged.
 
 ## After This Goal
 
-1. `LAB_READY` permits a bounded constrained/open-set candidate on synthetic held-out truth only.
-2. `DO_NOT_ADVANCE` closes the current topology and preserves Coverage v3.
-3. Real-session promotion still requires blind human or exact scripted truth from the private
-   residual queue.
-4. Real lexical correctness and local mic multi-speaker diarization remain separate prerequisites.
-
-Raw CAF and batch output remain authoritative. Live Shadow remains advisory.
+1. `PROMOTE_LAB_CANDIDATE` permits only a bounded candidate against direct real reference.
+2. `DO_NOT_PROMOTE_TOPOLOGY` closes this model family and keeps Coverage v3 as the supported source.
+3. Real blind residual review and real lexical reference remain external evidence prerequisites.
+4. Local mic multi-speaker diarization remains conditional on a real consented scenario.

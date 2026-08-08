@@ -1,0 +1,61 @@
+{
+  "schema": "murmurmark.controlled_remote_speaker_truth_lab_tracked_manifest/v1",
+  "decision": "DO_NOT_ADVANCE",
+  "generated_on": "2026-08-08",
+  "implementation": {
+    "checker": {
+      "path": "scripts/check-controlled-remote-speaker-truth-lab-v1.py",
+      "sha256": "762063684d74afda967b648882cadb489c47c80f5f8d680eb8c87c9a75d07d71"
+    },
+    "policy": {
+      "path": "policies/controlled-remote-speaker-truth-lab-v1.json",
+      "sha256": "49f80ffa36f470fbed81c82584ee1231f2bebd615b8deb9885deb5be5ff6493c"
+    },
+    "runner": {
+      "path": "scripts/controlled-remote-speaker-truth-lab-v1.py",
+      "sha256": "4e24539a741e59ed2b00665ad7cd2c9f5843df1857c8b6e4605e0d402189e6dc"
+    }
+  },
+  "private_corpus": {
+    "corpus_sha256": "4733f4679f6628c15ee34f58a32e2bc27e840ee6f3f43e6dca13e32402808d42",
+    "frozen_manifest": {
+      "bytes": 42947,
+      "path": "sessions/_reports/controlled-remote-speaker-truth-lab-v1/private/frozen_manifest.json",
+      "sha256": "26074894aeb311b75eedb42f1833db4e0be147e4378a9ff5c6bbe520b453ab6a"
+    },
+    "mode": "local_speech",
+    "scenarios": 8,
+    "speakers": 6,
+    "words": 240
+  },
+  "public_artifacts": {
+    "markdown": {
+      "path": "sessions/_reports/controlled-remote-speaker-truth-lab-v1/controlled_remote_speaker_truth_lab_report.md",
+      "sha256": "332567a0ba29b66a162175f4605789fd793b72ecafdee8a00f96de33281c89b9"
+    },
+    "replay": {
+      "path": "sessions/_reports/controlled-remote-speaker-truth-lab-v1/replay_report.json",
+      "sha256": "ed925c729cd7f794902f3b3b2a73a04430fcc39ea48307da228bd6c0b1a31db4"
+    },
+    "report": {
+      "path": "sessions/_reports/controlled-remote-speaker-truth-lab-v1/controlled_remote_speaker_truth_lab_report.json",
+      "sha256": "4c84af18d37a97fe1d3464103470068b9890c5dbbe6d10fda3f051cab9049533"
+    }
+  },
+  "result": {
+    "coverage_v3_topology": {
+      "bcubed_f1": 0.983505,
+      "boundary_recall": 1.0,
+      "decision": "CONTROL_QUALIFIED",
+      "open_set_false_attributions": 0,
+      "pairwise_precision": 1.0
+    },
+    "wavlm_open_set_candidate": {
+      "bcubed_f1": 0.834325,
+      "boundary_recall": 0.625,
+      "decision": "DO_NOT_ADVANCE",
+      "open_set_false_attributions": 2,
+      "pairwise_precision": 0.95092
+    }
+  }
+}

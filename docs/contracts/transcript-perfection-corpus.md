@@ -62,6 +62,11 @@ blind pack is accepted as measured evidence even when its scientific decision is
 `REFERENCE_INSUFFICIENT`; readiness failures remain an explicit `remote_speaker_turns` blocker and
 are never treated as input corruption or correct attribution.
 
+Controlled Remote Speaker Truth Lab v1 is the fifteenth frozen source. Exact synthetic truth is
+accepted as topology evidence, while `DO_NOT_ADVANCE` remains a valid scientific decision. The
+qualified Coverage v3 control and rejected WavLM candidate are reported separately; neither can
+create truth for a real residual proposal.
+
 ## Outputs
 
 The command writes only under:

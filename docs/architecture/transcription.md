@@ -190,6 +190,12 @@ The six-session corpus passed `PROMOTE`: attributable speech `0.919071`, attribu
 loss or duplication. Display names remain explicit session review only. The remaining uncertainty,
 including a rare participant without enough enrollment, is not force-assigned.
 
+Controlled Remote Speaker Truth Lab v1 adds exact local topology evidence without touching this
+production path. Its Coverage v3 seeded-centroid control passed held-out synthetic gates, while the
+independent WavLM word-level candidate failed short-word coverage and unseen open-set rejection.
+Duration-Aware Remote Speaker Attribution v2 must freeze a new hard-v2 before changing prototypes or
+score fusion. Synthetic labels never enter a real session.
+
 Mic multi-speaker diarization is a later profile. It starts only after a real multi-person local
 scenario and labelled corpus exist, and must distinguish Target-Me, other local speakers and
 unknown without weakening current Target-Me protection.

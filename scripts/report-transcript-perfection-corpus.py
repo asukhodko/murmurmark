@@ -303,6 +303,32 @@ def semantic_gates(
         {name: reference_gates.get(name) for name in structural_reference_gates},
     )
 
+    truth_lab = payloads.get("controlled_remote_speaker_truth_lab_v1") or {}
+    truth_lab_gates = truth_lab.get("gates") or {}
+    structural_truth_gates = (
+        "minimum_anonymous_enrolled_speakers",
+        "source_stem_reconstruction_exact",
+        "session_disjoint_splits",
+        "hard_split_untuned",
+        "all_words_conserved",
+        "direct_truth_coverage",
+        "mixed_words_fail_closed",
+        "public_artifacts_private_safe",
+        "synthetic_evidence_not_promoted",
+    )
+    add(
+        "controlled_remote_speaker_truth_lab_v1",
+        "scientific_decision",
+        truth_lab.get("decision") in {"LAB_READY", "DO_NOT_ADVANCE"},
+        truth_lab.get("decision"),
+    )
+    add(
+        "controlled_remote_speaker_truth_lab_v1",
+        "exact_truth_and_safety",
+        all(truth_lab_gates.get(name) is True for name in structural_truth_gates),
+        {name: truth_lab_gates.get(name) for name in structural_truth_gates},
+    )
+
     failures = [f"semantic_gate:{row['source']}:{row['gate']}" for row in checks if not row["passed"]]
     return checks, failures
 
@@ -432,6 +458,10 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
     remote_reference = payloads["remote_speaker_residual_reference_corpus_v1"]
     remote_reference_summary = remote_reference["summary"]
     remote_reference_ready = remote_reference["decision"] == "REFERENCE_READY"
+    truth_lab = payloads["controlled_remote_speaker_truth_lab_v1"]
+    truth_tracks = truth_lab["evaluation"]["track_decisions"]
+    truth_control = truth_lab["evaluation"]["coverage_v3_topology"]["hard"]
+    truth_candidate = truth_lab["evaluation"]["wavlm_open_set_candidate"]["hard"]
 
     return [
         {
@@ -504,6 +534,7 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 "remote_speaker_coverage_v3",
                 "remote_speaker_coverage_v3_manifest",
                 "remote_speaker_residual_reference_corpus_v1",
+                "controlled_remote_speaker_truth_lab_v1",
             ],
             "metrics": {
                 "attributable_speech_ratio": float(remote_summary["attributable_remote_speech_ratio"]),
@@ -519,6 +550,20 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                     remote_reference_summary["direct_reference_proposal_words"]
                 ),
                 "candidate_precision": remote_reference_summary["candidate_precision"],
+                "truth_lab_decision": truth_lab["decision"],
+                "truth_lab_control_decision": truth_tracks["coverage_v3_topology"]["decision"],
+                "truth_lab_control_bcubed_f1": float(truth_control["bcubed"]["f1"]),
+                "truth_lab_control_pairwise_precision": float(
+                    truth_control["pairwise"]["precision"]
+                ),
+                "truth_lab_candidate_decision": truth_tracks["wavlm_open_set_candidate"]["decision"],
+                "truth_lab_candidate_bcubed_f1": float(truth_candidate["bcubed"]["f1"]),
+                "truth_lab_candidate_pairwise_precision": float(
+                    truth_candidate["pairwise"]["precision"]
+                ),
+                "truth_lab_candidate_open_set_false_attributions": int(
+                    truth_candidate["open_set_false_attributions"]
+                ),
             },
             "residual_classes": ["unknown_remote_speaker"],
         },
@@ -688,7 +733,7 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
         release_blockers.insert(2, "remote_speaker_turns.residual_reference_insufficient")
     report = {
         "schema": REPORT_SCHEMA,
-        "generator": {"name": "report-transcript-perfection-corpus", "version": "0.2.0", "mode": "deterministic_offline"},
+        "generator": {"name": "report-transcript-perfection-corpus", "version": "0.3.0", "mode": "deterministic_offline"},
         "decision": decision,
         "manifest": {
             "path": portable_path(Path(str(manifest["_path"]))),
@@ -727,11 +772,12 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
                 "status": "reference_insufficient",
                 "reason": (
                     "the blind 851-word residual pack is frozen, but none of its 53 WavLM proposals "
-                    "has independent human-reviewed or exact-scripted truth"
+                    "has independent human-reviewed or exact-scripted truth; exact synthetic hard "
+                    "truth qualified the Coverage v3 control but rejected the WavLM candidate"
                 ),
                 "next_evidence": (
-                    "build exact scripted multi-speaker remote truth and keep real-meeting promotion "
-                    "blocked until direct blind review exists"
+                    "freeze a new untouched hard-v2 before developing duration-aware prototype and "
+                    "open-set score calibration; keep real promotion blocked until blind truth exists"
                 ),
             },
             {
@@ -756,13 +802,13 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
             ),
         },
         "next_goal": {
-            "id": "controlled-remote-speaker-truth-lab-v1" if not failures else "restore-input-integrity",
-            "title": "Controlled Remote Speaker Truth Lab v1" if not failures else "Restore Input Integrity",
+            "id": "duration-aware-remote-speaker-attribution-v2" if not failures else "restore-input-integrity",
+            "title": "Duration-Aware Remote Speaker Attribution v2" if not failures else "Restore Input Integrity",
             "selected_residual_class": "unknown_remote_speaker" if not failures else None,
             "rationale": (
-                "The blind real-session pack is ready but lacks independent truth. Build an exact scripted local "
-                "multi-speaker remote corpus to evaluate constrained and open-set attribution without using model "
-                "agreement as reference or weakening Coverage v3."
+                "Exact synthetic truth qualified the frozen Coverage v3 control and rejected the WavLM word-level "
+                "candidate. Freeze a new untouched hard-v2, then develop duration-aware prototypes and open-set "
+                "calibration on v1 development evidence without weakening Coverage v3."
                 if not failures
                 else "Input integrity must be restored before selecting an engineering goal."
             ),

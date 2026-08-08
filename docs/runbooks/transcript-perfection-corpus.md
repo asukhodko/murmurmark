@@ -34,10 +34,10 @@ Expected frozen baseline:
 
 ```text
 decision: BASELINE_ESTABLISHED
-sources: 14/14 verified
+sources: 15/15 verified
 release_ready: false
 largest_actionable_residual: unknown_remote_speaker (598.240s)
-next_goal: Controlled Remote Speaker Truth Lab v1
+next_goal: Duration-Aware Remote Speaker Attribution v2
 ```
 
 ## Reading The Result
@@ -47,6 +47,8 @@ next_goal: Controlled Remote Speaker Truth Lab v1
 - `bounded_exact_subset_only` means 67 generated words are measured; real meetings remain reference-insufficient.
 - `lexical_prerequisite` names the external human-reviewed seed without overriding the autonomous next goal.
 - `remote_speaker_turns.residual_reference_insufficient` keeps 0/53 direct proposal truth visible.
+- `truth_lab_control_decision` and `truth_lab_candidate_decision` distinguish a passing control from
+  a rejected candidate; synthetic evidence never resolves a real speaker label.
 - residual seconds belong to different frozen scopes and must not be summed.
 - the first residual row selects the next bounded engineering goal.
 

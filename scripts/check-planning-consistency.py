@@ -69,6 +69,7 @@ CRITICAL_PATH = (
     "quality-independent-remote-speaker-evidence-v1",
     "quality-remote-speaker-residual-reference-corpus-v1",
     "quality-controlled-remote-speaker-truth-lab-v1",
+    "quality-duration-aware-remote-speaker-attribution-v2",
 )
 
 EXPECTED_STATUSES = {"done", "current", "next", "later", "idea", "optional", "blocked"}
@@ -145,7 +146,7 @@ def validate_statuses_and_goal(plan: dict) -> tuple[dict, str]:
     require(isinstance(statuses, dict), "plan.statuses must be a mapping")
     require(set(statuses) == EXPECTED_STATUSES, "plan status set does not match the planning contract")
     require(isinstance(nodes, dict) and nodes, "plan.nodes must be a non-empty mapping")
-    require(len(nodes) <= 46, f"active plan is too large: {len(nodes)} nodes, expected at most 46")
+    require(len(nodes) <= 47, f"active plan is too large: {len(nodes)} nodes, expected at most 47")
 
     current = [(node_id, node) for node_id, node in nodes.items() if node.get("status") == "current"]
     current_tasks = [(node_id, node) for node_id, node in current if node.get("kind") == "task"]
@@ -343,8 +344,17 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
         "controlled remote speaker truth lab must follow the blind residual reference decision",
     )
     require(
-        nodes["quality-controlled-remote-speaker-truth-lab-v1"].get("status") == "current",
-        "controlled remote speaker truth lab must be the current quality goal",
+        nodes["quality-controlled-remote-speaker-truth-lab-v1"].get("status") == "done",
+        "controlled remote speaker truth lab must remain a completed exact evidence checkpoint",
+    )
+    require(
+        "quality-controlled-remote-speaker-truth-lab-v1"
+        in nodes["quality-duration-aware-remote-speaker-attribution-v2"].get("deps", []),
+        "duration-aware remote speaker attribution must follow the controlled truth lab",
+    )
+    require(
+        nodes["quality-duration-aware-remote-speaker-attribution-v2"].get("status") == "current",
+        "duration-aware remote speaker attribution must be the current quality goal",
     )
     require("parked-ui" not in nodes, "UI must not occupy the active CLI roadmap")
 

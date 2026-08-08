@@ -255,6 +255,57 @@ def build_fixture(root: Path) -> Path:
             },
             ["remote_speaker_turns"],
         ),
+        "controlled_remote_speaker_truth_lab_v1": (
+            files / "remote-truth-lab.json",
+            {
+                "schema": "murmurmark.controlled_remote_speaker_truth_lab_report/v1",
+                "decision": "DO_NOT_ADVANCE",
+                "corpus": {"scenario_count": 8},
+                "safety": {
+                    "audit_only": True,
+                    "real_transcript_changed": False,
+                    "coverage_v3_changed": False,
+                    "primary_asr_changed": False,
+                    "echo_guard_changed": False,
+                    "synthetic_labels_promoted": False,
+                },
+                "evaluation": {
+                    "track_decisions": {
+                        "coverage_v3_topology": {"decision": "CONTROL_QUALIFIED"},
+                        "wavlm_open_set_candidate": {"decision": "DO_NOT_ADVANCE"},
+                    },
+                    "coverage_v3_topology": {
+                        "hard": {
+                            "bcubed": {"f1": 0.983505},
+                            "pairwise": {"precision": 1.0},
+                        }
+                    },
+                    "wavlm_open_set_candidate": {
+                        "hard": {
+                            "bcubed": {"f1": 0.834325},
+                            "pairwise": {"precision": 0.95092},
+                            "open_set_false_attributions": 2,
+                        }
+                    },
+                },
+                "gates": {
+                    "minimum_anonymous_enrolled_speakers": True,
+                    "source_stem_reconstruction_exact": True,
+                    "session_disjoint_splits": True,
+                    "hard_split_untuned": True,
+                    "all_words_conserved": True,
+                    "direct_truth_coverage": True,
+                    "mixed_words_fail_closed": True,
+                    "public_artifacts_private_safe": True,
+                    "synthetic_evidence_not_promoted": True,
+                    "wavlm_candidate_held_out_bcubed_f1": False,
+                    "wavlm_candidate_held_out_pairwise_precision": False,
+                    "wavlm_candidate_boundary_recall": False,
+                    "wavlm_candidate_zero_open_set_false_attribution": False,
+                },
+            },
+            ["remote_speaker_turns"],
+        ),
     }
     sources: list[dict[str, object]] = []
     for source_id, (path, payload, dimensions) in payloads.items():
@@ -313,14 +364,14 @@ def main() -> int:
         assert result.returncode == 0, result.stdout + result.stderr
         report = json.loads((out / "transcript_perfection_corpus_report.json").read_text())
         assert report["decision"] == "BASELINE_ESTABLISHED"
-        assert report["summary"]["verified_sources"] == 14
+        assert report["summary"]["verified_sources"] == 15
         assert report["summary"]["aggregate_quality_score"] is None
         assert report["summary"]["aggregate_residual_seconds"] is None
         words = next(row for row in report["dimensions"] if row["id"] == "recognized_words")
         assert words["correctness_status"] == "bounded_exact_subset_only"
         assert words["metrics"]["exact_subset_wer"] == 0.0
         assert report["residuals"][0]["class"] == "unknown_remote_speaker"
-        assert report["next_goal"]["id"] == "controlled-remote-speaker-truth-lab-v1"
+        assert report["next_goal"]["id"] == "duration-aware-remote-speaker-attribution-v2"
         assert report["next_goal"]["selected_residual_class"] == "unknown_remote_speaker"
         assert report["lexical_prerequisite"]["id"] == "human-reviewed-lexical-seed-v1"
         assert report["lexical_prerequisite"]["status"] == "external_evidence_required"

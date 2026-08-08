@@ -59,6 +59,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-remote-speaker-residual-evidence-v4.py
 "$python_bin" scripts/check-independent-remote-speaker-evidence-v1.py
 "$python_bin" scripts/check-remote-speaker-residual-reference-corpus.py
+"$python_bin" scripts/check-controlled-remote-speaker-truth-lab-v1.py
 "$python_bin" scripts/check-lexical-accuracy-reference-corpus.py
 "$python_bin" scripts/check-transcript-perfection-corpus.py
 "$python_bin" scripts/check-anonymous-rich-transcript.py
