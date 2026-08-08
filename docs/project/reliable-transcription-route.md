@@ -7,8 +7,9 @@ Target-Me presence evidence. Remote Speaker Coverage v3 is promoted with `93.931
 remote speech, strong private-reference precision and exact v2-label/word conservation. Residual
 Evidence v4 closed with a measured `DO_NOT_PROMOTE`; Speaker-Resolved Transcript Default v1 is
 promoted. Lexical Accuracy Reference Corpus v1 closed `REFERENCE_INSUFFICIENT` after measuring the
-exact 67-word digital subset at WER/CER `0`. Independent Remote Speaker Evidence v1 is current;
-notes, retrieval and work proposals are optional derivatives outside the critical route.
+exact 67-word digital subset at WER/CER `0`. Independent WavLM evidence recovered 53 words /
+`23.357s`, missed both coverage gates and closed `DO_NOT_PROMOTE`. Remote Speaker Residual Reference
+Corpus v1 is current; notes, retrieval and work proposals remain optional derivatives.
 Date: 2026-08-08
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
@@ -467,9 +468,9 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Independent Remote Speaker Evidence v1: квалифицировать один действительно независимый локальный
-speaker backend на frozen Coverage v3 corpus и `598.240s` unknown residue; не менять слова,
-таймкоды и default до corpus-wide PROMOTE, не ослаблять v3 precision gates.
+Remote Speaker Residual Reference Corpus v1: создать blind private direct truth для frozen 851-word
+Coverage v3 residual и всех 53 WavLM proposals; не менять слова, таймкоды и default, не считать
+machine agreement truth.
 ```
 
 Speaker-Resolved Transcript Default v1 завершён `PROMOTE`: ordinary read/handoff/export выбирают v3
@@ -488,7 +489,8 @@ text out of tracked artifacts and aligns weak references by authoritative interv
 claim is allowed before two human-reviewed sessions cover 1x1/group, both roles and two acoustic
 modes.
 
-The autonomous engineering route therefore returns to the largest measured product residual:
-`598.240s` of preserved remote speech without supported speaker attribution. The next experiment
-must introduce a genuinely independent pinned local speaker backend. Reusing Resemblyzer with looser
-thresholds or using another Whisper transcript would not add independent evidence.
+The independent-backend experiment is complete. Pinned WavLM recovered 53 words / `23.357s`, but
+missed both `20%` gates and had no direct reference coverage for its new decisions. The next step is
+evidence acquisition: a blind private pack over all 851 residual words and all 53 proposals. Only
+explicit human-reviewed or exact scripted rows may become truth. Reusing model agreement, lowering
+thresholds or changing clustering before that pack is ready would not add independent evidence.

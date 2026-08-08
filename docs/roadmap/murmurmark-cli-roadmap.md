@@ -73,7 +73,9 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Remote speaker coverage v3 | `done` | Coverage `93.9312%`, B-cubed F1 `0.962171`, exact v2 labels |
 | Remote speaker residual v4 | `done` | `DO_NOT_PROMOTE`: safe ceiling `14.57%` words / `13.98%` seconds |
 | Speaker-resolved default | `done` | 6/6 sessions, 14 expected speakers, exact aggregate fallback |
-| Lexical correctness | `current` | Построение private graded WER/CER reference |
+| Lexical correctness | `done/blocker` | Exact 67-word subset WER/CER `0`; real meetings lack human truth |
+| Independent remote speaker evidence | `done` | `DO_NOT_PROMOTE`: 53 words / `23.357s`, no direct candidate truth |
+| Residual speaker reference | `current` | Blind private truth for 851 residual words and 53 proposals |
 | Производные заметки | `done/optional` | Exact evidence memory и безопасный ID-only selector доступны |
 
 ## Актуальная Цепочка
@@ -88,11 +90,12 @@ flowchart LR
     V["Done: DO_NOT_PROMOTE<br/>Remote Speaker<br/>Residual Evidence v4"]
     H["Done: PROMOTE<br/>Speaker-Resolved<br/>Default v1"]
     L["Done: REFERENCE_INSUFFICIENT<br/>Lexical Accuracy<br/>Reference Corpus v1"]
-    I["Current<br/>Independent Remote<br/>Speaker Evidence v1"]
+    I["Done: DO_NOT_PROMOTE<br/>Independent Remote<br/>Speaker Evidence v1"]
+    C["Current<br/>Remote Speaker Residual<br/>Reference Corpus v1"]
     M["Idea<br/>Local Mic Multi-Speaker<br/>Diarization v1"]
     O["Optional<br/>Notes, retrieval,<br/>work proposals"]
 
-    B --> D --> P --> R --> V --> H --> L --> I
+    B --> D --> P --> R --> V --> H --> L --> I --> C
     F --> D
     P -. "real local scenario" .-> M
     L -.-> O
@@ -162,20 +165,32 @@ machine references. Точный цифровой поднабор содерж�
 могут считаться truth. Реальная лексическая точность закрыта `REFERENCE_INSUFFICIENT`: нет ни одной
 human-reviewed встречи.
 
-### 8. Independent Remote Speaker Evidence v1 — `current`
+### 8. Independent Remote Speaker Evidence v1 — `done`
 
-Один новый pinned локальный backend проверяется на frozen six-session Coverage v3 corpus и отдельно
-на `598.240s` unknown remote speech. Продвижение требует восстановить не менее 20% unknown words и
-seconds без снижения v3 B-cubed/pairwise precision, изменения слов, таймкодов, ролей и fallback.
-Согласие с Resemblyzer само по себе не считается truth.
+Pinned local WavLM XVector проверен на frozen six-session Coverage v3 corpus и `598.240s` unknown
+remote speech. Он восстановил 53 слова / `23.357s`: `6.2280%` words и `3.9043%` seconds при gates
+`20%`. B-cubed F1 `0.962171`, pairwise precision `0.961675`, 5/5 boundaries и exact fallback
+сохранены. Ни одно из пяти новых решений в reference session не покрыто прямой truth-меткой.
 
-### 9. Local Mic Multi-Speaker Diarization v1 — `idea`
+Результат: воспроизводимый `DO_NOT_PROMOTE`. Повторять WavLM с более мягкими порогами нельзя.
+
+### 9. Remote Speaker Residual Reference Corpus v1 — `current`
+
+Private blind pack должен покрыть все 851 residual words / `598.240s` и отдельно все 53 WavLM
+proposals. Reviewer получает bounded remote-only clip и session-local speaker exemplars, но не видит
+machine prediction до решения. Trusted truth ограничена `human_reviewed` и `exact_scripted`.
+
+Результат этапа — `REFERENCE_READY` при прямом покрытии всех proposals, минимум 20 attributable
+words и precision `>=0.98`, либо воспроизводимый `REFERENCE_INSUFFICIENT` с точной очередью. Ни один
+исход не меняет promoted Coverage v3 автоматически.
+
+### 10. Local Mic Multi-Speaker Diarization v1 — `idea`
 
 Когда появится реальный сценарий нескольких людей у одного ноутбука и размеченный материал, mic-речь
 будет разделяться на Target-Me, other local speakers и `unknown`. Этот этап зависит от remote v2 и
 Transcript Perfection Corpus, но не нужен для нынешнего основного сценария одного пользователя.
 
-### 10. Производные Возможности — `optional`
+### 11. Производные Возможности — `optional`
 
 Extractive notes, quality verdict, reviewed speaker memory, ID-only selection, локальный поиск и
 work proposals могут развиваться после достижения transcript gates или по отдельному явному запросу.

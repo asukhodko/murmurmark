@@ -92,7 +92,10 @@ Read in this order:
 88. [Lexical Accuracy Reference Corpus contract](contracts/lexical-accuracy-reference-corpus.md)
 89. [Lexical Accuracy Reference Corpus runbook](runbooks/lexical-accuracy-reference-corpus.md)
 90. [Lexical Accuracy Reference Corpus result](testing/2026-08-08-lexical-accuracy-reference-corpus-v1.md)
-91. [Planning and development history](history/README.md)
+91. [Independent Remote Speaker Evidence v1 contract](contracts/independent-remote-speaker-evidence-v1.md)
+92. [Independent Remote Speaker Evidence v1 runbook](runbooks/independent-remote-speaker-evidence-v1.md)
+93. [Independent Remote Speaker Evidence v1 result](testing/2026-08-08-independent-remote-speaker-evidence-v1.md)
+94. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
@@ -111,9 +114,12 @@ second reductions missed both `20%` promotion gates. It closed with reproducible
 **Speaker-Resolved Transcript Default v1** is promoted for ordinary read/handoff/export with exact
 aggregate fallback. **Lexical Accuracy Reference Corpus v1** closed with
 `REFERENCE_INSUFFICIENT`: the exact 67-word digital subset has WER/CER `0`, while real-meeting
-correctness still lacks human-reviewed evidence. The next agent-executable goal is an independent
-local remote-speaker backend over the frozen `598.240s` unknown residue. Notes, retrieval and work
-proposals remain parked.
+correctness still lacks human-reviewed evidence. The independent WavLM experiment over the frozen
+`598.240s` unknown residue is complete with `DO_NOT_PROMOTE`: 53 words / `23.357s` recovered and no
+direct candidate truth.
+**Remote Speaker Residual Reference Corpus v1** is current: build a blind private reference over all
+proposals before changing clustering or thresholds. Notes, retrieval and work proposals remain
+parked.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

@@ -127,8 +127,10 @@ IDs. Transcript Perfection Corpus v1 remains the measurement baseline. Its curre
 complete: Residual Evidence v4 recovered 124 words / `83.640s` but missed both `20%` gates and closed
 with `DO_NOT_PROMOTE`. Speaker-Resolved Transcript Default v1 is promoted as the normal transcript
 surface with exact aggregate fail-open. Lexical Accuracy Reference Corpus v1 closed
-`REFERENCE_INSUFFICIENT`; Independent Remote Speaker Evidence v1 is the current quality step. Notes,
-retrieval and work proposals remain optional consumers and cannot alter the authoritative path.
+`REFERENCE_INSUFFICIENT`. Independent WavLM recovered 53 words / `23.357s`, missed both coverage
+gates and closed `DO_NOT_PROMOTE`; its proposals lack direct reference coverage. Remote Speaker
+Residual Reference Corpus v1 is the current quality step. Notes, retrieval and work proposals remain
+optional consumers and cannot alter the authoritative path.
 
 Target transcription path:
 

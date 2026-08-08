@@ -304,6 +304,8 @@ murmurmark corpus lexical status
 murmurmark corpus lexical replay \
   --write-manifest docs/testing/lexical-accuracy-reference-corpus-v1-manifest.json
 murmurmark corpus perfection all --verify-existing
+murmurmark audit remote-independent "$SESSION"
+murmurmark corpus remote-independent all --verify-existing
 ```
 
 The dependent critical path is:
@@ -316,12 +318,14 @@ Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental 
 -> Remote Speaker Residual Evidence v4 (done: DO_NOT_PROMOTE, measured ceiling)
 -> Speaker-Resolved Transcript Default v1 (done: PROMOTE, ordinary read/handoff/export)
 -> Lexical Accuracy Reference Corpus v1 (done: REFERENCE_INSUFFICIENT, bounded exact subset)
--> Independent Remote Speaker Evidence v1 (current)
+-> Independent Remote Speaker Evidence v1 (done: DO_NOT_PROMOTE, 53 words / 23.357s)
+-> Remote Speaker Residual Reference Corpus v1 (current)
 ```
 
-The six-session default qualification passed for two 1x1 and four group calls. **Independent Remote
-Speaker Evidence v1** is now current: qualify one genuinely independent local
-speaker backend on the frozen unknown residue without lowering Coverage v3 precision or changing words.
+Independent WavLM preserved every safety gate but recovered only `6.2280%` of residual words and
+`3.9043%` of residual seconds; none of its new decisions has direct reference coverage. **Remote
+Speaker Residual Reference Corpus v1** is now current: build a blind private truth set for the frozen
+851-word residual and all 53 WavLM proposals before changing diarization topology or thresholds.
 See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 ## Scope And Limitations
 
@@ -331,6 +335,8 @@ See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](do
 - Promoted v3 anonymous remote evidence covers `93.9312%` of frozen-corpus speech and leaves the
   remaining `6.0688%` explicit `unknown`; a rare participant without enough enrollment is not forced
   into a known voice.
+- Independent WavLM evidence remains audit-only after `DO_NOT_PROMOTE`; machine agreement cannot
+  replace direct candidate-targeted reference labels.
 - `--reviewed-speakers` uses only explicit labels from the current session decision file. Human
   names are never inferred from voice or consumed implicitly by ordinary transcript/export.
 - The personalized pre-ASR profile removes independently supported remote leakage on compatible
@@ -362,19 +368,15 @@ See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](do
 - Notes, summaries, retrieval and work-system proposals are optional derivatives outside the critical roadmap.
 ## Documentation
 
-- [Documentation index](docs/00-index.md)
-- [Mission and vision](docs/product/vision.md)
-- [Product requirements](docs/product/prd-v1.md)
-- [Current goal](docs/project/current-goal.md)
-- [Reliable transcription route](docs/project/reliable-transcription-route.md)
-- [Readable roadmap](docs/roadmap/murmurmark-cli-roadmap.md)
-- [OpsKarta v3 roadmap](docs/roadmap/murmurmark-cli-roadmap.plan.yaml)
+- [Documentation index](docs/00-index.md), [mission](docs/product/vision.md), [requirements](docs/product/prd-v1.md)
+- [Current goal](docs/project/current-goal.md), [route](docs/project/reliable-transcription-route.md), [roadmap](docs/roadmap/murmurmark-cli-roadmap.md), [OpsKarta](docs/roadmap/murmurmark-cli-roadmap.plan.yaml)
 - [Meeting lifecycle contract](docs/contracts/meeting-lifecycle.md)
 - [Meeting cheat sheet](docs/runbooks/meeting-cheatsheet.md)
 - [Transcription and review runbook](docs/runbooks/transcribe-simple-whispercpp.md)
 - [Transcript Perfection Corpus contract](docs/contracts/transcript-perfection-corpus.md)
 - [Lexical Accuracy Reference Corpus contract](docs/contracts/lexical-accuracy-reference-corpus.md)
 - [Remote Speaker Coverage v3](docs/contracts/remote-speaker-coverage-v3.md) and [Residual Evidence v4](docs/contracts/remote-speaker-residual-evidence-v4.md) contracts
+- [Independent Remote Speaker Evidence v1](docs/contracts/independent-remote-speaker-evidence-v1.md)
 - [Speaker-Resolved Transcript Default v1](docs/contracts/speaker-resolved-transcript-default-v1.md)
 
 ## Development Checks
@@ -386,14 +388,12 @@ scripts/check-planning-consistency.py
 scripts/check-open-source-readiness.sh
 scripts/check.sh
 murmurmark corpus remote-coverage all --verify-existing && murmurmark corpus remote-residual all --verify-existing
+murmurmark corpus remote-independent all --verify-existing
 murmurmark corpus speaker-default all --verify-existing
 murmurmark corpus perfection all --verify-existing
 ```
-The active roadmap uses OpsKarta v3. Validate and render it with the adjacent OpsKarta repository:
+The active roadmap uses OpsKarta v3. Validate it with the adjacent OpsKarta repository:
 ```bash
 PYTHONPATH=../opskarta .venv/bin/python -m specs.v3.tools.cli \
   validate docs/roadmap/murmurmark-cli-roadmap.plan.yaml
-
-PYTHONPATH=../opskarta .venv/bin/python -m specs.v3.tools.cli \
-  render executive docs/roadmap/murmurmark-cli-roadmap.plan.yaml --view exec-top
 ```

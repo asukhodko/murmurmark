@@ -33,7 +33,7 @@ nodes:
     title: "MurmurMark CLI"
     kind: summary
     status: current
-    effort: 239
+    effort: 251
     notes: |
       Активная CLI-first, local-first и evidence-backed программа. Batch transcript остаётся
       authoritative. Текущий North Star: одной командой получить максимально надёжный transcript,
@@ -596,14 +596,27 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-lexical-accuracy-reference-corpus-v1, quality-remote-speaker-residual-evidence-v4]
-    status: current
+    status: done
     effort: 14
     notes: |
-      Квалифицировать один действительно независимый pinned local speaker backend на frozen six-
-      session Coverage v3 corpus и `598.240s` unknown residue. PROMOTE требует одновременно >=20%
-      unknown words и seconds recovery без снижения v3 B-cubed/pairwise precision, изменения words,
-      timestamps, roles, Me, 5/5 boundaries или exact aggregate fallback. Agreement backends не truth;
-      missing model/conflict/stale lineage дают fallback. Иначе завершить reproducible DO_NOT_PROMOTE.
+      Завершено DO_NOT_PROMOTE. Pinned offline WavLM XVector восстановил 53/851 words и
+      23.357/598.240s: 6.2280% и 3.9043% при gates 20%. B-cubed F1 0.962171, pairwise precision
+      0.961675, 5/5 boundaries, words/timestamps/roles/Me/v2-v3 labels/raw/fallback сохранены. Direct
+      reference покрывает 0 новых решений; ослаблять thresholds или считать agreement truth нельзя.
+
+  quality-remote-speaker-residual-reference-corpus-v1:
+    title: "Remote Speaker Residual Reference Corpus v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-independent-remote-speaker-evidence-v1, quality-lexical-accuracy-reference-corpus-v1]
+    status: current
+    effort: 12
+    notes: |
+      Создать private blind candidate-targeted truth для frozen 851 words / 598.240s residual и всех
+      53 WavLM proposals / 23.357s. Заморозить bounded remote clips, speaker exemplars, IDs, times и
+      hashes; скрыть prediction до решения. Trusted grades только human_reviewed/exact_scripted.
+      REFERENCE_READY требует direct labels всех proposals, >=20 attributable words и precision
+      >=0.98; иначе завершить reproducible REFERENCE_INSUFFICIENT без изменения Coverage v3.
 
   future-local-mic-diarization-v1:
     title: "Local Mic Multi-Speaker Diarization v1"
@@ -616,17 +629,6 @@ nodes:
       После появления реального multi-person local сценария и labelled corpus различать Target-Me,
       other local speakers и unknown внутри mic-потока. Не считать всю локальную речь владельцем
       ноутбука и не ослаблять текущие Target-Me protection gates.
-
-  parking-lot:
-    title: "Parking lot"
-    kind: phase
-    parent: murmurmark-cli
-    status: optional
-    effort: 15
-    notes: |
-      Notes, summaries, reviewed artifacts, retrieval, work proposals, UI и Live promotion не
-      влияют на текущую сходимость CLI. Они могут потреблять только versioned transcript evidence.
-      Live возвращается только с новой гипотезой и immutable live-vs-batch gates.
 
 views:
   roadmap-tree:
@@ -645,10 +647,10 @@ views:
         nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-independent-remote-speaker-evidence-v1]
+        nodes: [quality-remote-speaker-residual-reference-corpus-v1]
       dependent:
-        title: "Завершённый evidence ceiling"
-        nodes: [quality-remote-speaker-residual-evidence-v4]
+        title: "Завершённый independent evidence ceiling"
+        nodes: [quality-independent-remote-speaker-evidence-v1]
       conditional:
         title: "Только при появлении local multi-speaker evidence"
         nodes: [future-local-mic-diarization-v1]
@@ -691,6 +693,7 @@ views:
           - product-speaker-resolved-transcript-default-v1
           - quality-lexical-accuracy-reference-corpus-v1
           - quality-independent-remote-speaker-evidence-v1
+          - quality-remote-speaker-residual-reference-corpus-v1
 
   echo-frontier:
     title: "Пред-ASR отделение Me от remote"
@@ -726,8 +729,8 @@ views:
         title: "Доказанная speaker evidence"
         nodes: [research-remote-diarization, research-rich-transcript, quality-remote-speaker-diarization-v2]
       current:
-        title: "Независимое remote-speaker evidence"
-        nodes: [quality-independent-remote-speaker-evidence-v1]
+        title: "Прямой reference для remote residual"
+        nodes: [quality-remote-speaker-residual-reference-corpus-v1]
       closure:
         title: "Unified baseline"
         nodes: [quality-transcript-perfection-corpus-v1, quality-lexical-accuracy-reference-corpus-v1]
@@ -737,13 +740,6 @@ views:
       conditional:
         title: "Условный local multi-speaker"
         nodes: [future-local-mic-diarization-v1]
-
-  parking-lot-view:
-    title: "Не держит критический путь"
-    lanes:
-      parked:
-        title: "Parking lot"
-        nodes: [parking-lot]
 
   deps-map:
     title: "Зависимости активного плана"
@@ -786,14 +782,14 @@ views:
           - product-speaker-resolved-transcript-default-v1
           - quality-lexical-accuracy-reference-corpus-v1
           - quality-independent-remote-speaker-evidence-v1
+          - quality-remote-speaker-residual-reference-corpus-v1
           - future-local-mic-diarization-v1
-          - parking-lot
 
 x:
   exec:
     program:
-      nearest_goal: "Independent Remote Speaker Evidence v1: квалифицировать один действительно независимый локальный speaker-embedding или diarization backend на frozen six-session Coverage v3 corpus и отдельно на `598.240s` unknown remote residue; зафиксировать модель, лицензию, SHA-256, offline runtime, enrollment и test split; сохранить selected words, timestamps, roles, Me, v2/v3 labels, 5/5 internal boundaries и exact aggregate fallback; разрешить новый профиль только при corpus-wide восстановлении не менее 20% unknown words и 20% unknown seconds без снижения attributed B-cubed F1 и pairwise precision ниже promoted v3, иначе завершить воспроизводимым `DO_NOT_PROMOTE`; не ослаблять v3 thresholds, не считать согласие двух backends truth, не менять capture, Echo Guard, primary ASR, lexical reference или optional derivatives; добавить тесты, обновить README, contracts, runbook, current-goal, roadmap и OpsKarta, закоммитить и отправить в origin/main."
-      success_by_next_sync: "Один independent local speaker backend имеет pinned offline provenance и corpus-wide PROMOTE либо воспроизводимый DO_NOT_PROMOTE без изменения promoted v3 default."
+      nearest_goal: "Remote Speaker Residual Reference Corpus v1: создать private blind candidate-targeted reference corpus для frozen six-session Coverage v3 residual (`851` words / `598.240s`) и всех `53` WavLM proposals (`23.357s`); заморозить word IDs, timestamps, bounded audio clips, session-local speaker exemplars и SHA-256; скрыть machine prediction до решения и принимать truth только из explicit human-reviewed либо exact scripted evidence, никогда из согласия моделей; поддержать outcomes `remote_speaker_XX`, `unknown_speaker`, `mixed`, `unusable` с provenance и конфликтами; считать evidence ready только при прямом покрытии всех 53 proposals и не менее 20 attributable recovered words с precision `>=0.98`, иначе завершить воспроизводимым `REFERENCE_INSUFFICIENT`; не менять selected transcript, Coverage v3, raw CAF, primary ASR или Echo Guard; держать речь и имена в private ignored artifacts, а tracked outputs ограничить агрегатами, portable paths и hashes; добавить CLI, тесты и deterministic replay, обновить README, contracts, runbook, roadmap и OpsKarta, закоммитить и отправить в origin/main."
+      success_by_next_sync: "Frozen remote residual имеет blind private review pack и прямую candidate truth readiness либо точный воспроизводимый REFERENCE_INSUFFICIENT."
     defaults:
       status_progress:
         done: 1.0
@@ -814,13 +810,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle, batch transcript, review, notes/export и Live Shadow уже работают."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Independent Remote Speaker Evidence v1"
-        scope_nodes: [quality-independent-remote-speaker-evidence-v1]
+        title: "Remote Speaker Residual Reference Corpus v1"
+        scope_nodes: [quality-remote-speaker-residual-reference-corpus-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Lexical reference закрылся REFERENCE_INSUFFICIENT; автономно остаётся измеримый unknown remote residue 598.240s."
-          next_sync_goal: "Квалифицировать один независимый local speaker backend без ослабления promoted v3."
+          sync_note: "Independent WavLM закрылся DO_NOT_PROMOTE: 53 proposals не имеют прямой candidate truth."
+          next_sync_goal: "Материализовать blind private reference и измерить точный остаток review."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -833,11 +829,12 @@ x:
           - product-speaker-resolved-transcript-default-v1
           - quality-lexical-accuracy-reference-corpus-v1
           - quality-independent-remote-speaker-evidence-v1
+          - quality-remote-speaker-residual-reference-corpus-v1
         kind: main
         mgmt:
           health: yellow
           sync_note: "Speaker-resolved handoff готов; exact lexical subset измерен, real-meeting lexical truth требует внешней проверки."
-          next_sync_goal: "Сократить крупнейший измеренный remote-speaker residual только новым независимым evidence."
+          next_sync_goal: "Не менять diarization topology до прямого candidate-targeted reference."
       research:
         title: "Будущий local multi-speaker"
         scope_nodes: [future-local-mic-diarization-v1]
@@ -846,15 +843,6 @@ x:
           health: neutral
           sync_note: "Архитектурный путь отмечен, но реального multi-person mic corpus пока нет."
           next_sync_goal: "Не стартовать до появления реального сценария и labelled local-speaker evidence."
-      parked:
-        title: "Parking lot"
-        scope_nodes: [parking-lot]
-        kind: risk_sidecar
-        progress_override: 0.0
-        mgmt:
-          health: neutral
-          sync_note: "Notes/summaries/retrieval, Live promotion, external integrations и UI не держат transcript-quality roadmap."
-          next_sync_goal: "Не активировать без нового product signal или снятия blocker."
     edges:
       - from: working-now
         to: current-quality
@@ -868,9 +856,6 @@ x:
       - from: research
         to: dependent-path
         type: context
-      - from: dependent-path
-        to: parked
-        type: context
     views:
       exec-top:
         direction: LR
@@ -879,10 +864,9 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: speaker-resolved default promoted; текущий фокус — честный lexical reference и измеримые ASR defects."
+        caption: "Короткая карта: speaker-resolved default promoted; текущий фокус — прямой blind reference для remote residual."
         blocks:
           - working-now
           - current-quality
           - dependent-path
           - research
-          - parked

@@ -93,7 +93,8 @@ def main() -> int:
         assert promoted["decision"] == "LEXICAL_BASELINE_ESTABLISHED"
 
         try:
-            module.assert_public_safe({"path": "/Users/private/reference.txt"})
+            absolute_fixture = "/" + "Users/private/reference.txt"
+            module.assert_public_safe({"path": absolute_fixture})
         except module.CorpusError:
             pass
         else:

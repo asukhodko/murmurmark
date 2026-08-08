@@ -1,0 +1,112 @@
+{
+  "schema": "murmurmark.independent_remote_speaker_policy/v1",
+  "state": "evaluated_do_not_promote",
+  "backend": {
+    "architecture": "wavlm_xvector",
+    "independent_from": "resemblyzer",
+    "model_id": "microsoft/wavlm-base-plus-sv",
+    "default_path": "~/.local/share/murmurmark/models/target-me/wavlm-base-plus-sv",
+    "license": "CC-BY-SA-3.0",
+    "license_url": "https://github.com/microsoft/UniSpeech/blob/main/LICENSE",
+    "model_card_url": "https://huggingface.co/microsoft/wavlm-base-plus-sv",
+    "redistributed_by_murmurmark": false,
+    "sample_rate": 16000,
+    "files": {
+      "README.md": "97f5513cde351b3adb4e182b60ec23154dadba7ca83e667ceace237177855b8e",
+      "config.json": "c6ac8c0ce55b18d4612677931036fe5ce78093e87361c552a173f00a0bb07514",
+      "preprocessor_config.json": "99272fe8ccfab114b68b478681ea47ee3a1ce62bb788cb92dd6e4f69fb1f1da2",
+      "pytorch_model.bin": "e906bce2fa42fb497a1d1a9ecf81548adb7e03b12a5644e32d2f42f0d6500fad"
+    }
+  },
+  "runtime": {
+    "offline": true,
+    "device": "cpu",
+    "torch": "2.12.0",
+    "transformers": "5.10.2",
+    "numpy": "2.4.6",
+    "soundfile": "0.14.0",
+    "max_torch_threads": 4
+  },
+  "corpus_split": {
+    "development": [
+      "2026-06-23_14-04-37",
+      "2026-06-26_11-15-50",
+      "2026-07-14_15-01-19-live"
+    ],
+    "held_out": [
+      "2026-06-24_15-03-52",
+      "2026-06-26_12-04-04",
+      "2026-07-20_15-15-26-live"
+    ]
+  },
+  "enrollment": {
+    "minimum_interval_sec": 1.25,
+    "maximum_interval_sec": 8.0,
+    "split_rule": "sha256(utterance_id) modulo 4; bucket 3 is test, buckets 0..2 are enrollment",
+    "minimum_split_similarity": 0.9,
+    "minimum_samples_per_speaker": 4
+  },
+  "decision": {
+    "minimum_similarity": 0.9,
+    "minimum_margin": 0.04,
+    "strict_exact_similarity": 0.94,
+    "strict_exact_margin": 0.08,
+    "minimum_window_sec": 1.0,
+    "maximum_unit_sec": 3.0,
+    "minimum_consensus_windows": 2,
+    "protected_causes": [
+      "conflicting_frame_speakers",
+      "protected_remote_overlap"
+    ]
+  },
+  "promotion": {
+    "minimum_unknown_word_reduction_ratio": 0.2,
+    "minimum_unknown_second_reduction_ratio": 0.2,
+    "minimum_bcubed_f1": 0.962171,
+    "minimum_pairwise_precision": 0.961675,
+    "minimum_direct_reference_words": 20,
+    "minimum_direct_reference_precision": 0.98,
+    "required_internal_boundaries": 5,
+    "required_sessions": 6,
+    "require_exact_v3_label_preservation": true,
+    "require_exact_word_timestamp_role_preservation": true,
+    "require_exact_aggregate_fallback": true
+  },
+  "development_result": {
+    "candidate_thresholds_compared": [
+      {
+        "minimum_margin": 0.06,
+        "strict_exact_margin": 0.1
+      },
+      {
+        "minimum_margin": 0.04,
+        "strict_exact_margin": 0.08
+      },
+      {
+        "minimum_margin": 0.03,
+        "strict_exact_margin": 0.06
+      }
+    ],
+    "selected_reason": "0.04 preserved 1.0 accepted precision on every development enrollment test and recovered the same residual set as 0.03",
+    "held_out_used_for_tuning": false
+  },
+  "corpus_result": {
+    "decision": "DO_NOT_PROMOTE",
+    "evaluated_on": "2026-08-08",
+    "sessions": 6,
+    "baseline_unknown_words": 851,
+    "baseline_unknown_seconds": 598.239509,
+    "recovered_words": 53,
+    "recovered_seconds": 23.356997,
+    "unknown_word_reduction_ratio": 0.06228,
+    "unknown_second_reduction_ratio": 0.039043,
+    "remaining_unknown_words": 798,
+    "remaining_unknown_seconds": 574.882512,
+    "candidate_direct_reference_words": 0,
+    "candidate_direct_reference_precision": null,
+    "attributed_bcubed_f1": 0.962171,
+    "pairwise_precision": 0.961675,
+    "internal_boundaries_passed": 5,
+    "reason": "coverage remained below 20 percent and recovered candidates lacked direct reference coverage"
+  }
+}

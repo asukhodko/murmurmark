@@ -71,8 +71,10 @@ enrollment remain explicit `unknown`. Transcript Perfection Corpus v1 remains th
 baseline. Residual Evidence v4 measured a safe `14.57%` word / `13.98%` second ceiling and closed
 with `DO_NOT_PROMOTE`; Speaker-Resolved Transcript Default v1 is promoted. Lexical Accuracy
 Reference Corpus v1 proves the exact 67-word digital subset at WER/CER `0`, but closes
-`REFERENCE_INSUFFICIENT` for real meetings because no human-reviewed reference exists. The current
-engineering gap is independent remote-speaker evidence for the frozen `598.240s` unknown residue.
+`REFERENCE_INSUFFICIENT` for real meetings because no human-reviewed reference exists. Independent
+WavLM evidence then recovered only 53 residual words / `23.357s` and closed `DO_NOT_PROMOTE`; its
+new decisions have no direct truth coverage. The current engineering gap is a blind private
+reference corpus targeted at the frozen remote-speaker residual.
 
 ## Core User Jobs
 
@@ -111,13 +113,15 @@ met, unless an explicit product decision changes the priority.
 
 1. **Transcript Perfection Corpus v1:** maintain the completed 13-source benchmark for text,
    chronology, roles, speakers, overlap, acoustic modes and known residual defects.
-2. **Independent Remote Speaker Evidence v1:** qualify a genuinely different pinned local backend
-   against the existing private references and `598.240s` unknown residue without lowering v3 gates.
-3. **Human-Reviewed Lexical Seed v1:** external-evidence prerequisite; do not tune ASR from machine
+2. **Remote Speaker Residual Reference Corpus v1:** create blind direct truth for all 53 WavLM
+   proposals and the frozen 851-word residual before changing diarization topology or thresholds.
+3. **Constrained/Open-Set Remote Diarization:** evaluate only after candidate-targeted reference is
+   ready; unknown must remain a valid outcome.
+4. **Human-Reviewed Lexical Seed v1:** external-evidence prerequisite; do not tune ASR from machine
    agreement while it is absent.
-4. **Measured residual loop:** rerank after every bounded `PROMOTE` or evidence ceiling and close the
+5. **Measured residual loop:** rerank after every bounded `PROMOTE` or evidence ceiling and close the
    next highest-impact class.
-5. **Local Mic Multi-Speaker Diarization v1:** a conditional branch opened only by a real
+6. **Local Mic Multi-Speaker Diarization v1:** a conditional branch opened only by a real
    multi-person local scenario and labelled corpus.
 
 ## Long-Term Direction

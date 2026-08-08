@@ -1,0 +1,190 @@
+{
+  "baseline": {
+    "boundary_cases": {
+      "bytes": 2215,
+      "exists": true,
+      "path": "docs/testing/remote-speaker-diarization-v2-boundaries.json",
+      "sha256": "d8d26a30e8a46861ac301c3e9428fb6229bc36e9e8c25d07b1aa5e9ca70878b9"
+    },
+    "corpus_report": {
+      "bytes": 50006,
+      "exists": true,
+      "path": "sessions/_reports/remote-speaker-coverage-v3/remote_speaker_coverage_corpus_report.json",
+      "sha256": "0d2d6edcb0a0153a7ea3190760a8df609c3f3f7633c075ab65252035862932d4"
+    },
+    "manifest": {
+      "bytes": 7050,
+      "exists": true,
+      "path": "docs/testing/remote-speaker-coverage-v3-manifest.json",
+      "sha256": "20b4073df90f98729cc29bc2ec8f3002e88155d9202afd72f6898f494cfd0a6c"
+    },
+    "reference_evaluation": {
+      "bytes": 23606,
+      "exists": true,
+      "path": "sessions/_reports/remote-speaker-coverage-v3/reference_evaluation.json",
+      "sha256": "af297ab1eb3223ae831f5eaacaa8496081f94cb751e129546003af03d9663eec"
+    },
+    "v2_manifest": {
+      "bytes": 6755,
+      "exists": true,
+      "path": "docs/testing/remote-speaker-diarization-v2-manifest.json",
+      "sha256": "32161a77afd2a63e79c21e063111be6b5202b9b542e8ecc09978319d0c111470"
+    }
+  },
+  "decision": "DO_NOT_PROMOTE",
+  "implementation": {
+    "audit": {
+      "bytes": 67515,
+      "exists": true,
+      "path": "scripts/audit-independent-remote-speaker-evidence-v1.py",
+      "sha256": "0ccea746694591bbb007aa7d6a321418e4cefafb4e01883ca9ac9952956a03f0"
+    },
+    "corpus_report": {
+      "bytes": 27108,
+      "exists": true,
+      "path": "scripts/report-independent-remote-speaker-evidence-v1-corpus.py",
+      "sha256": "392f0a1c43eb6e17725d95ad8a7a199a3086bbe399905314c0c4745e564c8fe7"
+    },
+    "policy": {
+      "bytes": 3808,
+      "exists": true,
+      "path": "policies/independent-remote-speaker-evidence-v1.json",
+      "sha256": "52e64f0e61508446bb34d3ec2df9fdcdb7a1a6fc6c01d8b845ac71db928e33d1"
+    },
+    "v3_corpus_report_dependency": {
+      "bytes": 17832,
+      "exists": true,
+      "path": "scripts/report-remote-speaker-coverage-v3-corpus.py",
+      "sha256": "5a70600e41230bf41fa6ba3454b66ad23ddb8d9dbed52783bcd94b6679e6531a"
+    }
+  },
+  "schema": "murmurmark.independent_remote_speaker_frozen_manifest/v1",
+  "sessions": [
+    {
+      "manifest": {
+        "bytes": 1290,
+        "exists": true,
+        "path": "sessions/2026-06-23_14-04-37/derived/audit/independent-remote-speaker-evidence-v1/artifact_manifest.json",
+        "sha256": "eef702285e397b79c4ee0d6d372167f19d971524fed9824d486cfb98da1a9f79"
+      },
+      "report": {
+        "bytes": 19455,
+        "exists": true,
+        "path": "sessions/2026-06-23_14-04-37/derived/audit/independent-remote-speaker-evidence-v1/report.json",
+        "sha256": "f32356f1fdb738b76c369cd4adba3600c95c6d4b1c1026c7dc6a47fbe619684e"
+      },
+      "rich": {
+        "bytes": 4376548,
+        "exists": true,
+        "path": "sessions/2026-06-23_14-04-37/derived/audit/independent-remote-speaker-evidence-v1/transcript.rich.shadow.json",
+        "sha256": "8d7abed1ff243951d5411a0bbbdc251bebb46e10f8b4582fd8ba8bb7663e00c9"
+      },
+      "session_id": "2026-06-23_14-04-37"
+    },
+    {
+      "manifest": {
+        "bytes": 1290,
+        "exists": true,
+        "path": "sessions/2026-06-24_15-03-52/derived/audit/independent-remote-speaker-evidence-v1/artifact_manifest.json",
+        "sha256": "28e89d54527142858641274c3ae421b1d2c3fc73f02b27f13c592839d3d508ad"
+      },
+      "report": {
+        "bytes": 15786,
+        "exists": true,
+        "path": "sessions/2026-06-24_15-03-52/derived/audit/independent-remote-speaker-evidence-v1/report.json",
+        "sha256": "8bc924d623196a8adc1f29dbf065bb609c4c153a021a11fc624ea121dfe9e5b6"
+      },
+      "rich": {
+        "bytes": 2366598,
+        "exists": true,
+        "path": "sessions/2026-06-24_15-03-52/derived/audit/independent-remote-speaker-evidence-v1/transcript.rich.shadow.json",
+        "sha256": "bd6a83b27d6b6a15f8b7f7315ce9198532fbe0eeb2dd400c8eb3a2dcd16f4eb7"
+      },
+      "session_id": "2026-06-24_15-03-52"
+    },
+    {
+      "manifest": {
+        "bytes": 1290,
+        "exists": true,
+        "path": "sessions/2026-06-26_11-15-50/derived/audit/independent-remote-speaker-evidence-v1/artifact_manifest.json",
+        "sha256": "530d24bac06134dd9f73b42d8b919dd8773f1599b6e0501e4d1492d2ace449c8"
+      },
+      "report": {
+        "bytes": 23064,
+        "exists": true,
+        "path": "sessions/2026-06-26_11-15-50/derived/audit/independent-remote-speaker-evidence-v1/report.json",
+        "sha256": "a83dfdbd046f505805713402be901211a6f2d0a28cb99d76bba157b447c03fdb"
+      },
+      "rich": {
+        "bytes": 5120332,
+        "exists": true,
+        "path": "sessions/2026-06-26_11-15-50/derived/audit/independent-remote-speaker-evidence-v1/transcript.rich.shadow.json",
+        "sha256": "e154e1f176684800a2be8ee274d72fed30b3694227bf56f1b844c62644cb62d1"
+      },
+      "session_id": "2026-06-26_11-15-50"
+    },
+    {
+      "manifest": {
+        "bytes": 1290,
+        "exists": true,
+        "path": "sessions/2026-06-26_12-04-04/derived/audit/independent-remote-speaker-evidence-v1/artifact_manifest.json",
+        "sha256": "83cbeeb7867540bfb512e3a0b02221c1228cb1827c8b3b143c5639f96602338f"
+      },
+      "report": {
+        "bytes": 17860,
+        "exists": true,
+        "path": "sessions/2026-06-26_12-04-04/derived/audit/independent-remote-speaker-evidence-v1/report.json",
+        "sha256": "2dacbc63a9496253848664466fe751f6d3f5febaacd07eb7ab595a14a2e969e7"
+      },
+      "rich": {
+        "bytes": 2797784,
+        "exists": true,
+        "path": "sessions/2026-06-26_12-04-04/derived/audit/independent-remote-speaker-evidence-v1/transcript.rich.shadow.json",
+        "sha256": "376b82cf696dfe232d1e876366c50611a110ff31908fc09241916b2dcbc4dff2"
+      },
+      "session_id": "2026-06-26_12-04-04"
+    },
+    {
+      "manifest": {
+        "bytes": 1295,
+        "exists": true,
+        "path": "sessions/2026-07-14_15-01-19-live/derived/audit/independent-remote-speaker-evidence-v1/artifact_manifest.json",
+        "sha256": "511ea08942f309584e973617bc583b4856ba7de035c6cba27e881303695c6d06"
+      },
+      "report": {
+        "bytes": 26130,
+        "exists": true,
+        "path": "sessions/2026-07-14_15-01-19-live/derived/audit/independent-remote-speaker-evidence-v1/report.json",
+        "sha256": "492faeae2dc1fa8aef4cbd05ccfb7048ef54e8cccbd8ca4f16900dc764f9379c"
+      },
+      "rich": {
+        "bytes": 6047971,
+        "exists": true,
+        "path": "sessions/2026-07-14_15-01-19-live/derived/audit/independent-remote-speaker-evidence-v1/transcript.rich.shadow.json",
+        "sha256": "255b901d42fd3287dc71acee7be1c98de5e418db5b8a860d04c1268849dc0b25"
+      },
+      "session_id": "2026-07-14_15-01-19-live"
+    },
+    {
+      "manifest": {
+        "bytes": 1295,
+        "exists": true,
+        "path": "sessions/2026-07-20_15-15-26-live/derived/audit/independent-remote-speaker-evidence-v1/artifact_manifest.json",
+        "sha256": "1934d8a4db99990f127523643a182880cb974851cff96161b4cbd15ed9bf0089"
+      },
+      "report": {
+        "bytes": 17506,
+        "exists": true,
+        "path": "sessions/2026-07-20_15-15-26-live/derived/audit/independent-remote-speaker-evidence-v1/report.json",
+        "sha256": "b589422b76be0f9919dd37cde2b0890b3b4ef40a4b5875a0d8c5ca13a01cbf7e"
+      },
+      "rich": {
+        "bytes": 2247007,
+        "exists": true,
+        "path": "sessions/2026-07-20_15-15-26-live/derived/audit/independent-remote-speaker-evidence-v1/transcript.rich.shadow.json",
+        "sha256": "ccb5d91d1f0d889f8b48ab4e8078207844740cbebab2e9c5475f771813a94782"
+      },
+      "session_id": "2026-07-20_15-15-26-live"
+    }
+  ]
+}

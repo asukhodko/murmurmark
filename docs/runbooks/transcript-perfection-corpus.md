@@ -37,7 +37,7 @@ decision: BASELINE_ESTABLISHED
 sources: 13/13 verified
 release_ready: false
 largest_actionable_residual: unknown_remote_speaker (598.240s)
-next_goal: Independent Remote Speaker Evidence v1
+next_goal: Remote Speaker Residual Reference Corpus v1
 ```
 
 ## Reading The Result

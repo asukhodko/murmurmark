@@ -334,6 +334,7 @@ struct MurmurMark {
           murmurmark audit remote-diarization ./session|latest [--profile auto] [--sessions-root ./sessions]
           murmurmark audit remote-coverage ./session|latest [--sessions-root ./sessions]
           murmurmark audit remote-residual ./session|latest [--sessions-root ./sessions]
+          murmurmark audit remote-independent ./session|latest [--sessions-root ./sessions]
           murmurmark cleanup ./session|latest [--input-profile shadow_v2] [--output-profile audit_cleanup_v1]
                              [--mode conservative] [--sessions-root ./sessions]
           murmurmark repair order ./session|latest [--input-profile auto] [--output-profile order_repair_v1]
@@ -1307,6 +1308,8 @@ enum DoctorChecks {
             "scripts/report-remote-speaker-coverage-v3-corpus.py",
             "scripts/audit-remote-speaker-residual-evidence-v4.py",
             "scripts/report-remote-speaker-residual-evidence-v4-corpus.py",
+            "scripts/audit-independent-remote-speaker-evidence-v1.py",
+            "scripts/report-independent-remote-speaker-evidence-v1-corpus.py",
             "scripts/materialize-anonymous-rich-transcript.py",
             "scripts/review-remote-speaker-labels.py",
             "scripts/materialize-reviewed-speaker-memory.py",
@@ -4727,6 +4730,19 @@ enum AuditCommands {
             ] + remaining
             try Tooling.runPath(python, auditArgs)
             try AuditPrinter.printRemoteResidual(session: session, args: auditArgs)
+        case "remote-independent", "remote_independent":
+            let v3Report = session.appendingPathComponent(
+                "derived/audit/remote-speaker-coverage-v3/report.json"
+            )
+            if !FileManager.default.fileExists(atPath: v3Report.path) {
+                try audit(["remote-coverage", session.path])
+            }
+            let auditArgs = [
+                try script("audit-independent-remote-speaker-evidence-v1.py").path,
+                session.path,
+            ] + remaining
+            try Tooling.runPath(python, auditArgs)
+            try AuditPrinter.printRemoteIndependent(session: session, args: auditArgs)
         case "asr-positive-echo-candidate", "asr_positive_echo_candidate", "echo-candidate", "echo_candidate":
             if !ArgumentEditing.hasOption("candidate", in: remaining) {
                 remaining += ["--candidate", "coverage_v2_remote_gate_local_fir"]
@@ -4861,6 +4877,7 @@ enum AuditCommands {
           murmurmark audit remote-coverage ./session|latest [--sessions-root ./sessions]
           murmurmark audit speaker-default ./session|latest [--verify-only] [--sessions-root ./sessions]
           murmurmark audit remote-residual ./session|latest [--sessions-root ./sessions]
+          murmurmark audit remote-independent ./session|latest [--sessions-root ./sessions]
           murmurmark audit asr-positive-echo-candidate ./session|latest
                                              [--candidate coverage_v2_remote_gate_local_fir]
                                              [--skip-lab] [--sessions-root ./sessions]
@@ -4892,6 +4909,8 @@ enum AuditCommands {
                           selects promoted v3 or the exact aggregate fallback for the ordinary transcript
           remote-residual
                           measures bounded split-enrollment evidence over the promoted v3 residual
+          remote-independent
+                          qualifies independent WavLM evidence over the frozen promoted v3 residual
           asr-positive-echo-candidate
                           runs/reuses offline_aec_v2 and writes an explicit shadow audio-candidate report
           echo-suppression-promotion
@@ -5252,6 +5271,43 @@ enum AuditPrinter {
         print("  report: \(PathDisplay.display(outDir.appendingPathComponent("report.md")))")
         print("  status: \(string(payload["status"]) ?? "unknown")")
         print("  decision: \(string(payload["decision"]) ?? "FALLBACK_V3")")
+        print("  recovered_words: \(int(summary["recovered_words"]))")
+        print(String(format: "  recovered_seconds: %.3fs", double(summary["recovered_seconds"])))
+        print("  remaining_unknown_words: \(int(summary["remaining_unknown_words"]))")
+        print(String(format: "  remaining_unknown_seconds: %.3fs", double(summary["remaining_unknown_seconds"])))
+        print("  promoted: false")
+        print("  fallback: remote_speaker_coverage_v3")
+        print("  batch_authoritative: true")
+        printAuditHandoff(
+            session: session,
+            report: outDir.appendingPathComponent("report.md"),
+            needsReview: false
+        )
+    }
+
+    static func printRemoteIndependent(session: URL, args: [String]) throws {
+        let defaultURL = session.appendingPathComponent(
+            "derived/audit/independent-remote-speaker-evidence-v1"
+        )
+        let outDir = PathURLs.fileURL(
+            ArgumentEditing.peekOption("out-dir", in: args) ?? defaultURL.path
+        )
+        let reportURL = outDir.appendingPathComponent("report.json")
+        guard FileManager.default.fileExists(atPath: reportURL.path) else {
+            printMissing(kind: "remote_independent", expected: reportURL)
+            return
+        }
+        let payload = try JSONFiles.object(reportURL)
+        let summary = dict(payload["summary"])
+        let backend = dict(dict(payload["source"])["embedding_backend"])
+
+        print("")
+        print("audit:")
+        print("  kind: remote_independent")
+        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("report.md")))")
+        print("  status: \(string(payload["status"]) ?? "unknown")")
+        print("  decision: \(string(payload["decision"]) ?? "FALLBACK_V3")")
+        print("  backend: \(string(backend["method"]) ?? "unavailable")")
         print("  recovered_words: \(int(summary["recovered_words"]))")
         print(String(format: "  recovered_seconds: %.3fs", double(summary["recovered_seconds"])))
         print("  remaining_unknown_words: \(int(summary["remaining_unknown_words"]))")
@@ -7600,7 +7656,8 @@ enum CorpusCommands {
             throw CLIError(
                 "corpus requires process, build, evaluate, train-audio-judge, taxonomy, gate, order, " +
                 "local-recall, local-recall-repair, boundary, remote-leak, echo-candidate, " +
-                "echo-supervision, remote-coverage, speaker-default, remote-residual, perfection, lifecycle, or report"
+                "echo-supervision, remote-coverage, speaker-default, remote-residual, " +
+                "remote-independent, perfection, lifecycle, or report"
             )
         }
         var forwarded = Array(args.dropFirst())
@@ -7919,6 +7976,31 @@ enum CorpusCommands {
                     + ["--sessions-root", sessionsRoot.path],
                 allowedExitCodes: [0, 2]
             )
+        case "remote-independent", "remote_independent":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(
+                    try PythonRuntime.resolve(),
+                    [try script("report-independent-remote-speaker-evidence-v1-corpus.py").path, "--help"]
+                )
+                return
+            }
+            var independentArgs = forwarded
+            if !ArgumentEditing.hasOption("frozen-manifest", in: independentArgs),
+               !ArgumentEditing.hasOption("write-manifest", in: independentArgs) {
+                let frozenManifest = PathURLs.fileURL(
+                    "docs/testing/independent-remote-speaker-evidence-v1-manifest.json"
+                )
+                if FileManager.default.fileExists(atPath: frozenManifest.path) {
+                    independentArgs += ["--frozen-manifest", frozenManifest.path]
+                }
+            }
+            _ = try Tooling.runPathAllowingExitCodes(
+                try PythonRuntime.resolve(),
+                [try script("report-independent-remote-speaker-evidence-v1-corpus.py").path]
+                    + independentArgs
+                    + ["--sessions-root", sessionsRoot.path],
+                allowedExitCodes: [0, 2]
+            )
         case "lifecycle":
             try Tooling.runPath(
                 try PythonRuntime.resolve(),
@@ -8066,6 +8148,7 @@ enum CorpusHelp {
           murmurmark corpus speaker-default all [--refresh-evidence] [--verify-existing]
                                                 [--sessions-root ./sessions]
           murmurmark corpus remote-residual all [--verify-existing] [--sessions-root ./sessions]
+          murmurmark corpus remote-independent all [--verify-existing] [--sessions-root ./sessions]
           murmurmark corpus perfection all [--verify-existing]
                                         [--manifest docs/testing/transcript-perfection-corpus-v1-manifest.json]
           murmurmark corpus lexical import SESSION SOURCE --source-id ID

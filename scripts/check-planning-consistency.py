@@ -67,6 +67,7 @@ CRITICAL_PATH = (
     "product-speaker-resolved-transcript-default-v1",
     "quality-lexical-accuracy-reference-corpus-v1",
     "quality-independent-remote-speaker-evidence-v1",
+    "quality-remote-speaker-residual-reference-corpus-v1",
 )
 
 EXPECTED_STATUSES = {"done", "current", "next", "later", "idea", "optional", "blocked"}
@@ -323,10 +324,18 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
         "independent remote speaker evidence must target the frozen v4 residual",
     )
     require(
-        nodes["quality-independent-remote-speaker-evidence-v1"].get("status") == "current",
-        "independent remote speaker evidence must be the current quality goal",
+        nodes["quality-independent-remote-speaker-evidence-v1"].get("status") == "done",
+        "independent remote speaker evidence must remain a completed measured ceiling",
     )
-    require(nodes["parking-lot"].get("status") == "optional", "parking lot must stay optional")
+    require(
+        "quality-independent-remote-speaker-evidence-v1"
+        in nodes["quality-remote-speaker-residual-reference-corpus-v1"].get("deps", []),
+        "remote residual reference must follow independent speaker evidence",
+    )
+    require(
+        nodes["quality-remote-speaker-residual-reference-corpus-v1"].get("status") == "current",
+        "remote residual reference corpus must be the current quality goal",
+    )
     require("parked-ui" not in nodes, "UI must not occupy the active CLI roadmap")
 
 
