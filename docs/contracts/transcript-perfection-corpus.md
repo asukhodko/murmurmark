@@ -57,6 +57,11 @@ subset: 67 words at WER/CER `0`. Real-meeting correctness remains
 `real_meeting_reference_insufficient` until graded human-reviewed 1x1/group and acoustic coverage
 exists. Weak machine agreement never counts as correctness.
 
+Remote Speaker Residual Reference Corpus v1 is the fourteenth frozen source. Its structurally valid
+blind pack is accepted as measured evidence even when its scientific decision is
+`REFERENCE_INSUFFICIENT`; readiness failures remain an explicit `remote_speaker_turns` blocker and
+are never treated as input corruption or correct attribution.
+
 ## Outputs
 
 The command writes only under:

@@ -1,0 +1,61 @@
+{
+  "schema": "murmurmark.remote_speaker_residual_reference_policy/v1",
+  "state": "reference_insufficient",
+  "corpus": {
+    "sessions": [
+      "2026-06-23_14-04-37",
+      "2026-06-24_15-03-52",
+      "2026-06-26_11-15-50",
+      "2026-06-26_12-04-04",
+      "2026-07-14_15-01-19-live",
+      "2026-07-20_15-15-26-live"
+    ],
+    "expected_residual_words": 851,
+    "expected_residual_seconds": 598.239509,
+    "expected_referenceable_word_seconds": 597.799509,
+    "expected_unaligned_residual_seconds": 0.44,
+    "expected_wavlm_proposal_words": 53,
+    "expected_wavlm_proposal_seconds": 23.356997,
+    "expected_review_items": 278
+  },
+  "review_pack": {
+    "join_gap_sec": 0.35,
+    "target_item_sec": 10.0,
+    "clip_padding_sec": 0.35,
+    "exemplars_per_speaker": 2,
+    "minimum_exemplar_sec": 1.25,
+    "maximum_exemplar_sec": 6.0,
+    "audio_subtype": "PCM_16"
+  },
+  "truth": {
+    "eligible_grades": [
+      "human_reviewed",
+      "exact_scripted"
+    ],
+    "special_outcomes": [
+      "unknown_speaker",
+      "mixed",
+      "unusable"
+    ],
+    "exact_scripted_sessions": []
+  },
+  "readiness": {
+    "required_reviewed_proposal_words": 53,
+    "required_direct_reference_proposal_words": 53,
+    "minimum_attributable_proposal_words": 20,
+    "minimum_candidate_precision": 0.98,
+    "require_all_residual_words_once": true,
+    "require_blind_prediction_separation": true,
+    "require_selected_transcript_unchanged": true,
+    "require_raw_audio_unchanged": true
+  },
+  "corpus_result": {
+    "decision": "REFERENCE_INSUFFICIENT",
+    "review_items": 278,
+    "reviewed_items": 0,
+    "reviewed_proposal_words": 0,
+    "direct_reference_proposal_words": 0,
+    "attributable_proposal_words": 0,
+    "reason": "blind_pack_ready_but_no_independent_human_or_exact_scripted_truth"
+  }
+}

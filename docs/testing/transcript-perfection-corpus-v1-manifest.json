@@ -191,6 +191,18 @@
       "path": "docs/testing/lexical-accuracy-reference-corpus-v1-manifest.json",
       "required": true,
       "sha256": "9ace79e55106e383262b0286a5f1c3608de8b6c447df2fb574119f0c7e136573"
+    },
+    {
+      "bytes": 3727,
+      "dimensions": [
+        "remote_speaker_turns"
+      ],
+      "evidence_level": "blind_private_residual_reference_pack",
+      "expected_schema": "murmurmark.remote_speaker_residual_reference_corpus_report/v1",
+      "id": "remote_speaker_residual_reference_corpus_v1",
+      "path": "sessions/_reports/remote-speaker-residual-reference-corpus-v1/remote_speaker_residual_reference_report.json",
+      "required": true,
+      "sha256": "0bd7ef4868467dea070569d402ac48a134680da53da72b61113cbe36da0a6f1a"
     }
   ]
 }

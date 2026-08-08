@@ -95,7 +95,10 @@ Read in this order:
 91. [Independent Remote Speaker Evidence v1 contract](contracts/independent-remote-speaker-evidence-v1.md)
 92. [Independent Remote Speaker Evidence v1 runbook](runbooks/independent-remote-speaker-evidence-v1.md)
 93. [Independent Remote Speaker Evidence v1 result](testing/2026-08-08-independent-remote-speaker-evidence-v1.md)
-94. [Planning and development history](history/README.md)
+94. [Remote Speaker Residual Reference Corpus v1 contract](contracts/remote-speaker-residual-reference-corpus-v1.md)
+95. [Remote Speaker Residual Reference Corpus v1 runbook](runbooks/remote-speaker-residual-reference-corpus-v1.md)
+96. [Remote Speaker Residual Reference Corpus v1 result](testing/2026-08-08-remote-speaker-residual-reference-corpus-v1.md)
+97. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
@@ -117,9 +120,10 @@ aggregate fallback. **Lexical Accuracy Reference Corpus v1** closed with
 correctness still lacks human-reviewed evidence. The independent WavLM experiment over the frozen
 `598.240s` unknown residue is complete with `DO_NOT_PROMOTE`: 53 words / `23.357s` recovered and no
 direct candidate truth.
-**Remote Speaker Residual Reference Corpus v1** is current: build a blind private reference over all
-proposals before changing clustering or thresholds. Notes, retrieval and work proposals remain
-parked.
+**Remote Speaker Residual Reference Corpus v1** materialized 278 blind items but closed
+`REFERENCE_INSUFFICIENT`: all 53 proposals still lack direct truth. **Controlled Remote Speaker
+Truth Lab v1** is current and measures constrained/open-set attribution against exact local scripted
+truth before any further real-session tuning. Notes, retrieval and work proposals remain parked.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

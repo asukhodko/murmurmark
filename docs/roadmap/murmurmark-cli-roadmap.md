@@ -75,7 +75,8 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Speaker-resolved default | `done` | 6/6 sessions, 14 expected speakers, exact aggregate fallback |
 | Lexical correctness | `done/blocker` | Exact 67-word subset WER/CER `0`; real meetings lack human truth |
 | Independent remote speaker evidence | `done` | `DO_NOT_PROMOTE`: 53 words / `23.357s`, no direct candidate truth |
-| Residual speaker reference | `current` | Blind private truth for 851 residual words and 53 proposals |
+| Residual speaker reference | `done/blocker` | 278 blind items; `REFERENCE_INSUFFICIENT`, direct truth 0/53 |
+| Controlled speaker truth lab | `current` | Exact scripted held-out evidence for constrained/open-set attribution |
 | Производные заметки | `done/optional` | Exact evidence memory и безопасный ID-only selector доступны |
 
 ## Актуальная Цепочка
@@ -91,11 +92,12 @@ flowchart LR
     H["Done: PROMOTE<br/>Speaker-Resolved<br/>Default v1"]
     L["Done: REFERENCE_INSUFFICIENT<br/>Lexical Accuracy<br/>Reference Corpus v1"]
     I["Done: DO_NOT_PROMOTE<br/>Independent Remote<br/>Speaker Evidence v1"]
-    C["Current<br/>Remote Speaker Residual<br/>Reference Corpus v1"]
+    C["Done: REFERENCE_INSUFFICIENT<br/>Remote Speaker Residual<br/>Reference Corpus v1"]
+    Q["Current<br/>Controlled Remote Speaker<br/>Truth Lab v1"]
     M["Idea<br/>Local Mic Multi-Speaker<br/>Diarization v1"]
     O["Optional<br/>Notes, retrieval,<br/>work proposals"]
 
-    B --> D --> P --> R --> V --> H --> L --> I --> C
+    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q
     F --> D
     P -. "real local scenario" .-> M
     L -.-> O
@@ -121,7 +123,7 @@ Word/frame-level diarization работает по authoritative remote audio, �
 ### 3. Transcript Perfection Corpus v1 — `done`
 
 Единый корпус связывает проверку текста, порядка, ролей, speaker turns, overlap, missing `Me`,
-remote leakage и acoustic modes. Baseline `BASELINE_ESTABLISHED`: 13/13 frozen sources verified,
+remote leakage и acoustic modes. Baseline `BASELINE_ESTABLISHED`: 14/14 frozen sources verified,
 восемь явных dimensions, exact lexical subset измерен, real meetings остаются
 reference-insufficient, aggregate score запрещён.
 
@@ -174,23 +176,32 @@ remote speech. Он восстановил 53 слова / `23.357s`: `6.2280%` 
 
 Результат: воспроизводимый `DO_NOT_PROMOTE`. Повторять WavLM с более мягкими порогами нельзя.
 
-### 9. Remote Speaker Residual Reference Corpus v1 — `current`
+### 9. Remote Speaker Residual Reference Corpus v1 — `done`
 
-Private blind pack должен покрыть все 851 residual words / `598.240s` и отдельно все 53 WavLM
-proposals. Reviewer получает bounded remote-only clip и session-local speaker exemplars, но не видит
-machine prediction до решения. Trusted truth ограничена `human_reviewed` и `exact_scripted`.
+Private blind pack покрывает все 851 residual words / `598.240s` в 278 items и отдельно все 53 WavLM
+proposals / `23.357s`. Prediction запечатан отдельно; public artifacts не содержат речь, имена и
+absolute paths. Все structural, privacy, conservation и replay gates проходят.
 
-Результат этапа — `REFERENCE_READY` при прямом покрытии всех proposals, минимум 20 attributable
-words и precision `>=0.98`, либо воспроизводимый `REFERENCE_INSUFFICIENT` с точной очередью. Ни один
-исход не меняет promoted Coverage v3 автоматически.
+Результат: `REFERENCE_INSUFFICIENT`, потому что reviewed items и direct proposal truth остаются 0.
+Точная приватная очередь сохранена; Coverage v3 и ordinary transcript не изменены.
 
-### 10. Local Mic Multi-Speaker Diarization v1 — `idea`
+### 10. Controlled Remote Speaker Truth Lab v1 — `current`
+
+Локальная лаборатория создаёт separate source stems и canonical mixtures с exact
+speaker/word/timestamp truth. Train/dev/hard разделяются, а hard включает short turns, internal
+speaker changes, overlap, rare и open-set speaker без enrollment.
+
+Результат будет `LAB_READY` только при exact word conservation, held-out B-cubed F1 и pairwise
+precision `>=0.98`, 100% boundary recall и zero open-set false attribution. Иначе этап закроется
+`DO_NOT_ADVANCE`. Даже `LAB_READY` не заменяет blind review реальных 53 proposals.
+
+### 11. Local Mic Multi-Speaker Diarization v1 — `idea`
 
 Когда появится реальный сценарий нескольких людей у одного ноутбука и размеченный материал, mic-речь
 будет разделяться на Target-Me, other local speakers и `unknown`. Этот этап зависит от remote v2 и
 Transcript Perfection Corpus, но не нужен для нынешнего основного сценария одного пользователя.
 
-### 11. Производные Возможности — `optional`
+### 12. Производные Возможности — `optional`
 
 Extractive notes, quality verdict, reviewed speaker memory, ID-only selection, локальный поиск и
 work proposals могут развиваться после достижения transcript gates или по отдельному явному запросу.

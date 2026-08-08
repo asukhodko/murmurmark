@@ -95,17 +95,6 @@ nodes:
     effort: 7
     notes: "Frozen queues, local audio judges, review decisions, provenance и guarded profile selection."
 
-  capability-notes-export:
-    title: "Optional evidence notes, export и retention"
-    kind: task
-    parent: working-capabilities
-    status: done
-    effort: 6
-    notes: |
-      Quality verdict остаётся transcript evidence. Deterministic notes, guarded Markdown/Obsidian
-      export и work proposals являются optional derivatives; raw retention plan и безопасная
-      compaction пересоздаваемого derived audio имеют opt-out для debug-сессий.
-
   capability-derived-compaction:
     title: "Thin-session derived compaction"
     kind: task
@@ -533,7 +522,7 @@ nodes:
     status: done
     effort: 10
     notes: |
-      Завершено BASELINE_ESTABLISHED. После Lexical Accuracy Reference Corpus проверяет 13/13 frozen
+      Завершено BASELINE_ESTABLISHED. После Residual Reference Corpus проверяет 14/14 frozen
       sources; восемь dimensions разделяют correctness, coverage, uncertainty и review. Exact
       lexical subset измерен, real meetings reference-insufficient, aggregate score запрещён.
       Ranked residual leader: 598.240s / 851 unknown remote words / 6 sessions.
@@ -588,7 +577,7 @@ nodes:
       Завершено REFERENCE_INSUFFICIENT. Девять graded sources отделяют exact generated evidence от
       scripted expected и independent machine diagnostics. Exact digital subset: 67 words, WER/CER
       0, term accuracy 1.0; human-reviewed real sessions: 0. Public/tracked artifacts не содержат
-      речь, имена или absolute paths; replay детерминирован. Transcript Perfection проверяет 13/13
+      речь, имена или absolute paths; replay детерминирован. Transcript Perfection проверяет 14/14
       sources и сохраняет real-meeting lexical blocker.
 
   quality-independent-remote-speaker-evidence-v1:
@@ -609,14 +598,27 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-independent-remote-speaker-evidence-v1, quality-lexical-accuracy-reference-corpus-v1]
-    status: current
+    status: done
     effort: 12
     notes: |
-      Создать private blind candidate-targeted truth для frozen 851 words / 598.240s residual и всех
-      53 WavLM proposals / 23.357s. Заморозить bounded remote clips, speaker exemplars, IDs, times и
-      hashes; скрыть prediction до решения. Trusted grades только human_reviewed/exact_scripted.
-      REFERENCE_READY требует direct labels всех proposals, >=20 attributable words и precision
-      >=0.98; иначе завершить reproducible REFERENCE_INSUFFICIENT без изменения Coverage v3.
+      Завершено REFERENCE_INSUFFICIENT. Frozen six-session scope содержит 851 words / 598.240s,
+      278 blind items, 28 session-local exemplars и sealed 53 WavLM proposals / 23.357s. Structural,
+      privacy, conservation и replay gates проходят; reviewed items и direct proposal truth остаются
+      0. Coverage v3, selected transcript и raw CAF сохранены.
+
+  quality-controlled-remote-speaker-truth-lab-v1:
+    title: "Controlled Remote Speaker Truth Lab v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-remote-speaker-residual-reference-corpus-v1]
+    status: current
+    effort: 14
+    notes: |
+      Создать fully local exact-scripted multi-speaker remote corpus с separate stems, canonical
+      mixtures, exact word/speaker/timestamp truth и train/dev/hard splits. Покрыть >=4 anonymous
+      voices, short turns, internal changes, overlap, rare и open-set speaker. LAB_READY требует
+      exact conservation, held-out B-cubed F1 и pairwise precision >=0.98, boundary recall 100% и
+      zero open-set false attribution; иначе DO_NOT_ADVANCE. Synthetic truth не продвигает real labels.
 
   future-local-mic-diarization-v1:
     title: "Local Mic Multi-Speaker Diarization v1"
@@ -647,10 +649,10 @@ views:
         nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-remote-speaker-residual-reference-corpus-v1]
+        nodes: [quality-controlled-remote-speaker-truth-lab-v1]
       dependent:
-        title: "Завершённый independent evidence ceiling"
-        nodes: [quality-independent-remote-speaker-evidence-v1]
+        title: "Blind real-session reference blocker"
+        nodes: [quality-remote-speaker-residual-reference-corpus-v1]
       conditional:
         title: "Только при появлении local multi-speaker evidence"
         nodes: [future-local-mic-diarization-v1]
@@ -694,6 +696,7 @@ views:
           - quality-lexical-accuracy-reference-corpus-v1
           - quality-independent-remote-speaker-evidence-v1
           - quality-remote-speaker-residual-reference-corpus-v1
+          - quality-controlled-remote-speaker-truth-lab-v1
 
   echo-frontier:
     title: "Пред-ASR отделение Me от remote"
@@ -729,7 +732,10 @@ views:
         title: "Доказанная speaker evidence"
         nodes: [research-remote-diarization, research-rich-transcript, quality-remote-speaker-diarization-v2]
       current:
-        title: "Прямой reference для remote residual"
+        title: "Exact scripted speaker truth"
+        nodes: [quality-controlled-remote-speaker-truth-lab-v1]
+      blocker:
+        title: "Blind real-session reference"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
       closure:
         title: "Unified baseline"
@@ -783,13 +789,14 @@ views:
           - quality-lexical-accuracy-reference-corpus-v1
           - quality-independent-remote-speaker-evidence-v1
           - quality-remote-speaker-residual-reference-corpus-v1
+          - quality-controlled-remote-speaker-truth-lab-v1
           - future-local-mic-diarization-v1
 
 x:
   exec:
     program:
-      nearest_goal: "Remote Speaker Residual Reference Corpus v1: создать private blind candidate-targeted reference corpus для frozen six-session Coverage v3 residual (`851` words / `598.240s`) и всех `53` WavLM proposals (`23.357s`); заморозить word IDs, timestamps, bounded audio clips, session-local speaker exemplars и SHA-256; скрыть machine prediction до решения и принимать truth только из explicit human-reviewed либо exact scripted evidence, никогда из согласия моделей; поддержать outcomes `remote_speaker_XX`, `unknown_speaker`, `mixed`, `unusable` с provenance и конфликтами; считать evidence ready только при прямом покрытии всех 53 proposals и не менее 20 attributable recovered words с precision `>=0.98`, иначе завершить воспроизводимым `REFERENCE_INSUFFICIENT`; не менять selected transcript, Coverage v3, raw CAF, primary ASR или Echo Guard; держать речь и имена в private ignored artifacts, а tracked outputs ограничить агрегатами, portable paths и hashes; добавить CLI, тесты и deterministic replay, обновить README, contracts, runbook, roadmap и OpsKarta, закоммитить и отправить в origin/main."
-      success_by_next_sync: "Frozen remote residual имеет blind private review pack и прямую candidate truth readiness либо точный воспроизводимый REFERENCE_INSUFFICIENT."
+      nearest_goal: "Controlled Remote Speaker Truth Lab v1: создать полностью локальный детерминированный exact-scripted multi-speaker remote corpus с отдельными source stems, canonical mixtures, word/speaker/timestamp truth, SHA-256 и session-disjoint train/dev/hard splits; покрыть минимум четыре anonymous voices, 1x1 и group turns, внутрисегментные speaker changes, short turns, silence, overlap, rare speaker и open-set speaker без enrollment; запускать promoted Coverage v3 и candidate constrained/open-set WavLM topology только как audit, не считать machine agreement truth и не использовать real-session residual для настройки; завершить LAB_READY только при полном word conservation, direct truth coverage, deterministic replay, held-out B-cubed F1 и pairwise precision >=0.98, open-set false attribution ==0 и boundary recall 100%, иначе DO_NOT_ADVANCE; не менять selected transcript, Coverage v3, raw CAF, primary ASR или Echo Guard; хранить generated speech в private ignored artifacts, tracked outputs ограничить aggregate metrics, portable paths и hashes; добавить CLI, тесты и corpus report, обновить README, contracts, runbook, roadmap и OpsKarta, закоммитить и отправить в origin/main."
+      success_by_next_sync: "Exact scripted remote-speaker lab даёт LAB_READY либо воспроизводимый DO_NOT_ADVANCE, не меняя real-session transcript."
     defaults:
       status_progress:
         done: 1.0
@@ -810,13 +817,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle, batch transcript, review, notes/export и Live Shadow уже работают."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Remote Speaker Residual Reference Corpus v1"
-        scope_nodes: [quality-remote-speaker-residual-reference-corpus-v1]
+        title: "Controlled Remote Speaker Truth Lab v1"
+        scope_nodes: [quality-controlled-remote-speaker-truth-lab-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Independent WavLM закрылся DO_NOT_PROMOTE: 53 proposals не имеют прямой candidate truth."
-          next_sync_goal: "Материализовать blind private reference и измерить точный остаток review."
+          sync_note: "Blind real-session pack готов, но direct truth 0/53; synthetic exact lab теперь отделяет topology viability от review."
+          next_sync_goal: "Проверить constrained/open-set attribution на disjoint exact scripted truth."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -830,11 +837,12 @@ x:
           - quality-lexical-accuracy-reference-corpus-v1
           - quality-independent-remote-speaker-evidence-v1
           - quality-remote-speaker-residual-reference-corpus-v1
+          - quality-controlled-remote-speaker-truth-lab-v1
         kind: main
         mgmt:
           health: yellow
           sync_note: "Speaker-resolved handoff готов; exact lexical subset измерен, real-meeting lexical truth требует внешней проверки."
-          next_sync_goal: "Не менять diarization topology до прямого candidate-targeted reference."
+          next_sync_goal: "Не продвигать real labels из synthetic truth; blind review остаётся отдельным blocker."
       research:
         title: "Будущий local multi-speaker"
         scope_nodes: [future-local-mic-diarization-v1]
@@ -864,7 +872,7 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: speaker-resolved default promoted; текущий фокус — прямой blind reference для remote residual."
+        caption: "Короткая карта: real blind reference insufficient; текущий фокус — exact scripted remote-speaker truth lab."
         blocks:
           - working-now
           - current-quality

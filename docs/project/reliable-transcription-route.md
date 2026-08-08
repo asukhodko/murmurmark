@@ -8,8 +8,9 @@ remote speech, strong private-reference precision and exact v2-label/word conser
 Evidence v4 closed with a measured `DO_NOT_PROMOTE`; Speaker-Resolved Transcript Default v1 is
 promoted. Lexical Accuracy Reference Corpus v1 closed `REFERENCE_INSUFFICIENT` after measuring the
 exact 67-word digital subset at WER/CER `0`. Independent WavLM evidence recovered 53 words /
-`23.357s`, missed both coverage gates and closed `DO_NOT_PROMOTE`. Remote Speaker Residual Reference
-Corpus v1 is current; notes, retrieval and work proposals remain optional derivatives.
+`23.357s`, missed both coverage gates and closed `DO_NOT_PROMOTE`. The blind residual corpus froze
+278 items but closed `REFERENCE_INSUFFICIENT` with 0/53 direct proposal labels. Controlled Remote
+Speaker Truth Lab v1 is current; notes, retrieval and work proposals remain optional derivatives.
 Date: 2026-08-08
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
@@ -468,9 +469,9 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Remote Speaker Residual Reference Corpus v1: создать blind private direct truth для frozen 851-word
-Coverage v3 residual и всех 53 WavLM proposals; не менять слова, таймкоды и default, не считать
-machine agreement truth.
+Controlled Remote Speaker Truth Lab v1: создать exact-scripted local multi-speaker remote corpus,
+проверить constrained/open-set attribution на held-out truth и не переносить synthetic success в
+real-session promotion.
 ```
 
 Speaker-Resolved Transcript Default v1 завершён `PROMOTE`: ordinary read/handoff/export выбирают v3
@@ -490,7 +491,10 @@ claim is allowed before two human-reviewed sessions cover 1x1/group, both roles 
 modes.
 
 The independent-backend experiment is complete. Pinned WavLM recovered 53 words / `23.357s`, but
-missed both `20%` gates and had no direct reference coverage for its new decisions. The next step is
-evidence acquisition: a blind private pack over all 851 residual words and all 53 proposals. Only
-explicit human-reviewed or exact scripted rows may become truth. Reusing model agreement, lowering
-thresholds or changing clustering before that pack is ready would not add independent evidence.
+missed both `20%` gates. The subsequent blind corpus froze all 851 residual words, 278 bounded items
+and all 53 proposals; structural gates pass, while direct truth remains 0/53. That stage therefore
+closed `REFERENCE_INSUFFICIENT` without changing Coverage v3.
+
+The autonomous next step is exact scripted evidence: local source stems, known speaker/word/time
+truth, disjoint held-out mixtures and explicit open-set speakers. It can decide whether a constrained
+WavLM topology is technically sound. It cannot replace blind review of real-session proposals.

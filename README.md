@@ -295,7 +295,7 @@ murmurmark notes "$SESSION" --reviewed-speakers
 murmurmark export "$SESSION" --format markdown --include-json --reviewed-speakers
 ```
 Speaker-aware memory and exact-text notes remain optional derivatives. Transcript Perfection Corpus
-keeps 13/13 frozen sources explicit and never collapses unlike quality dimensions into one score.
+keeps 14/14 frozen sources explicit and never collapses unlike quality dimensions into one score.
 Lexical Accuracy Reference Corpus v1 measures its exact 67-word digital subset at WER/CER `0` and
 keeps real-meeting lexical correctness blocked by missing human-reviewed evidence:
 
@@ -304,8 +304,8 @@ murmurmark corpus lexical status
 murmurmark corpus lexical replay \
   --write-manifest docs/testing/lexical-accuracy-reference-corpus-v1-manifest.json
 murmurmark corpus perfection all --verify-existing
-murmurmark audit remote-independent "$SESSION"
-murmurmark corpus remote-independent all --verify-existing
+murmurmark corpus remote-reference status
+murmurmark corpus remote-reference replay
 ```
 
 The dependent critical path is:
@@ -319,13 +319,12 @@ Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental 
 -> Speaker-Resolved Transcript Default v1 (done: PROMOTE, ordinary read/handoff/export)
 -> Lexical Accuracy Reference Corpus v1 (done: REFERENCE_INSUFFICIENT, bounded exact subset)
 -> Independent Remote Speaker Evidence v1 (done: DO_NOT_PROMOTE, 53 words / 23.357s)
--> Remote Speaker Residual Reference Corpus v1 (current)
+-> Remote Speaker Residual Reference Corpus v1 (done: REFERENCE_INSUFFICIENT, blind pack ready)
+-> Controlled Remote Speaker Truth Lab v1 (current)
 ```
 
-Independent WavLM preserved every safety gate but recovered only `6.2280%` of residual words and
-`3.9043%` of residual seconds; none of its new decisions has direct reference coverage. **Remote
-Speaker Residual Reference Corpus v1** is now current: build a blind private truth set for the frozen
-851-word residual and all 53 WavLM proposals before changing diarization topology or thresholds.
+Independent WavLM recovered only `6.2280%` of residual words. The blind 278-item pack is reproducible,
+but its 53 proposals lack direct truth. **Controlled Remote Speaker Truth Lab v1** is now current.
 See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 ## Scope And Limitations
 
@@ -337,6 +336,7 @@ See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](do
   into a known voice.
 - Independent WavLM evidence remains audit-only after `DO_NOT_PROMOTE`; machine agreement cannot
   replace direct candidate-targeted reference labels.
+- The residual reference pack is private and blind; its missing review keeps real promotion blocked.
 - `--reviewed-speakers` uses only explicit labels from the current session decision file. Human
   names are never inferred from voice or consumed implicitly by ordinary transcript/export.
 - The personalized pre-ASR profile removes independently supported remote leakage on compatible
@@ -376,7 +376,7 @@ See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](do
 - [Transcript Perfection Corpus contract](docs/contracts/transcript-perfection-corpus.md)
 - [Lexical Accuracy Reference Corpus contract](docs/contracts/lexical-accuracy-reference-corpus.md)
 - [Remote Speaker Coverage v3](docs/contracts/remote-speaker-coverage-v3.md) and [Residual Evidence v4](docs/contracts/remote-speaker-residual-evidence-v4.md) contracts
-- [Independent Remote Speaker Evidence v1](docs/contracts/independent-remote-speaker-evidence-v1.md)
+- [Independent evidence](docs/contracts/independent-remote-speaker-evidence-v1.md) and [residual reference](docs/contracts/remote-speaker-residual-reference-corpus-v1.md)
 - [Speaker-Resolved Transcript Default v1](docs/contracts/speaker-resolved-transcript-default-v1.md)
 
 ## Development Checks
@@ -388,7 +388,7 @@ scripts/check-planning-consistency.py
 scripts/check-open-source-readiness.sh
 scripts/check.sh
 murmurmark corpus remote-coverage all --verify-existing && murmurmark corpus remote-residual all --verify-existing
-murmurmark corpus remote-independent all --verify-existing
+murmurmark corpus remote-independent all --verify-existing && murmurmark corpus remote-reference replay
 murmurmark corpus speaker-default all --verify-existing
 murmurmark corpus perfection all --verify-existing
 ```

@@ -128,9 +128,10 @@ complete: Residual Evidence v4 recovered 124 words / `83.640s` but missed both `
 with `DO_NOT_PROMOTE`. Speaker-Resolved Transcript Default v1 is promoted as the normal transcript
 surface with exact aggregate fail-open. Lexical Accuracy Reference Corpus v1 closed
 `REFERENCE_INSUFFICIENT`. Independent WavLM recovered 53 words / `23.357s`, missed both coverage
-gates and closed `DO_NOT_PROMOTE`; its proposals lack direct reference coverage. Remote Speaker
-Residual Reference Corpus v1 is the current quality step. Notes, retrieval and work proposals remain
-optional consumers and cannot alter the authoritative path.
+gates and closed `DO_NOT_PROMOTE`. Remote Speaker Residual Reference Corpus v1 froze 278 blind items
+and closed `REFERENCE_INSUFFICIENT` because direct truth covers 0/53 proposals. Controlled Remote
+Speaker Truth Lab v1 is the current quality step; it can qualify topology on exact scripted evidence
+but cannot promote real-session labels. Notes, retrieval and work proposals remain optional.
 
 Target transcription path:
 

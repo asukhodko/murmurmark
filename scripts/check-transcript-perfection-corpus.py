@@ -223,6 +223,38 @@ def build_fixture(root: Path) -> Path:
             },
             ["recognized_words"],
         ),
+        "remote_speaker_residual_reference_corpus_v1": (
+            files / "remote-reference.json",
+            {
+                "schema": "murmurmark.remote_speaker_residual_reference_corpus_report/v1",
+                "decision": "REFERENCE_INSUFFICIENT",
+                "summary": {
+                    "review_items": 12,
+                    "reviewed_items": 0,
+                    "wavlm_proposal_words": 10,
+                    "direct_reference_proposal_words": 0,
+                    "candidate_precision": None,
+                },
+                "gates": {
+                    "six_session_scope": True,
+                    "review_item_count_exact": True,
+                    "all_residual_words_once": True,
+                    "residual_scope_seconds_exact": True,
+                    "referenceable_word_seconds_exact": True,
+                    "unaligned_residual_seconds_accounted": True,
+                    "wavlm_proposal_words_exact": True,
+                    "wavlm_proposal_seconds_exact": True,
+                    "blind_prediction_separation": True,
+                    "raw_audio_unchanged": True,
+                    "selected_transcript_unchanged": True,
+                    "reviewed_all_proposals": False,
+                    "direct_reference_all_proposals": False,
+                    "minimum_attributable_proposals": False,
+                    "candidate_precision": False,
+                },
+            },
+            ["remote_speaker_turns"],
+        ),
     }
     sources: list[dict[str, object]] = []
     for source_id, (path, payload, dimensions) in payloads.items():
@@ -281,14 +313,14 @@ def main() -> int:
         assert result.returncode == 0, result.stdout + result.stderr
         report = json.loads((out / "transcript_perfection_corpus_report.json").read_text())
         assert report["decision"] == "BASELINE_ESTABLISHED"
-        assert report["summary"]["verified_sources"] == 13
+        assert report["summary"]["verified_sources"] == 14
         assert report["summary"]["aggregate_quality_score"] is None
         assert report["summary"]["aggregate_residual_seconds"] is None
         words = next(row for row in report["dimensions"] if row["id"] == "recognized_words")
         assert words["correctness_status"] == "bounded_exact_subset_only"
         assert words["metrics"]["exact_subset_wer"] == 0.0
         assert report["residuals"][0]["class"] == "unknown_remote_speaker"
-        assert report["next_goal"]["id"] == "independent-remote-speaker-evidence-v1"
+        assert report["next_goal"]["id"] == "controlled-remote-speaker-truth-lab-v1"
         assert report["next_goal"]["selected_residual_class"] == "unknown_remote_speaker"
         assert report["lexical_prerequisite"]["id"] == "human-reviewed-lexical-seed-v1"
         assert report["lexical_prerequisite"]["status"] == "external_evidence_required"

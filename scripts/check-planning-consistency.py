@@ -68,6 +68,7 @@ CRITICAL_PATH = (
     "quality-lexical-accuracy-reference-corpus-v1",
     "quality-independent-remote-speaker-evidence-v1",
     "quality-remote-speaker-residual-reference-corpus-v1",
+    "quality-controlled-remote-speaker-truth-lab-v1",
 )
 
 EXPECTED_STATUSES = {"done", "current", "next", "later", "idea", "optional", "blocked"}
@@ -333,8 +334,17 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
         "remote residual reference must follow independent speaker evidence",
     )
     require(
-        nodes["quality-remote-speaker-residual-reference-corpus-v1"].get("status") == "current",
-        "remote residual reference corpus must be the current quality goal",
+        nodes["quality-remote-speaker-residual-reference-corpus-v1"].get("status") == "done",
+        "remote residual reference corpus must remain a completed evidence checkpoint",
+    )
+    require(
+        "quality-remote-speaker-residual-reference-corpus-v1"
+        in nodes["quality-controlled-remote-speaker-truth-lab-v1"].get("deps", []),
+        "controlled remote speaker truth lab must follow the blind residual reference decision",
+    )
+    require(
+        nodes["quality-controlled-remote-speaker-truth-lab-v1"].get("status") == "current",
+        "controlled remote speaker truth lab must be the current quality goal",
     )
     require("parked-ui" not in nodes, "UI must not occupy the active CLI roadmap")
 

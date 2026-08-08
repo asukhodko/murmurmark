@@ -34,10 +34,10 @@ Expected frozen baseline:
 
 ```text
 decision: BASELINE_ESTABLISHED
-sources: 13/13 verified
+sources: 14/14 verified
 release_ready: false
 largest_actionable_residual: unknown_remote_speaker (598.240s)
-next_goal: Remote Speaker Residual Reference Corpus v1
+next_goal: Controlled Remote Speaker Truth Lab v1
 ```
 
 ## Reading The Result
@@ -46,6 +46,7 @@ next_goal: Remote Speaker Residual Reference Corpus v1
 - `release_ready: false` means transcript mission gaps remain.
 - `bounded_exact_subset_only` means 67 generated words are measured; real meetings remain reference-insufficient.
 - `lexical_prerequisite` names the external human-reviewed seed without overriding the autonomous next goal.
+- `remote_speaker_turns.residual_reference_insufficient` keeps 0/53 direct proposal truth visible.
 - residual seconds belong to different frozen scopes and must not be summed.
 - the first residual row selects the next bounded engineering goal.
 

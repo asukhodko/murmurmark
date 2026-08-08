@@ -275,6 +275,34 @@ def semantic_gates(
         lexical.get("gates"),
     )
 
+    remote_reference = payloads.get("remote_speaker_residual_reference_corpus_v1") or {}
+    reference_gates = remote_reference.get("gates") or {}
+    structural_reference_gates = (
+        "six_session_scope",
+        "review_item_count_exact",
+        "all_residual_words_once",
+        "residual_scope_seconds_exact",
+        "referenceable_word_seconds_exact",
+        "unaligned_residual_seconds_accounted",
+        "wavlm_proposal_words_exact",
+        "wavlm_proposal_seconds_exact",
+        "blind_prediction_separation",
+        "raw_audio_unchanged",
+        "selected_transcript_unchanged",
+    )
+    add(
+        "remote_speaker_residual_reference_corpus_v1",
+        "scientific_decision",
+        remote_reference.get("decision") in {"REFERENCE_READY", "REFERENCE_INSUFFICIENT"},
+        remote_reference.get("decision"),
+    )
+    add(
+        "remote_speaker_residual_reference_corpus_v1",
+        "frozen_pack_integrity",
+        all(reference_gates.get(name) is True for name in structural_reference_gates),
+        {name: reference_gates.get(name) for name in structural_reference_gates},
+    )
+
     failures = [f"semantic_gate:{row['source']}:{row['gate']}" for row in checks if not row["passed"]]
     return checks, failures
 
@@ -401,6 +429,9 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
     lexical_summary = lexical["summary"]
     exact_subset = lexical_summary["exact_subset"]
     lexical_ready = lexical["decision"] == "LEXICAL_BASELINE_ESTABLISHED"
+    remote_reference = payloads["remote_speaker_residual_reference_corpus_v1"]
+    remote_reference_summary = remote_reference["summary"]
+    remote_reference_ready = remote_reference["decision"] == "REFERENCE_READY"
 
     return [
         {
@@ -459,15 +490,35 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
             "id": "remote_speaker_turns",
             "status": "measured_with_unknown",
             "correctness_status": "attributed_subset_passed",
-            "coverage_status": "explicit_unknown",
-            "reference_level": "private_named_reference_plus_frozen_boundaries",
-            "source_ids": ["remote_speaker_coverage_v3", "remote_speaker_coverage_v3_manifest"],
+            "coverage_status": (
+                "explicit_unknown_with_direct_residual_reference"
+                if remote_reference_ready
+                else "explicit_unknown_reference_insufficient"
+            ),
+            "reference_level": (
+                "human_reviewed_blind_residual_reference"
+                if remote_reference_ready
+                else "blind_residual_pack_without_independent_truth"
+            ),
+            "source_ids": [
+                "remote_speaker_coverage_v3",
+                "remote_speaker_coverage_v3_manifest",
+                "remote_speaker_residual_reference_corpus_v1",
+            ],
             "metrics": {
                 "attributable_speech_ratio": float(remote_summary["attributable_remote_speech_ratio"]),
                 "attributed_bcubed_f1": float(reference.get("bcubed", {}).get("f1") or 0),
                 "attributed_pairwise_precision": float(reference.get("pairwise", {}).get("precision") or 0),
                 "unknown_seconds": float(residual_by_class["unknown_remote_speaker"]["seconds"]),
                 "unknown_words": int(residual_by_class["unknown_remote_speaker"]["item_count"]),
+                "residual_reference_decision": remote_reference["decision"],
+                "residual_reference_items": int(remote_reference_summary["review_items"]),
+                "residual_reference_reviewed_items": int(remote_reference_summary["reviewed_items"]),
+                "wavlm_proposal_words": int(remote_reference_summary["wavlm_proposal_words"]),
+                "direct_reference_proposal_words": int(
+                    remote_reference_summary["direct_reference_proposal_words"]
+                ),
+                "candidate_precision": remote_reference_summary["candidate_precision"],
             },
             "residual_classes": ["unknown_remote_speaker"],
         },
@@ -622,6 +673,10 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
     required_sources = sum(1 for row in verified if row["required"])
     verified_sources = sum(1 for row in verified if row["required"] and row["status"] == "verified")
     decision = "BASELINE_ESTABLISHED" if not failures else "INVALID_INPUTS"
+    remote_reference_ready = (
+        (payloads.get("remote_speaker_residual_reference_corpus_v1") or {}).get("decision")
+        == "REFERENCE_READY"
+    )
     release_blockers = [
         "recognized_words.real_meeting_lexical_reference_insufficient",
         "remote_speaker_turns.unknown_remote_speaker",
@@ -629,9 +684,11 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
         "chronology.chronology_conflict",
         "missing_me.missing_me_uncertainty",
     ]
+    if not remote_reference_ready:
+        release_blockers.insert(2, "remote_speaker_turns.residual_reference_insufficient")
     report = {
         "schema": REPORT_SCHEMA,
-        "generator": {"name": "report-transcript-perfection-corpus", "version": "0.1.0", "mode": "deterministic_offline"},
+        "generator": {"name": "report-transcript-perfection-corpus", "version": "0.2.0", "mode": "deterministic_offline"},
         "decision": decision,
         "manifest": {
             "path": portable_path(Path(str(manifest["_path"]))),
@@ -666,6 +723,18 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
                 "next_evidence": "freeze two private human-reviewed real meetings covering 1x1, group, Me, remote, speaker playback and headphones/low-leak",
             },
             {
+                "dimension": "remote_speaker_turns",
+                "status": "reference_insufficient",
+                "reason": (
+                    "the blind 851-word residual pack is frozen, but none of its 53 WavLM proposals "
+                    "has independent human-reviewed or exact-scripted truth"
+                ),
+                "next_evidence": (
+                    "build exact scripted multi-speaker remote truth and keep real-meeting promotion "
+                    "blocked until direct blind review exists"
+                ),
+            },
+            {
                 "dimension": "local_mic_multi_speaker",
                 "status": "not_measured",
                 "reason": "no real labeled multi-person local-mic scenario exists",
@@ -687,13 +756,13 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
             ),
         },
         "next_goal": {
-            "id": "independent-remote-speaker-evidence-v1" if not failures else "restore-input-integrity",
-            "title": "Independent Remote Speaker Evidence v1" if not failures else "Restore Input Integrity",
+            "id": "controlled-remote-speaker-truth-lab-v1" if not failures else "restore-input-integrity",
+            "title": "Controlled Remote Speaker Truth Lab v1" if not failures else "Restore Input Integrity",
             "selected_residual_class": "unknown_remote_speaker" if not failures else None,
             "rationale": (
-                "The largest measured and autonomously actionable residual is 598.240 seconds of unknown remote "
-                "speaker attribution. Qualify one genuinely independent local backend without weakening Coverage "
-                "v3 precision, changing words or forcing unsupported identities."
+                "The blind real-session pack is ready but lacks independent truth. Build an exact scripted local "
+                "multi-speaker remote corpus to evaluate constrained and open-set attribution without using model "
+                "agreement as reference or weakening Coverage v3."
                 if not failures
                 else "Input integrity must be restored before selecting an engineering goal."
             ),

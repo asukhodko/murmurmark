@@ -68,13 +68,14 @@ Speaker attribution is evidence-first. Voice can establish session-local similar
 human identity. Remote Speaker Coverage v3 is promoted with `93.9312%` attributable remote speech,
 exact selected-word and v2-label conservation. Unsupported regions and a rare voice without enough
 enrollment remain explicit `unknown`. Transcript Perfection Corpus v1 remains the convergence
-baseline. Residual Evidence v4 measured a safe `14.57%` word / `13.98%` second ceiling and closed
+    baseline. Residual Evidence v4 measured a safe `14.57%` word / `13.98%` second ceiling and closed
 with `DO_NOT_PROMOTE`; Speaker-Resolved Transcript Default v1 is promoted. Lexical Accuracy
 Reference Corpus v1 proves the exact 67-word digital subset at WER/CER `0`, but closes
 `REFERENCE_INSUFFICIENT` for real meetings because no human-reviewed reference exists. Independent
-WavLM evidence then recovered only 53 residual words / `23.357s` and closed `DO_NOT_PROMOTE`; its
-new decisions have no direct truth coverage. The current engineering gap is a blind private
-reference corpus targeted at the frozen remote-speaker residual.
+    WavLM evidence then recovered only 53 residual words / `23.357s` and closed `DO_NOT_PROMOTE`.
+    The blind residual pack now covers 851 words in 278 items, but direct truth still covers 0/53
+    proposals. The current engineering step is an exact local multi-speaker truth lab; real-session
+    promotion remains blocked by the private blind review requirement.
 
 ## Core User Jobs
 
@@ -111,12 +112,12 @@ met, unless an explicit product decision changes the priority.
 
 ## Near-Term Direction
 
-1. **Transcript Perfection Corpus v1:** maintain the completed 13-source benchmark for text,
+1. **Transcript Perfection Corpus v1:** maintain the completed 14-source benchmark for text,
    chronology, roles, speakers, overlap, acoustic modes and known residual defects.
-2. **Remote Speaker Residual Reference Corpus v1:** create blind direct truth for all 53 WavLM
-   proposals and the frozen 851-word residual before changing diarization topology or thresholds.
-3. **Constrained/Open-Set Remote Diarization:** evaluate only after candidate-targeted reference is
-   ready; unknown must remain a valid outcome.
+2. **Controlled Remote Speaker Truth Lab v1:** measure constrained/open-set attribution on exact
+   scripted local mixtures with disjoint held-out speakers and explicit unknown.
+3. **Remote residual blind review:** keep all 53 real-session proposals blocked until direct human or
+   exact scripted truth exists; synthetic success cannot promote them.
 4. **Human-Reviewed Lexical Seed v1:** external-evidence prerequisite; do not tune ASR from machine
    agreement while it is absent.
 5. **Measured residual loop:** rerank after every bounded `PROMOTE` or evidence ceiling and close the

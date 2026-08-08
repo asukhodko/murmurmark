@@ -124,8 +124,9 @@ Target-Me presence detector. Free-text LLM synthesis remains unpromoted; ID-only
 is an explicit opt-in view with exact source text. Speaker-Resolved Transcript Default v1 is
 promoted. Lexical Accuracy Reference Corpus v1 closes `REFERENCE_INSUFFICIENT`: the exact generated
 67-word subset has WER/CER `0`, while real-meeting correctness still lacks human-reviewed evidence.
-Remote Speaker Residual Reference Corpus v1 is the current quality goal. Notes, retrieval, external
-writes and UI remain optional work.
+Remote Speaker Residual Reference Corpus v1 closed `REFERENCE_INSUFFICIENT` after freezing 278 blind
+items and all 53 WavLM proposals without direct truth. Controlled Remote Speaker Truth Lab v1 is the
+current quality goal. Notes, retrieval, external writes and UI remain optional work.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.
 
