@@ -100,16 +100,6 @@ nodes:
     effort: 7
     notes: "Frozen queues, local audio judges, review decisions, provenance и guarded profile selection."
 
-  capability-live-shadow:
-    title: "Capture-safe Live Shadow"
-    kind: task
-    parent: working-capabilities
-    status: done
-    effort: 5
-    notes: |
-      Committed-PCM sidecar даёт advisory preview и fail-open isolation. Live output не участвует
-      в authoritative transcript, export или retention.
-
   product-one-command-meeting-lifecycle-v1:
     title: "One-Command Meeting Lifecycle v1"
     kind: task
@@ -676,13 +666,27 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-bounded-remote-speaker-interval-purification-v1]
+    status: done
+    effort: 12
+    notes: |
+      Завершено DO_NOT_ADVANCE_ENROLLMENT_HARDENING. Один заранее объявленный
+      contrastive_reliability_weighted_centroid_v1 добавил 11 items / 44.694004s, сохранил
+      structural precision 1.0 и поднял coarse independent precision 0.878788 -> 0.894737, но
+      потерял пять control acceptances и закрыл лишь 4/83 enrollment failures при gate 5%.
+      Production, ECAPA item embeddings, thresholds 0.50/0.30 и Coverage v3 неизменны.
+
+  quality-remote-speaker-direct-truth-seed-v1:
+    title: "Remote Speaker Direct Truth Seed v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-session-local-remote-speaker-enrollment-hardening-v1]
     status: current
     effort: 12
     notes: |
-      На frozen 278-item ECAPA control проверить ровно один exemplar-only robust-centroid candidate
-      для 83 enrollment failures / 119.920926s. Кандидат использует только session-local exemplar
-      similarity, leave-one-out stability и impostor margin; target-item outcomes запрещены. ECAPA,
-      item embeddings, thresholds 0.50/0.30, Coverage v3 и production остаются неизменными.
+      Заморозить небольшой blind real-session seed: все 11 newly accepted, пять removed control
+      acceptances, stable controls, abstentions и доступные open-set/mixed cases минимум из трёх
+      групповых сессий. Получить только anonymous session-local speaker truth без model suggestion,
+      проверить blinded repeat consistency и не менять production transcript.
 
   future-local-mic-diarization-v1:
     title: "Local Mic Multi-Speaker Diarization v1"
@@ -713,7 +717,7 @@ views:
         nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-session-local-remote-speaker-enrollment-hardening-v1]
+        nodes: [quality-remote-speaker-direct-truth-seed-v1]
       dependent:
         title: "Blind real-session reference blocker"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
@@ -768,6 +772,7 @@ views:
           - quality-remote-speaker-shadow-error-decomposition-v1
           - quality-bounded-remote-speaker-interval-purification-v1
           - quality-session-local-remote-speaker-enrollment-hardening-v1
+          - quality-remote-speaker-direct-truth-seed-v1
 
   echo-frontier:
     title: "Пред-ASR отделение Me от remote"
@@ -803,8 +808,8 @@ views:
         title: "Доказанная speaker evidence"
         nodes: [research-remote-diarization, research-rich-transcript, quality-remote-speaker-diarization-v2]
       current:
-        title: "Укрепление session-local enrollment"
-        nodes: [quality-session-local-remote-speaker-enrollment-hardening-v1]
+        title: "Прямой blind speaker truth"
+        nodes: [quality-remote-speaker-direct-truth-seed-v1]
       blocker:
         title: "Blind real-session reference"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
@@ -867,14 +872,15 @@ views:
           - quality-remote-speaker-shadow-error-decomposition-v1
           - quality-bounded-remote-speaker-interval-purification-v1
           - quality-session-local-remote-speaker-enrollment-hardening-v1
+          - quality-remote-speaker-direct-truth-seed-v1
           - future-local-mic-diarization-v1
 
 x:
   exec:
     program:
       nearest_goal: >-
-        Session-Local Remote Speaker Enrollment Hardening v1: сохранить Coverage v3, ECAPA backend, selected transcripts, raw CAF, primary ASR и Echo Guard неизменными; SHA-256 заморозить 278-item shadow control, 83 enrollment-axis failure items / 119.920926s, 28 session-local exemplars, их embeddings и independent/structural evidence; до открытия результата объявить ровно один exemplar-only robust-centroid candidate, который использует только intra-session enrollment similarity, leave-one-out stability и impostor margin, но не target-item outcomes; пересчитать centroids и те же frozen item embeddings при thresholds 0.50/0.30; сравнить с control по acceptance, precision, open-set abstention, silent fail-open, chronology и provenance; выпустить `ADVANCE_HARDENED_ENROLLMENT_SHADOW`, `DO_NOT_ADVANCE_ENROLLMENT_HARDENING` либо `EVIDENCE_BOUND` без production promotion; добавить CLI, fail-closed fixture/replay tests, portable report и Transcript Perfection source; обновить документацию и планирование, пройти проверки, закоммитить и отправить изменения.
-      success_by_next_sync: "Один exemplar-only enrollment candidate сравнен с ECAPA control на всех 278 items, а terminal outcome выпущен без изменения production."
+        Remote Speaker Direct Truth Seed v1: сохранить Coverage v3, selected transcripts, raw CAF, primary ASR, Echo Guard, ECAPA shadow и все закрытые interval/enrollment experiments неизменными; SHA-256 заморозить 278-item blind residual pack и contrastive_reliability_weighted_centroid_v1 comparison; до открытия speaker labels выбрать небольшой стратифицированный review seed, включающий все 11 newly accepted, 5 removed control acceptances, stable controls, abstentions и доступные open-set/mixed cases минимум из трёх групповых сессий; материализовать speaker-bounded local clips и blind review UI без model suggestion; принимать только явный session-local anonymous speaker, unknown, mixed или unusable; проверить повторным blinded subset consistency, exact word/timestamp conservation и provenance; выпустить `DIRECT_TRUTH_SEED_READY`, `REFERENCE_INSUFFICIENT` либо `EVIDENCE_BOUND` без production promotion; добавить CLI, fail-closed fixture/replay tests, portable aggregate report и Transcript Perfection source; обновить документацию и планирование, пройти проверки, закоммитить и отправить изменения.
+      success_by_next_sync: "Небольшой blind real-session speaker seed выбран до labels, проверен повторным subset и заморожен без изменения production."
     defaults:
       status_progress:
         done: 1.0
@@ -895,13 +901,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle и batch transcript работают; three-session replay подтвердил raw/cache/speaker conservation и закрыл legacy cache preflight."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Session-Local Remote Speaker Enrollment Hardening v1"
-        scope_nodes: [quality-session-local-remote-speaker-enrollment-hardening-v1]
+        title: "Remote Speaker Direct Truth Seed v1"
+        scope_nodes: [quality-remote-speaker-direct-truth-seed-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Fixed interval crop закрыт DO_NOT_ADVANCE: 2 новых слова / 4.155s и одна новая reference error; production не менялся."
-          next_sync_goal: "Проверить один exemplar-only robust centroid на 83 enrollment failures при неизменных ECAPA item embeddings и thresholds."
+          sync_note: "Enrollment hardening закрыт DO_NOT_ADVANCE: 11 новых acceptances, пять removed control и только 4/83 целевых failures; production не менялся."
+          next_sync_goal: "Получить минимальный blind direct speaker truth для changed, stable, abstained и open-set/mixed cases."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -924,6 +930,7 @@ x:
           - quality-remote-speaker-shadow-error-decomposition-v1
           - quality-bounded-remote-speaker-interval-purification-v1
           - quality-session-local-remote-speaker-enrollment-hardening-v1
+          - quality-remote-speaker-direct-truth-seed-v1
         kind: main
         mgmt:
           health: yellow
@@ -958,7 +965,7 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: fixed interval crop закрыт без tuning; текущий фокус — один session-local enrollment candidate без изменения production."
+        caption: "Короткая карта: interval и enrollment эвристики исчерпаны; текущий фокус — минимальный blind direct speaker truth без изменения production."
         blocks:
           - working-now
           - current-quality

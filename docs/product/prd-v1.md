@@ -142,7 +142,9 @@ closed with `DO_NOT_PROMOTE_REAL_IDENTITY`: 156/851 words and 211.100/598.240 se
 but the word ratio was `0.183314` and independent machine-reference precision `0.878788`. Shadow
 Error Decomposition selected interval purification: 93/214 failures and `201.273504s`. Its one-shot
 crop then closed `DO_NOT_ADVANCE`: 2 new words / `4.154556s` and one new reference error.
-Session-Local Remote Speaker Enrollment Hardening v1 is current; production remains Coverage v3.
+Session-Local Remote Speaker Enrollment Hardening v1 closed `DO_NOT_ADVANCE`: 11 new acceptances,
+five removed controls and only 4/83 target failures recovered. Remote Speaker Direct Truth Seed v1
+is current; production remains Coverage v3.
 Notes, external writes and UI remain optional.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.

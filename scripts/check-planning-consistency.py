@@ -76,6 +76,7 @@ CRITICAL_PATH = (
     "quality-remote-speaker-shadow-error-decomposition-v1",
     "quality-bounded-remote-speaker-interval-purification-v1",
     "quality-session-local-remote-speaker-enrollment-hardening-v1",
+    "quality-remote-speaker-direct-truth-seed-v1",
 )
 
 EXPECTED_STATUSES = {"done", "current", "next", "later", "idea", "optional", "blocked"}
@@ -418,8 +419,17 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
     )
     require(
         nodes["quality-session-local-remote-speaker-enrollment-hardening-v1"].get("status")
-        == "current",
-        "session-local remote speaker enrollment hardening must be the current quality goal",
+        == "done",
+        "session-local remote speaker enrollment hardening must remain a completed checkpoint",
+    )
+    require(
+        "quality-session-local-remote-speaker-enrollment-hardening-v1"
+        in nodes["quality-remote-speaker-direct-truth-seed-v1"].get("deps", []),
+        "direct speaker truth seed must follow session-local enrollment hardening",
+    )
+    require(
+        nodes["quality-remote-speaker-direct-truth-seed-v1"].get("status") == "current",
+        "remote speaker direct truth seed must be the current quality goal",
     )
     require("parked-ui" not in nodes, "UI must not occupy the active CLI roadmap")
 

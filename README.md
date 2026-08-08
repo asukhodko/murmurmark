@@ -297,7 +297,7 @@ murmurmark transcript "$SESSION" --rich --reviewed-speakers
 murmurmark notes "$SESSION" --reviewed-speakers
 murmurmark export "$SESSION" --format markdown --include-json --reviewed-speakers
 ```
-Speaker-aware memory and exact-text notes remain optional derivatives. Transcript Perfection Corpus keeps 22/22 frozen sources explicit and never collapses unlike quality dimensions into one score.
+Speaker-aware memory and exact-text notes remain optional derivatives. Transcript Perfection Corpus keeps 23/23 frozen sources explicit and never collapses unlike quality dimensions into one score.
 Lexical Accuracy Reference Corpus v1 measures its exact 67-word digital subset at WER/CER `0` and
 keeps real-meeting lexical correctness blocked by missing human-reviewed evidence:
 ```bash
@@ -308,7 +308,7 @@ murmurmark corpus remote-reference status && murmurmark corpus remote-reference 
 murmurmark corpus remote-truth-lab replay && murmurmark corpus remote-duration-v2 status && murmurmark corpus remote-segment-context status
 murmurmark corpus remote-error-decomposition status && murmurmark corpus remote-error-decomposition replay
 murmurmark corpus remote-identity-v1 setup && murmurmark corpus remote-identity-v1 status && murmurmark corpus remote-identity-v1 replay
-murmurmark corpus remote-identity-shadow-v1 status && murmurmark corpus remote-identity-shadow-errors-v1 status && murmurmark corpus remote-identity-interval-v1 status && murmurmark corpus remote-identity-interval-v1 replay
+murmurmark corpus remote-identity-shadow-v1 status && murmurmark corpus remote-identity-shadow-errors-v1 status && murmurmark corpus remote-identity-interval-v1 status && murmurmark corpus remote-identity-enrollment-v1 status && murmurmark corpus remote-identity-enrollment-v1 replay
 ```
 The dependent critical path is:
 ```text
@@ -327,14 +327,14 @@ Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental 
 -> Remote Speaker Attribution Error Decomposition v1 (done: identity is the dominant bottleneck)
 -> Stronger Remote Speaker Identity Backend Qualification v1 (done: PROMOTE lab-only ECAPA)
 -> ECAPA Remote Speaker Shadow Qualification v1 (done: DO_NOT_PROMOTE on real sessions)
--> Remote Speaker Shadow Error Decomposition v1 (done) -> Bounded Remote Speaker Interval Purification v1 (done: DO_NOT_ADVANCE) -> Session-Local Remote Speaker Enrollment Hardening v1 (current)
+-> Remote Speaker Shadow Error Decomposition v1 (done) -> Bounded Remote Speaker Interval Purification v1 (done: DO_NOT_ADVANCE) -> Session-Local Remote Speaker Enrollment Hardening v1 (done: DO_NOT_ADVANCE) -> Remote Speaker Direct Truth Seed v1 (current)
 ```
 Independent WavLM recovered only `6.2280%` of residual words; the blind 278-item pack still lacks
 direct truth. Exact synthetic truth qualified the Coverage v3 control (`0.983505` B-cubed F1, zero
 open-set errors). Blind hard-v2 then rejected conservative word-level fusion despite precision `1.0`:
 known recall was `0.551402`, boundary recall `0.321429`. Oracle decomposition over 393 exact words
 measured identity gain `0.351382` versus segmentation `0.063882` and overlap/open-set `0.036364`.
-The independently trained ECAPA candidate passed every fixed one-shot hard-v4 gate: B-cubed F1 `0.948042`, pairwise precision `1.0`, known-speaker recall `0.947368`, zero open-set false attribution and exact 154/154 word conservation. Its real-session shadow failed promotion; decomposition routed 93/214 failures to interval purity. The fixed crop then recovered only 2 words / 4.155s and added one reference error, so it closed `DO_NOT_ADVANCE`; production remains Coverage v3 and the next measured axis is session-local enrollment.
+The independently trained ECAPA candidate passed every fixed one-shot hard-v4 gate: B-cubed F1 `0.948042`, pairwise precision `1.0`, known-speaker recall `0.947368`, zero open-set false attribution and exact 154/154 word conservation. Its real-session shadow failed promotion; decomposition routed 93/214 failures to interval purity. The fixed crop recovered only 2 words / 4.155s. Enrollment hardening then added 11 acceptances but lost five controls and closed `DO_NOT_ADVANCE`; production remains Coverage v3. The current step builds a small blind direct speaker-truth seed before any new identity candidate.
 See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 ## Scope And Limitations
 

@@ -511,6 +511,34 @@ def semantic_gates(
         {"invariants": interval_invariants, "safety": interval_safety},
     )
 
+    enrollment = payloads.get("session_local_remote_speaker_enrollment_hardening_v1") or {}
+    enrollment_invariants = enrollment.get("invariants") or {}
+    enrollment_safety = enrollment.get("safety") or {}
+    add(
+        "session_local_remote_speaker_enrollment_hardening_v1",
+        "terminal_decision",
+        enrollment.get("decision")
+        in {
+            "ADVANCE_HARDENED_ENROLLMENT_SHADOW",
+            "DO_NOT_ADVANCE_ENROLLMENT_HARDENING",
+            "EVIDENCE_BOUND",
+        },
+        enrollment.get("decision"),
+    )
+    add(
+        "session_local_remote_speaker_enrollment_hardening_v1",
+        "shadow_integrity",
+        bool(enrollment_invariants)
+        and all(value is True for value in enrollment_invariants.values())
+        and enrollment_safety.get("shadow_only") is True
+        and enrollment_safety.get("production_mutated") is False
+        and enrollment_safety.get("coverage_v3_mutated") is False
+        and enrollment_safety.get("selected_transcript_mutated") is False
+        and enrollment_safety.get("item_embeddings_mutated") is False
+        and enrollment_safety.get("thresholds_tuned") is False,
+        {"invariants": enrollment_invariants, "safety": enrollment_safety},
+    )
+
     failures = [f"semantic_gate:{row['source']}:{row['gate']}" for row in checks if not row["passed"]]
     return checks, failures
 
@@ -663,6 +691,7 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
     identity_shadow_evidence = identity_shadow["evidence"]
     shadow_errors = payloads["remote_speaker_shadow_error_decomposition_v1"]
     interval_purification = payloads["bounded_remote_speaker_interval_purification_v1"]
+    enrollment_hardening = payloads["session_local_remote_speaker_enrollment_hardening_v1"]
 
     return [
         {
@@ -743,6 +772,7 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 "ecapa_remote_speaker_shadow_qualification_v1",
                 "remote_speaker_shadow_error_decomposition_v1",
                 "bounded_remote_speaker_interval_purification_v1",
+                "session_local_remote_speaker_enrollment_hardening_v1",
             ],
             "metrics": {
                 "attributable_speech_ratio": float(remote_summary["attributable_remote_speech_ratio"]),
@@ -891,6 +921,22 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 ]["candidate_evidence"]["independent_machine_reference"]["precision"],
                 "interval_purification_new_reference_error_words": int(
                     interval_purification["comparison"]["new_reference_error_words"]
+                ),
+                "enrollment_hardening_decision": enrollment_hardening["decision"],
+                "enrollment_hardening_changed_profiles": int(
+                    enrollment_hardening["candidate"]["changed_profiles"]
+                ),
+                "enrollment_hardening_newly_accepted_items": int(
+                    enrollment_hardening["comparison"]["newly_accepted_items"]
+                ),
+                "enrollment_hardening_newly_accepted_seconds": float(
+                    enrollment_hardening["comparison"]["newly_accepted_seconds"]
+                ),
+                "enrollment_hardening_removed_control_acceptances": int(
+                    enrollment_hardening["comparison"]["removed_control_acceptances"]
+                ),
+                "enrollment_hardening_new_reference_error_words": int(
+                    enrollment_hardening["comparison"]["new_reference_error_words"]
                 ),
             },
             "residual_classes": ["unknown_remote_speaker"],
@@ -1069,9 +1115,14 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
         != "ADVANCE_PURIFIED_SHADOW_CANDIDATE"
     ):
         release_blockers.insert(2, "remote_speaker_turns.interval_purification_not_advanced")
+    if (
+        (payloads.get("session_local_remote_speaker_enrollment_hardening_v1") or {}).get("decision")
+        != "ADVANCE_HARDENED_ENROLLMENT_SHADOW"
+    ):
+        release_blockers.insert(2, "remote_speaker_turns.enrollment_hardening_not_advanced")
     report = {
         "schema": REPORT_SCHEMA,
-        "generator": {"name": "report-transcript-perfection-corpus", "version": "1.0.0", "mode": "deterministic_offline"},
+        "generator": {"name": "report-transcript-perfection-corpus", "version": "1.1.0", "mode": "deterministic_offline"},
         "decision": decision,
         "manifest": {
             "path": portable_path(Path(str(manifest["_path"]))),
@@ -1117,11 +1168,13 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
                     "failure items and 201.273504 seconds to interval purification. The one-shot "
                     "word-bounded candidate then removed four control errors and raised coarse "
                     "independent precision to 0.967742, but recovered only two new words / 4.154556 "
-                    "seconds and introduced one new reference error"
+                    "seconds and introduced one new reference error. The frozen enrollment candidate "
+                    "then found 11 new items / 44.694004 seconds without new measured reference errors, "
+                    "but removed five control acceptances and recovered only 4/83 enrollment-scope items"
                 ),
                 "next_evidence": (
-                    "evaluate one predeclared session-local enrollment hardening candidate on the "
-                    "frozen 83-item enrollment axis without retuning the rejected interval crop"
+                    "freeze a small direct real-session group-speaker truth seed covering new accepts, "
+                    "removed control accepts, abstentions and open-set negatives before another backend"
                 ),
             },
             {
@@ -1146,13 +1199,14 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
             ),
         },
         "next_goal": {
-            "id": "session-local-remote-speaker-enrollment-hardening-v1" if not failures else "restore-input-integrity",
-            "title": "Session-Local Remote Speaker Enrollment Hardening v1" if not failures else "Restore Input Integrity",
+            "id": "remote-speaker-direct-truth-seed-v1" if not failures else "restore-input-integrity",
+            "title": "Remote Speaker Direct Truth Seed v1" if not failures else "Restore Input Integrity",
             "selected_residual_class": "unknown_remote_speaker" if not failures else None,
             "rationale": (
-                "The single frozen interval candidate failed material recovery and no-new-error "
-                "gates, so that branch is closed without tuning. Enrollment instability is the next "
-                "measured axis: 83 failure items and 119.920926 seconds; Coverage v3 remains authoritative."
+                "The frozen enrollment candidate produced material gross recovery, but lost five "
+                "control acceptances and missed the 5% enrollment-scope item gate. Interval and "
+                "enrollment retuning are now closed on this evidence. Direct real-session speaker truth "
+                "is required to distinguish genuine backend progress from another self-consistent proxy."
                 if not failures
                 else "Input integrity must be restored before selecting an engineering goal."
             ),

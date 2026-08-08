@@ -1324,6 +1324,7 @@ enum DoctorChecks {
             "scripts/qualify-ecapa-remote-speaker-shadow-v1.py",
             "scripts/analyze-remote-speaker-shadow-errors-v1.py",
             "scripts/evaluate-bounded-remote-speaker-interval-purification-v1.py",
+            "scripts/evaluate-session-local-remote-speaker-enrollment-hardening-v1.py",
             "scripts/materialize-anonymous-rich-transcript.py",
             "scripts/review-remote-speaker-labels.py",
             "scripts/materialize-reviewed-speaker-memory.py",
@@ -8258,6 +8259,29 @@ enum CorpusCommands {
                 [try script("evaluate-bounded-remote-speaker-interval-purification-v1.py").path] + forwarded,
                 allowedExitCodes: [0, 2]
             )
+        case "remote-identity-enrollment-v1", "remote_identity_enrollment_v1":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(
+                    try PythonRuntime.resolve(),
+                    [try script("evaluate-session-local-remote-speaker-enrollment-hardening-v1.py").path, "--help"]
+                )
+                return
+            }
+            guard let action = forwarded.first else {
+                throw CLIError(
+                    "remote-identity-enrollment-v1 requires preflight, freeze, build, evaluate, status, replay, finalize, or all"
+                )
+            }
+            guard [
+                "preflight", "freeze", "build", "evaluate", "status", "replay", "finalize", "all",
+            ].contains(action) else {
+                throw CLIError("unsupported remote-identity-enrollment-v1 action: \(action)")
+            }
+            _ = try Tooling.runPathAllowingExitCodes(
+                try PythonRuntime.resolve(),
+                [try script("evaluate-session-local-remote-speaker-enrollment-hardening-v1.py").path] + forwarded,
+                allowedExitCodes: [0, 2]
+            )
         case "lifecycle":
             try Tooling.runPath(
                 try PythonRuntime.resolve(),
@@ -8424,6 +8448,8 @@ enum CorpusHelp {
                                       [--policy policies/remote-speaker-shadow-error-decomposition-v1.json]
           murmurmark corpus remote-identity-interval-v1 preflight|freeze|materialize|evaluate|status|replay|finalize|all
                                       [--policy policies/bounded-remote-speaker-interval-purification-v1.json]
+          murmurmark corpus remote-identity-enrollment-v1 preflight|freeze|build|evaluate|status|replay|finalize|all
+                                      [--policy policies/session-local-remote-speaker-enrollment-hardening-v1.json]
           murmurmark corpus perfection all [--verify-existing]
                                         [--manifest docs/testing/transcript-perfection-corpus-v1-manifest.json]
           murmurmark corpus lexical import SESSION SOURCE --source-id ID

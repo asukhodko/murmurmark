@@ -593,6 +593,43 @@ def build_fixture(root: Path) -> Path:
             },
             ["remote_speaker_turns"],
         ),
+        "session_local_remote_speaker_enrollment_hardening_v1": (
+            files / "session-local-remote-speaker-enrollment-hardening-v1.json",
+            {
+                "schema": "murmurmark.session_local_remote_speaker_enrollment_hardening_report/v1",
+                "decision": "DO_NOT_ADVANCE_ENROLLMENT_HARDENING",
+                "scope": {
+                    "items": 278,
+                    "words": 851,
+                    "enrollment_failure_items": 83,
+                    "enrollment_failure_seconds": 119.920926,
+                },
+                "candidate": {
+                    "changed_profiles": 10,
+                },
+                "comparison": {
+                    "newly_accepted_items": 11,
+                    "newly_accepted_seconds": 44.694004,
+                    "removed_control_acceptances": 5,
+                    "new_reference_error_words": 0,
+                },
+                "invariants": {
+                    "all_items_accounted_once": True,
+                    "all_words_accounted_once": True,
+                    "enrollment_scope_frozen": True,
+                    "candidate_uses_enrollment_only": True,
+                },
+                "safety": {
+                    "shadow_only": True,
+                    "production_mutated": False,
+                    "coverage_v3_mutated": False,
+                    "selected_transcript_mutated": False,
+                    "item_embeddings_mutated": False,
+                    "thresholds_tuned": False,
+                },
+            },
+            ["remote_speaker_turns"],
+        ),
     }
     sources: list[dict[str, object]] = []
     for source_id, (path, payload, dimensions) in payloads.items():
@@ -644,8 +681,8 @@ def run(manifest: Path, out: Path) -> subprocess.CompletedProcess[str]:
 
 def main() -> int:
     runbook = (ROOT / "docs/runbooks/transcript-perfection-corpus.md").read_text(encoding="utf-8")
-    assert "next_goal: Session-Local Remote Speaker Enrollment Hardening v1" in runbook
-    assert "next_goal: Bounded Remote Speaker Interval Purification v1" not in runbook
+    assert "next_goal: Remote Speaker Direct Truth Seed v1" in runbook
+    assert "next_goal: Session-Local Remote Speaker Enrollment Hardening v1" not in runbook
     with tempfile.TemporaryDirectory(prefix=".transcript-perfection-fixture-", dir=ROOT) as temporary:
         root = Path(temporary)
         manifest = build_fixture(root)
@@ -654,14 +691,14 @@ def main() -> int:
         assert result.returncode == 0, result.stdout + result.stderr
         report = json.loads((out / "transcript_perfection_corpus_report.json").read_text())
         assert report["decision"] == "BASELINE_ESTABLISHED"
-        assert report["summary"]["verified_sources"] == 22
+        assert report["summary"]["verified_sources"] == 23
         assert report["summary"]["aggregate_quality_score"] is None
         assert report["summary"]["aggregate_residual_seconds"] is None
         words = next(row for row in report["dimensions"] if row["id"] == "recognized_words")
         assert words["correctness_status"] == "bounded_exact_subset_only"
         assert words["metrics"]["exact_subset_wer"] == 0.0
         assert report["residuals"][0]["class"] == "unknown_remote_speaker"
-        assert report["next_goal"]["id"] == "session-local-remote-speaker-enrollment-hardening-v1"
+        assert report["next_goal"]["id"] == "remote-speaker-direct-truth-seed-v1"
         assert report["next_goal"]["selected_residual_class"] == "unknown_remote_speaker"
         assert report["lexical_prerequisite"]["id"] == "human-reviewed-lexical-seed-v1"
         assert report["lexical_prerequisite"]["status"] == "external_evidence_required"

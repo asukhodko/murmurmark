@@ -21,8 +21,10 @@ then closed `DO_NOT_PROMOTE_REAL_IDENTITY`: 156 words / 211.100 seconds were pro
 recovery `0.183314` and independent machine-reference precision `0.878788` missed frozen gates.
 Shadow Error Decomposition selected interval purification: 93/214 failures and `201.273504s`.
 The fixed crop then closed `DO_NOT_ADVANCE` after 2 new words / `4.154556s` and one new reference
-error. Session-Local Remote Speaker Enrollment Hardening v1 is current; production remains Coverage
-v3. Notes, retrieval and work proposals remain optional derivatives.
+error. Session-Local Remote Speaker Enrollment Hardening v1 then closed `DO_NOT_ADVANCE`: 11 new
+acceptances, five removed controls and only 4/83 target failures recovered. Remote Speaker Direct
+Truth Seed v1 is current; production remains Coverage v3. Notes, retrieval and work proposals remain
+optional derivatives.
 Date: 2026-08-09
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
@@ -486,9 +488,10 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Session-Local Remote Speaker Enrollment Hardening v1: на frozen ECAPA shadow проверить один
-exemplar-only robust centroid для 83 enrollment failures; менять только session-local enrollment,
-сохраняя item embeddings, thresholds, words, timestamps и production transcript неизменными.
+Remote Speaker Direct Truth Seed v1: заморозить небольшой blind real-session seed из всех 16
+изменившихся enrollment/control случаев, стабильных controls, abstentions и доступных
+open-set/mixed случаев; получить только anonymous session-local labels без model suggestion,
+проверить blinded repeat consistency и не менять production transcript.
 ```
 
 Remote Speaker Attribution Error Decomposition v1 завершён
