@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -36,10 +37,17 @@ def fp(path: Path, artifact_id: str | None = None) -> dict:
     return result
 
 
-def run(policy: Path, out: Path, action: str, *extra: str) -> subprocess.CompletedProcess[str]:
+def run(
+    policy: Path,
+    out: Path,
+    action: str,
+    *extra: str,
+    environment: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(SCRIPT), action, *extra, "--policy", str(policy), "--out-dir", str(out)],
         cwd=ROOT,
+        env=environment,
         capture_output=True,
         text=True,
         check=False,
@@ -240,6 +248,20 @@ def main() -> int:
         assert next_result.returncode == 0
         assert "suggest" not in next_result.stdout.lower()
         assert "stratum" not in next_result.stdout.lower()
+
+        player_log = Path(temporary) / "player.log"
+        fake_player = Path(temporary) / "fake-player"
+        fake_player.write_text(f"#!/bin/sh\nprintf '%s\\n' \"$1\" >> {player_log}\n", encoding="utf-8")
+        fake_player.chmod(0o755)
+        environment = os.environ.copy()
+        environment["MURMURMARK_BLIND_AUDIO_PLAYER"] = str(fake_player)
+        played = run(policy, out, "next", "--play", environment=environment)
+        assert played.returncode == 0, played.stdout + played.stderr
+        played_paths = player_log.read_text(encoding="utf-8").splitlines()
+        assert len(played_paths) >= 3
+        assert played_paths[0] == played_paths[-1]
+        assert "/private/clips/" in played_paths[0]
+        assert all("/private/exemplars/" in path for path in played_paths[1:-1])
 
         slot_map = [json.loads(line) for line in (out / "private/slot_map.jsonl").read_text().splitlines()]
         answers = [

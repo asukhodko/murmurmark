@@ -9,6 +9,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
@@ -781,6 +782,25 @@ def build_command(args: argparse.Namespace, policy: dict[str, Any]) -> int:
     return 0
 
 
+def play_blind_slot(slot: dict[str, Any]) -> None:
+    player_name = os.environ.get("MURMURMARK_BLIND_AUDIO_PLAYER", "afplay")
+    player = shutil.which(player_name) if "/" not in player_name else player_name
+    if not player or not Path(player).is_file():
+        raise DirectTruthSeedError(f"blind_audio_player_missing:{player_name}")
+
+    sequence = [("target", str(slot["audio"]["path"]))]
+    sequence.extend(
+        (f"{row['speaker']} exemplar", str(row["path"]))
+        for row in slot["exemplars"]
+    )
+    sequence.append(("target again", str(slot["audio"]["path"])))
+    for label, path in sequence:
+        print(f"[play] {label}", flush=True)
+        result = subprocess.run([player, str(resolve(path))], check=False)
+        if result.returncode != 0:
+            raise DirectTruthSeedError(f"blind_audio_playback_failed:{label}:{result.returncode}")
+
+
 def next_command(args: argparse.Namespace, policy: dict[str, Any]) -> int:
     bundle = load_pack(args.out_dir, policy, verify_sources=False)
     accepted = validate_answers(bundle, policy)
@@ -797,6 +817,8 @@ def next_command(args: argparse.Namespace, policy: dict[str, Any]) -> int:
         print(f"  {row['speaker']}: afplay {json.dumps(row['path'])}")
     print("outcomes: " + " | ".join(selected["speaker_choices"]))
     print(f"grade: murmurmark corpus remote-truth-seed-v1 grade {selected['slot_id']} --outcome <outcome>")
+    if args.play:
+        play_blind_slot(selected)
     return 0
 
 
@@ -876,6 +898,11 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--write-manifest", type=Path)
     result.add_argument("--outcome")
     result.add_argument("--reviewed-at")
+    result.add_argument(
+        "--play",
+        action="store_true",
+        help="for next: play target, anonymous exemplars, and target again using afplay",
+    )
     return result
 
 

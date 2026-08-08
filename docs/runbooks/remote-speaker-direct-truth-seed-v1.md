@@ -29,6 +29,12 @@ Request one opaque slot:
 murmurmark corpus remote-truth-seed-v1 next
 ```
 
+To play the target, every anonymous exemplar and the target once more in the same terminal:
+
+```bash
+murmurmark corpus remote-truth-seed-v1 next --play
+```
+
 Listen to the target clip and the anonymous exemplars printed by the command. Do not inspect
 `seed_selection.jsonl`, `slot_map.jsonl`, the enrollment comparison or previous model references.
 
