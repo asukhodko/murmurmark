@@ -1,0 +1,66 @@
+{
+  "correctness_eligible_trust_grades": [
+    "exact_generated",
+    "human_reviewed"
+  ],
+  "diagnostic_only_trust_grades": [
+    "scripted_expected",
+    "independent_machine"
+  ],
+  "exact_generated_clip": {
+    "duration_sec": 31.5,
+    "source_id": "echo_lab_remote_tts_cycle_v1",
+    "stimulus_id": "remote_only"
+  },
+  "exact_generated_domain_terms": [
+    "акустический путь",
+    "остаточное эхо",
+    "разборчивость речи"
+  ],
+  "generator": {
+    "mode": "deterministic_local",
+    "name": "report-lexical-accuracy-reference-corpus",
+    "version": "0.1.0"
+  },
+  "normalization": {
+    "casefold": true,
+    "replace_yo_with_e": true,
+    "unicode": "NFKC",
+    "word_pattern": "[0-9a-zа-яё]+"
+  },
+  "real_meeting_baseline_gates": {
+    "minimum_human_reviewed_sessions": 2,
+    "required_acoustic_modes": [
+      "speaker_playback",
+      "headphones_or_low_leak"
+    ],
+    "required_meeting_modes": [
+      "1x1",
+      "group"
+    ],
+    "required_roles": [
+      "me",
+      "remote"
+    ]
+  },
+  "schema": "murmurmark.lexical_accuracy_reference_policy/v1",
+  "scripted_echo_sessions": [
+    {
+      "acoustic_mode": "speaker_playback",
+      "meeting_mode": "controlled",
+      "session_id": "2026-08-02_22-57-31-echo-dev-normal",
+      "split": "dev"
+    },
+    {
+      "acoustic_mode": "speaker_playback",
+      "meeting_mode": "controlled",
+      "session_id": "2026-08-02_23-12-51-echo-hard-doubletalk",
+      "split": "hard_test"
+    }
+  ],
+  "scripted_phases": [
+    "local_only",
+    "controlled_double_talk",
+    "opening_backchannel"
+  ]
+}

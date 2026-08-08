@@ -1,0 +1,561 @@
+{
+  "decision": "REFERENCE_INSUFFICIENT",
+  "gates": {
+    "exact_generated_reference_present": true,
+    "minimum_human_reviewed_sessions": false,
+    "real_meeting_lexical_baseline_ready": false,
+    "required_acoustic_modes": false,
+    "required_meeting_modes": false,
+    "required_roles": false,
+    "weak_references_excluded_from_correctness": true
+  },
+  "implementation": {
+    "bytes": 38682,
+    "path": "scripts/report-lexical-accuracy-reference-corpus.py",
+    "sha256": "976ff725b252a08c6be731ee2f77a1d09ce594151fcc5c05b335fe46883e5371"
+  },
+  "policy": {
+    "bytes": 1618,
+    "path": "policies/lexical-accuracy-reference-corpus-v1.json",
+    "sha256": "65bb7d39f8f8532dcb02e129d81b8d734e793f33784675e2f66146772439b51a"
+  },
+  "schema": "murmurmark.lexical_accuracy_reference_frozen_manifest/v1",
+  "sources": [
+    {
+      "acoustic_mode": "speaker_playback",
+      "correctness_eligible": false,
+      "hypothesis_sha256": "191b7515fcc4a375253b1ba4ddd5beedec83ac05e78ebdd27f7580c99bba8769",
+      "inputs": [
+        {
+          "bytes": 34922,
+          "path": "sessions/2026-08-02_22-57-31-echo-dev-normal/derived/echo-lab/echo_lab_events.jsonl",
+          "sha256": "099024b9d08887e270b9045c15161da5c75f3e401a5709e5f3c75c86923b795b"
+        },
+        {
+          "bytes": 4384058,
+          "path": "sessions/2026-08-02_22-57-31-echo-dev-normal/derived/echo-lab/phases/10_controlled_double_talk_mic.wav",
+          "sha256": "3ae799d92f79a6baf4ff1647109148a6a17065ce0be8c18cc5b259a2f6db2ad6"
+        }
+      ],
+      "kind": "scripted_echo_prompt",
+      "meeting_mode": "controlled",
+      "metrics": {
+        "cer": 1.227829,
+        "character_errors": 803,
+        "deletions": 0,
+        "hypothesis_words": 146,
+        "insertions": 56,
+        "reference_characters": 654,
+        "reference_words": 90,
+        "substitutions": 87,
+        "wer": 1.588889,
+        "word_errors": 143
+      },
+      "reference_sha256": "b93bc2af94824b9d568754d89c25282aa8c24eff245afef65d42543a027ba530",
+      "role_scope": [
+        "me"
+      ],
+      "session_id": "2026-08-02_22-57-31-echo-dev-normal",
+      "source_id": "echo_dev_controlled_double_talk",
+      "split": "dev",
+      "timing": {
+        "first_prompt_sec": 337.003895,
+        "last_prompt_sec": 401.00056,
+        "prompt_events": 17,
+        "segments": 16,
+        "timestamped_tokens": 393
+      },
+      "trust_grade": "scripted_expected"
+    },
+    {
+      "acoustic_mode": "speaker_playback",
+      "correctness_eligible": false,
+      "hypothesis_sha256": "cce4a337a2d65c1f3862ea974f758c8c974ebf7f29b9ce9cbb9600ffd46b27cd",
+      "inputs": [
+        {
+          "bytes": 34922,
+          "path": "sessions/2026-08-02_22-57-31-echo-dev-normal/derived/echo-lab/echo_lab_events.jsonl",
+          "sha256": "099024b9d08887e270b9045c15161da5c75f3e401a5709e5f3c75c86923b795b"
+        },
+        {
+          "bytes": 8224058,
+          "path": "sessions/2026-08-02_22-57-31-echo-dev-normal/derived/echo-lab/phases/06_local_only_mic.wav",
+          "sha256": "7a72ab3394bcf60e1234ff65c50e285933c80fa08b2ed91707adde96406e7777"
+        }
+      ],
+      "kind": "scripted_echo_prompt",
+      "meeting_mode": "controlled",
+      "metrics": {
+        "cer": 0.037418,
+        "character_errors": 40,
+        "deletions": 4,
+        "hypothesis_words": 142,
+        "insertions": 0,
+        "reference_characters": 1069,
+        "reference_words": 146,
+        "substitutions": 2,
+        "wer": 0.041096,
+        "word_errors": 6
+      },
+      "reference_sha256": "75e2c6305fe9e028887744c9559fd6b617c2371d60aeb11a4be07d21cb16c3a5",
+      "role_scope": [
+        "me"
+      ],
+      "session_id": "2026-08-02_22-57-31-echo-dev-normal",
+      "source_id": "echo_dev_local_only",
+      "split": "dev",
+      "timing": {
+        "first_prompt_sec": 167.003174,
+        "last_prompt_sec": 291.005114,
+        "prompt_events": 32,
+        "segments": 31,
+        "timestamped_tokens": 374
+      },
+      "trust_grade": "scripted_expected"
+    },
+    {
+      "acoustic_mode": "speaker_playback",
+      "correctness_eligible": false,
+      "hypothesis_sha256": "8f420370cd0928ad7a6b75e7b8c036c5e6e13d418fa6280e5d883666b145adb7",
+      "inputs": [
+        {
+          "bytes": 34922,
+          "path": "sessions/2026-08-02_22-57-31-echo-dev-normal/derived/echo-lab/echo_lab_events.jsonl",
+          "sha256": "099024b9d08887e270b9045c15161da5c75f3e401a5709e5f3c75c86923b795b"
+        },
+        {
+          "bytes": 2784058,
+          "path": "sessions/2026-08-02_22-57-31-echo-dev-normal/derived/echo-lab/phases/12_opening_backchannel_mic.wav",
+          "sha256": "ab3e8ad475af1d49aebcae5f343c79204b7a864b6d48c56545ee6c48760e1123"
+        }
+      ],
+      "kind": "scripted_echo_prompt",
+      "meeting_mode": "controlled",
+      "metrics": {
+        "cer": 0.121212,
+        "character_errors": 12,
+        "deletions": 2,
+        "hypothesis_words": 16,
+        "insertions": 0,
+        "reference_characters": 99,
+        "reference_words": 18,
+        "substitutions": 0,
+        "wer": 0.111111,
+        "word_errors": 2
+      },
+      "reference_sha256": "134cc017bec5d50fd1146aa7b9afab064b94d1863e6d6b6c191e440188e5aa1b",
+      "role_scope": [
+        "me"
+      ],
+      "session_id": "2026-08-02_22-57-31-echo-dev-normal",
+      "source_id": "echo_dev_opening_backchannel",
+      "split": "dev",
+      "timing": {
+        "first_prompt_sec": 412.003673,
+        "last_prompt_sec": 452.002312,
+        "prompt_events": 11,
+        "segments": 10,
+        "timestamped_tokens": 40
+      },
+      "trust_grade": "scripted_expected"
+    },
+    {
+      "acoustic_mode": "speaker_playback",
+      "correctness_eligible": false,
+      "hypothesis_sha256": "10c34f329fa349a516bf40a16b3cd8908a7f73883c75d2a8e2c9997ba2b524e9",
+      "inputs": [
+        {
+          "bytes": 34921,
+          "path": "sessions/2026-08-02_23-12-51-echo-hard-doubletalk/derived/echo-lab/echo_lab_events.jsonl",
+          "sha256": "13f873e1f4aafe5391d732ed730cca9541a461a7694c41847a419a58c950892c"
+        },
+        {
+          "bytes": 4384058,
+          "path": "sessions/2026-08-02_23-12-51-echo-hard-doubletalk/derived/echo-lab/phases/10_controlled_double_talk_mic.wav",
+          "sha256": "a788e8ebd4c8aae06be2c157604e537fea8d262c9d4db6583f570b66f1c3876b"
+        }
+      ],
+      "kind": "scripted_echo_prompt",
+      "meeting_mode": "controlled",
+      "metrics": {
+        "cer": 1.19419,
+        "character_errors": 781,
+        "deletions": 0,
+        "hypothesis_words": 143,
+        "insertions": 53,
+        "reference_characters": 654,
+        "reference_words": 90,
+        "substitutions": 87,
+        "wer": 1.555556,
+        "word_errors": 140
+      },
+      "reference_sha256": "b93bc2af94824b9d568754d89c25282aa8c24eff245afef65d42543a027ba530",
+      "role_scope": [
+        "me"
+      ],
+      "session_id": "2026-08-02_23-12-51-echo-hard-doubletalk",
+      "source_id": "echo_hard_test_controlled_double_talk",
+      "split": "hard_test",
+      "timing": {
+        "first_prompt_sec": 337.004042,
+        "last_prompt_sec": 401.003743,
+        "prompt_events": 17,
+        "segments": 16,
+        "timestamped_tokens": 382
+      },
+      "trust_grade": "scripted_expected"
+    },
+    {
+      "acoustic_mode": "speaker_playback",
+      "correctness_eligible": false,
+      "hypothesis_sha256": "cf4626a33415e7523c7c2463747979bb069f975f76b15dae9257bee3df435c81",
+      "inputs": [
+        {
+          "bytes": 34921,
+          "path": "sessions/2026-08-02_23-12-51-echo-hard-doubletalk/derived/echo-lab/echo_lab_events.jsonl",
+          "sha256": "13f873e1f4aafe5391d732ed730cca9541a461a7694c41847a419a58c950892c"
+        },
+        {
+          "bytes": 8224058,
+          "path": "sessions/2026-08-02_23-12-51-echo-hard-doubletalk/derived/echo-lab/phases/06_local_only_mic.wav",
+          "sha256": "bae0de22c72a6a4b47d7e129e15b9293cd057a9c549dd70de990e9e8d1babc22"
+        }
+      ],
+      "kind": "scripted_echo_prompt",
+      "meeting_mode": "controlled",
+      "metrics": {
+        "cer": 0.025257,
+        "character_errors": 27,
+        "deletions": 3,
+        "hypothesis_words": 143,
+        "insertions": 0,
+        "reference_characters": 1069,
+        "reference_words": 146,
+        "substitutions": 1,
+        "wer": 0.027397,
+        "word_errors": 4
+      },
+      "reference_sha256": "75e2c6305fe9e028887744c9559fd6b617c2371d60aeb11a4be07d21cb16c3a5",
+      "role_scope": [
+        "me"
+      ],
+      "session_id": "2026-08-02_23-12-51-echo-hard-doubletalk",
+      "source_id": "echo_hard_test_local_only",
+      "split": "hard_test",
+      "timing": {
+        "first_prompt_sec": 167.005005,
+        "last_prompt_sec": 291.002478,
+        "prompt_events": 32,
+        "segments": 32,
+        "timestamped_tokens": 367
+      },
+      "trust_grade": "scripted_expected"
+    },
+    {
+      "acoustic_mode": "speaker_playback",
+      "correctness_eligible": false,
+      "hypothesis_sha256": "1fadefae38de62b768d90443a7844e90207fb2342d1789b4d3991ae79876ecd2",
+      "inputs": [
+        {
+          "bytes": 34921,
+          "path": "sessions/2026-08-02_23-12-51-echo-hard-doubletalk/derived/echo-lab/echo_lab_events.jsonl",
+          "sha256": "13f873e1f4aafe5391d732ed730cca9541a461a7694c41847a419a58c950892c"
+        },
+        {
+          "bytes": 2784058,
+          "path": "sessions/2026-08-02_23-12-51-echo-hard-doubletalk/derived/echo-lab/phases/12_opening_backchannel_mic.wav",
+          "sha256": "93afab7ab61f713baf613bf960b7a0b65e6202be59df0eeb79cdb4a1152982f3"
+        }
+      ],
+      "kind": "scripted_echo_prompt",
+      "meeting_mode": "controlled",
+      "metrics": {
+        "cer": 0.161616,
+        "character_errors": 16,
+        "deletions": 3,
+        "hypothesis_words": 15,
+        "insertions": 0,
+        "reference_characters": 99,
+        "reference_words": 18,
+        "substitutions": 0,
+        "wer": 0.166667,
+        "word_errors": 3
+      },
+      "reference_sha256": "134cc017bec5d50fd1146aa7b9afab064b94d1863e6d6b6c191e440188e5aa1b",
+      "role_scope": [
+        "me"
+      ],
+      "session_id": "2026-08-02_23-12-51-echo-hard-doubletalk",
+      "source_id": "echo_hard_test_opening_backchannel",
+      "split": "hard_test",
+      "timing": {
+        "first_prompt_sec": 412.000294,
+        "last_prompt_sec": 452.004678,
+        "prompt_events": 11,
+        "segments": 2,
+        "timestamped_tokens": 38
+      },
+      "trust_grade": "scripted_expected"
+    },
+    {
+      "acoustic_mode": "digital_source",
+      "correctness_eligible": true,
+      "hypothesis_sha256": "605e88e257fa934da839594ec968716e1781ac565a44d2a59d5b98954fc48810",
+      "inputs": [
+        {
+          "bytes": 3737,
+          "path": "sessions/_echo_lab/controlled-echo-supervision-v1/stimuli/stimuli_manifest.json",
+          "sha256": "0ae069e609a252b583ea6274b6019776d763c4083b19b7bbbfb9f9b8d652201e"
+        },
+        {
+          "bytes": 12480044,
+          "path": "sessions/_echo_lab/controlled-echo-supervision-v1/stimuli/remote_only.wav",
+          "sha256": "0b1a6b344622db17ee7c93986c7b07d146726774b62fa0cdbe8734247d09f74e"
+        },
+        {
+          "bytes": 3024044,
+          "path": "sessions/_reports/lexical-accuracy-reference-corpus-v1/private/asr/exact_generated.wav",
+          "sha256": "a17c16e16ffd8e4dc8fa5c9b91c6d0eb3bc7ec25094dbac0510d69c7620f4798"
+        }
+      ],
+      "kind": "exact_generated",
+      "meeting_mode": "controlled",
+      "metrics": {
+        "cer": 0.0,
+        "character_errors": 0,
+        "deletions": 0,
+        "domain_terms": {
+          "accuracy": 1.0,
+          "correct_terms": 3,
+          "reference_terms": 3
+        },
+        "hypothesis_words": 67,
+        "insertions": 0,
+        "reference_characters": 495,
+        "reference_words": 67,
+        "substitutions": 0,
+        "wer": 0.0,
+        "word_errors": 0
+      },
+      "reference_sha256": "605e88e257fa934da839594ec968716e1781ac565a44d2a59d5b98954fc48810",
+      "role_scope": [
+        "remote"
+      ],
+      "session_id": null,
+      "source_id": "echo_lab_remote_tts_cycle_v1",
+      "split": "frozen_exact",
+      "timing": {
+        "segments": 8,
+        "timestamped_tokens": 180
+      },
+      "trust_grade": "exact_generated"
+    },
+    {
+      "acoustic_mode": "speaker_playback",
+      "correctness_eligible": false,
+      "hypothesis_sha256": "34b4b1253248449dada97466eb77025328425ec04b8a320b8f941f1422ce17ff",
+      "inputs": [
+        {
+          "bytes": 96424,
+          "path": "sessions/_reports/lexical-accuracy-reference-corpus-v1/private/sources/machine_cloud_1x1_v1/source.txt",
+          "sha256": "9049d4bea55cabe370a55fe844243aed29f81499bf8e04fa5e82105da694d56a"
+        },
+        {
+          "bytes": 143544,
+          "path": "sessions/_reports/lexical-accuracy-reference-corpus-v1/private/sources/machine_cloud_1x1_v1/parsed.json",
+          "sha256": "fbe103f440b0d6f336019c4593c2fee7f710131d414910fbb5b7088d1687e357"
+        },
+        {
+          "bytes": 2610,
+          "path": "sessions/2026-07-14_15-01-19-live/derived/transcript-rich/speaker-resolved-default-v1/selection.json",
+          "sha256": "9d1a606a1736c5576865baad9b9a7a3970cfa37a01c00185205741234d967063"
+        },
+        {
+          "bytes": 1509673,
+          "path": "sessions/2026-07-14_15-01-19-live/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.residual_local_recall_v1.json",
+          "sha256": "ef5d4beb37e7fcb8f462b763175eff0ffa99ce1b5fedda8905acf696cc4b6cc0"
+        }
+      ],
+      "kind": "external_transcript",
+      "meeting_mode": "1x1",
+      "metrics": {
+        "by_role": {
+          "me": {
+            "cer": 0.912932,
+            "character_errors": 15644,
+            "deletions": 2151,
+            "hypothesis_words": 1108,
+            "insertions": 151,
+            "reference_characters": 17136,
+            "reference_words": 3108,
+            "substitutions": 893,
+            "wer": 1.027992,
+            "word_errors": 3195
+          },
+          "remote": {
+            "cer": 1.076312,
+            "character_errors": 30070,
+            "deletions": 3190,
+            "hypothesis_words": 3161,
+            "insertions": 1179,
+            "reference_characters": 27938,
+            "reference_words": 5172,
+            "substitutions": 1863,
+            "wer": 1.20495,
+            "word_errors": 6232
+          }
+        },
+        "cer": 1.014199,
+        "character_errors": 45714,
+        "deletions": 5341,
+        "hypothesis_words": 4269,
+        "insertions": 1330,
+        "reference_characters": 45074,
+        "reference_words": 8280,
+        "substitutions": 2756,
+        "wer": 1.138527,
+        "word_errors": 9427
+      },
+      "reference_sha256": "84a5b33a7ff4fa66f48ac714e0e3a2a6bb1108027829713076730e7487594d02",
+      "role_scope": [
+        "me",
+        "remote"
+      ],
+      "session_id": "2026-07-14_15-01-19-live",
+      "source_id": "machine_cloud_1x1_v1",
+      "split": "external",
+      "timing": {
+        "authoritative_end_sec": 4139.82,
+        "authoritative_start_sec": 0.23,
+        "authoritative_utterance_coverage": 0.526882,
+        "authoritative_utterances": 558,
+        "compared_reference_intervals": 444,
+        "matched_authoritative_utterances": 294,
+        "reference_end_sec": 3936.0,
+        "reference_interval_coverage": 1.0,
+        "reference_intervals": 444,
+        "reference_start_sec": 0.0
+      },
+      "trust_grade": "independent_machine"
+    },
+    {
+      "acoustic_mode": "speaker_playback",
+      "correctness_eligible": false,
+      "hypothesis_sha256": "631e0300896ae8194d8fc40d0e46e78846d8374d4d3b8d1ef03ba6b693d7fda8",
+      "inputs": [
+        {
+          "bytes": 64112,
+          "path": "sessions/_reports/lexical-accuracy-reference-corpus-v1/private/sources/machine_server_group_v1/source.txt",
+          "sha256": "097ad31b4d348f6693a638521230add33cf07c9b41660c831fe60501da13be21"
+        },
+        {
+          "bytes": 118694,
+          "path": "sessions/_reports/lexical-accuracy-reference-corpus-v1/private/sources/machine_server_group_v1/parsed.json",
+          "sha256": "9cfa6a334c8ee72318093cdf7f749137470f552b6afd570b00e5bb8cf4ed30cb"
+        },
+        {
+          "bytes": 12722,
+          "path": "sessions/2026-07-03_12-02-46/derived/readiness/session_readiness.json",
+          "sha256": "9f478cd73f8c2e097be2fd7c208a9dc6f5e3dc0226c7061fff67d7a389b4f66d"
+        },
+        {
+          "bytes": 83382,
+          "path": "sessions/2026-07-03_12-02-46/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.residual_me_evidence_v1.json",
+          "sha256": "4f6fdeec8102f41e14d2fa99e1f45f84697aaba42bc90b93104e2c226f19d99e"
+        }
+      ],
+      "kind": "external_transcript",
+      "meeting_mode": "group",
+      "metrics": {
+        "by_role": {
+          "me": {
+            "cer": 1.0,
+            "character_errors": 32,
+            "deletions": 6,
+            "hypothesis_words": 0,
+            "insertions": 0,
+            "reference_characters": 32,
+            "reference_words": 6,
+            "substitutions": 0,
+            "wer": 1.0,
+            "word_errors": 6
+          },
+          "remote": {
+            "cer": 1.329585,
+            "character_errors": 3784,
+            "deletions": 217,
+            "hypothesis_words": 622,
+            "insertions": 312,
+            "reference_characters": 2846,
+            "reference_words": 527,
+            "substitutions": 296,
+            "wer": 1.565465,
+            "word_errors": 825
+          }
+        },
+        "cer": 1.325921,
+        "character_errors": 3816,
+        "deletions": 223,
+        "hypothesis_words": 622,
+        "insertions": 312,
+        "reference_characters": 2878,
+        "reference_words": 533,
+        "substitutions": 296,
+        "wer": 1.559099,
+        "word_errors": 831
+      },
+      "reference_sha256": "ce2a76981d909f614102f11fc23759e8dc2115367cddf9867d8cebf7fe575264",
+      "role_scope": [
+        "me",
+        "remote"
+      ],
+      "session_id": "2026-07-03_12-02-46",
+      "source_id": "machine_server_group_v1",
+      "split": "external",
+      "timing": {
+        "authoritative_end_sec": 258.62,
+        "authoritative_start_sec": 0.06,
+        "authoritative_utterance_coverage": 0.581395,
+        "authoritative_utterances": 43,
+        "compared_reference_intervals": 60,
+        "matched_authoritative_utterances": 25,
+        "reference_end_sec": 261.0,
+        "reference_interval_coverage": 0.107335,
+        "reference_intervals": 559,
+        "reference_start_sec": 0.0
+      },
+      "trust_grade": "independent_machine"
+    }
+  ],
+  "summary": {
+    "acoustic_modes_present": [
+      "digital_source",
+      "speaker_playback"
+    ],
+    "correctness_eligible_sources": 1,
+    "diagnostic_only_sources": 8,
+    "exact_subset": {
+      "cer": 0.0,
+      "character_errors": 0,
+      "deletions": 0,
+      "hypothesis_words": 67,
+      "insertions": 0,
+      "reference_characters": 495,
+      "reference_words": 67,
+      "substitutions": 0,
+      "wer": 0.0,
+      "word_errors": 0
+    },
+    "human_reviewed_real_sessions": 0,
+    "meeting_modes_present": [
+      "1x1",
+      "controlled",
+      "group"
+    ],
+    "role_scopes_present": [
+      "me",
+      "remote"
+    ],
+    "sources": 9
+  }
+}

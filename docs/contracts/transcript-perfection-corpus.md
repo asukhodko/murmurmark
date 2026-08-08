@@ -52,8 +52,10 @@ The v1 scorecard always emits these dimensions:
 
 Each row reports `status`, `correctness_status`, `coverage_status`, reference level, source IDs,
 metrics and linked residual classes. Word conservation means that a downstream layer did not alter
-already selected words. It does not measure word error rate. Until a whole-session human word
-reference is frozen, lexical correctness remains `not_measured`.
+already selected words. Lexical Accuracy Reference Corpus v1 now adds a bounded exact generated
+subset: 67 words at WER/CER `0`. Real-meeting correctness remains
+`real_meeting_reference_insufficient` until graded human-reviewed 1x1/group and acoustic coverage
+exists. Weak machine agreement never counts as correctness.
 
 ## Outputs
 
@@ -81,9 +83,11 @@ or perfect. `release.ready` stays independent and lists every remaining blocker.
 The deterministic ranking uses severity, affected seconds, evidence strength, repairability and
 number of affected sessions. Its formula is frozen in the manifest and copied to the report.
 
-Seconds from different corpus scopes are never added. Evidence gaps such as missing lexical ground
-truth are listed separately from observed defects and cannot win an actionable repair ranking.
+Seconds from different corpus scopes are never added. Evidence gaps such as missing real-meeting
+lexical ground truth are listed separately from observed defects and cannot win an actionable repair ranking.
 Every selected next goal names its source residual and must replay this scorecard after the change.
+`lexical_prerequisite` keeps the required human-reviewed seed visible without presenting work that
+cannot be completed autonomously as the global `next_goal`.
 
 ## Safety Boundary
 

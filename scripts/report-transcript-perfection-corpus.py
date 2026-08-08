@@ -255,6 +255,26 @@ def semantic_gates(
     add("authoritative_boundary_v1", "decision", boundary.get("decision") == "PROMOTE_AUTHORITATIVE_BOUNDARY_V1", boundary.get("decision"))
     add("authoritative_boundary_v1", "source_gates", boundary.get("gates", {}).get("passed") is True, boundary.get("gates"))
 
+    lexical = payloads.get("lexical_accuracy_reference_corpus_v1") or {}
+    add(
+        "lexical_accuracy_reference_corpus_v1",
+        "scientific_decision",
+        lexical.get("decision") in {"LEXICAL_BASELINE_ESTABLISHED", "REFERENCE_INSUFFICIENT"},
+        lexical.get("decision"),
+    )
+    add(
+        "lexical_accuracy_reference_corpus_v1",
+        "exact_generated_reference",
+        lexical.get("gates", {}).get("exact_generated_reference_present") is True,
+        lexical.get("gates"),
+    )
+    add(
+        "lexical_accuracy_reference_corpus_v1",
+        "weak_reference_isolation",
+        lexical.get("gates", {}).get("weak_references_excluded_from_correctness") is True,
+        lexical.get("gates"),
+    )
+
     failures = [f"semantic_gate:{row['source']}:{row['gate']}" for row in checks if not row["passed"]]
     return checks, failures
 
@@ -377,22 +397,35 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
     acoustic = payloads["acoustic_mode_corpus"]["summary"]
     echo = payloads["speaker_preserving_neural_echo_v2_17"]["aggregate"]
     boundary = payloads["authoritative_boundary_v1"]["summary"]
+    lexical = payloads["lexical_accuracy_reference_corpus_v1"]
+    lexical_summary = lexical["summary"]
+    exact_subset = lexical_summary["exact_subset"]
+    lexical_ready = lexical["decision"] == "LEXICAL_BASELINE_ESTABLISHED"
 
     return [
         {
             "id": "recognized_words",
-            "status": "partial",
-            "correctness_status": "not_measured",
-            "coverage_status": "remote_word_conservation_measured",
-            "reference_level": "selected_output_conservation_only",
-            "source_ids": ["remote_speaker_coverage_v3"],
+            "status": "measured" if lexical_ready else "partial",
+            "correctness_status": "real_meeting_baseline_passed" if lexical_ready else "bounded_exact_subset_only",
+            "coverage_status": "real_meeting_reference_complete" if lexical_ready else "real_meeting_reference_insufficient",
+            "reference_level": "human_reviewed_real_meetings" if lexical_ready else "exact_generated_plus_diagnostic_weak",
+            "source_ids": ["remote_speaker_coverage_v3", "lexical_accuracy_reference_corpus_v1"],
             "metrics": {
                 "remote_words": int(remote_summary["remote_words"]),
                 "remote_words_conserved": bool(remote["gates"]["all_word_conservation"]),
-                "lexical_error_rate": None,
+                "exact_subset_words": int(exact_subset["reference_words"]),
+                "exact_subset_wer": exact_subset["wer"],
+                "exact_subset_cer": exact_subset["cer"],
+                "human_reviewed_real_sessions": int(lexical_summary["human_reviewed_real_sessions"]),
+                "real_meeting_lexical_error_rate": exact_subset["wer"] if lexical_ready else None,
             },
             "residual_classes": [],
-            "note": "The corpus proves that diarization does not alter selected words; it has no whole-session human lexical reference.",
+            "note": (
+                "The exact generated subset is measured, and weak references remain diagnostic. "
+                "No human-reviewed real-meeting word reference is frozen."
+                if not lexical_ready
+                else "The required human-reviewed real-meeting lexical baseline is frozen."
+            ),
         },
         {
             "id": "chronology",
@@ -519,8 +552,8 @@ def markdown(report: dict[str, Any]) -> str:
     lines.extend(
         [
             "",
-            "`recognized_words` currently proves conservation, not lexical correctness. Missing lexical",
-            "reference coverage is `not_measured`; it is not counted as a pass.",
+            "`recognized_words` now measures an exact generated subset. Real-meeting lexical correctness",
+            "remains reference-insufficient until the human-reviewed 1x1/group and acoustic gates pass.",
             "",
             "## Actionable Residuals",
             "",
@@ -545,8 +578,15 @@ def markdown(report: dict[str, Any]) -> str:
     for row in report["evidence_gaps"]:
         lines.append(f"- `{row['dimension']}`: {row['reason']}")
     next_goal = report["next_goal"]
+    lexical_prerequisite = report["lexical_prerequisite"]
     lines.extend(
         [
+            "",
+            "## External Prerequisite",
+            "",
+            f"**{lexical_prerequisite['title']}** (`{lexical_prerequisite['status']}`)",
+            "",
+            lexical_prerequisite["rationale"],
             "",
             "## Next Goal",
             "",
@@ -554,8 +594,8 @@ def markdown(report: dict[str, Any]) -> str:
             "",
             next_goal["rationale"],
             "",
-            "The next goal must reduce the frozen unknown-speaker residual without weakening attributed-only",
-            "precision, word conservation, timestamps, one-to-one controls or exact aggregate fallback.",
+            "The next engineering goal must preserve words, timestamps, attributed precision and exact",
+            "aggregate fallback while reducing its named frozen residual.",
             "",
             "## Release Blockers",
             "",
@@ -583,7 +623,7 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
     verified_sources = sum(1 for row in verified if row["required"] and row["status"] == "verified")
     decision = "BASELINE_ESTABLISHED" if not failures else "INVALID_INPUTS"
     release_blockers = [
-        "recognized_words.lexical_correctness_not_measured",
+        "recognized_words.real_meeting_lexical_reference_insufficient",
         "remote_speaker_turns.unknown_remote_speaker",
         "me_remote_roles.ambiguous_me_audio_evidence",
         "chronology.chronology_conflict",
@@ -611,6 +651,7 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
             "fully_measured_dimensions": sum(1 for row in dimensions if row["status"] == "measured"),
             "partially_or_residual_measured_dimensions": sum(1 for row in dimensions if row["status"] in {"partial", "measured_with_residual", "measured_with_unknown"}),
             "not_measured_correctness_dimensions": sum(1 for row in dimensions if row["correctness_status"] == "not_measured"),
+            "bounded_correctness_dimensions": sum(1 for row in dimensions if row["correctness_status"] == "bounded_exact_subset_only"),
             "actionable_residual_classes": len(residuals),
             "aggregate_quality_score": None,
             "aggregate_residual_seconds": None,
@@ -620,9 +661,9 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
         "evidence_gaps": [
             {
                 "dimension": "recognized_words",
-                "status": "not_measured",
-                "reason": "no frozen whole-session human word reference exists; conservation is not lexical accuracy",
-                "next_evidence": "add private word-level references with portable hashes and no transcript text in the tracked manifest",
+                "status": "reference_insufficient",
+                "reason": "the exact generated subset is 67 words at WER/CER 0, but no human-reviewed real-meeting word reference exists",
+                "next_evidence": "freeze two private human-reviewed real meetings covering 1x1, group, Me, remote, speaker playback and headphones/low-leak",
             },
             {
                 "dimension": "local_mic_multi_speaker",
@@ -635,15 +676,25 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
             "ready": False,
             "blockers": release_blockers if not failures else ["input_integrity"] + failures,
         },
-        "next_goal": {
-            "id": "remote-speaker-residual-evidence-v4",
-            "title": "Remote Speaker Residual Evidence v4",
-            "selected_residual_class": residuals[0]["class"] if residuals else None,
+        "lexical_prerequisite": {
+            "id": "human-reviewed-lexical-seed-v1",
+            "title": "Human-Reviewed Lexical Seed v1",
+            "status": "external_evidence_required",
             "rationale": (
-                "The largest actionable measured residual is 598.240 seconds of preserved remote speech without "
-                "supported speaker attribution across six frozen sessions. V3 exhausted the safe fixed-threshold "
-                "extension; the next step needs cause-specific independent local evidence rather than weaker gates."
-                if residuals
+                "Two private human-reviewed real meetings are still required before real-meeting "
+                "lexical correctness can be measured. This prerequisite is not an autonomous "
+                "engineering goal and does not displace the highest measured residual."
+            ),
+        },
+        "next_goal": {
+            "id": "independent-remote-speaker-evidence-v1" if not failures else "restore-input-integrity",
+            "title": "Independent Remote Speaker Evidence v1" if not failures else "Restore Input Integrity",
+            "selected_residual_class": "unknown_remote_speaker" if not failures else None,
+            "rationale": (
+                "The largest measured and autonomously actionable residual is 598.240 seconds of unknown remote "
+                "speaker attribution. Qualify one genuinely independent local backend without weakening Coverage "
+                "v3 precision, changing words or forcing unsupported identities."
+                if not failures
                 else "Input integrity must be restored before selecting an engineering goal."
             ),
         },
@@ -651,7 +702,11 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
             "all_required_sources_verified": not any(row["required"] and row["status"] != "verified" for row in verified),
             "all_source_contracts_preserved": not any(not row["passed"] for row in semantic_checks),
             "all_dimensions_explicit": len(dimensions) == len(DIMENSIONS),
-            "missing_reference_not_passed": any(row["id"] == "recognized_words" and row["correctness_status"] == "not_measured" for row in dimensions),
+            "missing_reference_not_passed": any(
+                row["id"] == "recognized_words"
+                and row["correctness_status"] in {"bounded_exact_subset_only", "real_meeting_baseline_passed"}
+                for row in dimensions
+            ),
             "abstention_visible": bool(manifest["policy"]["abstention_is_not_correctness"]),
             "aggregate_score_disabled": manifest["policy"]["aggregate_quality_score"] is False,
         },

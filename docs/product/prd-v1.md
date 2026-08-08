@@ -122,9 +122,10 @@ audio quality alone as evidence of correct word attribution. Post-ASR duplicate 
 promotion credit. Reopening the audio frontier requires an independently qualified abstaining
 Target-Me presence detector. Free-text LLM synthesis remains unpromoted; ID-only evidence selection
 is an explicit opt-in view with exact source text. Speaker-Resolved Transcript Default v1 is
-promoted; Transcript Perfection Corpus now exposes lexical correctness as `not_measured`.
-Lexical Accuracy Reference Corpus v1 is the current quality-measurement goal. Notes, retrieval,
-external writes and UI remain optional work.
+promoted. Lexical Accuracy Reference Corpus v1 closes `REFERENCE_INSUFFICIENT`: the exact generated
+67-word subset has WER/CER `0`, while real-meeting correctness still lacks human-reviewed evidence.
+Independent Remote Speaker Evidence v1 is the current quality goal. Notes, retrieval, external
+writes and UI remain optional work.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.
 

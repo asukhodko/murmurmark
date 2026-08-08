@@ -195,6 +195,34 @@ def build_fixture(root: Path) -> Path:
             },
             ["chronology", "me_remote_roles", "overlap", "missing_me"],
         ),
+        "lexical_accuracy_reference_corpus_v1": (
+            files / "lexical.json",
+            {
+                "schema": "murmurmark.lexical_accuracy_reference_frozen_manifest/v1",
+                "decision": "REFERENCE_INSUFFICIENT",
+                "gates": {
+                    "exact_generated_reference_present": True,
+                    "weak_references_excluded_from_correctness": True,
+                    "real_meeting_lexical_baseline_ready": False,
+                },
+                "summary": {
+                    "exact_subset": {
+                        "reference_words": 67,
+                        "hypothesis_words": 67,
+                        "word_errors": 0,
+                        "wer": 0.0,
+                        "substitutions": 0,
+                        "deletions": 0,
+                        "insertions": 0,
+                        "reference_characters": 495,
+                        "character_errors": 0,
+                        "cer": 0.0,
+                    },
+                    "human_reviewed_real_sessions": 0,
+                },
+            },
+            ["recognized_words"],
+        ),
     }
     sources: list[dict[str, object]] = []
     for source_id, (path, payload, dimensions) in payloads.items():
@@ -253,13 +281,17 @@ def main() -> int:
         assert result.returncode == 0, result.stdout + result.stderr
         report = json.loads((out / "transcript_perfection_corpus_report.json").read_text())
         assert report["decision"] == "BASELINE_ESTABLISHED"
-        assert report["summary"]["verified_sources"] == 12
+        assert report["summary"]["verified_sources"] == 13
         assert report["summary"]["aggregate_quality_score"] is None
         assert report["summary"]["aggregate_residual_seconds"] is None
         words = next(row for row in report["dimensions"] if row["id"] == "recognized_words")
-        assert words["correctness_status"] == "not_measured"
+        assert words["correctness_status"] == "bounded_exact_subset_only"
+        assert words["metrics"]["exact_subset_wer"] == 0.0
         assert report["residuals"][0]["class"] == "unknown_remote_speaker"
-        assert report["next_goal"]["id"] == "remote-speaker-residual-evidence-v4"
+        assert report["next_goal"]["id"] == "independent-remote-speaker-evidence-v1"
+        assert report["next_goal"]["selected_residual_class"] == "unknown_remote_speaker"
+        assert report["lexical_prerequisite"]["id"] == "human-reviewed-lexical-seed-v1"
+        assert report["lexical_prerequisite"]["status"] == "external_evidence_required"
         snapshot = json.loads((out / "input_manifest.json").read_text())
         assert all(not Path(str(row["path"])).is_absolute() for row in snapshot["sources"])
         assert all("text" not in row and "speaker_name" not in row for row in snapshot["sources"])

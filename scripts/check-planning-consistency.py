@@ -66,6 +66,7 @@ CRITICAL_PATH = (
     "quality-remote-speaker-residual-evidence-v4",
     "product-speaker-resolved-transcript-default-v1",
     "quality-lexical-accuracy-reference-corpus-v1",
+    "quality-independent-remote-speaker-evidence-v1",
 )
 
 EXPECTED_STATUSES = {"done", "current", "next", "later", "idea", "optional", "blocked"}
@@ -142,7 +143,7 @@ def validate_statuses_and_goal(plan: dict) -> tuple[dict, str]:
     require(isinstance(statuses, dict), "plan.statuses must be a mapping")
     require(set(statuses) == EXPECTED_STATUSES, "plan status set does not match the planning contract")
     require(isinstance(nodes, dict) and nodes, "plan.nodes must be a non-empty mapping")
-    require(len(nodes) <= 45, f"active plan is too large: {len(nodes)} nodes, expected at most 45")
+    require(len(nodes) <= 46, f"active plan is too large: {len(nodes)} nodes, expected at most 46")
 
     current = [(node_id, node) for node_id, node in nodes.items() if node.get("status") == "current"]
     current_tasks = [(node_id, node) for node_id, node in current if node.get("kind") == "task"]
@@ -308,8 +309,22 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
         "lexical reference corpus must follow the promoted default transcript",
     )
     require(
-        nodes["quality-lexical-accuracy-reference-corpus-v1"].get("status") == "current",
-        "lexical reference corpus must be the current quality goal",
+        nodes["quality-lexical-accuracy-reference-corpus-v1"].get("status") == "done",
+        "lexical reference corpus must remain a completed evidence checkpoint",
+    )
+    require(
+        "quality-lexical-accuracy-reference-corpus-v1"
+        in nodes["quality-independent-remote-speaker-evidence-v1"].get("deps", []),
+        "independent remote speaker evidence must follow the lexical evidence decision",
+    )
+    require(
+        "quality-remote-speaker-residual-evidence-v4"
+        in nodes["quality-independent-remote-speaker-evidence-v1"].get("deps", []),
+        "independent remote speaker evidence must target the frozen v4 residual",
+    )
+    require(
+        nodes["quality-independent-remote-speaker-evidence-v1"].get("status") == "current",
+        "independent remote speaker evidence must be the current quality goal",
     )
     require(nodes["parking-lot"].get("status") == "optional", "parking lot must stay optional")
     require("parked-ui" not in nodes, "UI must not occupy the active CLI roadmap")

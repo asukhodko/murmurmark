@@ -179,6 +179,18 @@
       "path": "sessions/_reports/authoritative-boundary-v1/boundary_corpus_report.json",
       "required": true,
       "sha256": "08b14907b5176b45e2a8bbbc8793b6ae2e5019393f1c1c9dbad9feb5b7015e50"
+    },
+    {
+      "bytes": 19320,
+      "dimensions": [
+        "recognized_words"
+      ],
+      "evidence_level": "graded_private_reference_with_bounded_exact_subset",
+      "expected_schema": "murmurmark.lexical_accuracy_reference_frozen_manifest/v1",
+      "id": "lexical_accuracy_reference_corpus_v1",
+      "path": "docs/testing/lexical-accuracy-reference-corpus-v1-manifest.json",
+      "required": true,
+      "sha256": "9ace79e55106e383262b0286a5f1c3608de8b6c447df2fb574119f0c7e136573"
     }
   ]
 }

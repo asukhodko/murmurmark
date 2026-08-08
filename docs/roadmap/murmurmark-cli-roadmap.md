@@ -87,11 +87,12 @@ flowchart LR
     R["Done<br/>Remote Speaker<br/>Coverage v3"]
     V["Done: DO_NOT_PROMOTE<br/>Remote Speaker<br/>Residual Evidence v4"]
     H["Done: PROMOTE<br/>Speaker-Resolved<br/>Default v1"]
-    L["Current<br/>Lexical Accuracy<br/>Reference Corpus v1"]
+    L["Done: REFERENCE_INSUFFICIENT<br/>Lexical Accuracy<br/>Reference Corpus v1"]
+    I["Current<br/>Independent Remote<br/>Speaker Evidence v1"]
     M["Idea<br/>Local Mic Multi-Speaker<br/>Diarization v1"]
     O["Optional<br/>Notes, retrieval,<br/>work proposals"]
 
-    B --> D --> P --> R --> V --> H --> L
+    B --> D --> P --> R --> V --> H --> L --> I
     F --> D
     P -. "real local scenario" .-> M
     L -.-> O
@@ -117,8 +118,9 @@ Word/frame-level diarization работает по authoritative remote audio, �
 ### 3. Transcript Perfection Corpus v1 — `done`
 
 Единый корпус связывает проверку текста, порядка, ролей, speaker turns, overlap, missing `Me`,
-remote leakage и acoustic modes. Baseline `BASELINE_ESTABLISHED`: 12/12 frozen sources verified,
-восемь явных dimensions, lexical correctness честно `not_measured`, aggregate score запрещён.
+remote leakage и acoustic modes. Baseline `BASELINE_ESTABLISHED`: 13/13 frozen sources verified,
+восемь явных dimensions, exact lexical subset измерен, real meetings остаются
+reference-insufficient, aggregate score запрещён.
 
 Результат: конечный критерий сходимости к идеальной транскрибации и защита от бесконечной цепочки
 локальных эвристик.
@@ -153,22 +155,27 @@ Voice-only имена и cross-session identity запрещены.
 Результат: `PROMOTE` на 6/6 sessions, две 1x1, четыре group, 14 expected speakers и 5/5 boundary
 cases. Words, roles, `Me`, timestamps, raw и deterministic replay сохранены.
 
-### 7. Lexical Accuracy Reference Corpus v1 — `current`
+### 7. Lexical Accuracy Reference Corpus v1 — `done`
 
-Transcript Perfection доказывает сохранность выбранных слов, но lexical correctness остаётся
-`not_measured`. Private graded corpus должен отделить exact scripted truth, human-reviewed evidence
-и weak machine references, посчитать WER/CER и типы ошибок без изменения ASR.
+Private graded corpus отделил exact generated truth, scripted expected evidence и independent
+machine references. Точный цифровой поднабор содержит 67 слов при WER/CER `0`; weak sources не
+могут считаться truth. Реальная лексическая точность закрыта `REFERENCE_INSUFFICIENT`: нет ни одной
+human-reviewed встречи.
 
-Результат этапа: воспроизводимый lexical baseline с крупнейшим измеренным defect либо честный
-`REFERENCE_INSUFFICIENT`, если доступного ground truth пока недостаточно.
+### 8. Independent Remote Speaker Evidence v1 — `current`
 
-### 8. Local Mic Multi-Speaker Diarization v1 — `idea`
+Один новый pinned локальный backend проверяется на frozen six-session Coverage v3 corpus и отдельно
+на `598.240s` unknown remote speech. Продвижение требует восстановить не менее 20% unknown words и
+seconds без снижения v3 B-cubed/pairwise precision, изменения слов, таймкодов, ролей и fallback.
+Согласие с Resemblyzer само по себе не считается truth.
+
+### 9. Local Mic Multi-Speaker Diarization v1 — `idea`
 
 Когда появится реальный сценарий нескольких людей у одного ноутбука и размеченный материал, mic-речь
 будет разделяться на Target-Me, other local speakers и `unknown`. Этот этап зависит от remote v2 и
 Transcript Perfection Corpus, но не нужен для нынешнего основного сценария одного пользователя.
 
-### 9. Производные Возможности — `optional`
+### 10. Производные Возможности — `optional`
 
 Extractive notes, quality verdict, reviewed speaker memory, ID-only selection, локальный поиск и
 work proposals могут развиваться после достижения transcript gates или по отдельному явному запросу.
@@ -176,6 +183,8 @@ work proposals могут развиваться после достижения
 
 ## Закрытые И Отложенные Треки
 
+- Human-Reviewed Lexical Seed заблокирован отсутствием проверенного реального reference; machine
+  disagreement не является заменой.
 - Пред-ASR разделение закрыто на текущем ресурсе; открыть его может новая независимая проверка
   присутствия Target-Me, а не ещё один separator поверх тех же данных.
 - Free-text local synthesis закрыт `DO_NOT_PROMOTE`; ID-only selector остаётся opt-in.

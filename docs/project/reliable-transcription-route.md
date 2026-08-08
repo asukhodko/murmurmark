@@ -6,8 +6,9 @@ plateau. The bounded pre-ASR frontier is complete after SepFormer stopped before
 Target-Me presence evidence. Remote Speaker Coverage v3 is promoted with `93.9312%` attributable
 remote speech, strong private-reference precision and exact v2-label/word conservation. Residual
 Evidence v4 closed with a measured `DO_NOT_PROMOTE`; Speaker-Resolved Transcript Default v1 is
-promoted. Lexical Accuracy Reference Corpus v1 is current; notes, retrieval and work proposals are
-optional derivatives outside the critical route.
+promoted. Lexical Accuracy Reference Corpus v1 closed `REFERENCE_INSUFFICIENT` after measuring the
+exact 67-word digital subset at WER/CER `0`. Independent Remote Speaker Evidence v1 is current;
+notes, retrieval and work proposals are optional derivatives outside the critical route.
 Date: 2026-08-08
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
@@ -466,50 +467,28 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Lexical Accuracy Reference Corpus v1: заменить recognized_words.lexical_correctness_not_measured
-на private graded reference, воспроизводимые WER/CER и error classes либо точный
-REFERENCE_INSUFFICIENT; основной ASR до появления baseline не менять.
+Independent Remote Speaker Evidence v1: квалифицировать один действительно независимый локальный
+speaker backend на frozen Coverage v3 corpus и `598.240s` unknown residue; не менять слова,
+таймкоды и default до corpus-wide PROMOTE, не ослаблять v3 precision gates.
 ```
 
 Speaker-Resolved Transcript Default v1 завершён `PROMOTE`: ordinary read/handoff/export выбирают v3
 на совместимых сессиях и exact aggregate fallback в остальных. Transcript Perfection Corpus остаётся
-общим no-regression gate, но lexical correctness пока честно `not_measured`.
+общим no-regression gate: exact generated lexical subset измерен, real meetings остаются
+`real_meeting_reference_insufficient`.
 Local mic multi-speaker остаётся условной веткой и открывается только после реального сценария и
 размеченного материала. Производные workflows остаются optional.
 
-## Consultation Prompt
+## Current Evidence Boundary
 
-Use this prompt if external consultation is needed:
+Lexical Accuracy Reference Corpus v1 answers the previous design questions. It separates
+`exact_generated`, `human_reviewed`, `scripted_expected` and `independent_machine`, keeps private
+text out of tracked artifacts and aligns weak references by authoritative intervals. The result is
+`REFERENCE_INSUFFICIENT`: 67 exact generated words pass at WER/CER `0`, but no real-meeting lexical
+claim is allowed before two human-reviewed sessions cover 1x1/group, both roles and two acoustic
+modes.
 
-```text
-Мы строим MurmurMark: локальный macOS CLI-пайплайн для надёжной speaker-resolved транскрибации
-1x1 и групповых созвонов. Coverage v3 и Speaker-Resolved Transcript Default v1 завершены PROMOTE;
-Residual Evidence v4 завершён DO_NOT_PROMOTE; текущая цель — Lexical Accuracy Reference Corpus v1.
-
-Имеется:
-- authoritative selected dialogue и Evidence Handoff v2;
-- Remote Speaker Coverage v3: PROMOTE, 6 frozen sessions, attributable speech 0.939312,
-  B-cubed F1 0.962171, pairwise precision 0.961675, 5/5 internal boundaries;
-- corpus baseline проверяет 12/12 frozen sources; lexical correctness пока `not_measured`;
-- v4 безопасно восстановил 124 слова / 83.640 секунды, но не достиг 20% coverage gates;
-- ordinary transcript/handoff/export уже выбирают fingerprint-verified v3 с exact aggregate fallback;
-- explicit fingerprint-bound reviewed naming with anonymous fail-open;
-- selected ASR words/order/timestamps должны оставаться неизменными;
-- closed pre-ASR frontier; production v2.17 remains exact audio plateau.
-
-North Star: одно воспроизводимое определение идеальной транскрибации, где supported words, order,
-roles и speakers корректны, а предел доказательств выражен explicit unknown.
-
-Ограничения:
-- существующие production outputs и frozen gates не ослаблять;
-- private references не публиковать, tracked manifests не содержат речь или имена;
-- voice-only identity и cross-session roster запрещены;
-- capture, Echo Guard, primary ASR и external writes вне цели;
-- weak attribution не форсируется ради coverage.
-
-Вопросы:
-1. Как построить private lexical reference без утечки meeting text в tracked manifest?
-2. Какие trust grades допустимы для scripted, human-reviewed и independent-machine references?
-3. Как выровнять reference с authoritative words/timestamps и измерить WER/CER по ролям?
-4. Как выбрать крупнейший measured lexical defect, не подменяя truth согласием двух ASR?
-```
+The autonomous engineering route therefore returns to the largest measured product residual:
+`598.240s` of preserved remote speech without supported speaker attribution. The next experiment
+must introduce a genuinely independent pinned local speaker backend. Reusing Resemblyzer with looser
+thresholds or using another Whisper transcript would not add independent evidence.

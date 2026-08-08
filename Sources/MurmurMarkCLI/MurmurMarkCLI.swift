@@ -1283,6 +1283,7 @@ enum DoctorChecks {
             "scripts/report-asr-chunk-cache-corpus.py",
             "scripts/report-authoritative-incremental-asr.py",
             "scripts/report-transcript-perfection-corpus.py",
+            "scripts/report-lexical-accuracy-reference-corpus.py",
             "scripts/report-speaker-resolved-transcript-default-corpus.py",
             "scripts/transcribe-simple-whispercpp.py",
             "scripts/check-asr-chunk-cache.py",
@@ -7831,6 +7832,20 @@ enum CorpusCommands {
                 try PythonRuntime.resolve(),
                 [try script("report-transcript-perfection-corpus.py").path] + forwarded
             )
+        case "lexical", "lexical-accuracy", "lexical_accuracy":
+            if forwarded.isEmpty || ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(
+                    try PythonRuntime.resolve(),
+                    [try script("report-lexical-accuracy-reference-corpus.py").path, "--help"]
+                )
+                return
+            }
+            try Tooling.runPath(
+                try PythonRuntime.resolve(),
+                [try script("report-lexical-accuracy-reference-corpus.py").path] + forwarded + [
+                    "--sessions-root", sessionsRoot.path,
+                ]
+            )
         case "remote-coverage", "remote_coverage":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 try Tooling.runPath(
@@ -8053,6 +8068,11 @@ enum CorpusHelp {
           murmurmark corpus remote-residual all [--verify-existing] [--sessions-root ./sessions]
           murmurmark corpus perfection all [--verify-existing]
                                         [--manifest docs/testing/transcript-perfection-corpus-v1-manifest.json]
+          murmurmark corpus lexical import SESSION SOURCE --source-id ID
+                                      --meeting-mode 1x1|group --acoustic-mode MODE
+                                      [--trust-grade independent_machine] [--local-speaker NAME]
+          murmurmark corpus lexical build|replay|status
+                                      [--write-manifest docs/testing/lexical-accuracy-reference-corpus-v1-manifest.json]
           murmurmark corpus lifecycle [all|latest|./session...] [--freeze-inputs]
                                       [--require-frozen-inputs] [--require-passing-gates]
                                       [--sessions-root ./sessions]

@@ -34,21 +34,22 @@ Expected frozen baseline:
 
 ```text
 decision: BASELINE_ESTABLISHED
-sources: 12/12 verified
+sources: 13/13 verified
 release_ready: false
 largest_actionable_residual: unknown_remote_speaker (598.240s)
-next_goal: Remote Speaker Residual Evidence v4
+next_goal: Independent Remote Speaker Evidence v1
 ```
 
 ## Reading The Result
 
 - `BASELINE_ESTABLISHED` means the scorecard and frozen lineage are valid.
 - `release_ready: false` means transcript mission gaps remain.
-- `not_measured` is an evidence gap, never an implicit pass.
+- `bounded_exact_subset_only` means 67 generated words are measured; real meetings remain reference-insufficient.
+- `lexical_prerequisite` names the external human-reviewed seed without overriding the autonomous next goal.
 - residual seconds belong to different frozen scopes and must not be summed.
 - the first residual row selects the next bounded engineering goal.
 
-The current baseline ranks:
+The measured non-lexical residual ranking remains:
 
 1. `unknown_remote_speaker`: `598.240s`, 851 words, 6 sessions;
 2. `chronology_conflict`: `62.690s`, 14 rows, 10 sessions;
@@ -57,6 +58,9 @@ The current baseline ranks:
 
 Chronology ranks above the longer ambiguous-audio queue because it has greater current
 repairability. The score is a planning aid, not a product quality percentage.
+
+The lexical prerequisite is not an actionable defect ranking. Inspect it separately with
+`murmurmark corpus lexical status`; machine disagreement cannot identify the correct word.
 
 ## Stale Or Missing Inputs
 

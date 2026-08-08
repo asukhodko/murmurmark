@@ -1,12 +1,10 @@
 # MurmurMark
-
 Local-first meeting transcription for sensitive work.
 
 MurmurMark records separate microphone and remote tracks, then locally produces an auditable transcript, quality verdict and optional evidence-backed derivatives.
 
 The product is CLI-first. Batch processing is authoritative. Live preview is an optional shadow that cannot replace or weaken the durable recording.
 ## Mission
-
 MurmurMark turns locally captured 1:1 and group calls into reliable, speaker-resolved transcripts
 without sending raw meeting audio to a cloud recorder.
 
@@ -168,20 +166,12 @@ Recording terminal:
 ```bash
 murmurmark meeting --target-bundle system --experiment live-shadow-v1
 ```
-
 During recording, the same terminal shows only newly added or revised conservative live turns.
 The line `[live] inline preview started` confirms that the read-only console watcher is active.
 To keep the recording terminal quiet, add `--live-no-console`.
 
-An optional second terminal can attach to the same preview without starting another capture or ASR:
-
-```bash
-cd murmurmark
-export PATH="$HOME/.local/bin:$PATH"
-
-SESSION="sessions/<value-printed-by-the-recording-terminal>"
-murmurmark live watch "$SESSION"
-```
+An optional second terminal can attach without starting another capture or ASR with
+`murmurmark live watch "sessions/<id>"`.
 
 The preview is advisory. Sidecar timeout, lag or backpressure may make it partial, but must not
 damage raw capture. The inline console is a separate fail-open reader of
@@ -233,14 +223,11 @@ Remove rebuildable media while keeping raw CAF, final text and structured eviden
 murmurmark retention compact plan "$SESSION"
 murmurmark retention compact apply "$SESSION" --confirm-delete-derived-media
 murmurmark retention compact verify "$SESSION"
-murmurmark retention compact plan all --older-than 7d --exclude-pinned
-murmurmark retention compact apply all --older-than 7d --exclude-pinned \
-  --confirm-delete-derived-media
 ```
 
 Frozen corpus sessions are skipped unless `--include-pinned` is explicit. Pin discovery includes
-frozen-corpus, split, baseline, hard-test and private `pinned_sessions.json` manifests. See
-[Retention Policy](docs/contracts/retention-policy.md).
+frozen-corpus, split, baseline, hard-test and private `pinned_sessions.json` manifests. Bulk
+`all --older-than 7d --exclude-pinned` examples live in the [Retention Policy](docs/contracts/retention-policy.md).
 
 ## Important Artifacts
 
@@ -308,7 +295,16 @@ murmurmark notes "$SESSION" --reviewed-speakers
 murmurmark export "$SESSION" --format markdown --include-json --reviewed-speakers
 ```
 Speaker-aware memory and exact-text notes remain optional derivatives. Transcript Perfection Corpus
-keeps 12/12 frozen sources explicit and never collapses unlike quality dimensions into one score.
+keeps 13/13 frozen sources explicit and never collapses unlike quality dimensions into one score.
+Lexical Accuracy Reference Corpus v1 measures its exact 67-word digital subset at WER/CER `0` and
+keeps real-meeting lexical correctness blocked by missing human-reviewed evidence:
+
+```bash
+murmurmark corpus lexical status
+murmurmark corpus lexical replay \
+  --write-manifest docs/testing/lexical-accuracy-reference-corpus-v1-manifest.json
+murmurmark corpus perfection all --verify-existing
+```
 
 The dependent critical path is:
 
@@ -319,10 +315,13 @@ Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental 
 -> Remote Speaker Coverage v3 (done: PROMOTE, 93.9% coverage)
 -> Remote Speaker Residual Evidence v4 (done: DO_NOT_PROMOTE, measured ceiling)
 -> Speaker-Resolved Transcript Default v1 (done: PROMOTE, ordinary read/handoff/export)
+-> Lexical Accuracy Reference Corpus v1 (done: REFERENCE_INSUFFICIENT, bounded exact subset)
+-> Independent Remote Speaker Evidence v1 (current)
 ```
 
-The six-session default qualification passed for two 1x1 and four group calls.
-**Lexical Accuracy Reference Corpus v1** is now current: measure ASR correctness before changing it.
+The six-session default qualification passed for two 1x1 and four group calls. **Independent Remote
+Speaker Evidence v1** is now current: qualify one genuinely independent local
+speaker backend on the frozen unknown residue without lowering Coverage v3 precision or changing words.
 See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 ## Scope And Limitations
 
@@ -374,6 +373,7 @@ See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](do
 - [Meeting cheat sheet](docs/runbooks/meeting-cheatsheet.md)
 - [Transcription and review runbook](docs/runbooks/transcribe-simple-whispercpp.md)
 - [Transcript Perfection Corpus contract](docs/contracts/transcript-perfection-corpus.md)
+- [Lexical Accuracy Reference Corpus contract](docs/contracts/lexical-accuracy-reference-corpus.md)
 - [Remote Speaker Coverage v3](docs/contracts/remote-speaker-coverage-v3.md) and [Residual Evidence v4](docs/contracts/remote-speaker-residual-evidence-v4.md) contracts
 - [Speaker-Resolved Transcript Default v1](docs/contracts/speaker-resolved-transcript-default-v1.md)
 

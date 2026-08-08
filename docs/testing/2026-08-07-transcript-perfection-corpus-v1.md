@@ -10,7 +10,7 @@ deliberately changed source produced `INVALID_INPUTS`.
 
 | Dimension | Result |
 |---|---|
-| Recognized words | conservation passes; lexical correctness `not_measured` |
+| Recognized words | conservation passes; exact generated 67-word subset WER/CER `0`; real meetings reference-insufficient |
 | Chronology | 14 residual rows / `62.690s` |
 | Me/remote roles and overlap | 65 residual rows / `196.280s` |
 | Remote speaker turns | coverage `0.939312`; `598.240s` explicit unknown |
@@ -24,12 +24,15 @@ No aggregate score or total residual seconds are published because source scopes
 
 The largest actionable measured residual remains `unknown_remote_speaker`: after promoted Coverage
 v3, 851 preserved remote words and `598.240s` across six sessions still lack supported attribution.
-The next bounded goal is **Remote Speaker Residual Evidence v4**. It must add cause-specific evidence
+Residual Evidence v4 measured that ceiling and closed `DO_NOT_PROMOTE`. The next bounded autonomous
+goal is **Independent Remote Speaker Evidence v1**: qualify a genuinely different local backend
 without weakening B-cubed F1 `0.962171`, pairwise precision `0.961675`, v2/v3 labels, word
 conservation, timestamp order, one-to-one controls or exact aggregate fallback.
 
-The absent whole-session human word reference remains a separate evidence gap. Word conservation is
-not presented as lexical accuracy.
+Lexical Accuracy Reference Corpus v1 now measures a bounded exact generated subset and keeps the
+absent human-reviewed real-meeting reference as a separate blocker. Word conservation and machine
+agreement are not presented as real-meeting lexical accuracy. Human-Reviewed Lexical Seed v1 stays
+visible as an external-evidence prerequisite, not as the autonomous project goal.
 
 ## Reproduce
 

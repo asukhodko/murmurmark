@@ -89,7 +89,10 @@ Read in this order:
 85. [Speaker-Resolved Transcript Default v1 contract](contracts/speaker-resolved-transcript-default-v1.md)
 86. [Speaker-Resolved Transcript Default v1 runbook](runbooks/speaker-resolved-transcript-default-v1.md)
 87. [Speaker-Resolved Transcript Default v1 result](testing/2026-08-08-speaker-resolved-transcript-default-v1.md)
-88. [Planning and development history](history/README.md)
+88. [Lexical Accuracy Reference Corpus contract](contracts/lexical-accuracy-reference-corpus.md)
+89. [Lexical Accuracy Reference Corpus runbook](runbooks/lexical-accuracy-reference-corpus.md)
+90. [Lexical Accuracy Reference Corpus result](testing/2026-08-08-lexical-accuracy-reference-corpus-v1.md)
+91. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
@@ -106,9 +109,11 @@ preserving B-cubed F1 `0.962171`, pairwise precision `0.961675` and every select
 Evidence v4 safely recovered another 124 words / `83.640s`, but its `14.57%` word and `13.98%`
 second reductions missed both `20%` promotion gates. It closed with reproducible `DO_NOT_PROMOTE`.
 **Speaker-Resolved Transcript Default v1** is promoted for ordinary read/handoff/export with exact
-aggregate fallback. **Lexical Accuracy Reference Corpus v1** is current: replace lexical
-`not_measured` with a private graded WER/CER baseline or exact `REFERENCE_INSUFFICIENT`. Notes,
-retrieval and work proposals remain parked.
+aggregate fallback. **Lexical Accuracy Reference Corpus v1** closed with
+`REFERENCE_INSUFFICIENT`: the exact 67-word digital subset has WER/CER `0`, while real-meeting
+correctness still lacks human-reviewed evidence. The next agent-executable goal is an independent
+local remote-speaker backend over the frozen `598.240s` unknown residue. Notes, retrieval and work
+proposals remain parked.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,
