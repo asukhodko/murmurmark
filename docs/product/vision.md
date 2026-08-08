@@ -68,16 +68,16 @@ Speaker attribution is evidence-first. Voice can establish session-local similar
 human identity. Remote Speaker Coverage v3 is promoted with `93.9312%` attributable remote speech,
 exact selected-word and v2-label conservation. Unsupported regions and a rare voice without enough
 enrollment remain explicit `unknown`. Transcript Perfection Corpus v1 remains the convergence
-    baseline. Residual Evidence v4 measured a safe `14.57%` word / `13.98%` second ceiling and closed
+baseline. Residual Evidence v4 measured a safe `14.57%` word / `13.98%` second ceiling and closed
 with `DO_NOT_PROMOTE`; Speaker-Resolved Transcript Default v1 is promoted. Lexical Accuracy
 Reference Corpus v1 proves the exact 67-word digital subset at WER/CER `0`, but closes
 `REFERENCE_INSUFFICIENT` for real meetings because no human-reviewed reference exists. Independent
     WavLM evidence then recovered only 53 residual words / `23.357s` and closed `DO_NOT_PROMOTE`.
     The blind residual pack now covers 851 words in 278 items, but direct truth still covers 0/53
-    proposals. Exact local multi-speaker truth qualified the Coverage v3 control. Blind hard-v2 then
-    rejected word-level duration/fusion candidates: precision stayed safe, but known recall and
-    boundaries collapsed. The current step attributes longer homogeneous spans before projecting
-    anonymous IDs onto words; real-session promotion remains blocked by direct blind evidence.
+proposals. Exact local multi-speaker truth qualified the Coverage v3 control. Blind hard-v2 rejected
+word-level duration/fusion candidates; blind hard-v3 then rejected long-span segment-context fusion
+with `0/20` boundaries and two open-set errors. The current step decomposes boundary, identity and
+overlap/open-set ceilings; real-session promotion remains blocked by direct blind evidence.
 
 ## Core User Jobs
 
@@ -114,10 +114,10 @@ met, unless an explicit product decision changes the priority.
 
 ## Near-Term Direction
 
-1. **Transcript Perfection Corpus v1:** maintain the completed 16-source benchmark for text,
+1. **Transcript Perfection Corpus v1:** maintain the completed 17-source benchmark for text,
    chronology, roles, speakers, overlap, acoustic modes and known residual defects.
-2. **Segment-Context Remote Speaker Attribution v1:** detect homogeneous speaker spans and change
-   points from audio, then project supported anonymous IDs onto words and abstain elsewhere.
+2. **Remote Speaker Attribution Error Decomposition v1:** measure oracle boundary, identity and
+   overlap/open-set ceilings before selecting a qualitatively different local backend.
 3. **Remote residual blind review:** keep all 53 real-session proposals blocked until direct human or
    exact scripted truth exists; synthetic success cannot promote them.
 4. **Human-Reviewed Lexical Seed v1:** external-evidence prerequisite; do not tune ASR from machine

@@ -6,88 +6,85 @@ This document expands the single executable goal from
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`.
 `scripts/check-planning-consistency.py` keeps the README, roadmap and OpsKarta wording aligned.
 
-## Segment-Context Remote Speaker Attribution v1
+## Remote Speaker Attribution Error Decomposition v1
 
-OpsKarta nearest goal: Segment-Context Remote Speaker Attribution v1: до изменений topology
-заморозить новый private exact-scripted hard-v3 с новыми scripts, renderer voices, отдельным known
-enrollment, source stems, word/speaker/timestamp truth и SHA-256; считать Truth Lab v1 и открытый
-hard-v2 только development evidence; сравнить не более трёх заранее объявленных segment-context
-topology, которые независимо строят silence/embedding change points, получают speaker evidence на
-длинных однородных интервалах и лишь затем консервативно проецируют anonymous ID на слова; mixed,
-short unsupported и конфликтующие интервалы оставлять `unknown`/`mixed`; выбрать candidate только
-на development, заморозить config и открыть hard-v3 ровно один раз; завершить
-`PROMOTE_LAB_CANDIDATE` только при exact word conservation, deterministic replay, B-cubed F1 и
-pairwise precision >=0.98, known-speaker recall >=0.98, boundary recall 100%, zero open-set false
-attribution и non-regression Coverage v3, иначе выпустить `DO_NOT_PROMOTE_SEGMENT_CONTEXT`; не
-менять selected transcript, Coverage v3, raw CAF, primary ASR или Echo Guard и не переносить
-synthetic labels в real sessions; добавить CLI, тесты и corpus report, обновить README, contracts,
-runbook, current-goal, roadmap и OpsKarta, закоммитить и отправить в origin/main.
+OpsKarta nearest goal: Remote Speaker Attribution Error Decomposition v1: заморозить SHA-256
+существующих Truth Lab v1, hard-v2, once-opened hard-v3, их truth, predictions, decisions и ledgers
+без повторного выбора кандидата; построить детерминированную oracle-матрицу `oracle boundaries +
+current identity`, `current boundaries + oracle identity` и отдельный `overlap/open-set oracle`,
+чтобы независимо измерить потолок boundary detection, speaker identity и mixed/open-set abstention
+на exact word/speaker/timestamp truth; разложить ошибки по corpus, speaker, duration, gap, transition и
+overlap strata, сохранив все слова и provenance; по заранее заданным правилам выпустить ровно один
+итог `ADVANCE_DEDICATED_SEGMENTATION`, `ADVANCE_STRONGER_SPEAKER_IDENTITY`,
+`ADVANCE_OVERLAP_OPEN_SET_MODEL` либо `CURRENT_LOCAL_ATTRIBUTION_LIMIT`, не подбирать новый
+production candidate и не ослаблять gates после просмотра truth; не менять selected transcript,
+Coverage v3, raw CAF, primary ASR, Echo Guard, hard-v2/v3 decisions и не переносить synthetic labels
+в real sessions; добавить CLI, автоматические тесты и Transcript Perfection source, обновить README,
+contracts, runbook, current-goal, roadmap и OpsKarta, закоммитить и отправить изменения в origin/main.
 
 ## Why Now
 
-Duration-Aware v2 established a clean boundary: conservative word-level fusion can keep measured
-precision at `1.0` and abstain on every unseen open-set voice, but it retained only `55.1402%` of
-known hard-v2 words and recovered `32.1429%` of speaker boundaries. Individual short-word embeddings
-do not contain stable enough identity evidence.
+Две независимо замороженные проверки закрыли текущий класс embedding-эвристик:
 
-Longer context is the shortest plausible route forward. Speaker evidence should be measured over a
-homogeneous span, while a separate change-point detector decides where that evidence may be shared.
-Word timestamps then receive a label only from a supported containing span.
+- Duration-Aware v2: hard-v2 B-cubed `0.499381`, known recall `0.551402`, boundaries `9/28`;
+- Segment-Context v1: hard-v3 B-cubed `0.475586`, known recall `0.445087`, boundaries `0/20`,
+  две ложные open-set attribution.
+
+Новый segment-context слой местами улучшил метрики относительно Coverage v3 control, но одновременно
+ухудшил границы и open-set safety. По итоговому числу нельзя понять, что именно ограничивает систему:
+поиск смены говорящего, устойчивость speaker embedding или обработка overlap/open-set. Ещё один набор
+порогов без такого разложения только повторит уже закрытые попытки.
 
 ## Objective
 
-Determine whether segment-context evidence can recover short remote words and internal speaker
-changes without weakening open-set precision. End with `PROMOTE_LAB_CANDIDATE` or reproducible
-`DO_NOT_PROMOTE_SEGMENT_CONTEXT`.
+Получить точный error budget для remote speaker attribution и выбрать один качественно новый трек
+развития. Эта цель диагностическая: она не создаёт ещё один production candidate.
 
 ## Required Work
 
-1. Freeze hard-v3 before candidate implementation, with new voices/scripts and disjoint enrollment.
-2. Treat all v1 and hard-v2 truth as development; never present them as fresh held-out evidence.
-3. Predeclare no more than three segment-context candidates.
-4. Detect candidate boundaries from silence and embedding changes only, without speaker truth.
-5. Embed context windows long enough for stable identity, then assign words by temporal containment.
-6. Keep overlap, unsupported short spans, open-set and backend disagreement fail-open.
-7. Select on development, freeze one candidate, and consume hard-v3 once.
-8. Add deterministic replay, privacy checks, CLI, tests and aggregate corpus reporting.
+1. Заморозить входы и хэши трёх exact корпусов, решений hard-v2/v3 и всех используемых prediction.
+2. Посчитать current system на общей нормализованной word/boundary схеме без повторного tuning.
+3. Подставить oracle boundaries при неизменном current identity backend.
+4. Подставить oracle speaker identity при неизменных current candidate boundaries.
+5. Отдельно измерить mixed speech, overlap и unseen open-set abstention.
+6. Разложить ошибки по corpus, speaker, duration, gap, transition type и overlap state.
+7. Применить заранее зафиксированное дерево решения и выбрать ровно один следующий backend track.
+8. Добавить deterministic replay, portable public report, CLI, тесты и Transcript Perfection source.
 
 ## Acceptance Gates
 
-- exact word conservation, direct truth coverage and zero-sample stem reconstruction error;
-- hard-v3 was frozen before candidate code and not used for tuning;
-- B-cubed F1 and pairwise precision at least `0.98`;
-- known-speaker recall at least `0.98`;
-- every evaluated speaker boundary recovered;
-- zero open-set false attribution and every mixed word fails closed;
-- Coverage v3 control and production hashes do not regress;
-- deterministic replay and private-safe public artifacts.
-
-Any failed gate yields `DO_NOT_PROMOTE_SEGMENT_CONTEXT`. Post-hard threshold relaxation is forbidden.
+- все exact слова, timestamps, speaker truth и evaluated boundaries учтены ровно один раз;
+- oracle-треки меняют только одну ось за раз;
+- hard-v2/v3 decisions и opening ledgers остаются byte-exact;
+- результаты повторного запуска совпадают побайтно;
+- каждый вывод о bottleneck имеет corpus и stratum provenance;
+- выбран ровно один из четырёх заранее объявленных итогов;
+- production, Coverage v3 и ordinary transcript не меняются.
 
 ## Safety Boundary
 
-- selected transcript, Coverage v3, raw CAF, primary ASR and Echo Guard remain unchanged;
-- synthetic truth cannot label real sessions;
-- no cloud speech service or cross-session human identity;
-- longer context cannot overwrite mixed or unsupported words;
-- real residual review remains blocked without direct blind truth.
+- hard-v3 уже открыт один раз и больше не является blind selection set;
+- truth разрешена только для error decomposition, но не для настройки нового кандидата;
+- synthetic speaker labels не переходят в реальные сессии;
+- никакие пороги Attribution v2/Segment-Context v1 не пересматриваются;
+- имена людей и cross-session voice identity остаются запрещены.
 
 ## Previous Goal Result
 
-Duration-Aware Remote Speaker Attribution v2 completed with `DO_NOT_PROMOTE_TOPOLOGY`:
+Segment-Context Remote Speaker Attribution v1 завершён с `DO_NOT_PROMOTE_SEGMENT_CONTEXT`:
 
-- 4 unopened-then-one-shot hard-v2 scenarios, 125 words, 4 enrolled and 2 open-set voices;
-- three candidates selected only on v1 development evidence;
-- conservative fusion development: B-cubed `0.912728`, known recall `0.913043`;
-- hard-v2: B-cubed `0.499381`, pairwise precision `1.0`, known recall `0.551402`, boundaries
-  `9/28`, open-set false attribution `0`;
-- Coverage v3 control was weaker on hard-v2, but both tracks remained far below recall gates;
-- exact word/stem conservation, one-shot ledger, privacy and replay gates passed;
-- production remained unchanged.
+- hard-v3 заморожен до разработки: 5 scenarios, 197 words, 22 boundaries, 7 mixed words;
+- 4 enrolled и 2 open-set voices, новые scripts/voices и отдельное enrollment;
+- выбран `conservative_dual_backend_context_fusion` только на v1 + open hard-v2;
+- hard-v3: B-cubed `0.475586`, pairwise precision `0.966418`, known recall `0.445087`;
+- boundaries `0/20`, open-set false attribution `2`, mixed fail-closed `7/7`;
+- exact words/stems, one-shot opening, deterministic replay и production boundary сохранены;
+- Transcript Perfection теперь проверяет `17/17` frozen sources.
 
 ## After This Goal
 
-1. A passing lab candidate may proceed only to bounded real-session audit with direct reference.
-2. A failed candidate closes embedding-based segment projection at the current local model ceiling.
-3. Per-speaker names remain an explicit review layer over anonymous IDs.
-4. Local-mic multi-speaker attribution waits for a real consented scenario.
+1. Boundary bottleneck открывает квалификацию специализированного локального diarization engine.
+2. Identity bottleneck открывает новый speaker embedding/enrollment backend на новом blind corpus.
+3. Overlap/open-set bottleneck открывает отдельный abstaining detector.
+4. Если ни один oracle ceiling не достигает gates, фиксируется текущий локальный предел и критический
+   путь переходит к внешнему human-reviewed reference либо новому классу моделей.

@@ -346,6 +346,46 @@ def build_fixture(root: Path) -> Path:
             },
             ["remote_speaker_turns"],
         ),
+        "segment_context_remote_speaker_attribution_v1": (
+            files / "remote-segment-context-v1.json",
+            {
+                "schema": "murmurmark.segment_context_remote_speaker_attribution_report/v1",
+                "decision": "DO_NOT_PROMOTE_SEGMENT_CONTEXT",
+                "selected_topology": "conservative_dual_backend_context_fusion",
+                "hard_v3": {
+                    "decision_open_count": 1,
+                    "used_for_selection": False,
+                },
+                "hard_v3_metrics": {
+                    "bcubed": {"f1": 0.475586},
+                    "pairwise": {"precision": 0.966418},
+                    "known_speaker_recall": 0.445087,
+                    "boundary_recall": 0.0,
+                    "open_set_false_attributions": 2,
+                },
+                "coverage_v3_control_metrics": {
+                    "bcubed": {"f1": 0.39759},
+                    "pairwise": {"precision": 0.943249},
+                    "known_speaker_recall": 0.439306,
+                    "boundary_recall": 0.15,
+                    "open_set_false_attributions": 0,
+                },
+                "gates": {
+                    "word_conservation": True,
+                    "direct_truth_coverage": True,
+                    "mixed_words_fail_closed": True,
+                    "production_boundaries_unchanged": True,
+                    "hard_v3_not_used_for_selection": True,
+                    "bcubed_f1": False,
+                    "boundary_recall": False,
+                    "known_speaker_recall": False,
+                    "pairwise_precision": False,
+                    "zero_open_set_false_attribution": False,
+                    "coverage_v3_control_non_regression": False,
+                },
+            },
+            ["remote_speaker_turns"],
+        ),
     }
     sources: list[dict[str, object]] = []
     for source_id, (path, payload, dimensions) in payloads.items():
@@ -404,14 +444,14 @@ def main() -> int:
         assert result.returncode == 0, result.stdout + result.stderr
         report = json.loads((out / "transcript_perfection_corpus_report.json").read_text())
         assert report["decision"] == "BASELINE_ESTABLISHED"
-        assert report["summary"]["verified_sources"] == 16
+        assert report["summary"]["verified_sources"] == 17
         assert report["summary"]["aggregate_quality_score"] is None
         assert report["summary"]["aggregate_residual_seconds"] is None
         words = next(row for row in report["dimensions"] if row["id"] == "recognized_words")
         assert words["correctness_status"] == "bounded_exact_subset_only"
         assert words["metrics"]["exact_subset_wer"] == 0.0
         assert report["residuals"][0]["class"] == "unknown_remote_speaker"
-        assert report["next_goal"]["id"] == "segment-context-remote-speaker-attribution-v1"
+        assert report["next_goal"]["id"] == "remote-speaker-attribution-error-decomposition-v1"
         assert report["next_goal"]["selected_residual_class"] == "unknown_remote_speaker"
         assert report["lexical_prerequisite"]["id"] == "human-reviewed-lexical-seed-v1"
         assert report["lexical_prerequisite"]["status"] == "external_evidence_required"

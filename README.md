@@ -295,7 +295,7 @@ murmurmark notes "$SESSION" --reviewed-speakers
 murmurmark export "$SESSION" --format markdown --include-json --reviewed-speakers
 ```
 Speaker-aware memory and exact-text notes remain optional derivatives. Transcript Perfection Corpus
-keeps 16/16 frozen sources explicit and never collapses unlike quality dimensions into one score.
+keeps 17/17 frozen sources explicit and never collapses unlike quality dimensions into one score.
 Lexical Accuracy Reference Corpus v1 measures its exact 67-word digital subset at WER/CER `0` and
 keeps real-meeting lexical correctness blocked by missing human-reviewed evidence:
 
@@ -304,11 +304,9 @@ murmurmark corpus lexical status
 murmurmark corpus lexical replay --write-manifest docs/testing/lexical-accuracy-reference-corpus-v1-manifest.json
 murmurmark corpus perfection all --verify-existing
 murmurmark corpus remote-reference status && murmurmark corpus remote-reference replay
-murmurmark corpus remote-truth-lab replay && murmurmark corpus remote-duration-v2 status
+murmurmark corpus remote-truth-lab replay && murmurmark corpus remote-duration-v2 status && murmurmark corpus remote-segment-context status
 ```
-
 The dependent critical path is:
-
 ```text
 Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental ASR
 -> Remote Speaker Evidence (done: audit-only, 50.4% coverage)
@@ -321,14 +319,16 @@ Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental 
 -> Remote Speaker Residual Reference Corpus v1 (done: REFERENCE_INSUFFICIENT, blind pack ready)
 -> Controlled Remote Speaker Truth Lab v1 (done: Coverage v3 control qualified, WavLM rejected)
 -> Duration-Aware Remote Speaker Attribution v2 (done: DO_NOT_PROMOTE, precision safe but low recall)
--> Segment-Context Remote Speaker Attribution v1 (current)
+-> Segment-Context Remote Speaker Attribution v1 (done: DO_NOT_PROMOTE, boundary/open-set regression)
+-> Remote Speaker Attribution Error Decomposition v1 (current)
 ```
 
 Independent WavLM recovered only `6.2280%` of residual words; the blind 278-item pack still lacks
 direct truth. Exact synthetic truth qualified the Coverage v3 control (`0.983505` B-cubed F1, zero
 open-set errors). Blind hard-v2 then rejected conservative word-level fusion despite precision `1.0`:
-known recall was `0.551402`, boundary recall `0.321429`. **Segment-Context Remote Speaker Attribution
-v1** now moves identity evidence to longer homogeneous spans before projecting IDs onto words.
+known recall was `0.551402`, boundary recall `0.321429`. Segment-Context v1 also failed hard-v3:
+known recall `0.445087`, boundaries `0/20`, two open-set false attributions. **Remote Speaker
+Attribution Error Decomposition v1** now isolates boundary, identity and overlap/open-set ceilings.
 See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 ## Scope And Limitations
 
@@ -379,7 +379,7 @@ See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](do
 - [Lexical Accuracy Reference Corpus contract](docs/contracts/lexical-accuracy-reference-corpus.md)
 - [Remote Speaker Coverage v3](docs/contracts/remote-speaker-coverage-v3.md) and [Residual Evidence v4](docs/contracts/remote-speaker-residual-evidence-v4.md) contracts
 - [Independent evidence](docs/contracts/independent-remote-speaker-evidence-v1.md) and [residual reference](docs/contracts/remote-speaker-residual-reference-corpus-v1.md)
-- [Controlled Truth Lab v1](docs/contracts/controlled-remote-speaker-truth-lab-v1.md) and [Duration-Aware v2](docs/contracts/duration-aware-remote-speaker-attribution-v2.md)
+- [Controlled Truth Lab v1](docs/contracts/controlled-remote-speaker-truth-lab-v1.md), [Duration-Aware v2](docs/contracts/duration-aware-remote-speaker-attribution-v2.md) and [Segment-Context v1](docs/contracts/segment-context-remote-speaker-attribution-v1.md)
 - [Speaker-Resolved Transcript Default v1](docs/contracts/speaker-resolved-transcript-default-v1.md)
 
 ## Development Checks

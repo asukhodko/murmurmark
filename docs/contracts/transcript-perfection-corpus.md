@@ -71,6 +71,11 @@ Duration-Aware Remote Speaker Attribution v2 is the sixteenth frozen source. Its
 decision, exact conservation gates and `DO_NOT_PROMOTE_TOPOLOGY` are valid evidence. The scorecard
 records that word-level fusion preserves precision but fails known-speaker and boundary recall.
 
+Segment-Context Remote Speaker Attribution v1 is the seventeenth frozen source. Its one-shot hard-v3
+decision records that longer homogeneous context still fails boundary, identity and open-set gates.
+`DO_NOT_PROMOTE_SEGMENT_CONTEXT` is accepted as a completed scientific result; production remains
+unchanged and the next goal must decompose the three error classes before selecting another backend.
+
 ## Outputs
 
 The command writes only under:

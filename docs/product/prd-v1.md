@@ -128,8 +128,10 @@ Remote Speaker Residual Reference Corpus v1 closed `REFERENCE_INSUFFICIENT` afte
 items and all 53 WavLM proposals without direct truth. Controlled Remote Speaker Truth Lab v1 then
 qualified the Coverage v3 control but rejected the WavLM candidate (`0.834325` B-cubed F1, two
 open-set false attributions). Duration-Aware v2 then rejected word-level fusion on blind hard-v2:
-known recall `0.551402`, boundary recall `0.321429`. Segment-Context v1 is current and tests longer
-speaker-homogeneous evidence before word projection. Notes, external writes and UI remain optional.
+known recall `0.551402`, boundary recall `0.321429`. Segment-Context v1 then failed blind hard-v3:
+known recall `0.445087`, boundaries `0/20`, two open-set errors. Remote Speaker Attribution Error
+Decomposition v1 is current and isolates boundary, identity and overlap/open-set ceilings before a
+different local backend is chosen. Notes, external writes and UI remain optional.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.
 

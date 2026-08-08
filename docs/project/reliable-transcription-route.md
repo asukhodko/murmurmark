@@ -12,8 +12,9 @@ exact 67-word digital subset at WER/CER `0`. Independent WavLM evidence recovere
 278 items but closed `REFERENCE_INSUFFICIENT` with 0/53 direct proposal labels. Controlled Remote
 Speaker Truth Lab v1 qualified the Coverage v3 control and rejected the WavLM candidate on exact
 hard truth. Duration-Aware v2 preserved precision but failed blind hard-v2 recall and boundary gates.
-Segment-Context Remote Speaker Attribution v1 is current: infer longer homogeneous spans and change
-points before word labels. Notes, retrieval and work proposals remain optional derivatives.
+Segment-Context v1 also failed blind hard-v3 boundary, identity and open-set gates. Remote Speaker
+Attribution Error Decomposition v1 is current: isolate those ceilings with oracle tracks before
+choosing a different backend. Notes, retrieval and work proposals remain optional derivatives.
 Date: 2026-08-08
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
@@ -472,9 +473,9 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Segment-Context Remote Speaker Attribution v1: заморозить untouched hard-v3, строить независимые
-silence/embedding change points и длинные homogeneous speaker spans, затем проецировать ID на слова;
-выбрать candidate только на v1+hard-v2 development и открыть hard-v3 один раз.
+Remote Speaker Attribution Error Decomposition v1: на frozen v1/hard-v2/hard-v3 раздельно измерить
+oracle-boundary, oracle-identity и overlap/open-set ceilings; выбрать один качественно новый backend
+track либо зафиксировать current local attribution limit без нового production candidate.
 ```
 
 Speaker-Resolved Transcript Default v1 завершён `PROMOTE`: ordinary read/handoff/export выбирают v3
@@ -502,5 +503,7 @@ Exact scripted evidence is now complete. The Coverage v3 control passed hard at 
 pairwise precision `1.0`, boundaries `16/16` and zero open-set errors. The WavLM candidate failed at
 `0.834325`, `0.950920`, `10/16` and two false attributions. Duration-Aware v2 then opened a separate
 hard-v2 once: fusion kept precision `1.0` and zero open-set errors but reached B-cubed `0.499381`,
-known recall `0.551402` and boundaries `9/28`. The next autonomous step moves identity evidence from
-individual words to longer segments. It still cannot replace blind review of real-session proposals.
+known recall `0.551402` and boundaries `9/28`. Segment-Context v1 then failed hard-v3 at B-cubed
+`0.475586`, known recall `0.445087`, boundaries `0/20` and two open-set false attribution. The next
+autonomous step decomposes boundary, identity and overlap/open-set errors. Synthetic evidence still
+cannot replace blind review of real-session proposals.

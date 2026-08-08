@@ -78,7 +78,8 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Residual speaker reference | `done/blocker` | 278 blind items; `REFERENCE_INSUFFICIENT`, direct truth 0/53 |
 | Controlled speaker truth lab | `done` | Coverage v3 control qualified; WavLM candidate `DO_NOT_ADVANCE` |
 | Duration-aware speaker attribution | `done` | `DO_NOT_PROMOTE`: precision `1.0`, known recall `55.14%`, boundaries `9/28` |
-| Segment-context speaker attribution | `current` | Long-span identity evidence on a new untouched hard-v3 |
+| Segment-context speaker attribution | `done` | `DO_NOT_PROMOTE`: hard-v3 recall `44.51%`, boundaries `0/20` |
+| Speaker-attribution error decomposition | `current` | Oracle-разложение boundary, identity и overlap/open-set ошибок |
 | Производные заметки | `done/optional` | Exact evidence memory и безопасный ID-only selector доступны |
 
 ## Актуальная Цепочка
@@ -97,11 +98,12 @@ flowchart LR
     C["Done: REFERENCE_INSUFFICIENT<br/>Remote Speaker Residual<br/>Reference Corpus v1"]
     Q["Done: DO_NOT_ADVANCE WavLM<br/>Controlled Remote Speaker<br/>Truth Lab v1"]
     A["Done: DO_NOT_PROMOTE<br/>Duration-Aware Remote Speaker<br/>Attribution v2"]
-    S["Current<br/>Segment-Context Remote Speaker<br/>Attribution v1"]
+    S["Done: DO_NOT_PROMOTE<br/>Segment-Context Remote Speaker<br/>Attribution v1"]
+    E["Current<br/>Remote Speaker Attribution<br/>Error Decomposition v1"]
     M["Idea<br/>Local Mic Multi-Speaker<br/>Diarization v1"]
     O["Optional<br/>Notes, retrieval,<br/>work proposals"]
 
-    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S
+    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E
     F --> D
     P -. "real local scenario" .-> M
     L -.-> O
@@ -127,7 +129,7 @@ Word/frame-level diarization работает по authoritative remote audio, �
 ### 3. Transcript Perfection Corpus v1 — `done`
 
 Единый корпус связывает проверку текста, порядка, ролей, speaker turns, overlap, missing `Me`,
-remote leakage и acoustic modes. Baseline `BASELINE_ESTABLISHED`: 16/16 frozen sources verified,
+remote leakage и acoustic modes. Baseline `BASELINE_ESTABLISHED`: 17/17 frozen sources verified,
 восемь явных dimensions, exact lexical subset измерен, real meetings остаются
 reference-insufficient, aggregate score запрещён.
 
@@ -210,20 +212,31 @@ Conservative fusion сохранил pairwise precision `1.0`, zero open-set fal
 Coverage v3 control, но получил hard B-cubed `0.499381`, known recall `0.551402`, boundaries `9/28`.
 Итог: `DO_NOT_PROMOTE_TOPOLOGY`; production не изменён.
 
-### 12. Segment-Context Remote Speaker Attribution v1 — `current`
+### 12. Segment-Context Remote Speaker Attribution v1 — `done`
 
-Новый hard-v3 замораживается до алгоритма. Truth Lab v1 и hard-v2 становятся development evidence.
-Кандидаты независимо находят silence/embedding change points, получают identity evidence на длинных
-homogeneous spans и только затем проецируют anonymous ID на слова. Short unsupported, overlap,
-open-set и конфликтующие spans остаются `unknown`/`mixed`.
+Новый hard-v3 был заморожен до алгоритма: 5 scenarios, 197 words, 22 boundaries, 4 enrolled и 2
+open-set voices. Из трёх topology только на v1 + open hard-v2 выбран conservative dual-backend
+fusion; hard-v3 открыт ровно один раз.
 
-### 13. Local Mic Multi-Speaker Diarization v1 — `idea`
+Результат `DO_NOT_PROMOTE_SEGMENT_CONTEXT`: B-cubed `0.475586`, pairwise precision `0.966418`,
+known recall `0.445087`, boundaries `0/20`, две open-set false attribution. Words/stems, mixed
+fail-closed, deterministic replay и production boundary сохранены. Эту ветку пороговых
+segment-context эвристик продолжать не нужно.
+
+### 13. Remote Speaker Attribution Error Decomposition v1 — `current`
+
+Три exact корпуса позволяют разделить причины ошибки без нового candidate. Oracle boundaries при
+неизменном identity backend покажут потолок идентификации; current boundaries с oracle identity —
+потолок сегментации; отдельный oracle измерит overlap/open-set. Итог выбирает один качественно новый
+backend track либо фиксирует текущий локальный предел.
+
+### 14. Local Mic Multi-Speaker Diarization v1 — `idea`
 
 Когда появится реальный сценарий нескольких людей у одного ноутбука и размеченный материал, mic-речь
 будет разделяться на Target-Me, other local speakers и `unknown`. Этот этап зависит от remote v2 и
 Transcript Perfection Corpus, но не нужен для нынешнего основного сценария одного пользователя.
 
-### 14. Производные Возможности — `optional`
+### 15. Производные Возможности — `optional`
 
 Extractive notes, quality verdict, reviewed speaker memory, ID-only selection, локальный поиск и
 work proposals могут развиваться после достижения transcript gates или по отдельному явному запросу.

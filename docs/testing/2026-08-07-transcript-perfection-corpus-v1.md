@@ -2,7 +2,7 @@
 
 Status: `BASELINE_ESTABLISHED`
 
-The unified scorecard was built from 12 frozen source artifacts. All byte counts, SHA-256 values,
+The unified scorecard now verifies 17 frozen source artifacts. All byte counts, SHA-256 values,
 schemas and source-level safety gates passed. Repeated offline generation was byte-identical, and a
 deliberately changed source produced `INVALID_INPUTS`.
 
@@ -24,10 +24,11 @@ No aggregate score or total residual seconds are published because source scopes
 
 The largest actionable measured residual remains `unknown_remote_speaker`: after promoted Coverage
 v3, 851 preserved remote words and `598.240s` across six sessions still lack supported attribution.
-Residual Evidence v4 measured that ceiling and closed `DO_NOT_PROMOTE`. The next bounded autonomous
-goal is **Independent Remote Speaker Evidence v1**: qualify a genuinely different local backend
-without weakening B-cubed F1 `0.962171`, pairwise precision `0.961675`, v2/v3 labels, word
-conservation, timestamp order, one-to-one controls or exact aggregate fallback.
+Residual Evidence v4, Independent WavLM, Duration-Aware v2 and Segment-Context v1 all closed with
+measured negative decisions. The current bounded autonomous goal is **Remote Speaker Attribution
+Error Decomposition v1**: isolate boundary, identity and overlap/open-set ceilings before selecting
+a qualitatively different backend, without weakening B-cubed F1 `0.962171`, pairwise precision
+`0.961675`, v2/v3 labels, word conservation, timestamp order or exact aggregate fallback.
 
 Lexical Accuracy Reference Corpus v1 now measures a bounded exact generated subset and keeps the
 absent human-reviewed real-meeting reference as a separate blocker. Word conservation and machine

@@ -34,10 +34,10 @@ Expected frozen baseline:
 
 ```text
 decision: BASELINE_ESTABLISHED
-sources: 16/16 verified
+sources: 17/17 verified
 release_ready: false
 largest_actionable_residual: unknown_remote_speaker (598.240s)
-next_goal: Segment-Context Remote Speaker Attribution v1
+next_goal: Remote Speaker Attribution Error Decomposition v1
 ```
 
 ## Reading The Result
@@ -49,6 +49,7 @@ next_goal: Segment-Context Remote Speaker Attribution v1
 - `remote_speaker_turns.residual_reference_insufficient` keeps 0/53 direct proposal truth visible.
 - `truth_lab_control_decision` and `truth_lab_candidate_decision` distinguish a passing control from
   a rejected candidate; synthetic evidence never resolves a real speaker label.
+- segment-context hard-v3 metrics keep boundary, identity and open-set failures explicit.
 - residual seconds belong to different frozen scopes and must not be summed.
 - the first residual row selects the next bounded engineering goal.
 

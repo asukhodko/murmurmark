@@ -1,0 +1,186 @@
+{
+  "schema": "murmurmark.segment_context_remote_speaker_attribution_policy/v1",
+  "version": "0.1.0",
+  "topologies": [
+    {
+      "id": "silence_bounded_context_prototypes",
+      "backend": "wavlm_xvector",
+      "silence_gap_grid_sec": [0.12, 0.2, 0.32, 0.5],
+      "minimum_context_grid_sec": [0.8, 1.2, 1.8],
+      "maximum_context_sec": 12.0,
+      "similarity_grid": [0.68, 0.72, 0.76, 0.8, 0.84],
+      "margin_grid": [0.0, 0.02, 0.04, 0.06, 0.08]
+    },
+    {
+      "id": "embedding_change_point_context",
+      "backend": "wavlm_xvector",
+      "probe_window_sec": 1.2,
+      "change_distance_grid": [0.08, 0.12, 0.16, 0.2, 0.24],
+      "minimum_context_grid_sec": [0.8, 1.2, 1.8],
+      "maximum_context_sec": 12.0,
+      "similarity_grid": [0.68, 0.72, 0.76, 0.8, 0.84],
+      "margin_grid": [0.0, 0.02, 0.04, 0.06, 0.08]
+    },
+    {
+      "id": "conservative_dual_backend_context_fusion",
+      "backends": ["wavlm_xvector", "resemblyzer"],
+      "agreement_required": true,
+      "silence_gap_grid_sec": [0.12, 0.2, 0.32],
+      "change_distance_grid": [0.08, 0.12, 0.16, 0.2],
+      "minimum_context_grid_sec": [0.8, 1.2, 1.8],
+      "maximum_context_sec": 12.0,
+      "wavlm_similarity_grid": [0.68, 0.72, 0.76, 0.8],
+      "wavlm_margin_grid": [0.0, 0.02, 0.04, 0.06],
+      "resemblyzer_similarity_grid": [0.7, 0.74, 0.78, 0.82],
+      "resemblyzer_margin_grid": [0.0, 0.02, 0.04, 0.06]
+    }
+  ],
+  "selection": {
+    "source": "truth_lab_v1_and_open_hard_v2_development_only",
+    "maximum_topologies": 3,
+    "priority": [
+      "zero_open_set_false_attribution",
+      "pairwise_precision",
+      "boundary_recall",
+      "bcubed_f1",
+      "known_speaker_recall"
+    ],
+    "boundary_inputs": ["audio_silence", "embedding_change"],
+    "truth_allowed_for_boundary_detection": false,
+    "word_assignment": "supported_containing_segment_only",
+    "mixed_policy": "timestamp_only_fail_closed",
+    "unknown_policy": "fail_open"
+  },
+  "development_evidence": {
+    "truth_lab_v1": {
+      "tracked_manifest": {
+        "path": "docs/testing/controlled-remote-speaker-truth-lab-v1-manifest.json",
+        "sha256": "d520934c92fc73e49989124d6cb0f252b7b8e964c52f085b3d8ed651fb49ac6a"
+      },
+      "private_frozen_manifest": {
+        "path": "sessions/_reports/controlled-remote-speaker-truth-lab-v1/private/frozen_manifest.json",
+        "sha256": "26074894aeb311b75eedb42f1833db4e0be147e4378a9ff5c6bbe520b453ab6a"
+      },
+      "public_report": {
+        "path": "sessions/_reports/controlled-remote-speaker-truth-lab-v1/controlled_remote_speaker_truth_lab_report.json",
+        "sha256": "4c84af18d37a97fe1d3464103470068b9890c5dbbe6d10fda3f051cab9049533"
+      }
+    },
+    "duration_aware_v2": {
+      "tracked_manifest": {
+        "path": "docs/testing/duration-aware-remote-speaker-attribution-v2-manifest.json",
+        "sha256": "eaa6c7cfac8ee215915dc88a585af1b68ba7e1f1e63ac5862b0e0aa42d73cab7"
+      },
+      "private_frozen_manifest": {
+        "path": "sessions/_reports/duration-aware-remote-speaker-attribution-v2/private/hard-v2/frozen_manifest.json",
+        "sha256": "695edf8fdba5c145cd237414cca47581c8bd9a5ef7873ac76d2bba2293ad3d40"
+      },
+      "public_report": {
+        "path": "sessions/_reports/duration-aware-remote-speaker-attribution-v2/duration_aware_remote_speaker_attribution_report.json",
+        "sha256": "6207ec5b90bcf12bf022b741abd49d1ab19f5f4141e673d52599285741a267f4"
+      }
+    },
+    "all_splits_are_development_only": true
+  },
+  "hard_v3": {
+    "private_root": "sessions/_reports/segment-context-remote-speaker-attribution-v1/private/hard-v3",
+    "renderer": {
+      "command": "say",
+      "rate_words_per_minute": 172,
+      "sample_rate": 16000,
+      "word_peak": 0.1,
+      "minimum_word_sec": 0.52,
+      "word_edge_padding_sec": 0.06,
+      "inter_word_gap_sec": 0.055,
+      "audio_subtype": "PCM_16",
+      "eligible_unused_voices": ["Alice", "Anna", "Ellen", "Ioana", "Joana", "Lesya", "Nora", "Paulina"],
+      "enrolled_speaker_count": 4,
+      "open_set_speaker_count": 2,
+      "enrollment_words_per_speaker": 16
+    },
+    "private_token_generator": {
+      "token_count": 320,
+      "minimum_syllables": 2,
+      "maximum_syllables": 4,
+      "must_be_disjoint_from_truth_lab_v1": true,
+      "must_be_disjoint_from_hard_v2": true
+    },
+    "scenario_templates": {
+      "hard_v3_long_homogeneous": {
+        "meeting_mode": "group",
+        "events": [
+          {"speaker_slot": "enrolled_1", "word_count": 12, "gap_before_sec": 0.5},
+          {"speaker_slot": "enrolled_2", "word_count": 10, "gap_before_sec": 0.08},
+          {"speaker_slot": "enrolled_3", "word_count": 14, "gap_before_sec": 0.08},
+          {"speaker_slot": "enrolled_4", "word_count": 9, "gap_before_sec": 0.08}
+        ]
+      },
+      "hard_v3_hidden_boundaries": {
+        "meeting_mode": "group",
+        "events": [
+          {"speaker_slot": "enrolled_1", "word_count": 6, "gap_before_sec": 0.45},
+          {"speaker_slot": "enrolled_2", "word_count": 5, "gap_before_sec": 0.03},
+          {"speaker_slot": "enrolled_3", "word_count": 7, "gap_before_sec": 0.03},
+          {"speaker_slot": "enrolled_4", "word_count": 5, "gap_before_sec": 0.03},
+          {"speaker_slot": "enrolled_1", "word_count": 6, "gap_before_sec": 0.03},
+          {"speaker_slot": "enrolled_3", "word_count": 5, "gap_before_sec": 0.03}
+        ]
+      },
+      "hard_v3_open_set_intrusion": {
+        "meeting_mode": "group",
+        "events": [
+          {"speaker_slot": "enrolled_1", "word_count": 9, "gap_before_sec": 0.5},
+          {"speaker_slot": "open_set_1", "word_count": 6, "gap_before_sec": 0.06},
+          {"speaker_slot": "enrolled_2", "word_count": 8, "gap_before_sec": 0.06},
+          {"speaker_slot": "open_set_2", "word_count": 5, "gap_before_sec": 0.06},
+          {"speaker_slot": "enrolled_4", "word_count": 9, "gap_before_sec": 0.06}
+        ]
+      },
+      "hard_v3_overlap_mixed": {
+        "meeting_mode": "group",
+        "events": [
+          {"speaker_slot": "enrolled_1", "word_count": 10, "gap_before_sec": 0.5},
+          {"speaker_slot": "enrolled_2", "word_count": 8, "overlap_previous_sec": 1.1},
+          {"speaker_slot": "enrolled_3", "word_count": 9, "gap_before_sec": 0.18},
+          {"speaker_slot": "open_set_1", "word_count": 6, "overlap_previous_sec": 0.9},
+          {"speaker_slot": "enrolled_4", "word_count": 8, "gap_before_sec": 0.18}
+        ]
+      },
+      "hard_v3_short_interruptions": {
+        "meeting_mode": "group",
+        "events": [
+          {"speaker_slot": "enrolled_1", "word_count": 10, "gap_before_sec": 0.5},
+          {"speaker_slot": "enrolled_2", "word_count": 1, "gap_before_sec": 0.03},
+          {"speaker_slot": "enrolled_1", "word_count": 8, "gap_before_sec": 0.03},
+          {"speaker_slot": "enrolled_3", "word_count": 2, "gap_before_sec": 0.03},
+          {"speaker_slot": "enrolled_1", "word_count": 8, "gap_before_sec": 0.03},
+          {"speaker_slot": "open_set_2", "word_count": 2, "gap_before_sec": 0.03},
+          {"speaker_slot": "enrolled_4", "word_count": 9, "gap_before_sec": 0.03}
+        ]
+      }
+    },
+    "opening_ledger": "hard_v3_opening_ledger.json",
+    "maximum_decision_openings": 1
+  },
+  "gates": {
+    "minimum_bcubed_f1": 0.98,
+    "minimum_pairwise_precision": 0.98,
+    "minimum_known_speaker_recall": 0.98,
+    "minimum_boundary_recall": 1.0,
+    "maximum_open_set_false_attributions": 0,
+    "maximum_mixture_reconstruction_sample_error": 0,
+    "require_all_words_conserved": true,
+    "require_direct_truth_coverage": true,
+    "require_deterministic_replay": true,
+    "require_coverage_v3_control_non_regression": true,
+    "synthetic_evidence_cannot_promote_real_transcripts": true
+  },
+  "production_boundaries": {
+    "selected_transcript_changed": false,
+    "coverage_v3_changed": false,
+    "raw_caf_changed": false,
+    "primary_asr_changed": false,
+    "echo_guard_changed": false,
+    "synthetic_labels_allowed_in_real_sessions": false
+  }
+}

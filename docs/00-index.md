@@ -104,7 +104,10 @@ Read in this order:
 100. [Duration-Aware Remote Speaker Attribution v2 contract](contracts/duration-aware-remote-speaker-attribution-v2.md)
 101. [Duration-Aware Remote Speaker Attribution v2 runbook](runbooks/duration-aware-remote-speaker-attribution-v2.md)
 102. [Duration-Aware Remote Speaker Attribution v2 result](testing/2026-08-08-duration-aware-remote-speaker-attribution-v2.md)
-103. [Planning and development history](history/README.md)
+103. [Segment-Context Remote Speaker Attribution v1 contract](contracts/segment-context-remote-speaker-attribution-v1.md)
+104. [Segment-Context Remote Speaker Attribution v1 runbook](runbooks/segment-context-remote-speaker-attribution-v1.md)
+105. [Segment-Context Remote Speaker Attribution v1 result](testing/2026-08-08-segment-context-remote-speaker-attribution-v1.md)
+106. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
@@ -133,8 +136,10 @@ while the WavLM candidate closed `DO_NOT_ADVANCE` after two unseen open-set fals
 **Duration-Aware Remote Speaker Attribution v2** then opened a separate 125-word hard-v2 once.
 Conservative fusion kept pairwise precision `1.0` and zero open-set errors but reached only `55.1402%`
 known recall and `32.1429%` boundary recall, so it closed `DO_NOT_PROMOTE_TOPOLOGY`.
-**Segment-Context Remote Speaker Attribution v1** is current: identify longer speaker-homogeneous
-spans and independent change points before projecting IDs onto words. Notes and retrieval remain parked.
+**Segment-Context Remote Speaker Attribution v1** also closed `DO_NOT_PROMOTE`: hard-v3 known recall
+`44.5087%`, boundaries `0/20` and two open-set errors. **Remote Speaker Attribution Error
+Decomposition v1** is current: separate boundary, identity and overlap/open-set ceilings before
+choosing a new backend. Notes and retrieval remain parked.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

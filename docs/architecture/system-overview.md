@@ -133,8 +133,10 @@ and closed `REFERENCE_INSUFFICIENT` because direct truth covers 0/53 proposals. 
 Speaker Truth Lab v1 then produced exact held-out truth: the Coverage v3 control qualified, while the
 WavLM candidate failed short-word and unseen open-set gates. Duration-Aware v2 then preserved
 precision but reached only `55.1402%` known recall and `32.1429%` boundary recall on blind hard-v2.
-Segment-Context Remote Speaker Attribution v1 is current: detect homogeneous spans and change points
-before projecting IDs onto words. Synthetic evidence cannot promote real-session labels. Notes remain optional.
+Segment-Context v1 also failed hard-v3 with `44.5087%` known recall, boundaries `0/20` and two
+open-set errors. Remote Speaker Attribution Error Decomposition v1 now separates boundary, identity
+and overlap/open-set ceilings before any new backend is selected. Synthetic evidence cannot promote
+real-session labels. Notes remain optional.
 
 Target transcription path:
 

@@ -353,6 +353,31 @@ def semantic_gates(
         {name: duration_gates.get(name) for name in duration_structural_gates},
     )
 
+    segment_context = payloads.get("segment_context_remote_speaker_attribution_v1") or {}
+    segment_gates = segment_context.get("gates") or {}
+    segment_structural_gates = (
+        "word_conservation",
+        "direct_truth_coverage",
+        "mixed_words_fail_closed",
+        "production_boundaries_unchanged",
+        "hard_v3_not_used_for_selection",
+    )
+    add(
+        "segment_context_remote_speaker_attribution_v1",
+        "scientific_decision",
+        segment_context.get("decision")
+        in {"PROMOTE_LAB_CANDIDATE", "DO_NOT_PROMOTE_SEGMENT_CONTEXT"},
+        segment_context.get("decision"),
+    )
+    add(
+        "segment_context_remote_speaker_attribution_v1",
+        "blind_hard_v3_integrity",
+        all(segment_gates.get(name) is True for name in segment_structural_gates)
+        and segment_context.get("hard_v3", {}).get("decision_open_count") == 1
+        and segment_context.get("hard_v3", {}).get("used_for_selection") is False,
+        {name: segment_gates.get(name) for name in segment_structural_gates},
+    )
+
     failures = [f"semantic_gate:{row['source']}:{row['gate']}" for row in checks if not row["passed"]]
     return checks, failures
 
@@ -489,6 +514,9 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
     duration_v2 = payloads["duration_aware_remote_speaker_attribution_v2"]
     duration_hard = duration_v2["hard_v2_metrics"]
     duration_control = duration_v2["coverage_v3_control_metrics"]
+    segment_context = payloads["segment_context_remote_speaker_attribution_v1"]
+    segment_hard = segment_context["hard_v3_metrics"]
+    segment_control = segment_context["coverage_v3_control_metrics"]
 
     return [
         {
@@ -563,6 +591,7 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 "remote_speaker_residual_reference_corpus_v1",
                 "controlled_remote_speaker_truth_lab_v1",
                 "duration_aware_remote_speaker_attribution_v2",
+                "segment_context_remote_speaker_attribution_v1",
             ],
             "metrics": {
                 "attributable_speech_ratio": float(remote_summary["attributable_remote_speech_ratio"]),
@@ -607,6 +636,24 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 ),
                 "duration_v2_control_known_speaker_recall": float(
                     duration_control["known_attribution_recall"]
+                ),
+                "segment_context_decision": segment_context["decision"],
+                "segment_context_selected_topology": segment_context["selected_topology"],
+                "segment_context_hard_bcubed_f1": float(segment_hard["bcubed"]["f1"]),
+                "segment_context_hard_pairwise_precision": float(
+                    segment_hard["pairwise"]["precision"]
+                ),
+                "segment_context_hard_known_speaker_recall": float(
+                    segment_hard["known_speaker_recall"]
+                ),
+                "segment_context_hard_boundary_recall": float(
+                    segment_hard["boundary_recall"]
+                ),
+                "segment_context_hard_open_set_false_attributions": int(
+                    segment_hard["open_set_false_attributions"]
+                ),
+                "segment_context_control_known_speaker_recall": float(
+                    segment_control["known_speaker_recall"]
                 ),
             },
             "residual_classes": ["unknown_remote_speaker"],
@@ -777,7 +824,7 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
         release_blockers.insert(2, "remote_speaker_turns.residual_reference_insufficient")
     report = {
         "schema": REPORT_SCHEMA,
-        "generator": {"name": "report-transcript-perfection-corpus", "version": "0.4.0", "mode": "deterministic_offline"},
+        "generator": {"name": "report-transcript-perfection-corpus", "version": "0.5.0", "mode": "deterministic_offline"},
         "decision": decision,
         "manifest": {
             "path": portable_path(Path(str(manifest["_path"]))),
@@ -817,11 +864,12 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
                 "reason": (
                     "the blind 851-word residual pack is frozen, but none of its 53 WavLM proposals "
                     "has independent human-reviewed or exact-scripted truth; exact synthetic hard "
-                    "truth qualified the Coverage v3 control but rejected the WavLM candidate"
+                    "truth qualified the Coverage v3 control, while duration-aware and segment-context "
+                    "candidates both failed their untouched hard corpora"
                 ),
                 "next_evidence": (
-                    "freeze a new untouched hard-v2 before developing duration-aware prototype and "
-                    "open-set score calibration; keep real promotion blocked until blind truth exists"
+                    "decompose boundary, identity and overlap/open-set errors on the three exact corpora "
+                    "before selecting any dedicated diarization or embedding backend"
                 ),
             },
             {
@@ -846,13 +894,13 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
             ),
         },
         "next_goal": {
-            "id": "segment-context-remote-speaker-attribution-v1" if not failures else "restore-input-integrity",
-            "title": "Segment-Context Remote Speaker Attribution v1" if not failures else "Restore Input Integrity",
+            "id": "remote-speaker-attribution-error-decomposition-v1" if not failures else "restore-input-integrity",
+            "title": "Remote Speaker Attribution Error Decomposition v1" if not failures else "Restore Input Integrity",
             "selected_residual_class": "unknown_remote_speaker" if not failures else None,
             "rationale": (
-                "Blind hard-v2 showed that conservative word-level fusion preserves precision and open-set safety "
-                "but loses almost half of known words and most internal boundaries. Attribute longer homogeneous "
-                "speaker spans first, detect change points independently, then project anonymous IDs onto words."
+                "Duration-aware and segment-context candidates both failed untouched exact corpora. Measure oracle "
+                "boundary, oracle identity and overlap/open-set ceilings separately before choosing a qualitatively "
+                "different local diarization or speaker-embedding backend."
                 if not failures
                 else "Input integrity must be restored before selecting an engineering goal."
             ),

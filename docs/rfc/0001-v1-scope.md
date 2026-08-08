@@ -50,9 +50,10 @@ Current implementation status, 2026-08-07:
 - Remote Speaker Coverage v3 is promoted with `93.9312%` attributable remote speech, exact
   selected-word and v2-label conservation and aggregate `Colleagues` fallback. Transcript Perfection
   Corpus v1 remains the unified baseline. Residual Evidence v4 closed `DO_NOT_PROMOTE` at its measured
-  safe ceiling; Speaker-Resolved Transcript Default v1 is promoted. Lexical Accuracy Reference
-  Corpus v1 is current. Cross-session identity, summaries, cloud/external writes and UI remain
-  future or optional work.
+  safe ceiling; Speaker-Resolved Transcript Default v1 is promoted. Exact speaker labs rejected both
+  Duration-Aware v2 and Segment-Context v1 candidates. Remote Speaker Attribution Error Decomposition
+  v1 is current. Cross-session identity, summaries, cloud/external writes and UI remain future or
+  optional work.
 
 ## Goals
 

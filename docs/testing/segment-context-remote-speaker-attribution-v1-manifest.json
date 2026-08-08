@@ -1,0 +1,107 @@
+{
+  "schema": "murmurmark.segment_context_remote_speaker_attribution_tracked_manifest/v1",
+  "decision": "DO_NOT_PROMOTE_SEGMENT_CONTEXT",
+  "generated_on": "2026-08-08",
+  "artifacts": {
+    "policy": {
+      "path": "policies/segment-context-remote-speaker-attribution-v1.json",
+      "bytes": 8017,
+      "sha256": "e2dfd31968f7e291702b5bd54d3854834bd5a1ead0c298d39958f7895d5acc49"
+    },
+    "freezer": {
+      "path": "scripts/freeze-remote-speaker-hard-v3.py",
+      "bytes": 23251,
+      "sha256": "7d31ac284b414ae726541e71635bc9e9b6b88ed2cd92cce870b55435a30d6703"
+    },
+    "evaluator": {
+      "path": "scripts/evaluate-segment-context-remote-speaker-attribution-v1.py",
+      "bytes": 54729,
+      "sha256": "0e925220d22656082003020cad3c96cbdcda546a996a4b2875a9d3e49995c2e3"
+    },
+    "checker": {
+      "path": "scripts/check-segment-context-remote-speaker-attribution-v1.py",
+      "bytes": 9551,
+      "sha256": "bf1e1c3936429f69249991d0d87bf17268dafefd334c3d6e1ff784b4f097f667"
+    },
+    "hard_frozen_manifest": {
+      "path": "sessions/_reports/segment-context-remote-speaker-attribution-v1/private/hard-v3/frozen_manifest.json",
+      "bytes": 52557,
+      "sha256": "a60968e32686609dd5d2ac3051fa7141ccf124a334680b43f2daa570ed194beb"
+    },
+    "hard_public_manifest": {
+      "path": "sessions/_reports/segment-context-remote-speaker-attribution-v1/hard_v3_public_manifest.json",
+      "bytes": 1608,
+      "sha256": "158216ea33ec3b81169b0e7bb05785dc0b610ec280ff631b2ea706b5740426af"
+    },
+    "development_report": {
+      "path": "sessions/_reports/segment-context-remote-speaker-attribution-v1/development_report.json",
+      "bytes": 6772,
+      "sha256": "92213d8431f93b5cfe3d409181ab70b3dba9481b656f1cd91d6c98dc7c18f7ad"
+    },
+    "candidate_freeze": {
+      "path": "sessions/_reports/segment-context-remote-speaker-attribution-v1/private/candidate_freeze.json",
+      "bytes": 2606,
+      "sha256": "bfdbae6bb292a3fea2516445087f7d7581ed47559a42c045a27be510a0230c75"
+    },
+    "opening_ledger": {
+      "path": "sessions/_reports/segment-context-remote-speaker-attribution-v1/private/hard-v3/hard_v3_opening_ledger.json",
+      "bytes": 443,
+      "sha256": "9d539693b8c11ad8deba977682cc79ebc9131335e5e88659d7a2c2ed2a8a1ac6"
+    },
+    "report": {
+      "path": "sessions/_reports/segment-context-remote-speaker-attribution-v1/segment_context_remote_speaker_attribution_report.json",
+      "bytes": 4790,
+      "sha256": "2b8151f8133a64c2b2f8f568a76c8f1c46a0f992ecf688122be2fd80d6756443"
+    },
+    "replay": {
+      "path": "sessions/_reports/segment-context-remote-speaker-attribution-v1/replay_report.json",
+      "bytes": 456,
+      "sha256": "d3b288d128b50a48d77070472856e1d64587a89c48acf77b6f58fcf76bb6cb7a"
+    }
+  },
+  "hard_v3": {
+    "corpus_sha256": "b1fc964706c19a61f30d3b2d90bd944136ccc7aed7449be3b9f9d6d4584f50c3",
+    "scenario_count": 5,
+    "word_count": 197,
+    "boundary_count": 22,
+    "mixed_word_count": 7,
+    "enrolled_speaker_count": 4,
+    "open_set_speaker_count": 2,
+    "decision_open_count": 1,
+    "used_for_selection": false
+  },
+  "selected": {
+    "topology": "conservative_dual_backend_context_fusion",
+    "development": {
+      "bcubed_f1": 0.577946,
+      "pairwise_precision": 1.0,
+      "known_speaker_recall": 0.605505,
+      "boundary_recall": 0.15493,
+      "open_set_false_attributions": 0
+    },
+    "hard_v3": {
+      "bcubed_f1": 0.475586,
+      "pairwise_precision": 0.966418,
+      "known_speaker_recall": 0.445087,
+      "boundary_recall": 0.0,
+      "open_set_false_attributions": 2
+    }
+  },
+  "coverage_v3_control_hard_v3": {
+    "bcubed_f1": 0.39759,
+    "pairwise_precision": 0.943249,
+    "known_speaker_recall": 0.439306,
+    "boundary_recall": 0.15,
+    "open_set_false_attributions": 0
+  },
+  "blockers": [
+    "bcubed_f1",
+    "boundary_recall",
+    "coverage_v3_control_non_regression",
+    "known_speaker_recall",
+    "pairwise_precision",
+    "zero_open_set_false_attribution"
+  ],
+  "production_changed": false,
+  "next": "keep_coverage_v3_and_close_segment_context_topologies"
+}
