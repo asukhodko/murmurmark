@@ -232,6 +232,11 @@ Current v1 creates one stable "transcription outcome" contract for every process
 ready_for_notes | review_first | blocked | partial
 ```
 
+`ready_for_notes` is the stable v1 enum value kept for compatibility. Its product meaning is
+"selected transcript ready for ordinary use"; note generation is optional and has its own readiness
+field. Renaming the enum without a schema migration would create churn without improving the
+transcription path.
+
 It is derived from existing readiness, quality verdict, review progress, export blockers and the
 latest pipeline report. `status`, `next`, `report`, `finish`, `outcome` and `report corpus --refresh`
 now expose or refresh the same next action. Guarded export still uses readiness/export blockers as
@@ -256,10 +261,10 @@ derived/outcome/
 `outcome.json` separates:
 
 - transcript readiness;
-- notes readiness;
+- optional notes readiness;
 - export readiness;
 - retention status, currently conservative until retention planning runs;
-- selected transcript/audio/notes profiles;
+- selected transcript/audio profiles and any optional notes profile;
 - gate reasons;
 - review lanes and estimated minutes;
 - pipeline/resume state.

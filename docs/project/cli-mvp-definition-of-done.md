@@ -129,7 +129,7 @@ The manual gate passes when:
 ## Non-Goals For This Gate
 
 - perfect transcript quality;
-- full diarization inside `Colleagues`;
+- perfect remote-speaker coverage, cross-session identity or inferred human names;
 - UI app or menu bar app;
 - cloud transcription or cloud summarization;
 - automatic raw audio deletion;

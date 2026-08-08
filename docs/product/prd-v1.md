@@ -20,8 +20,11 @@ Working now:
 - `Me`/`Colleagues` role reconciliation;
 - timeline repair for long mic segments that cross remote speech;
 - `shadow_v2` repair profile with no-regression gates, audit artifacts and start-of-call repair;
-- local extractive synthesis with quality verdicts, review items and evidence-backed notes;
-- Markdown/Obsidian-style export bundles, JSON/audit artifacts for review, and raw retention plans.
+- promoted speaker-resolved default with session-local anonymous remote speaker IDs and exact
+  aggregate fallback;
+- quality verdicts and review items, plus optional local extractive notes;
+- optional Markdown/Obsidian-style export bundles, JSON/audit artifacts for review, and raw
+  retention plans;
 - near-realtime shadow branch uses a bounded committed-PCM queue after durable raw writes. The old
   inline `record --live-pipeline` path remains quarantined, while controlled
   `record --experiment live-shadow-v1` runs are allowed as evidence collection. Three fresh real
@@ -30,7 +33,7 @@ Working now:
 - live-ASR cache bridge exists as a diagnostic/future acceleration layer; incompatible or unsafe
   chunks fall back to batch ASR.
 
-Current operating point, 2026-08-07:
+Current operating point, 2026-08-08:
 
 - stable batch capture and processing produce a transcript, verdict, evidence notes, review plan,
   guarded export and retention plan;
@@ -101,6 +104,8 @@ Current operating point, 2026-08-07:
   exact v2-label and selected-word conservation plus aggregate fallback;
 - Remote Speaker Residual Evidence v4 closed with `DO_NOT_PROMOTE`: 124 words / `83.640s` recovered,
   but `14.57%` word and `13.98%` second reductions missed both `20%` promotion gates;
+- Speaker-Resolved Transcript Default v1 passed 6/6 frozen sessions and now exposes promoted
+  Coverage v3 through ordinary transcript, handoff and guarded export with exact aggregate fallback;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 

@@ -16,10 +16,9 @@ participants by voice inside the session, protect genuine local speech and expos
 Notes, summaries and work-system updates are optional derivatives, not the product mission.
 
 ## Reliability Contract
-
 For a supported macOS setup, MurmurMark produces one of these outcomes:
 
-- `ready_for_notes`: transcript and notes are usable for ordinary follow-up;
+- `ready_for_notes`: compatibility name meaning the selected transcript is ready; optional notes are usable when present;
 - `review_first`: the result is useful, but explicit review is required before guarded export;
 - `blocked`: capture or transcript evidence is insufficient for safe use.
 
@@ -76,7 +75,8 @@ change, not before every meeting.
 The command prints `SESSION="sessions/<id>"`. The first `Ctrl-C` stops and finalizes capture, then
 authoritative processing continues automatically. A second `Ctrl-C` checkpoints processing and
 prints an exact `murmurmark meeting --resume SESSION` command. The final summary names the
-transcript, notes, verdict, unresolved review burden, export status and raw preservation result.
+transcript, verdict, unresolved review burden and raw preservation result; optional notes and export
+status are included when those derivative stages are present.
 
 The first authoritative handoff no longer waits for optional Neural Echo evaluation. Deferred
 enrichment has an explicit time budget; Neural Echo is skipped when its frozen worst-case estimate
@@ -390,7 +390,6 @@ murmurmark corpus speaker-default all --verify-existing
 murmurmark corpus perfection all --verify-existing
 ```
 The active roadmap uses OpsKarta v3. Validate and render it with the adjacent OpsKarta repository:
-
 ```bash
 PYTHONPATH=../opskarta .venv/bin/python -m specs.v3.tools.cli \
   validate docs/roadmap/murmurmark-cli-roadmap.plan.yaml

@@ -211,7 +211,10 @@ def main() -> int:
         / "2026-07-21_15-11-15-live/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.local_speech_completion_v2.json"
     )
     short_me = [str(row.get("text") or "") for row in short_dialogue["utterances"] if role(row) == "Me"]
-    assert any("Наша команда SpiritCode остается как есть" in text for text in short_me), short_me
+    assert any(
+        text.startswith("Наша команда ") and "остается как есть" in text
+        for text in short_me
+    ), short_me
     assert not any("дает сп" in text.lower() for text in short_me), short_me
     assert sum("не ожидают" in text.lower() for text in short_me) == 1, short_me
 

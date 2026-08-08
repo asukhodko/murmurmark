@@ -24,30 +24,31 @@ MurmurMark
   |     selected mic_for_asr
   |     ASR windows
   |
-  +-- Transcribe
+  +-- Recognize
   |     ASR adapters
+  |
+  +-- Reconcile And Attribute
   |     diarization adapters
   |     speaker reconciliation
   |     domain correction
   |
-  +-- Evidence
+  +-- Evidence And Selection
   |     utterance IDs
   |     quality report
   |     corrections log
   |     source links
-  |
-  +-- Synthesis
-  |     chapter summaries
-  |     decisions
-  |     action items
-  |     risks
-  |     docs patch plan
+  |     selected transcript
   |
   +-- Policy
-        retention
-        redaction
-        provider approvals
-        privacy modes
+  |     retention
+  |     redaction
+  |     provider approvals
+  |     privacy modes
+  |
+  +-- Optional Derivatives
+        notes and summaries
+        reviewed exports
+        retrieval and work proposals
 ```
 
 ## Data Flow
@@ -129,7 +130,7 @@ surface with exact aggregate fail-open. Lexical Accuracy Reference Corpus v1 is 
 measurement step. Notes,
 retrieval and work proposals remain optional consumers and cannot alter the authoritative path.
 
-Target full-product path:
+Target transcription path:
 
 ```text
 record command/app
@@ -164,14 +165,16 @@ derived/evidence_package/
   corrections.jsonl
   context/*
   policy.yaml
-  |
-  v
-notes/
-  meeting-notes.md
-  decisions.json
-  actions.json
-  docs_patch_plan.md
+
+optional derivatives/
+  notes/*
+  exports/*
+  work_proposals/*
 ```
+
+The transcription path is complete at the versioned evidence package. Optional derivatives may
+consume it, but they are not a success condition for MurmurMark and cannot mutate the selected
+transcript.
 
 ## Stage Boundaries
 
