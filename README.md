@@ -295,7 +295,7 @@ murmurmark notes "$SESSION" --reviewed-speakers
 murmurmark export "$SESSION" --format markdown --include-json --reviewed-speakers
 ```
 Speaker-aware memory and exact-text notes remain optional derivatives. Transcript Perfection Corpus
-keeps 15/15 frozen sources explicit and never collapses unlike quality dimensions into one score.
+keeps 16/16 frozen sources explicit and never collapses unlike quality dimensions into one score.
 Lexical Accuracy Reference Corpus v1 measures its exact 67-word digital subset at WER/CER `0` and
 keeps real-meeting lexical correctness blocked by missing human-reviewed evidence:
 
@@ -304,7 +304,7 @@ murmurmark corpus lexical status
 murmurmark corpus lexical replay --write-manifest docs/testing/lexical-accuracy-reference-corpus-v1-manifest.json
 murmurmark corpus perfection all --verify-existing
 murmurmark corpus remote-reference status && murmurmark corpus remote-reference replay
-murmurmark corpus remote-truth-lab status && murmurmark corpus remote-truth-lab replay
+murmurmark corpus remote-truth-lab replay && murmurmark corpus remote-duration-v2 status
 ```
 
 The dependent critical path is:
@@ -320,13 +320,15 @@ Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental 
 -> Independent Remote Speaker Evidence v1 (done: DO_NOT_PROMOTE, 53 words / 23.357s)
 -> Remote Speaker Residual Reference Corpus v1 (done: REFERENCE_INSUFFICIENT, blind pack ready)
 -> Controlled Remote Speaker Truth Lab v1 (done: Coverage v3 control qualified, WavLM rejected)
--> Duration-Aware Remote Speaker Attribution v2 (current: freeze untouched hard-v2 first)
+-> Duration-Aware Remote Speaker Attribution v2 (done: DO_NOT_PROMOTE, precision safe but low recall)
+-> Segment-Context Remote Speaker Attribution v1 (current)
 ```
 
 Independent WavLM recovered only `6.2280%` of residual words; the blind 278-item pack still lacks
 direct truth. Exact synthetic truth qualified the Coverage v3 control (`0.983505` B-cubed F1, zero
-open-set errors) and rejected WavLM (`0.834325`, two false attributions). **Duration-Aware Remote
-Speaker Attribution v2** must freeze a new hard-v2 before topology work.
+open-set errors). Blind hard-v2 then rejected conservative word-level fusion despite precision `1.0`:
+known recall was `0.551402`, boundary recall `0.321429`. **Segment-Context Remote Speaker Attribution
+v1** now moves identity evidence to longer homogeneous spans before projecting IDs onto words.
 See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 ## Scope And Limitations
 
@@ -366,7 +368,6 @@ See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](do
   `DO_NOT_TRAIN`; it performed no training and cannot select an audio or transcript profile.
 - Batch transcript is authoritative; live is excluded from export/retention, and the normal workflow requires no cloud ASR or raw-audio upload.
 - Notes, summaries, retrieval and work-system proposals are optional derivatives outside the critical roadmap.
-
 ## Documentation
 
 - [Documentation index](docs/00-index.md), [mission](docs/product/vision.md), [requirements](docs/product/prd-v1.md)
@@ -378,7 +379,7 @@ See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](do
 - [Lexical Accuracy Reference Corpus contract](docs/contracts/lexical-accuracy-reference-corpus.md)
 - [Remote Speaker Coverage v3](docs/contracts/remote-speaker-coverage-v3.md) and [Residual Evidence v4](docs/contracts/remote-speaker-residual-evidence-v4.md) contracts
 - [Independent evidence](docs/contracts/independent-remote-speaker-evidence-v1.md) and [residual reference](docs/contracts/remote-speaker-residual-reference-corpus-v1.md)
-- [Controlled Remote Speaker Truth Lab v1](docs/contracts/controlled-remote-speaker-truth-lab-v1.md)
+- [Controlled Truth Lab v1](docs/contracts/controlled-remote-speaker-truth-lab-v1.md) and [Duration-Aware v2](docs/contracts/duration-aware-remote-speaker-attribution-v2.md)
 - [Speaker-Resolved Transcript Default v1](docs/contracts/speaker-resolved-transcript-default-v1.md)
 
 ## Development Checks
@@ -389,11 +390,11 @@ swift build
 scripts/check-open-source-readiness.sh
 scripts/check.sh
 murmurmark corpus remote-coverage all --verify-existing && murmurmark corpus remote-residual all --verify-existing
-murmurmark corpus remote-independent all --verify-existing && murmurmark corpus remote-reference replay && murmurmark corpus remote-truth-lab replay
+murmurmark corpus remote-independent all --verify-existing && murmurmark corpus remote-reference replay && murmurmark corpus remote-duration-v2 replay
 murmurmark corpus speaker-default all --verify-existing
 murmurmark corpus perfection all --verify-existing
 ```
-The active roadmap uses OpsKarta v3. Validate it with the adjacent OpsKarta repository:
+Validate the active OpsKarta v3 roadmap with the adjacent repository:
 ```bash
 PYTHONPATH=../opskarta .venv/bin/python -m specs.v3.tools.cli validate docs/roadmap/murmurmark-cli-roadmap.plan.yaml
 ```

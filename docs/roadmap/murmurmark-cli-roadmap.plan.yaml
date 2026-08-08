@@ -33,7 +33,7 @@ nodes:
     title: "MurmurMark CLI"
     kind: summary
     status: current
-    effort: 251
+    effort: 269
     notes: |
       Активная CLI-first, local-first и evidence-backed программа. Batch transcript остаётся
       authoritative. Текущий North Star: одной командой получить максимально надёжный transcript,
@@ -522,7 +522,7 @@ nodes:
     status: done
     effort: 10
     notes: |
-      Завершено BASELINE_ESTABLISHED. После Controlled Truth Lab проверяет 15/15 frozen
+      Завершено BASELINE_ESTABLISHED. После Duration-Aware v2 проверяет 16/16 frozen
       sources; восемь dimensions разделяют correctness, coverage, uncertainty и review. Exact
       lexical subset измерен, real meetings reference-insufficient, aggregate score запрещён.
       Ranked residual leader: 598.240s / 851 unknown remote words / 6 sessions.
@@ -577,7 +577,7 @@ nodes:
       Завершено REFERENCE_INSUFFICIENT. Девять graded sources отделяют exact generated evidence от
       scripted expected и independent machine diagnostics. Exact digital subset: 67 words, WER/CER
       0, term accuracy 1.0; human-reviewed real sessions: 0. Public/tracked artifacts не содержат
-      речь, имена или absolute paths; replay детерминирован. Transcript Perfection проверяет 14/14
+      речь, имена или absolute paths; replay детерминирован. Transcript Perfection проверяет 16/16
       sources и сохраняет real-meeting lexical blocker.
 
   quality-independent-remote-speaker-evidence-v1:
@@ -624,15 +624,29 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-controlled-remote-speaker-truth-lab-v1]
-    status: current
+    status: done
     effort: 16
     notes: |
-      До изменения topology заморозить новый untouched hard-v2 с новыми scripts, renderer voices и
-      hashes. Использовать v1 train/dev/hard только как development evidence. Сравнить не более трёх
-      заранее объявленных candidates: duration-aware prototype bank, cohort-normalized WavLM и
-      conservative Resemblyzer/WavLM fusion. Запустить hard-v2 один раз после freeze. Promotion
-      требует B-cubed F1 и pairwise precision >=0.98, known recall >=0.98, boundaries 100%, zero
-      open-set false attribution и exact control non-regression; иначе DO_NOT_PROMOTE_TOPOLOGY.
+      Завершено DO_NOT_PROMOTE_TOPOLOGY. Untouched hard-v2 заморожен до разработки, открыт один
+      раз и затем проверен deterministic replay. Conservative fusion сохранил pairwise precision
+      1.0 и zero open-set false attribution, но достиг лишь B-cubed F1 0.499381, known recall
+      0.551402 и boundaries 9/28. Exact words/stems, Coverage v3 control и production сохранены.
+
+  quality-segment-context-remote-speaker-attribution-v1:
+    title: "Segment-Context Remote Speaker Attribution v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-duration-aware-remote-speaker-attribution-v2]
+    status: current
+    effort: 18
+    notes: |
+      Заморозить untouched hard-v3 с новыми scripts, voices, отдельным enrollment, exact stems и
+      word/speaker/timestamp truth. На открытых v1/hard-v2 сравнить до трёх topology: независимо
+      найти silence/embedding change points, получить identity evidence на длинных однородных
+      интервалах и консервативно спроецировать ID на слова. Mixed, short unsupported и conflicts
+      остаются unknown. После development freeze открыть hard-v3 ровно один раз; promotion требует
+      B-cubed F1 и pairwise precision >=0.98, known recall >=0.98, boundaries 100% и zero open-set
+      false attribution, иначе DO_NOT_PROMOTE_SEGMENT_CONTEXT.
 
   future-local-mic-diarization-v1:
     title: "Local Mic Multi-Speaker Diarization v1"
@@ -663,7 +677,7 @@ views:
         nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-duration-aware-remote-speaker-attribution-v2]
+        nodes: [quality-segment-context-remote-speaker-attribution-v1]
       dependent:
         title: "Blind real-session reference blocker"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
@@ -712,6 +726,7 @@ views:
           - quality-remote-speaker-residual-reference-corpus-v1
           - quality-controlled-remote-speaker-truth-lab-v1
           - quality-duration-aware-remote-speaker-attribution-v2
+          - quality-segment-context-remote-speaker-attribution-v1
 
   echo-frontier:
     title: "Пред-ASR отделение Me от remote"
@@ -747,8 +762,8 @@ views:
         title: "Доказанная speaker evidence"
         nodes: [research-remote-diarization, research-rich-transcript, quality-remote-speaker-diarization-v2]
       current:
-        title: "Duration-aware open-set attribution"
-        nodes: [quality-duration-aware-remote-speaker-attribution-v2]
+        title: "Segment-context open-set attribution"
+        nodes: [quality-segment-context-remote-speaker-attribution-v1]
       blocker:
         title: "Blind real-session reference"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
@@ -806,13 +821,15 @@ views:
           - quality-remote-speaker-residual-reference-corpus-v1
           - quality-controlled-remote-speaker-truth-lab-v1
           - quality-duration-aware-remote-speaker-attribution-v2
+          - quality-segment-context-remote-speaker-attribution-v1
           - future-local-mic-diarization-v1
 
 x:
   exec:
     program:
-      nearest_goal: "Duration-Aware Remote Speaker Attribution v2: до любых изменений алгоритма заморозить новый private exact-scripted hard-v2 с ранее не использованными scripts, renderer voices, source stems, word/speaker/timestamp truth и SHA-256; считать Truth Lab v1 train/dev/hard только development evidence и не использовать hard-v2 до окончательного freeze кандидата; реализовать и сравнить не более трёх заранее объявленных topology — duration-binned prototype bank, cohort-normalized WavLM и conservative Resemblyzer/WavLM fusion — с timestamp-only mixed detection и fail-open unknown; выбрать кандидата только по development, запустить hard-v2 ровно один раз и завершить PROMOTE_LAB_CANDIDATE лишь при exact word conservation, deterministic replay, B-cubed F1 и pairwise precision >=0.98, known-speaker recall >=0.98, boundary recall 100%, zero open-set false attribution и полном non-regression Coverage v3 control, иначе выпустить DO_NOT_PROMOTE_TOPOLOGY; не менять selected transcript, Coverage v3, raw CAF, primary ASR или Echo Guard и не переносить synthetic labels в real sessions; хранить generated speech и truth в private ignored artifacts, tracked outputs ограничить агрегатами, portable paths и hashes; добавить CLI, тесты и corpus report, обновить README, contracts, runbook, current-goal, roadmap и OpsKarta, закоммитить и отправить в origin/main."
-      success_by_next_sync: "Новый hard-v2 заморожен до topology work и даёт однократный PROMOTE_LAB_CANDIDATE либо воспроизводимый DO_NOT_PROMOTE_TOPOLOGY без изменения production."
+      nearest_goal: >-
+        Segment-Context Remote Speaker Attribution v1: до изменений topology заморозить новый private exact-scripted hard-v3 с новыми scripts, renderer voices, отдельным known enrollment, source stems, word/speaker/timestamp truth и SHA-256; считать Truth Lab v1 и открытый hard-v2 только development evidence; сравнить не более трёх заранее объявленных segment-context topology, которые независимо строят silence/embedding change points, получают speaker evidence на длинных однородных интервалах и лишь затем консервативно проецируют anonymous ID на слова; mixed, short unsupported и конфликтующие интервалы оставлять `unknown`/`mixed`; выбрать candidate только на development, заморозить config и открыть hard-v3 ровно один раз; завершить `PROMOTE_LAB_CANDIDATE` только при exact word conservation, deterministic replay, B-cubed F1 и pairwise precision >=0.98, known-speaker recall >=0.98, boundary recall 100%, zero open-set false attribution и non-regression Coverage v3, иначе выпустить `DO_NOT_PROMOTE_SEGMENT_CONTEXT`; не менять selected transcript, Coverage v3, raw CAF, primary ASR или Echo Guard и не переносить synthetic labels в real sessions; добавить CLI, тесты и corpus report, обновить README, contracts, runbook, current-goal, roadmap и OpsKarta, закоммитить и отправить в origin/main.
+      success_by_next_sync: "Hard-v3 заморожен до topology work и даёт однократный PROMOTE_LAB_CANDIDATE либо воспроизводимый DO_NOT_PROMOTE_SEGMENT_CONTEXT без изменения production."
     defaults:
       status_progress:
         done: 1.0
@@ -833,13 +850,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle, batch transcript, review, notes/export и Live Shadow уже работают."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Duration-Aware Remote Speaker Attribution v2"
-        scope_nodes: [quality-duration-aware-remote-speaker-attribution-v2]
+        title: "Segment-Context Remote Speaker Attribution v1"
+        scope_nodes: [quality-segment-context-remote-speaker-attribution-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Truth Lab v1 квалифицировал Coverage v3 control и отклонил WavLM на unseen open-set; новый hard-v2 должен остаться untouched до freeze кандидата."
-          next_sync_goal: "Проверить duration-aware prototype/fusion topology на новом one-shot hard-v2."
+          sync_note: "Duration-Aware v2 сохранил perfect precision и open-set abstention, но hard-v2 recall и boundary coverage показали предел коротких word-level embeddings."
+          next_sync_goal: "Проверить segment-context topology на новом untouched one-shot hard-v3."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -855,6 +872,7 @@ x:
           - quality-remote-speaker-residual-reference-corpus-v1
           - quality-controlled-remote-speaker-truth-lab-v1
           - quality-duration-aware-remote-speaker-attribution-v2
+          - quality-segment-context-remote-speaker-attribution-v1
         kind: main
         mgmt:
           health: yellow
@@ -889,7 +907,7 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: Coverage v3 control qualified, WavLM rejected; текущий фокус — untouched hard-v2 и duration-aware attribution."
+        caption: "Короткая карта: Duration-Aware v2 сохранил precision, но не прошёл recall; текущий фокус — long-span evidence на untouched hard-v3."
         blocks:
           - working-now
           - current-quality

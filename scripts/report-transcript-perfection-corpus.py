@@ -329,6 +329,30 @@ def semantic_gates(
         {name: truth_lab_gates.get(name) for name in structural_truth_gates},
     )
 
+    duration_v2 = payloads.get("duration_aware_remote_speaker_attribution_v2") or {}
+    duration_gates = duration_v2.get("gates") or {}
+    duration_structural_gates = (
+        "word_conservation",
+        "direct_truth_coverage",
+        "mixed_words_fail_closed",
+        "production_boundaries_unchanged",
+        "hard_v2_not_used_for_selection",
+    )
+    add(
+        "duration_aware_remote_speaker_attribution_v2",
+        "scientific_decision",
+        duration_v2.get("decision") in {"PROMOTE_LAB_CANDIDATE", "DO_NOT_PROMOTE_TOPOLOGY"},
+        duration_v2.get("decision"),
+    )
+    add(
+        "duration_aware_remote_speaker_attribution_v2",
+        "blind_hard_v2_integrity",
+        all(duration_gates.get(name) is True for name in duration_structural_gates)
+        and duration_v2.get("hard_v2", {}).get("decision_open_count") == 1
+        and duration_v2.get("hard_v2", {}).get("used_for_selection") is False,
+        {name: duration_gates.get(name) for name in duration_structural_gates},
+    )
+
     failures = [f"semantic_gate:{row['source']}:{row['gate']}" for row in checks if not row["passed"]]
     return checks, failures
 
@@ -462,6 +486,9 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
     truth_tracks = truth_lab["evaluation"]["track_decisions"]
     truth_control = truth_lab["evaluation"]["coverage_v3_topology"]["hard"]
     truth_candidate = truth_lab["evaluation"]["wavlm_open_set_candidate"]["hard"]
+    duration_v2 = payloads["duration_aware_remote_speaker_attribution_v2"]
+    duration_hard = duration_v2["hard_v2_metrics"]
+    duration_control = duration_v2["coverage_v3_control_metrics"]
 
     return [
         {
@@ -535,6 +562,7 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 "remote_speaker_coverage_v3_manifest",
                 "remote_speaker_residual_reference_corpus_v1",
                 "controlled_remote_speaker_truth_lab_v1",
+                "duration_aware_remote_speaker_attribution_v2",
             ],
             "metrics": {
                 "attributable_speech_ratio": float(remote_summary["attributable_remote_speech_ratio"]),
@@ -563,6 +591,22 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 ),
                 "truth_lab_candidate_open_set_false_attributions": int(
                     truth_candidate["open_set_false_attributions"]
+                ),
+                "duration_v2_decision": duration_v2["decision"],
+                "duration_v2_selected_topology": duration_v2["selected_topology"],
+                "duration_v2_hard_bcubed_f1": float(duration_hard["bcubed"]["f1"]),
+                "duration_v2_hard_pairwise_precision": float(
+                    duration_hard["pairwise"]["precision"]
+                ),
+                "duration_v2_hard_known_speaker_recall": float(
+                    duration_hard["known_attribution_recall"]
+                ),
+                "duration_v2_hard_boundary_recall": float(duration_hard["boundary_recall"]),
+                "duration_v2_hard_open_set_false_attributions": int(
+                    duration_hard["open_set_false_attributions"]
+                ),
+                "duration_v2_control_known_speaker_recall": float(
+                    duration_control["known_attribution_recall"]
                 ),
             },
             "residual_classes": ["unknown_remote_speaker"],
@@ -733,7 +777,7 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
         release_blockers.insert(2, "remote_speaker_turns.residual_reference_insufficient")
     report = {
         "schema": REPORT_SCHEMA,
-        "generator": {"name": "report-transcript-perfection-corpus", "version": "0.3.0", "mode": "deterministic_offline"},
+        "generator": {"name": "report-transcript-perfection-corpus", "version": "0.4.0", "mode": "deterministic_offline"},
         "decision": decision,
         "manifest": {
             "path": portable_path(Path(str(manifest["_path"]))),
@@ -802,13 +846,13 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
             ),
         },
         "next_goal": {
-            "id": "duration-aware-remote-speaker-attribution-v2" if not failures else "restore-input-integrity",
-            "title": "Duration-Aware Remote Speaker Attribution v2" if not failures else "Restore Input Integrity",
+            "id": "segment-context-remote-speaker-attribution-v1" if not failures else "restore-input-integrity",
+            "title": "Segment-Context Remote Speaker Attribution v1" if not failures else "Restore Input Integrity",
             "selected_residual_class": "unknown_remote_speaker" if not failures else None,
             "rationale": (
-                "Exact synthetic truth qualified the frozen Coverage v3 control and rejected the WavLM word-level "
-                "candidate. Freeze a new untouched hard-v2, then develop duration-aware prototypes and open-set "
-                "calibration on v1 development evidence without weakening Coverage v3."
+                "Blind hard-v2 showed that conservative word-level fusion preserves precision and open-set safety "
+                "but loses almost half of known words and most internal boundaries. Attribute longer homogeneous "
+                "speaker spans first, detect change points independently, then project anonymous IDs onto words."
                 if not failures
                 else "Input integrity must be restored before selecting an engineering goal."
             ),

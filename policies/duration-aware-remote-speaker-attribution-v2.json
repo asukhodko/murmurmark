@@ -1,0 +1,162 @@
+{
+  "schema": "murmurmark.duration_aware_remote_speaker_attribution_policy/v2",
+  "version": "0.2.0",
+  "state": "hard_v2_predeclared",
+  "development_evidence": {
+    "tracked_manifest": {
+      "path": "docs/testing/controlled-remote-speaker-truth-lab-v1-manifest.json",
+      "sha256": "d520934c92fc73e49989124d6cb0f252b7b8e964c52f085b3d8ed651fb49ac6a"
+    },
+    "private_frozen_manifest": {
+      "path": "sessions/_reports/controlled-remote-speaker-truth-lab-v1/private/frozen_manifest.json",
+      "sha256": "26074894aeb311b75eedb42f1833db4e0be147e4378a9ff5c6bbe520b453ab6a"
+    },
+    "public_report": {
+      "path": "sessions/_reports/controlled-remote-speaker-truth-lab-v1/controlled_remote_speaker_truth_lab_report.json",
+      "sha256": "4c84af18d37a97fe1d3464103470068b9890c5dbbe6d10fda3f051cab9049533"
+    },
+    "splits_are_development_only": ["train", "dev", "hard"]
+  },
+  "hard_v2": {
+    "private_root": "sessions/_reports/duration-aware-remote-speaker-attribution-v2/private/hard-v2",
+    "renderer": {
+      "command": "say",
+      "rate_words_per_minute": 176,
+      "sample_rate": 16000,
+      "word_peak": 0.1,
+      "minimum_word_sec": 0.52,
+      "word_edge_padding_sec": 0.06,
+      "inter_word_gap_sec": 0.055,
+      "audio_subtype": "PCM_16",
+      "eligible_unused_voices": ["Albert", "Aman", "Fred", "Junior", "Rishi", "Tara", "Tessa"],
+      "enrolled_speaker_count": 4,
+      "open_set_speaker_count": 2,
+      "enrollment_words_per_speaker": 12
+    },
+    "private_token_generator": {
+      "token_count": 192,
+      "minimum_syllables": 2,
+      "maximum_syllables": 4,
+      "must_be_disjoint_from_truth_lab_v1": true
+    },
+    "scenario_templates": {
+      "hard_v2_short_boundary": {
+        "meeting_mode": "group",
+        "events": [
+          {"speaker_slot": "enrolled_1", "word_count": 1, "gap_before_sec": 0.45},
+          {"speaker_slot": "enrolled_2", "word_count": 2, "gap_before_sec": 0.04},
+          {"speaker_slot": "enrolled_3", "word_count": 1, "gap_before_sec": 0.04},
+          {"speaker_slot": "enrolled_4", "word_count": 2, "gap_before_sec": 0.04},
+          {"speaker_slot": "open_set_1", "word_count": 1, "gap_before_sec": 0.04},
+          {"speaker_slot": "enrolled_1", "word_count": 2, "gap_before_sec": 0.04},
+          {"speaker_slot": "enrolled_2", "word_count": 1, "gap_before_sec": 0.04},
+          {"speaker_slot": "enrolled_3", "word_count": 2, "gap_before_sec": 0.04},
+          {"speaker_slot": "enrolled_4", "word_count": 1, "gap_before_sec": 0.04},
+          {"speaker_slot": "enrolled_1", "word_count": 1, "gap_before_sec": 0.04},
+          {"speaker_slot": "open_set_1", "word_count": 2, "gap_before_sec": 0.04},
+          {"speaker_slot": "enrolled_2", "word_count": 1, "gap_before_sec": 0.04}
+        ]
+      },
+      "hard_v2_duration_shift": {
+        "meeting_mode": "group",
+        "events": [
+          {"speaker_slot": "enrolled_1", "word_count": 9, "gap_before_sec": 0.5},
+          {"speaker_slot": "enrolled_2", "word_count": 1, "gap_before_sec": 0.05},
+          {"speaker_slot": "enrolled_3", "word_count": 7, "gap_before_sec": 0.08},
+          {"speaker_slot": "enrolled_4", "word_count": 2, "gap_before_sec": 0.05},
+          {"speaker_slot": "enrolled_1", "word_count": 1, "gap_before_sec": 2.2},
+          {"speaker_slot": "enrolled_2", "word_count": 8, "gap_before_sec": 0.08},
+          {"speaker_slot": "open_set_2", "word_count": 3, "gap_before_sec": 0.08},
+          {"speaker_slot": "enrolled_4", "word_count": 6, "gap_before_sec": 0.08}
+        ]
+      },
+      "hard_v2_overlap_open": {
+        "meeting_mode": "group",
+        "events": [
+          {"speaker_slot": "enrolled_1", "word_count": 5, "gap_before_sec": 0.5},
+          {"speaker_slot": "enrolled_2", "word_count": 4, "overlap_previous_sec": 1.25},
+          {"speaker_slot": "open_set_1", "word_count": 3, "gap_before_sec": 0.25},
+          {"speaker_slot": "enrolled_3", "word_count": 5, "gap_before_sec": 0.08},
+          {"speaker_slot": "open_set_2", "word_count": 3, "overlap_previous_sec": 0.9},
+          {"speaker_slot": "enrolled_4", "word_count": 5, "gap_before_sec": 0.25},
+          {"speaker_slot": "enrolled_1", "word_count": 4, "gap_before_sec": 0.06}
+        ]
+      },
+      "hard_v2_rare_speaker": {
+        "meeting_mode": "group",
+        "events": [
+          {"speaker_slot": "enrolled_1", "word_count": 8, "gap_before_sec": 0.5},
+          {"speaker_slot": "enrolled_2", "word_count": 7, "gap_before_sec": 0.12},
+          {"speaker_slot": "enrolled_4", "word_count": 1, "gap_before_sec": 0.05},
+          {"speaker_slot": "enrolled_3", "word_count": 7, "gap_before_sec": 0.05},
+          {"speaker_slot": "enrolled_1", "word_count": 6, "gap_before_sec": 0.12},
+          {"speaker_slot": "enrolled_2", "word_count": 6, "gap_before_sec": 0.12},
+          {"speaker_slot": "enrolled_4", "word_count": 1, "gap_before_sec": 0.05},
+          {"speaker_slot": "enrolled_3", "word_count": 6, "gap_before_sec": 0.12}
+        ]
+      }
+    },
+    "opening_ledger": "hard_v2_opening_ledger.json",
+    "maximum_decision_openings": 1
+  },
+  "topologies": [
+    {
+      "id": "duration_binned_prototype_bank",
+      "backend": "wavlm_xvector",
+      "duration_bins_sec": [0.0, 0.8, 1.15, 99.0],
+      "prototype_sources": ["train_known_words", "train_events"],
+      "similarity_grid": [0.72, 0.76, 0.8, 0.84, 0.88, 0.92],
+      "margin_grid": [0.0, 0.02, 0.04, 0.06, 0.08, 0.1]
+    },
+    {
+      "id": "cohort_normalized_wavlm",
+      "backend": "wavlm_xvector",
+      "cohort_z_grid": [0.4, 0.7, 1.0, 1.3, 1.6],
+      "similarity_grid": [0.72, 0.76, 0.8, 0.84, 0.88, 0.92],
+      "margin_grid": [0.0, 0.02, 0.04, 0.06, 0.08, 0.1]
+    },
+    {
+      "id": "conservative_resemblyzer_wavlm_fusion",
+      "backends": ["resemblyzer", "wavlm_xvector"],
+      "agreement_required": true,
+      "wavlm_similarity_grid": [0.72, 0.76, 0.8, 0.84, 0.88],
+      "wavlm_margin_grid": [0.0, 0.02, 0.04, 0.06, 0.08],
+      "resemblyzer_similarity_grid": [0.74, 0.78, 0.82, 0.86],
+      "resemblyzer_margin_grid": [0.02, 0.04, 0.06, 0.08]
+    }
+  ],
+  "selection": {
+    "source": "truth_lab_v1_development_only",
+    "maximum_topologies": 3,
+    "priority": [
+      "zero_open_set_false_attribution",
+      "pairwise_precision",
+      "boundary_recall",
+      "bcubed_f1",
+      "known_speaker_recall"
+    ],
+    "mixed_detection": "timestamp_only",
+    "unknown_policy": "fail_open"
+  },
+  "gates": {
+    "minimum_bcubed_f1": 0.98,
+    "minimum_pairwise_precision": 0.98,
+    "minimum_known_speaker_recall": 0.98,
+    "minimum_boundary_recall": 1.0,
+    "maximum_open_set_false_attributions": 0,
+    "maximum_mixture_reconstruction_sample_error": 0,
+    "require_all_words_conserved": true,
+    "require_direct_truth_coverage": true,
+    "require_deterministic_replay": true,
+    "require_coverage_v3_control_non_regression": true,
+    "synthetic_evidence_cannot_promote_real_transcripts": true
+  },
+  "production_boundaries": {
+    "selected_transcript_changed": false,
+    "coverage_v3_changed": false,
+    "raw_caf_changed": false,
+    "primary_asr_changed": false,
+    "echo_guard_changed": false,
+    "synthetic_labels_allowed_in_real_sessions": false
+  }
+}

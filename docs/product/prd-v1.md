@@ -127,8 +127,9 @@ promoted. Lexical Accuracy Reference Corpus v1 closes `REFERENCE_INSUFFICIENT`: 
 Remote Speaker Residual Reference Corpus v1 closed `REFERENCE_INSUFFICIENT` after freezing 278 blind
 items and all 53 WavLM proposals without direct truth. Controlled Remote Speaker Truth Lab v1 then
 qualified the Coverage v3 control but rejected the WavLM candidate (`0.834325` B-cubed F1, two
-open-set false attributions). Duration-Aware Remote Speaker Attribution v2 is current and freezes a
-new hard-v2 before any topology changes. Notes, retrieval, external writes and UI remain optional work.
+open-set false attributions). Duration-Aware v2 then rejected word-level fusion on blind hard-v2:
+known recall `0.551402`, boundary recall `0.321429`. Segment-Context v1 is current and tests longer
+speaker-homogeneous evidence before word projection. Notes, external writes and UI remain optional.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.
 

@@ -11,8 +11,9 @@ exact 67-word digital subset at WER/CER `0`. Independent WavLM evidence recovere
 `23.357s`, missed both coverage gates and closed `DO_NOT_PROMOTE`. The blind residual corpus froze
 278 items but closed `REFERENCE_INSUFFICIENT` with 0/53 direct proposal labels. Controlled Remote
 Speaker Truth Lab v1 qualified the Coverage v3 control and rejected the WavLM candidate on exact
-hard truth. Duration-Aware Remote Speaker Attribution v2 is current and freezes a new hard-v2 before
-topology development; notes, retrieval and work proposals remain optional derivatives.
+hard truth. Duration-Aware v2 preserved precision but failed blind hard-v2 recall and boundary gates.
+Segment-Context Remote Speaker Attribution v1 is current: infer longer homogeneous spans and change
+points before word labels. Notes, retrieval and work proposals remain optional derivatives.
 Date: 2026-08-08
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
@@ -471,9 +472,9 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Duration-Aware Remote Speaker Attribution v2: до topology work заморозить новый untouched hard-v2,
-выбрать duration-aware prototype/normalization/fusion candidate только на v1 development evidence,
-затем один раз проверить hard-v2 без переноса synthetic labels в real-session promotion.
+Segment-Context Remote Speaker Attribution v1: заморозить untouched hard-v3, строить независимые
+silence/embedding change points и длинные homogeneous speaker spans, затем проецировать ID на слова;
+выбрать candidate только на v1+hard-v2 development и открыть hard-v3 один раз.
 ```
 
 Speaker-Resolved Transcript Default v1 завершён `PROMOTE`: ordinary read/handoff/export выбирают v3
@@ -499,6 +500,7 @@ closed `REFERENCE_INSUFFICIENT` without changing Coverage v3.
 
 Exact scripted evidence is now complete. The Coverage v3 control passed hard at B-cubed `0.983505`,
 pairwise precision `1.0`, boundaries `16/16` and zero open-set errors. The WavLM candidate failed at
-`0.834325`, `0.950920`, `10/16` and two false attributions. The next autonomous step freezes an
-unseen hard-v2 before duration-aware prototypes or score fusion are developed. It still cannot
-replace blind review of real-session proposals.
+`0.834325`, `0.950920`, `10/16` and two false attributions. Duration-Aware v2 then opened a separate
+hard-v2 once: fusion kept precision `1.0` and zero open-set errors but reached B-cubed `0.499381`,
+known recall `0.551402` and boundaries `9/28`. The next autonomous step moves identity evidence from
+individual words to longer segments. It still cannot replace blind review of real-session proposals.

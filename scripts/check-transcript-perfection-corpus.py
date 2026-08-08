@@ -306,6 +306,46 @@ def build_fixture(root: Path) -> Path:
             },
             ["remote_speaker_turns"],
         ),
+        "duration_aware_remote_speaker_attribution_v2": (
+            files / "remote-duration-v2.json",
+            {
+                "schema": "murmurmark.duration_aware_remote_speaker_attribution_report/v2",
+                "decision": "DO_NOT_PROMOTE_TOPOLOGY",
+                "selected_topology": "conservative_resemblyzer_wavlm_fusion",
+                "hard_v2": {
+                    "decision_open_count": 1,
+                    "used_for_selection": False,
+                },
+                "hard_v2_metrics": {
+                    "bcubed": {"f1": 0.499381},
+                    "pairwise": {"precision": 1.0},
+                    "known_attribution_recall": 0.551402,
+                    "boundary_recall": 0.321429,
+                    "open_set_false_attributions": 0,
+                },
+                "coverage_v3_control_metrics": {
+                    "bcubed": {"f1": 0.389824},
+                    "pairwise": {"precision": 1.0},
+                    "known_attribution_recall": 0.439252,
+                    "boundary_recall": 0.214286,
+                    "open_set_false_attributions": 0,
+                },
+                "gates": {
+                    "word_conservation": True,
+                    "direct_truth_coverage": True,
+                    "mixed_words_fail_closed": True,
+                    "production_boundaries_unchanged": True,
+                    "hard_v2_not_used_for_selection": True,
+                    "bcubed_f1": False,
+                    "boundary_recall": False,
+                    "known_speaker_recall": False,
+                    "pairwise_precision": True,
+                    "zero_open_set_false_attribution": True,
+                    "coverage_v3_control_non_regression": True,
+                },
+            },
+            ["remote_speaker_turns"],
+        ),
     }
     sources: list[dict[str, object]] = []
     for source_id, (path, payload, dimensions) in payloads.items():
@@ -364,14 +404,14 @@ def main() -> int:
         assert result.returncode == 0, result.stdout + result.stderr
         report = json.loads((out / "transcript_perfection_corpus_report.json").read_text())
         assert report["decision"] == "BASELINE_ESTABLISHED"
-        assert report["summary"]["verified_sources"] == 15
+        assert report["summary"]["verified_sources"] == 16
         assert report["summary"]["aggregate_quality_score"] is None
         assert report["summary"]["aggregate_residual_seconds"] is None
         words = next(row for row in report["dimensions"] if row["id"] == "recognized_words")
         assert words["correctness_status"] == "bounded_exact_subset_only"
         assert words["metrics"]["exact_subset_wer"] == 0.0
         assert report["residuals"][0]["class"] == "unknown_remote_speaker"
-        assert report["next_goal"]["id"] == "duration-aware-remote-speaker-attribution-v2"
+        assert report["next_goal"]["id"] == "segment-context-remote-speaker-attribution-v1"
         assert report["next_goal"]["selected_residual_class"] == "unknown_remote_speaker"
         assert report["lexical_prerequisite"]["id"] == "human-reviewed-lexical-seed-v1"
         assert report["lexical_prerequisite"]["status"] == "external_evidence_required"

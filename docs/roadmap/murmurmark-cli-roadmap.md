@@ -77,7 +77,8 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Independent remote speaker evidence | `done` | `DO_NOT_PROMOTE`: 53 words / `23.357s`, no direct candidate truth |
 | Residual speaker reference | `done/blocker` | 278 blind items; `REFERENCE_INSUFFICIENT`, direct truth 0/53 |
 | Controlled speaker truth lab | `done` | Coverage v3 control qualified; WavLM candidate `DO_NOT_ADVANCE` |
-| Duration-aware speaker attribution | `current` | New untouched hard-v2 before prototype/score-fusion work |
+| Duration-aware speaker attribution | `done` | `DO_NOT_PROMOTE`: precision `1.0`, known recall `55.14%`, boundaries `9/28` |
+| Segment-context speaker attribution | `current` | Long-span identity evidence on a new untouched hard-v3 |
 | Производные заметки | `done/optional` | Exact evidence memory и безопасный ID-only selector доступны |
 
 ## Актуальная Цепочка
@@ -95,11 +96,12 @@ flowchart LR
     I["Done: DO_NOT_PROMOTE<br/>Independent Remote<br/>Speaker Evidence v1"]
     C["Done: REFERENCE_INSUFFICIENT<br/>Remote Speaker Residual<br/>Reference Corpus v1"]
     Q["Done: DO_NOT_ADVANCE WavLM<br/>Controlled Remote Speaker<br/>Truth Lab v1"]
-    A["Current<br/>Duration-Aware Remote Speaker<br/>Attribution v2"]
+    A["Done: DO_NOT_PROMOTE<br/>Duration-Aware Remote Speaker<br/>Attribution v2"]
+    S["Current<br/>Segment-Context Remote Speaker<br/>Attribution v1"]
     M["Idea<br/>Local Mic Multi-Speaker<br/>Diarization v1"]
     O["Optional<br/>Notes, retrieval,<br/>work proposals"]
 
-    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A
+    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S
     F --> D
     P -. "real local scenario" .-> M
     L -.-> O
@@ -125,7 +127,7 @@ Word/frame-level diarization работает по authoritative remote audio, �
 ### 3. Transcript Perfection Corpus v1 — `done`
 
 Единый корпус связывает проверку текста, порядка, ролей, speaker turns, overlap, missing `Me`,
-remote leakage и acoustic modes. Baseline `BASELINE_ESTABLISHED`: 15/15 frozen sources verified,
+remote leakage и acoustic modes. Baseline `BASELINE_ESTABLISHED`: 16/16 frozen sources verified,
 восемь явных dimensions, exact lexical subset измерен, real meetings остаются
 reference-insufficient, aggregate score запрещён.
 
@@ -198,24 +200,30 @@ Coverage v3 control квалифицирован: B-cubed F1 `0.983505`, pairwis
 и две false attributions. Итог: `DO_NOT_ADVANCE` для кандидата, deterministic replay и неизменный
 production. Synthetic truth не заменяет blind review реальных 53 proposals.
 
-### 11. Duration-Aware Remote Speaker Attribution v2 — `current`
+### 11. Duration-Aware Remote Speaker Attribution v2 — `done`
 
-Перед изменением topology замораживается новый hard-v2 с новыми scripts, renderer voices и hashes.
-V1 train/dev/hard после публикации результата считаются только development evidence. Не более трёх
-заранее заявленных candidates проверят duration-binned prototypes, cohort-normalized WavLM и
-conservative Resemblyzer/WavLM fusion.
+До topology work заморожен новый hard-v2: 4 scenarios, 125 words, 4 enrolled и 2 unseen open-set
+voices, отдельный enrollment и exact stems/truth. Три заявленных candidate выбирались только на v1
+development; hard-v2 был открыт один раз после candidate freeze.
 
-После выбора на development конфигурация запечатывается, а hard-v2 запускается один раз. Продвижение
-требует B-cubed F1 и pairwise precision `>=0.98`, known recall `>=0.98`, boundaries `100%`, zero
-open-set false attribution и non-regression контроля. Иначе результат `DO_NOT_PROMOTE_TOPOLOGY`.
+Conservative fusion сохранил pairwise precision `1.0`, zero open-set false attribution и превзошёл
+Coverage v3 control, но получил hard B-cubed `0.499381`, known recall `0.551402`, boundaries `9/28`.
+Итог: `DO_NOT_PROMOTE_TOPOLOGY`; production не изменён.
 
-### 12. Local Mic Multi-Speaker Diarization v1 — `idea`
+### 12. Segment-Context Remote Speaker Attribution v1 — `current`
+
+Новый hard-v3 замораживается до алгоритма. Truth Lab v1 и hard-v2 становятся development evidence.
+Кандидаты независимо находят silence/embedding change points, получают identity evidence на длинных
+homogeneous spans и только затем проецируют anonymous ID на слова. Short unsupported, overlap,
+open-set и конфликтующие spans остаются `unknown`/`mixed`.
+
+### 13. Local Mic Multi-Speaker Diarization v1 — `idea`
 
 Когда появится реальный сценарий нескольких людей у одного ноутбука и размеченный материал, mic-речь
 будет разделяться на Target-Me, other local speakers и `unknown`. Этот этап зависит от remote v2 и
 Transcript Perfection Corpus, но не нужен для нынешнего основного сценария одного пользователя.
 
-### 13. Производные Возможности — `optional`
+### 14. Производные Возможности — `optional`
 
 Extractive notes, quality verdict, reviewed speaker memory, ID-only selection, локальный поиск и
 work proposals могут развиваться после достижения transcript gates или по отдельному явному запросу.

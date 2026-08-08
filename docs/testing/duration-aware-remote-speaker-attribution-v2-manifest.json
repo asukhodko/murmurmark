@@ -1,0 +1,97 @@
+{
+  "schema": "murmurmark.duration_aware_remote_speaker_attribution_tracked_manifest/v2",
+  "decision": "DO_NOT_PROMOTE_TOPOLOGY",
+  "generated_on": "2026-08-08",
+  "artifacts": {
+    "policy": {
+      "path": "policies/duration-aware-remote-speaker-attribution-v2.json",
+      "bytes": 7229,
+      "sha256": "61e35b604c528c61c07dc83b68cf2a0d35eedfeedd8ff04eb11e79f935873818"
+    },
+    "freezer": {
+      "path": "scripts/freeze-remote-speaker-hard-v2.py",
+      "bytes": 21157,
+      "sha256": "db5ee63f502cc5bfbbe6a8497acb6f1418b9041755b0b40f4b9d76482dc5acff"
+    },
+    "evaluator": {
+      "path": "scripts/evaluate-duration-aware-remote-speaker-attribution-v2.py",
+      "bytes": 51383,
+      "sha256": "e234cfeeb5d39e61539efe86d3ef3f2f39e3ab4a94cef556ed78d8eeacd8b958"
+    },
+    "checker": {
+      "path": "scripts/check-duration-aware-remote-speaker-attribution-v2.py",
+      "bytes": 9161,
+      "sha256": "4ccb8fdad3769c5c9ee6e300c63c255191a356cc4fb0bbb523c2eee4f8df71f6"
+    },
+    "hard_frozen_manifest": {
+      "path": "sessions/_reports/duration-aware-remote-speaker-attribution-v2/private/hard-v2/frozen_manifest.json",
+      "bytes": 37506,
+      "sha256": "695edf8fdba5c145cd237414cca47581c8bd9a5ef7873ac76d2bba2293ad3d40"
+    },
+    "hard_public_manifest": {
+      "path": "sessions/_reports/duration-aware-remote-speaker-attribution-v2/hard_v2_public_manifest.json",
+      "bytes": 1516,
+      "sha256": "dc2cf14eb7b98260677c9d52656fcf934131e2535e2985dd94ffffc4f92328a1"
+    },
+    "development_report": {
+      "path": "sessions/_reports/duration-aware-remote-speaker-attribution-v2/development_report.json",
+      "bytes": 6355,
+      "sha256": "afb4b9ec249492dbaa8a7f2b121f68f3cc5dc83e6acccf1a99c068b564088ec1"
+    },
+    "candidate_freeze": {
+      "path": "sessions/_reports/duration-aware-remote-speaker-attribution-v2/private/candidate_freeze.json",
+      "bytes": 2399,
+      "sha256": "a696b9b9647bb40bd5886f9b40c572f0583ff0d68c08236f34c902e65fd2fdaa"
+    },
+    "report": {
+      "path": "sessions/_reports/duration-aware-remote-speaker-attribution-v2/duration_aware_remote_speaker_attribution_report.json",
+      "bytes": 4422,
+      "sha256": "6207ec5b90bcf12bf022b741abd49d1ab19f5f4141e673d52599285741a267f4"
+    },
+    "replay": {
+      "path": "sessions/_reports/duration-aware-remote-speaker-attribution-v2/replay_report.json",
+      "bytes": 455,
+      "sha256": "5438db96d070efe094c58e685c989057458ff5621207e3be1c53e32ab5d6bb39"
+    }
+  },
+  "hard_v2": {
+    "corpus_sha256": "328387320411b6c8bb2aa50d817ce1f66dfdd72722d4ce73bf235f047dffaffd",
+    "scenario_count": 4,
+    "word_count": 125,
+    "enrolled_speaker_count": 4,
+    "open_set_speaker_count": 2,
+    "decision_open_count": 1,
+    "used_for_selection": false
+  },
+  "selected": {
+    "topology": "conservative_resemblyzer_wavlm_fusion",
+    "development": {
+      "bcubed_f1": 0.912728,
+      "pairwise_precision": 1.0,
+      "known_speaker_recall": 0.913043,
+      "boundary_recall": 0.846154,
+      "open_set_false_attributions": 0
+    },
+    "hard_v2": {
+      "bcubed_f1": 0.499381,
+      "pairwise_precision": 1.0,
+      "known_speaker_recall": 0.551402,
+      "boundary_recall": 0.321429,
+      "open_set_false_attributions": 0
+    }
+  },
+  "coverage_v3_control_hard_v2": {
+    "bcubed_f1": 0.389824,
+    "pairwise_precision": 1.0,
+    "known_speaker_recall": 0.439252,
+    "boundary_recall": 0.214286,
+    "open_set_false_attributions": 0
+  },
+  "blockers": [
+    "bcubed_f1",
+    "boundary_recall",
+    "known_speaker_recall"
+  ],
+  "production_changed": false,
+  "next": "keep_coverage_v3_and_reject_duration_topologies"
+}

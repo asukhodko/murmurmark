@@ -67,6 +67,10 @@ accepted as topology evidence, while `DO_NOT_ADVANCE` remains a valid scientific
 qualified Coverage v3 control and rejected WavLM candidate are reported separately; neither can
 create truth for a real residual proposal.
 
+Duration-Aware Remote Speaker Attribution v2 is the sixteenth frozen source. Its one-shot hard-v2
+decision, exact conservation gates and `DO_NOT_PROMOTE_TOPOLOGY` are valid evidence. The scorecard
+records that word-level fusion preserves precision but fails known-speaker and boundary recall.
+
 ## Outputs
 
 The command writes only under:

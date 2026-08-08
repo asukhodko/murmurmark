@@ -131,9 +131,10 @@ surface with exact aggregate fail-open. Lexical Accuracy Reference Corpus v1 clo
 gates and closed `DO_NOT_PROMOTE`. Remote Speaker Residual Reference Corpus v1 froze 278 blind items
 and closed `REFERENCE_INSUFFICIENT` because direct truth covers 0/53 proposals. Controlled Remote
 Speaker Truth Lab v1 then produced exact held-out truth: the Coverage v3 control qualified, while the
-WavLM candidate failed short-word and unseen open-set gates. Duration-Aware Remote Speaker
-Attribution v2 is current and must freeze a new hard-v2 before prototype or fusion work. None of the
-synthetic evidence can promote real-session labels. Notes, retrieval and work proposals remain optional.
+WavLM candidate failed short-word and unseen open-set gates. Duration-Aware v2 then preserved
+precision but reached only `55.1402%` known recall and `32.1429%` boundary recall on blind hard-v2.
+Segment-Context Remote Speaker Attribution v1 is current: detect homogeneous spans and change points
+before projecting IDs onto words. Synthetic evidence cannot promote real-session labels. Notes remain optional.
 
 Target transcription path:
 

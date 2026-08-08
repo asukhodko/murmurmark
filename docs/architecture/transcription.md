@@ -193,8 +193,9 @@ including a rare participant without enough enrollment, is not force-assigned.
 Controlled Remote Speaker Truth Lab v1 adds exact local topology evidence without touching this
 production path. Its Coverage v3 seeded-centroid control passed held-out synthetic gates, while the
 independent WavLM word-level candidate failed short-word coverage and unseen open-set rejection.
-Duration-Aware Remote Speaker Attribution v2 must freeze a new hard-v2 before changing prototypes or
-score fusion. Synthetic labels never enter a real session.
+Duration-Aware v2 preserved precision and open-set safety but failed blind hard-v2 recall and
+boundary gates. Segment-Context v1 now moves identity evidence to longer homogeneous spans and uses
+independent change points before word projection. Synthetic labels never enter a real session.
 
 Mic multi-speaker diarization is a later profile. It starts only after a real multi-person local
 scenario and labelled corpus exist, and must distinguish Target-Me, other local speakers and

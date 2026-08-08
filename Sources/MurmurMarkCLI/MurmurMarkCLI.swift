@@ -1312,6 +1312,8 @@ enum DoctorChecks {
             "scripts/report-independent-remote-speaker-evidence-v1-corpus.py",
             "scripts/report-remote-speaker-residual-reference-corpus.py",
             "scripts/controlled-remote-speaker-truth-lab-v1.py",
+            "scripts/freeze-remote-speaker-hard-v2.py",
+            "scripts/evaluate-duration-aware-remote-speaker-attribution-v2.py",
             "scripts/materialize-anonymous-rich-transcript.py",
             "scripts/review-remote-speaker-labels.py",
             "scripts/materialize-reviewed-speaker-memory.py",
@@ -7659,7 +7661,8 @@ enum CorpusCommands {
                 "corpus requires process, build, evaluate, train-audio-judge, taxonomy, gate, order, " +
                 "local-recall, local-recall-repair, boundary, remote-leak, echo-candidate, " +
                 "echo-supervision, remote-coverage, speaker-default, remote-residual, " +
-                "remote-independent, remote-reference, remote-truth-lab, perfection, lifecycle, or report"
+                "remote-independent, remote-reference, remote-truth-lab, remote-duration-v2, " +
+                "perfection, lifecycle, or report"
             )
         }
         var forwarded = Array(args.dropFirst())
@@ -8031,6 +8034,50 @@ enum CorpusCommands {
                 [try script("controlled-remote-speaker-truth-lab-v1.py").path] + forwarded,
                 allowedExitCodes: [0, 2]
             )
+        case "remote-duration-v2", "remote_duration_v2":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(
+                    try PythonRuntime.resolve(),
+                    [try script("evaluate-duration-aware-remote-speaker-attribution-v2.py").path, "--help"]
+                )
+                return
+            }
+            guard let action = forwarded.first else {
+                throw CLIError("remote-duration-v2 requires freeze, hard-status, hard-replay, develop, evaluate-hard, status, or replay")
+            }
+            let tail = Array(forwarded.dropFirst())
+            let python = try PythonRuntime.resolve()
+            switch action {
+            case "freeze":
+                _ = try Tooling.runPathAllowingExitCodes(
+                    python,
+                    [try script("freeze-remote-speaker-hard-v2.py").path, "freeze"] + tail,
+                    allowedExitCodes: [0, 2]
+                )
+                _ = try Tooling.runPathAllowingExitCodes(
+                    python,
+                    [try script("freeze-remote-speaker-hard-v2.py").path, "public-manifest"] + tail,
+                    allowedExitCodes: [0, 2]
+                )
+            case "hard-status":
+                _ = try Tooling.runPathAllowingExitCodes(
+                    python,
+                    [try script("freeze-remote-speaker-hard-v2.py").path, "status"] + tail,
+                    allowedExitCodes: [0, 1, 2]
+                )
+            case "hard-replay":
+                _ = try Tooling.runPathAllowingExitCodes(
+                    python,
+                    [try script("freeze-remote-speaker-hard-v2.py").path, "replay"] + tail,
+                    allowedExitCodes: [0, 2]
+                )
+            default:
+                _ = try Tooling.runPathAllowingExitCodes(
+                    python,
+                    [try script("evaluate-duration-aware-remote-speaker-attribution-v2.py").path, action] + tail,
+                    allowedExitCodes: [0, 1, 2]
+                )
+            }
         case "lifecycle":
             try Tooling.runPath(
                 try PythonRuntime.resolve(),
@@ -8183,6 +8230,8 @@ enum CorpusHelp {
                                       [--sessions-root ./sessions]
           murmurmark corpus remote-truth-lab build|evaluate|status|replay
                                       [--policy policies/controlled-remote-speaker-truth-lab-v1.json]
+          murmurmark corpus remote-duration-v2 freeze|hard-status|hard-replay|develop|evaluate-hard|status|replay
+                                      [--policy policies/duration-aware-remote-speaker-attribution-v2.json]
           murmurmark corpus perfection all [--verify-existing]
                                         [--manifest docs/testing/transcript-perfection-corpus-v1-manifest.json]
           murmurmark corpus lexical import SESSION SOURCE --source-id ID

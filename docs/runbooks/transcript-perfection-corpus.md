@@ -34,10 +34,10 @@ Expected frozen baseline:
 
 ```text
 decision: BASELINE_ESTABLISHED
-sources: 15/15 verified
+sources: 16/16 verified
 release_ready: false
 largest_actionable_residual: unknown_remote_speaker (598.240s)
-next_goal: Duration-Aware Remote Speaker Attribution v2
+next_goal: Segment-Context Remote Speaker Attribution v1
 ```
 
 ## Reading The Result

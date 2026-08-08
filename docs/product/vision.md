@@ -74,9 +74,10 @@ Reference Corpus v1 proves the exact 67-word digital subset at WER/CER `0`, but 
 `REFERENCE_INSUFFICIENT` for real meetings because no human-reviewed reference exists. Independent
     WavLM evidence then recovered only 53 residual words / `23.357s` and closed `DO_NOT_PROMOTE`.
     The blind residual pack now covers 851 words in 278 items, but direct truth still covers 0/53
-    proposals. Exact local multi-speaker truth qualified the Coverage v3 control and rejected the
-    WavLM candidate on unseen open-set speech. The current step freezes a new untouched hard-v2
-    before duration-aware attribution work; real-session promotion remains blocked by blind review.
+    proposals. Exact local multi-speaker truth qualified the Coverage v3 control. Blind hard-v2 then
+    rejected word-level duration/fusion candidates: precision stayed safe, but known recall and
+    boundaries collapsed. The current step attributes longer homogeneous spans before projecting
+    anonymous IDs onto words; real-session promotion remains blocked by direct blind evidence.
 
 ## Core User Jobs
 
@@ -113,10 +114,10 @@ met, unless an explicit product decision changes the priority.
 
 ## Near-Term Direction
 
-1. **Transcript Perfection Corpus v1:** maintain the completed 15-source benchmark for text,
+1. **Transcript Perfection Corpus v1:** maintain the completed 16-source benchmark for text,
    chronology, roles, speakers, overlap, acoustic modes and known residual defects.
-2. **Duration-Aware Remote Speaker Attribution v2:** freeze a new hard-v2 first, then evaluate
-   duration-matched prototypes, score normalization and conservative backend fusion once.
+2. **Segment-Context Remote Speaker Attribution v1:** detect homogeneous speaker spans and change
+   points from audio, then project supported anonymous IDs onto words and abstain elsewhere.
 3. **Remote residual blind review:** keep all 53 real-session proposals blocked until direct human or
    exact scripted truth exists; synthetic success cannot promote them.
 4. **Human-Reviewed Lexical Seed v1:** external-evidence prerequisite; do not tune ASR from machine

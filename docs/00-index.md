@@ -101,7 +101,10 @@ Read in this order:
 97. [Controlled Remote Speaker Truth Lab v1 contract](contracts/controlled-remote-speaker-truth-lab-v1.md)
 98. [Controlled Remote Speaker Truth Lab v1 runbook](runbooks/controlled-remote-speaker-truth-lab-v1.md)
 99. [Controlled Remote Speaker Truth Lab v1 result](testing/2026-08-08-controlled-remote-speaker-truth-lab-v1.md)
-100. [Planning and development history](history/README.md)
+100. [Duration-Aware Remote Speaker Attribution v2 contract](contracts/duration-aware-remote-speaker-attribution-v2.md)
+101. [Duration-Aware Remote Speaker Attribution v2 runbook](runbooks/duration-aware-remote-speaker-attribution-v2.md)
+102. [Duration-Aware Remote Speaker Attribution v2 result](testing/2026-08-08-duration-aware-remote-speaker-attribution-v2.md)
+103. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
@@ -127,8 +130,11 @@ direct candidate truth.
 `REFERENCE_INSUFFICIENT`: all 53 proposals still lack direct truth. **Controlled Remote Speaker
 Truth Lab v1** then froze 8 sessions and 240 exact words. The Coverage v3 control qualified on hard,
 while the WavLM candidate closed `DO_NOT_ADVANCE` after two unseen open-set false attributions.
-**Duration-Aware Remote Speaker Attribution v2** is current: it must freeze a new untouched hard-v2
-before prototype or score-fusion development. Notes, retrieval and work proposals remain parked.
+**Duration-Aware Remote Speaker Attribution v2** then opened a separate 125-word hard-v2 once.
+Conservative fusion kept pairwise precision `1.0` and zero open-set errors but reached only `55.1402%`
+known recall and `32.1429%` boundary recall, so it closed `DO_NOT_PROMOTE_TOPOLOGY`.
+**Segment-Context Remote Speaker Attribution v1** is current: identify longer speaker-homogeneous
+spans and independent change points before projecting IDs onto words. Notes and retrieval remain parked.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,
