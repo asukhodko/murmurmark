@@ -135,9 +135,13 @@ WavLM candidate failed short-word and unseen open-set gates. Duration-Aware v2 t
 precision but reached only `55.1402%` known recall and `32.1429%` boundary recall on blind hard-v2.
 Segment-Context v1 also failed hard-v3 with `44.5087%` known recall, boundaries `0/20` and two
 open-set errors. Error Decomposition v1 then measured speaker identity as the dominant bottleneck:
-gain `0.351382` versus `0.063882` for segmentation and `0.036364` for overlap/open-set. The current
-lab goal qualifies a genuinely different local identity backend on a new one-shot hard-v4.
-Synthetic evidence cannot promote real-session labels. Notes remain optional.
+gain `0.351382` versus `0.063882` for segmentation and `0.036364` for overlap/open-set. ECAPA passed
+synthetic hard-v4 but failed real-session promotion; interval and enrollment variants also failed
+their material gates. Blind review then completed 33 primary and 8 repeat answers at consistency
+`0.875`. Direct adjudication kept Coverage v3: the candidate gained three correct identities, lost
+two correct controls and increased fail-closed unsafe accepts from 8 to 13. The current v2 stage
+tests only monotonic additions with purified enrollment. Synthetic, development or partial direct
+evidence cannot promote real-session labels. Notes remain optional.
 
 Target transcription path:
 

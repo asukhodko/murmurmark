@@ -33,7 +33,7 @@ Working now:
 - live-ASR cache bridge exists as a diagnostic/future acceleration layer; incompatible or unsafe
   chunks fall back to batch ASR.
 
-Current operating point, 2026-08-08:
+Current operating point, 2026-08-09:
 
 - stable batch capture and processing produce a transcript, verdict, evidence notes, review plan,
   guarded export and retention plan;
@@ -108,8 +108,8 @@ Current operating point, 2026-08-08:
   Coverage v3 through ordinary transcript, handoff and guarded export with exact aggregate fallback;
 - Remote Speaker Attribution Error Decomposition v1 completed with
   `ADVANCE_STRONGER_SPEAKER_IDENTITY`: across 393 words and 64 boundaries, identity gain `0.351382`
-  dominates segmentation `0.063882` and overlap/open-set `0.036364`; the next lab goal qualifies a
-  genuinely different local identity backend without changing production;
+  dominates segmentation `0.063882` and overlap/open-set `0.036364`; ECAPA subsequently passed
+  synthetic hard-v4 but failed real-session promotion, and direct-truth adjudication kept Coverage v3;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
 
@@ -146,8 +146,9 @@ Session-Local Remote Speaker Enrollment Hardening v1 closed `DO_NOT_ADVANCE`: 11
 five removed controls and only 4/83 target failures recovered. Remote Speaker Direct Truth Seed v1
 then froze 33 primary items / 116 words / `90.100820s`, 8 hidden repeats and 41 blind slots across
 six sessions. Blind review completed 33/33 primary and 8/8 repeat answers: 8 attributed, 11 unknown,
-4 mixed and 10 unusable, consistency `0.875`. Remote Speaker Direct-Truth Candidate Adjudication v1
-is current; production remains Coverage v3.
+4 mixed and 10 unusable, consistency `0.875`. Direct adjudication closed `KEEP_COVERAGE_V3`: three
+correct gains came with two lost correct controls and 13 versus 8 fail-closed unsafe accepts. Remote
+Speaker Enrollment Purity and Abstention Hardening v2 is current; production remains Coverage v3.
 Notes, external writes and UI remain optional.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.

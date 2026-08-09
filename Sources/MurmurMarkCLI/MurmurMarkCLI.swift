@@ -1326,6 +1326,7 @@ enum DoctorChecks {
             "scripts/evaluate-bounded-remote-speaker-interval-purification-v1.py",
             "scripts/evaluate-session-local-remote-speaker-enrollment-hardening-v1.py",
             "scripts/build-remote-speaker-direct-truth-seed-v1.py",
+            "scripts/adjudicate-remote-speaker-direct-truth-candidate-v1.py",
             "scripts/materialize-anonymous-rich-transcript.py",
             "scripts/review-remote-speaker-labels.py",
             "scripts/materialize-reviewed-speaker-memory.py",
@@ -8306,6 +8307,29 @@ enum CorpusCommands {
                 [try script("build-remote-speaker-direct-truth-seed-v1.py").path] + forwarded,
                 allowedExitCodes: [0, 2]
             )
+        case "remote-truth-adjudication-v1", "remote_truth_adjudication_v1":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(
+                    try PythonRuntime.resolve(),
+                    [try script("adjudicate-remote-speaker-direct-truth-candidate-v1.py").path, "--help"]
+                )
+                return
+            }
+            guard let action = forwarded.first else {
+                throw CLIError(
+                    "remote-truth-adjudication-v1 requires preflight, evaluate, status, replay, finalize, or all"
+                )
+            }
+            guard [
+                "preflight", "evaluate", "status", "replay", "finalize", "all",
+            ].contains(action) else {
+                throw CLIError("unsupported remote-truth-adjudication-v1 action: \(action)")
+            }
+            _ = try Tooling.runPathAllowingExitCodes(
+                try PythonRuntime.resolve(),
+                [try script("adjudicate-remote-speaker-direct-truth-candidate-v1.py").path] + forwarded,
+                allowedExitCodes: [0, 2]
+            )
         case "lifecycle":
             try Tooling.runPath(
                 try PythonRuntime.resolve(),
@@ -8476,6 +8500,8 @@ enum CorpusHelp {
                                       [--policy policies/session-local-remote-speaker-enrollment-hardening-v1.json]
           murmurmark corpus remote-truth-seed-v1 preflight|build|next|grade|status|finalize|replay|all
                                       [--policy policies/remote-speaker-direct-truth-seed-v1.json]
+          murmurmark corpus remote-truth-adjudication-v1 preflight|evaluate|status|replay|finalize|all
+                                      [--policy policies/remote-speaker-direct-truth-candidate-adjudication-v1.json]
           murmurmark corpus perfection all [--verify-existing]
                                         [--manifest docs/testing/transcript-perfection-corpus-v1-manifest.json]
           murmurmark corpus lexical import SESSION SOURCE --source-id ID

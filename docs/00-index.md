@@ -135,7 +135,11 @@ Read in this order:
 131. [Remote Speaker Direct Truth Seed v1 runbook](runbooks/remote-speaker-direct-truth-seed-v1.md)
 132. [Remote Speaker Direct Truth Seed v1 result](testing/2026-08-09-remote-speaker-direct-truth-seed-v1.md)
 133. [Remote Speaker Direct Truth Seed v1 manifest](testing/remote-speaker-direct-truth-seed-v1-manifest.json)
-134. [Planning and development history](history/README.md)
+134. [Remote Speaker Direct-Truth Candidate Adjudication v1 contract](contracts/remote-speaker-direct-truth-candidate-adjudication-v1.md)
+135. [Remote Speaker Direct-Truth Candidate Adjudication v1 runbook](runbooks/remote-speaker-direct-truth-candidate-adjudication-v1.md)
+136. [Remote Speaker Direct-Truth Candidate Adjudication v1 result](testing/2026-08-09-remote-speaker-direct-truth-candidate-adjudication-v1.md)
+137. [Remote Speaker Direct-Truth Candidate Adjudication v1 manifest](testing/remote-speaker-direct-truth-candidate-adjudication-v1-manifest.json)
+138. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
@@ -179,8 +183,10 @@ new acceptances / `44.694004s`, five removed controls and only 4/83 target failu
 **Remote Speaker Direct Truth Seed v1** then froze 33 primary items / 116 words / `90.100820s` and
 8 hidden repeats across six sessions. Blind review closed all 41 slots with 8 attributed, 11 unknown,
 4 mixed and 10 unusable primary outcomes; repeat consistency is `7/8`. The result is
-`DIRECT_TRUTH_SEED_READY`. **Remote Speaker Direct-Truth Candidate Adjudication v1** is current;
-it compares only frozen control/candidate outputs and cannot promote production. Notes and retrieval remain parked.
+`DIRECT_TRUTH_SEED_READY`. **Remote Speaker Direct-Truth Candidate Adjudication v1** then closed
+`KEEP_COVERAGE_V3`: 3 correct gains, 2 lost correct controls and 13 versus 8 fail-closed unsafe
+accepts. **Remote Speaker Enrollment Purity and Abstention Hardening v2** is current; it permits only
+monotonic additions and cannot promote without disjoint truth. Notes and retrieval remain parked.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

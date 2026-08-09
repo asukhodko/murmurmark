@@ -2,7 +2,7 @@
 
 Status: implemented
 Date: 2026-06-22
-Last updated: 2026-08-07
+Last updated: 2026-08-09
 
 ## Summary
 
@@ -52,10 +52,10 @@ Current implementation status, 2026-08-07:
   Corpus v1 remains the unified baseline. Residual Evidence v4 closed `DO_NOT_PROMOTE` at its measured
   safe ceiling; Speaker-Resolved Transcript Default v1 is promoted. Exact speaker labs rejected both
   Duration-Aware v2 and Segment-Context v1 candidates. Error Decomposition v1 identified speaker
-  identity as the dominant error axis. Stronger Remote Speaker Identity Backend Qualification v1
-  promoted ECAPA only as a synthetic lab candidate; ECAPA Remote Speaker Shadow Qualification v1 is
-  current and production remains Coverage v3. Cross-session identity, summaries, cloud/external
-  writes and UI remain future or optional.
+  identity as the dominant error axis. ECAPA passed synthetic hard-v4 but failed real-session
+  promotion; interval and enrollment variants also did not advance. The completed 33-primary and
+  8-repeat direct-truth seed now drives one-shot candidate adjudication. Production remains Coverage
+  v3. Cross-session identity, summaries, cloud/external writes and UI remain future or optional.
 
 ## Goals
 
@@ -181,12 +181,14 @@ Current M5 acceptance:
 - remote-like mic utterances are not treated as the user's speech;
 - `clean_dialogue*.json`, `quality_report*.json`, `transcript*.md`, quality verdict and notes emitted.
 
-Current M5+ target:
+Current M5+ status:
 
-- remote diarization processed independently at word/frame level;
-- internal speaker changes and overlap represented without word loss or duplication;
-- `transcript.rich.json` and `speaker_map.json` emitted as stable rich artifacts with aggregate
-  fallback.
+- remote diarization is processed independently at word/frame level;
+- internal speaker changes and overlap are represented without word loss or duplication;
+- rich anonymous speaker artifacts are stable and ordinary transcript selection has exact aggregate
+  fallback;
+- direct-truth adjudication kept Coverage v3; monotonic enrollment-purity/abstention hardening is the
+  current quality gate, and local multi-speaker mic remains conditional.
 
 ### M6: Evidence-Backed Synthesis
 
@@ -204,7 +206,8 @@ Acceptance:
 
 - Minimum supported macOS version: target 14.4+ unless implementation proves 14.2 is stable enough.
 - Whether Qwen3-ASR/ForcedAligner belongs in v1 or v1.x.
-- Whether local voiceprints are safe enough for v1 or should wait.
+- Session-local anonymous voice evidence is allowed with abstention; cross-session identity remains
+  forbidden without a separate privacy contract.
 - Which local LLM backend should be the first correction/synthesis adapter.
 - Whether the first menubar app should use SwiftUI or AppKit-first status item.
 

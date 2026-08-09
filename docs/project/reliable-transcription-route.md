@@ -23,9 +23,10 @@ Shadow Error Decomposition selected interval purification: 93/214 failures and `
 The fixed crop then closed `DO_NOT_ADVANCE` after 2 new words / `4.154556s` and one new reference
 error. Session-Local Remote Speaker Enrollment Hardening v1 then closed `DO_NOT_ADVANCE`: 11 new
 acceptances, five removed controls and only 4/83 target failures recovered. Direct Truth Seed and
-Blind Review are complete: 33 primary and 8 repeat answers, consistency `0.875`. Direct-Truth
-Candidate Adjudication v1 is current; production remains Coverage v3. Notes, retrieval and work
-proposals remain optional derivatives.
+Blind Review are complete: 33 primary and 8 repeat answers, consistency `0.875`. Direct adjudication
+then kept Coverage v3 after 3 correct gains, 2 lost correct controls and unsafe accepts 8 -> 13.
+Enrollment Purity and Abstention Hardening v2 is current; production remains Coverage v3. Notes,
+retrieval and work proposals remain optional derivatives.
 Date: 2026-08-09
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
@@ -489,9 +490,9 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Remote Speaker Direct-Truth Candidate Adjudication v1: один раз сравнить неизменённые Coverage v3
-control и enrollment candidate с завершённой прямой разметкой, считать unknown/mixed/unusable
-fail-closed evidence и не менять production transcript или thresholds.
+Remote Speaker Enrollment Purity and Abstention Hardening v2: сохранить все Coverage v3 decisions,
+очистить session-local enrollment и добавлять identity только при согласии purity, duration, margin
+и open-set evidence; development truth не заменяет новый disjoint held-out.
 ```
 
 Remote Speaker Attribution Error Decomposition v1 завершён

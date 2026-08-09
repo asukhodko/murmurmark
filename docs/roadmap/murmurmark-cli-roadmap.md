@@ -1,11 +1,9 @@
 # MurmurMark CLI Roadmap
 
 Updated: 2026-08-09
-
 Это читаемое представление активного плана OpsKarta v3:
 
 - `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`
-
 YAML владеет статусами и зависимостями. `docs/project/current-goal.md` раскрывает единственную
 исполняемую цель. Завершённые эксперименты остаются в `docs/research/`, `docs/testing/` и
 `docs/history/`, но не определяют текущий приоритет.
@@ -85,7 +83,8 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Session-local enrollment hardening | `done` | `DO_NOT_ADVANCE`: 11 gains / 44.694s, but five control accepts lost |
 | Direct remote-speaker truth seed | `done` | 33 primary + 8 repeats; `DIRECT_TRUTH_SEED_READY`, consistency `7/8` |
 | Blind remote-speaker review | `done` | 8 attributed, 11 unknown, 4 mixed, 10 unusable; production unchanged |
-| Direct-truth candidate adjudication | `current` | One-shot frozen control/candidate comparison; no tuning or promotion |
+| Direct-truth candidate adjudication | `done` | `KEEP_COVERAGE_V3`: +3 correct, -2 correct controls, unsafe accepts 8 -> 13 |
+| Enrollment purity / abstention v2 | `current` | Monotonic additive identity; disjoint truth required before promotion |
 | Производные заметки | `done/optional` | Exact evidence memory и безопасный ID-only selector доступны |
 ## Актуальная Цепочка
 ```mermaid
@@ -110,12 +109,12 @@ flowchart LR
     J["Done: DO NOT ADVANCE<br/>Bounded Remote Speaker<br/>Interval Purification v1"]
     G["Done: DO NOT ADVANCE<br/>Session-Local Remote Speaker<br/>Enrollment Hardening v1"]
     T["Done: DIRECT TRUTH READY<br/>Remote Speaker<br/>Direct Truth Seed v1"]
-    U["Done<br/>Remote Speaker Blind<br/>Review Completion v1"]
-    W["Current<br/>Direct-Truth Candidate<br/>Adjudication v1"]
+    W["Done: KEEP COVERAGE V3<br/>Direct-Truth Candidate<br/>Adjudication v1"]
+    X["Current<br/>Enrollment Purity and<br/>Abstention Hardening v2"]
     M["Idea<br/>Local Mic Multi-Speaker<br/>Diarization v1"]
     O["Optional<br/>Notes, retrieval,<br/>work proposals"]
 
-    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> U --> W
+    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> W --> X
     F --> D
     P -. "real local scenario" .-> M
     L -.-> O
@@ -138,10 +137,10 @@ Word/frame-level diarization работает по authoritative remote audio, �
 ### 3. Transcript Perfection Corpus v1 — `done`
 
 Единый корпус связывает проверку текста, порядка, ролей, speaker turns, overlap, missing `Me`,
-remote leakage и acoustic modes. Baseline `BASELINE_ESTABLISHED`: 24/24 frozen sources verified,
+remote leakage и acoustic modes. Baseline `BASELINE_ESTABLISHED`: 25/25 frozen sources verified,
 восемь явных dimensions, exact lexical subset измерен, real meetings остаются
 reference-insufficient, aggregate score запрещён. Interval и enrollment results включены frozen
-sources и указывают direct speaker truth как следующий измеримый шаг.
+sources; direct adjudication сохраняет Coverage v3 и направляет следующий monotonic candidate.
 
 Результат: конечный критерий сходимости к идеальной транскрибации и защита от бесконечной цепочки
 локальных эвристик.
@@ -267,20 +266,20 @@ replay byte-exact, production и thresholds неизменны.
 Один exemplar-only candidate добавил 11 items / `44.694004s` без новых measured errors, но удалил
 пять control acceptances и восстановил лишь 4/83 scope items. `DO_NOT_ADVANCE`; retuning запрещён.
 ### 19. Remote Speaker Direct Truth Seed v1 — `done`
-Заморожены 33 primary items / 116 words / `90.100820s`, все 16 changed cases и 8 hidden repeats.
-Все 41 slots закрыты; `DIRECT_TRUTH_SEED_READY`, consistency `7/8`, production неизменен.
-### 20. Remote Speaker Blind Review Completion v1 — `done`
-Primary outcomes: 8 attributed, 11 unknown, 4 mixed, 10 unusable; replay и 355 guards проходят.
-### 21. Remote Speaker Direct-Truth Candidate Adjudication v1 — `current`
-Один раз сравнить frozen Coverage v3/control и enrollment candidate с direct truth без tuning/promotion.
+33 primary / 116 words / `90.100820s`, 8 repeats; outcomes 8 attributed, 11 unknown, 4 mixed,
+10 unusable. `DIRECT_TRUTH_SEED_READY`, consistency `7/8`, replay и 355 guards проходят.
+### 20. Remote Speaker Direct-Truth Candidate Adjudication v1 — `done`
+`KEEP_COVERAGE_V3`: candidate приобрёл 3 correct identities, потерял 2 correct controls и увеличил
+fail-closed unsafe accepts 8 -> 13. Net gain 1/8 не прошёл material gates; replay byte-exact.
+### 21. Remote Speaker Enrollment Purity and Abstention Hardening v2 — `current`
+Сохранить Coverage v3 byte-exact; additive identity требует purity, duration, margin и open-set.
+Direct Truth v1 — development set; promotion требует нового disjoint held-out.
 ### 22. Local Mic Multi-Speaker Diarization v1 — `idea`
-Когда появится реальный сценарий нескольких людей у одного ноутбука и размеченный материал, mic-речь
-будет разделяться на Target-Me, other local speakers и `unknown`. Этот этап зависит от remote v2 и
-Transcript Perfection Corpus, но не нужен для нынешнего основного сценария одного пользователя.
+При реальном multi-person local corpus разделять mic на Target-Me, other local speakers и `unknown`.
+Этап зависит от remote v2 и не нужен для нынешнего основного сценария одного пользователя.
 ### 23. Производные Возможности — `optional`
-Extractive notes, quality verdict, reviewed speaker memory, ID-only selection, локальный поиск и
-work proposals могут развиваться после достижения transcript gates или по отдельному явному запросу.
-Они не являются мерой качества MurmurMark и не могут менять источник транскрибации.
+Notes, reviewed speaker memory, поиск и work proposals развиваются отдельно после transcript gates
+и не могут менять источник транскрибации.
 ## Закрытые И Отложенные Треки
 - Human-Reviewed Lexical Seed заблокирован отсутствием проверенного реального reference; machine
   disagreement не является заменой.

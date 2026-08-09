@@ -34,10 +34,10 @@ Expected frozen baseline:
 
 ```text
 decision: BASELINE_ESTABLISHED
-sources: 24/24 verified
+sources: 25/25 verified
 release_ready: false
 largest_actionable_residual: unknown_remote_speaker (598.240s)
-next_goal: Remote Speaker Direct-Truth Candidate Adjudication v1
+next_goal: Remote Speaker Enrollment Purity and Abstention Hardening v2
 ```
 
 ## Reading The Result
@@ -57,7 +57,9 @@ next_goal: Remote Speaker Direct-Truth Candidate Adjudication v1
 - enrollment weighting is closed after 11 gross gains also removed five control accepts and missed the 5% scope-item gate;
 - the 33-item direct-truth seed and eight hidden repeats are complete; repeat consistency is `7/8`;
 - 8 primary items have direct speaker attribution, while 11 are unknown, 4 mixed and 10 unusable;
-- the frozen control and enrollment candidate must now be adjudicated against this truth before another backend;
+- direct adjudication kept Coverage v3: candidate gained three correct identities, lost two correct
+  controls and raised fail-closed unsafe accepts from 8 to 13;
+- the next candidate must preserve Coverage v3 labels and needs disjoint truth before promotion;
 - residual seconds belong to different frozen scopes and must not be summed.
 - the first residual row selects the next bounded engineering goal.
 

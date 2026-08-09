@@ -454,7 +454,7 @@ nodes:
     status: done
     effort: 10
     notes: |
-      Завершено BASELINE_ESTABLISHED. После Direct Truth Seed проверяет 24/24 frozen
+      Завершено BASELINE_ESTABLISHED. После direct adjudication проверяет 25/25 frozen
       sources; восемь dimensions разделяют correctness, coverage, uncertainty и review. Exact
       lexical subset измерен, real meetings reference-insufficient, aggregate score запрещён.
       Ranked residual leader: 598.240s / 851 unknown remote words / 6 sessions.
@@ -509,7 +509,7 @@ nodes:
       Завершено REFERENCE_INSUFFICIENT. Девять graded sources отделяют exact generated evidence от
       scripted expected и independent machine diagnostics. Exact digital subset: 67 words, WER/CER
       0, term accuracy 1.0; human-reviewed real sessions: 0. Public/tracked artifacts не содержат
-      речь, имена или absolute paths; replay детерминирован. Transcript Perfection проверяет 24/24
+      речь, имена или absolute paths; replay детерминирован. Transcript Perfection проверяет 25/25
       sources и сохраняет real-meeting lexical blocker.
 
   quality-independent-remote-speaker-evidence-v1:
@@ -672,30 +672,32 @@ nodes:
       10 unusable primary outcomes; consistency 7/8. Source, privacy, conservation, 355 production
       guards и byte-exact replay проходят; production Coverage v3 неизменен.
 
-  quality-remote-speaker-blind-review-completion-v1:
-    title: "Remote Speaker Blind Review Completion v1"
-    kind: task
-    parent: murmurmark-cli
-    deps: [quality-remote-speaker-direct-truth-seed-v1]
-    status: done
-    effort: 8
-    notes: |
-      Все 33 primary и 8 hidden repeat slots заполнены через blind CLI без model suggestion.
-      Consistency 0.875 прошла gate ровно на пороге. Ни один transcript, backend или production
-      threshold не изменён; mixed/silent exemplars сохранены как fail-closed evidence limitation.
-
   quality-remote-speaker-direct-truth-candidate-adjudication-v1:
     title: "Remote Speaker Direct-Truth Candidate Adjudication v1"
     kind: task
     parent: murmurmark-cli
-    deps: [quality-remote-speaker-blind-review-completion-v1]
-    status: current
+    deps: [quality-remote-speaker-direct-truth-seed-v1]
+    status: done
     effort: 10
     notes: |
-      Один раз оценить неизменённые Coverage v3/control и enrollment candidate против завершённой
-      прямой анонимной разметки. Unknown, mixed и unusable остаются abstention evidence; repeats не
-      удваивают primary metrics. Threshold tuning, production promotion и transcript mutation
-      запрещены; выход только ADVANCE_DIRECT_TRUTH_IDENTITY, KEEP_COVERAGE_V3 или EVIDENCE_BOUND.
+      Завершено KEEP_COVERAGE_V3. Candidate дал 4 против 3 direct correct identities, приобрёл
+      три правильные identity, потерял две верные control-метки и поднял fail-closed unsafe accepts
+      с 8 до 13. Net gain 1/8 = 0.125 не прошёл material gates. Проверены 65 review artifacts,
+      355 production guards и deterministic replay; production и thresholds неизменны.
+
+  quality-remote-speaker-enrollment-purity-abstention-hardening-v2:
+    title: "Remote Speaker Enrollment Purity and Abstention Hardening v2"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-remote-speaker-direct-truth-candidate-adjudication-v1]
+    status: current
+    effort: 12
+    notes: |
+      Построить один monotonic candidate: accepted Coverage v3 labels byte-exact сохраняются,
+      candidate может только заполнять control abstentions. Direct Truth Seed v1 используется как
+      development evidence для purity, duration, margin и open-set правил; mixed/unknown/unusable
+      остаются fail-closed. Выход CANDIDATE_READY_FOR_DISJOINT_TRUTH_V2, KEEP_COVERAGE_V3 либо
+      EVIDENCE_BOUND. Production promotion запрещён до нового disjoint blind held-out.
 
   future-local-mic-diarization-v1:
     title: "Local Mic Multi-Speaker Diarization v1"
@@ -726,7 +728,7 @@ views:
         nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-remote-speaker-direct-truth-candidate-adjudication-v1]
+        nodes: [quality-remote-speaker-enrollment-purity-abstention-hardening-v2]
       dependent:
         title: "Blind real-session reference blocker"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
@@ -782,8 +784,8 @@ views:
           - quality-bounded-remote-speaker-interval-purification-v1
           - quality-session-local-remote-speaker-enrollment-hardening-v1
           - quality-remote-speaker-direct-truth-seed-v1
-          - quality-remote-speaker-blind-review-completion-v1
           - quality-remote-speaker-direct-truth-candidate-adjudication-v1
+          - quality-remote-speaker-enrollment-purity-abstention-hardening-v2
 
   echo-frontier:
     title: "Пред-ASR отделение Me от remote"
@@ -819,8 +821,8 @@ views:
         title: "Доказанная speaker evidence"
         nodes: [research-remote-diarization, research-rich-transcript, quality-remote-speaker-diarization-v2]
       current:
-        title: "Прямая оценка frozen candidate"
-        nodes: [quality-remote-speaker-direct-truth-candidate-adjudication-v1]
+        title: "Monotonic identity candidate"
+        nodes: [quality-remote-speaker-enrollment-purity-abstention-hardening-v2]
       blocker:
         title: "Blind real-session reference"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
@@ -884,16 +886,16 @@ views:
           - quality-bounded-remote-speaker-interval-purification-v1
           - quality-session-local-remote-speaker-enrollment-hardening-v1
           - quality-remote-speaker-direct-truth-seed-v1
-          - quality-remote-speaker-blind-review-completion-v1
           - quality-remote-speaker-direct-truth-candidate-adjudication-v1
+          - quality-remote-speaker-enrollment-purity-abstention-hardening-v2
           - future-local-mic-diarization-v1
 
 x:
   exec:
     program:
       nearest_goal: >-
-        Remote Speaker Direct-Truth Candidate Adjudication v1: сохранить Coverage v3, selected transcripts, raw CAF, primary ASR, Echo Guard, ECAPA shadow, interval/enrollment results и frozen Direct Truth Seed v1 неизменными; SHA-256 проверить 278-item source pack, 33 primary / 8 repeat direct answers, 355 inherited guards и byte-exact replay; только после закрытого blind review открыть sealed item mapping и один раз оценить неизменённые Coverage v3/control и contrastive_reliability_weighted_centroid_v1 enrollment candidate против direct anonymous outcomes; считать `unknown_speaker`, `mixed` и `unusable` только fail-closed abstention evidence, не положительной identity truth; отдельно измерить 11 newly accepted, 5 removed controls, stable controls/abstentions, repeat mismatch и exemplar-purity limitation; выпустить `ADVANCE_DIRECT_TRUTH_IDENTITY`, `KEEP_COVERAGE_V3` либо `EVIDENCE_BOUND` без production promotion или threshold tuning; добавить deterministic evaluator, portable aggregate report и Transcript Perfection source; обновить документацию и планирование, пройти проверки, закоммитить и отправить изменения.
-      success_by_next_sync: "Frozen control и enrollment candidate один раз оценены против direct truth; решение воспроизводимо, production не изменён."
+        Remote Speaker Enrollment Purity and Abstention Hardening v2: сохранить Coverage v3, selected transcripts, raw CAF, primary ASR, Echo Guard и все frozen v1 reports неизменными; использовать 33 primary direct-truth items только как development evidence; построить один monotonic session-local identity candidate, который никогда не удаляет и не меняет accepted Coverage v3 labels, очищает enrollment от слабых или смешанных exemplars и добавляет speaker ID только при независимом согласии purity, duration, margin и open-set evidence; отдельно измерить три подтверждённых v1 gains, восемь fail-closed false accepts, две lost controls и exemplar-purity limitation; выпустить CANDIDATE_READY_FOR_DISJOINT_TRUTH_V2, KEEP_COVERAGE_V3 либо EVIDENCE_BOUND без production promotion или tuning на будущем held-out; добавить deterministic evaluator, corpus report и tests; обновить документацию и планирование, пройти проверки, закоммитить и отправить изменения.
+      success_by_next_sync: "Monotonic additive candidate либо честный evidence ceiling воспроизводим; Coverage v3 и production неизменны."
     defaults:
       status_progress:
         done: 1.0
@@ -914,13 +916,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle и batch transcript работают; three-session replay подтвердил raw/cache/speaker conservation и закрыл legacy cache preflight."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Remote Speaker Direct-Truth Candidate Adjudication v1"
-        scope_nodes: [quality-remote-speaker-direct-truth-candidate-adjudication-v1]
+        title: "Remote Speaker Enrollment Purity and Abstention Hardening v2"
+        scope_nodes: [quality-remote-speaker-enrollment-purity-abstention-hardening-v2]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Direct Truth Seed готов: 33 primary + 8 repeats закрыты, consistency 7/8, production неизменён."
-          next_sync_goal: "Один раз сравнить frozen control/candidate с direct truth без tuning."
+          sync_note: "Direct adjudication сохранил Coverage v3: candidate потерял 2 correct controls и дал 13 unsafe accepts против 8."
+          next_sync_goal: "Сделать monotonic additive candidate с purity и abstention gates; не продвигать без disjoint truth."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -944,13 +946,13 @@ x:
           - quality-bounded-remote-speaker-interval-purification-v1
           - quality-session-local-remote-speaker-enrollment-hardening-v1
           - quality-remote-speaker-direct-truth-seed-v1
-          - quality-remote-speaker-blind-review-completion-v1
           - quality-remote-speaker-direct-truth-candidate-adjudication-v1
+          - quality-remote-speaker-enrollment-purity-abstention-hardening-v2
         kind: main
         mgmt:
           health: yellow
           sync_note: "Speaker-resolved handoff готов; exact lexical subset измерен, real-meeting lexical truth требует внешней проверки."
-          next_sync_goal: "Не продвигать candidate до отдельной qualification после direct adjudication."
+          next_sync_goal: "Сохранить Coverage v3 и требовать disjoint truth для любого следующего promotion."
       research:
         title: "Будущий local multi-speaker"
         scope_nodes: [future-local-mic-diarization-v1]
@@ -980,7 +982,7 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: blind direct truth готов; текущий фокус — одноразовая оценка frozen control/candidate без изменения production."
+        caption: "Короткая карта: direct adjudication сохранил Coverage v3; текущий фокус — monotonic additive identity с purity/abstention gates."
         blocks:
           - working-now
           - current-quality

@@ -78,7 +78,9 @@ answers and 8 repeats: 8 attributed, 11 unknown, 4 mixed and 10 unusable, with c
 Exact local multi-speaker truth qualified the Coverage v3 control. Blind hard-v2 rejected
 word-level duration/fusion candidates; blind hard-v3 then rejected long-span segment-context fusion
 with `0/20` boundaries and two open-set errors. Interval and enrollment candidates then failed their
-material gates. Real-session promotion remains blocked by direct blind evidence.
+material gates. Direct blind adjudication kept Coverage v3 after the candidate lost two correct
+controls and increased fail-closed unsafe accepts from 8 to 13. The next candidate is monotonic and
+purity-gated; any promotion still requires disjoint direct truth and corpus-wide qualification.
 
 ## Core User Jobs
 
@@ -115,12 +117,12 @@ met, unless an explicit product decision changes the priority.
 
 ## Near-Term Direction
 
-1. **Transcript Perfection Corpus v1:** maintain the completed 24-source benchmark for text,
+1. **Transcript Perfection Corpus v1:** maintain the completed 25-source benchmark for text,
    chronology, roles, speakers, overlap, acoustic modes and known residual defects.
-2. **Remote Speaker Direct-Truth Candidate Adjudication v1:** compare the frozen Coverage v3 control
-   and enrollment candidate once against completed anonymous direct truth without threshold tuning.
-3. **Next identity qualification:** open only if direct adjudication shows material safe gain;
-   synthetic or machine agreement cannot promote a real-session candidate.
+2. **Remote Speaker Enrollment Purity and Abstention Hardening v2:** preserve every Coverage v3
+   label and add identity only when purity, duration, margin and open-set evidence agree.
+3. **Disjoint direct truth:** qualify a frozen v2 candidate only on a new held-out set; current
+   development truth, synthetic evidence or machine agreement cannot promote it.
 4. **Human-Reviewed Lexical Seed v1:** external-evidence prerequisite; do not tune ASR from machine
    agreement while it is absent.
 5. **Measured residual loop:** rerank after every bounded `PROMOTE` or evidence ceiling and close the

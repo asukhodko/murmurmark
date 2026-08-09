@@ -92,6 +92,11 @@ residual pack and freezes 33 primary items, 8 hidden repeats and 41 blind review
 outcomes with 7/8 repeat consistency. It enables bounded candidate adjudication but cannot be
 reinterpreted as broad speaker correctness or production promotion.
 
+Remote Speaker Direct-Truth Candidate Adjudication v1 is the twenty-fifth source. Its one-shot
+`KEEP_COVERAGE_V3` result records three correct gains, two lost correct controls and fail-closed
+unsafe acceptance growth from 8 to 13. It keeps the failed candidate and future development work
+separate from the production speaker profile.
+
 ## Outputs
 
 The command writes only under:

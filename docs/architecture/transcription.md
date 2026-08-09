@@ -194,8 +194,12 @@ Controlled Remote Speaker Truth Lab v1 adds exact local topology evidence withou
 production path. Its Coverage v3 seeded-centroid control passed held-out synthetic gates, while the
 independent WavLM word-level candidate failed short-word coverage and unseen open-set rejection.
 Duration-Aware v2 preserved precision and open-set safety but failed blind hard-v2 recall and
-boundary gates. Segment-Context v1 now moves identity evidence to longer homogeneous spans and uses
-independent change points before word projection. Synthetic labels never enter a real session.
+boundary gates. Segment-Context v1 also failed hard-v3. ECAPA passed synthetic hard-v4 but not its
+real-session shadow gates; bounded interval and enrollment variants did not advance. The completed
+33-primary/8-repeat blind seed rejected the frozen enrollment candidate: three correct gains came
+with two lost correct controls and five additional fail-closed unsafe accepts. Coverage v3 remains
+authoritative; v2 may only add identities without changing existing labels and still needs disjoint
+truth. Synthetic labels and unqualified candidates never enter a real session.
 
 Mic multi-speaker diarization is a later profile. It starts only after a real multi-person local
 scenario and labelled corpus exist, and must distinguish Target-Me, other local speakers and

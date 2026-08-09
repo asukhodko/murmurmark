@@ -1,0 +1,179 @@
+{
+  "schema": "murmurmark.remote_speaker_direct_truth_candidate_adjudication_policy/v1",
+  "version": "0.1.0",
+  "state": "frozen_before_candidate_evaluation",
+  "purpose": "Adjudicate the unchanged Coverage v3 control and the frozen contrastive reliability weighted centroid candidate exactly once against completed blind session-local direct truth.",
+  "sources": [
+    {
+      "id": "direct_truth_policy",
+      "path": "policies/remote-speaker-direct-truth-seed-v1.json",
+      "bytes": 5799,
+      "sha256": "63d76fe9c579e52f16996a0471d1332ca5a445e9c08e4af533e78a23ef3e46f2"
+    },
+    {
+      "id": "direct_truth_tracked_manifest",
+      "path": "docs/testing/remote-speaker-direct-truth-seed-v1-manifest.json",
+      "bytes": 2367,
+      "sha256": "59ff0636daf3265e6d629e7e0bf2020dd5e29eee7e549090a7b1e2ab1857a701"
+    },
+    {
+      "id": "direct_truth_pack",
+      "path": "sessions/_reports/remote-speaker-direct-truth-seed-v1/private/pack.json",
+      "bytes": 17746,
+      "sha256": "4084ebcfa310ba37a431c9c15b020983bbe18c4c928ef957991ac9e931938d19"
+    },
+    {
+      "id": "direct_truth_selection",
+      "path": "sessions/_reports/remote-speaker-direct-truth-seed-v1/private/seed_selection.jsonl",
+      "bytes": 28627,
+      "sha256": "d3b38fd8b0106a53d69aa32a9b86725fc19136bf21684252e2fd8af89862996a"
+    },
+    {
+      "id": "direct_truth_slot_map",
+      "path": "sessions/_reports/remote-speaker-direct-truth-seed-v1/private/slot_map.jsonl",
+      "bytes": 9943,
+      "sha256": "74e8b88c3a1322f47f9596bba39be26fcbb052ff9f821fd9f8784974258d9500"
+    },
+    {
+      "id": "direct_truth_answers",
+      "path": "sessions/_reports/remote-speaker-direct-truth-seed-v1/private/answers.jsonl",
+      "bytes": 8009,
+      "sha256": "e0ee5425e649dc030ed7ecfdeb5e927d9e5f88d4102270d33bd4780a97e64ab2"
+    },
+    {
+      "id": "direct_truth_report",
+      "path": "sessions/_reports/remote-speaker-direct-truth-seed-v1/remote_speaker_direct_truth_seed_report.json",
+      "bytes": 2342,
+      "sha256": "0103e32038fa13ec0c001d92f797b4909bff482a1ef12c61e1538d91c0e95d09"
+    },
+    {
+      "id": "direct_truth_replay",
+      "path": "sessions/_reports/remote-speaker-direct-truth-seed-v1/replay_report.json",
+      "bytes": 404,
+      "sha256": "0a823a26f40dfd2530977e0c0c6e7eb736266e434abe0259461180679adaa47a"
+    },
+    {
+      "id": "enrollment_policy",
+      "path": "policies/session-local-remote-speaker-enrollment-hardening-v1.json",
+      "bytes": 9051,
+      "sha256": "805998d731adb16295829d66f2b28363f5bf265f670eedd6ca3fc3a9251d1e2c"
+    },
+    {
+      "id": "enrollment_tracked_manifest",
+      "path": "docs/testing/session-local-remote-speaker-enrollment-hardening-v1-manifest.json",
+      "bytes": 5795,
+      "sha256": "38b8c413226876b9c82ba918f0f54987ce3ba1fb8e18fcd7b8600d02e8b838e3"
+    },
+    {
+      "id": "enrollment_input_manifest",
+      "path": "sessions/_reports/session-local-remote-speaker-enrollment-hardening-v1/private/input_manifest.json",
+      "bytes": 109008,
+      "sha256": "8b0a0bd184185f525a896f3e2b1dd704e274b93a27bac11d1f9c5d30051c72c9"
+    },
+    {
+      "id": "enrollment_item_comparison",
+      "path": "sessions/_reports/session-local-remote-speaker-enrollment-hardening-v1/private/item_comparison.jsonl",
+      "bytes": 508547,
+      "sha256": "77fb798318696e00ca515882771cd3db87b0639507dcbc3bdb302d7d0a5e1d45"
+    },
+    {
+      "id": "enrollment_candidate_centroids",
+      "path": "sessions/_reports/session-local-remote-speaker-enrollment-hardening-v1/private/candidate_centroids.json",
+      "bytes": 82690,
+      "sha256": "675ec169f75196b17e666b606718888e084914c46c82872e74e7b9b2424f0670"
+    },
+    {
+      "id": "enrollment_report",
+      "path": "sessions/_reports/session-local-remote-speaker-enrollment-hardening-v1/session_local_remote_speaker_enrollment_hardening_report.json",
+      "bytes": 4392,
+      "sha256": "87edf39db9def1b029b1d87d44897bd66aeefa68e61e4a949ee0506db69d61b0"
+    },
+    {
+      "id": "enrollment_replay",
+      "path": "sessions/_reports/session-local-remote-speaker-enrollment-hardening-v1/replay_report.json",
+      "bytes": 883,
+      "sha256": "58fa25625484ecdf34bb6c1f436e74654749f8a37ab520b23c67c4c404e7bf6b"
+    },
+    {
+      "id": "coverage_v3_report",
+      "path": "sessions/_reports/remote-speaker-coverage-v3/remote_speaker_coverage_corpus_report.json",
+      "bytes": 50006,
+      "sha256": "0d2d6edcb0a0153a7ea3190760a8df609c3f3f7633c075ab65252035862932d4"
+    },
+    {
+      "id": "coverage_v3_tracked_manifest",
+      "path": "docs/testing/remote-speaker-coverage-v3-manifest.json",
+      "bytes": 7050,
+      "sha256": "20b4073df90f98729cc29bc2ec8f3002e88155d9202afd72f6898f494cfd0a6c"
+    }
+  ],
+  "scope": {
+    "source_items": 278,
+    "source_words": 851,
+    "primary_items": 33,
+    "repeat_items": 8,
+    "changed_items": 16,
+    "attributed_primary_items": 8,
+    "pack_artifacts": 65,
+    "inherited_artifacts": 355,
+    "strata": {
+      "newly_accepted": 11,
+      "removed_acceptance": 5,
+      "stable_accept": 6,
+      "stable_abstention": 6,
+      "mixed_candidate": 3,
+      "unusable_candidate": 2
+    }
+  },
+  "truth": {
+    "positive_prefix": "remote_speaker_",
+    "fail_closed_outcomes": [
+      "unknown_speaker",
+      "mixed",
+      "unusable"
+    ],
+    "truth_grade": "human_reviewed",
+    "repeat_consistency_floor": 0.875,
+    "repeats_count_for_identity_metrics": false
+  },
+  "candidate": {
+    "id": "contrastive_reliability_weighted_centroid_v1",
+    "threshold_tuning_allowed": false,
+    "post_hoc_tuning_allowed": false,
+    "item_embeddings_recomputed": false
+  },
+  "decision": {
+    "allowed_outcomes": [
+      "ADVANCE_DIRECT_TRUTH_IDENTITY",
+      "KEEP_COVERAGE_V3",
+      "EVIDENCE_BOUND"
+    ],
+    "minimum_additional_correct_identity_items": 2,
+    "minimum_additional_correct_identity_ratio": 0.2,
+    "require_no_new_false_identity": true,
+    "require_no_lost_correct_control_identity": true,
+    "require_no_fail_closed_acceptance_regression": true,
+    "require_all_changed_items_adjudicated": true,
+    "require_all_primary_items_adjudicated": true,
+    "require_frozen_artifacts_verified": true,
+    "require_deterministic_replay": true,
+    "production_promotion_allowed": false
+  },
+  "privacy": {
+    "public_session_ids": false,
+    "public_speech_text": false,
+    "public_reviewer_identity": false,
+    "public_absolute_paths": false,
+    "cross_session_identity_allowed": false
+  },
+  "safety": {
+    "shadow_only": true,
+    "production_mutation": false,
+    "coverage_v3_mutation": false,
+    "selected_transcript_mutation": false,
+    "raw_audio_mutation": false,
+    "primary_asr_mutation": false,
+    "echo_guard_mutation": false,
+    "threshold_tuning": false
+  }
+}

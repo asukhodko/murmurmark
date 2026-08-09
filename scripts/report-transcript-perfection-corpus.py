@@ -564,6 +564,30 @@ def semantic_gates(
         {"invariants": direct_truth_invariants, "safety": direct_truth_safety},
     )
 
+    adjudication = payloads.get("remote_speaker_direct_truth_candidate_adjudication_v1") or {}
+    adjudication_safety = adjudication.get("safety") or {}
+    add(
+        "remote_speaker_direct_truth_candidate_adjudication_v1",
+        "terminal_decision",
+        adjudication.get("decision")
+        in {"ADVANCE_DIRECT_TRUTH_IDENTITY", "KEEP_COVERAGE_V3", "EVIDENCE_BOUND"},
+        adjudication.get("decision"),
+    )
+    add(
+        "remote_speaker_direct_truth_candidate_adjudication_v1",
+        "direct_truth_integrity",
+        adjudication.get("gates", {}).get("input_integrity") is True
+        and adjudication.get("gates", {}).get("all_primary_items_adjudicated") is True
+        and adjudication.get("gates", {}).get("all_changed_items_adjudicated") is True
+        and adjudication.get("gates", {}).get("deterministic_replay") is True
+        and adjudication.get("replay_verified") is True
+        and adjudication_safety.get("production_mutated") is False
+        and adjudication_safety.get("coverage_v3_mutated") is False
+        and adjudication_safety.get("selected_transcript_mutated") is False
+        and adjudication_safety.get("thresholds_tuned") is False,
+        {"gates": adjudication.get("gates"), "safety": adjudication_safety},
+    )
+
     failures = [f"semantic_gate:{row['source']}:{row['gate']}" for row in checks if not row["passed"]]
     return checks, failures
 
@@ -718,6 +742,8 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
     interval_purification = payloads["bounded_remote_speaker_interval_purification_v1"]
     enrollment_hardening = payloads["session_local_remote_speaker_enrollment_hardening_v1"]
     direct_truth_seed = payloads["remote_speaker_direct_truth_seed_v1"]
+    direct_truth_adjudication = payloads["remote_speaker_direct_truth_candidate_adjudication_v1"]
+    adjudication_aggregate = direct_truth_adjudication["portable_aggregate"]
 
     return [
         {
@@ -800,6 +826,7 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 "bounded_remote_speaker_interval_purification_v1",
                 "session_local_remote_speaker_enrollment_hardening_v1",
                 "remote_speaker_direct_truth_seed_v1",
+                "remote_speaker_direct_truth_candidate_adjudication_v1",
             ],
             "metrics": {
                 "attributable_speech_ratio": float(remote_summary["attributable_remote_speech_ratio"]),
@@ -977,6 +1004,25 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 "direct_truth_seed_unknown_answers": int(direct_truth_seed["review"]["unknown_primary_answers"]),
                 "direct_truth_seed_mixed_answers": int(direct_truth_seed["review"]["mixed_primary_answers"]),
                 "direct_truth_seed_unusable_answers": int(direct_truth_seed["review"]["unusable_primary_answers"]),
+                "direct_truth_adjudication_decision": direct_truth_adjudication["decision"],
+                "direct_truth_control_correct_identity_items": int(
+                    adjudication_aggregate["control_correct_identity_items"]
+                ),
+                "direct_truth_candidate_correct_identity_items": int(
+                    adjudication_aggregate["candidate_correct_identity_items"]
+                ),
+                "direct_truth_candidate_gained_correct_items": int(
+                    adjudication_aggregate["gained_correct_identity_items"]
+                ),
+                "direct_truth_candidate_lost_control_items": int(
+                    adjudication_aggregate["lost_correct_control_identity_items"]
+                ),
+                "direct_truth_control_unsafe_accept_items": int(
+                    adjudication_aggregate["control_fail_closed_unsafe_acceptance_items"]
+                ),
+                "direct_truth_candidate_unsafe_accept_items": int(
+                    adjudication_aggregate["candidate_fail_closed_unsafe_acceptance_items"]
+                ),
             },
             "residual_classes": ["unknown_remote_speaker"],
         },
@@ -1164,9 +1210,14 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
         != "DIRECT_TRUTH_SEED_READY"
     ):
         release_blockers.insert(2, "remote_speaker_turns.direct_truth_seed_incomplete")
+    if (
+        (payloads.get("remote_speaker_direct_truth_candidate_adjudication_v1") or {}).get("decision")
+        != "ADVANCE_DIRECT_TRUTH_IDENTITY"
+    ):
+        release_blockers.insert(2, "remote_speaker_turns.direct_truth_candidate_not_advanced")
     report = {
         "schema": REPORT_SCHEMA,
-        "generator": {"name": "report-transcript-perfection-corpus", "version": "1.3.0", "mode": "deterministic_offline"},
+        "generator": {"name": "report-transcript-perfection-corpus", "version": "1.4.0", "mode": "deterministic_offline"},
         "decision": decision,
         "manifest": {
             "path": portable_path(Path(str(manifest["_path"]))),
@@ -1217,11 +1268,13 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
                     "but removed five control acceptances and recovered only 4/83 enrollment-scope items. "
                     "A 33-item blind direct-truth seed plus eight hidden repeats is complete: 8 "
                     "attributed, 11 unknown, 4 mixed and 10 unusable primary answers, with 7/8 "
-                    "repeat consistency"
+                    "repeat consistency. One-shot adjudication kept Coverage v3: the candidate gained "
+                    "three direct identities but lost two correct controls and increased fail-closed "
+                    "unsafe accepts from 8 to 13"
                 ),
                 "next_evidence": (
-                    "adjudicate the frozen control and enrollment candidate against direct anonymous "
-                    "truth before selecting another identity backend"
+                    "build a monotonic enrollment-purity and abstention-hardened v2 candidate using "
+                    "this seed only as development evidence; require disjoint held-out truth before promotion"
                 ),
             },
             {
@@ -1246,13 +1299,14 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
             ),
         },
         "next_goal": {
-            "id": "remote-speaker-direct-truth-candidate-adjudication-v1" if not failures else "restore-input-integrity",
-            "title": "Remote Speaker Direct-Truth Candidate Adjudication v1" if not failures else "Restore Input Integrity",
+            "id": "remote-speaker-enrollment-purity-abstention-hardening-v2" if not failures else "restore-input-integrity",
+            "title": "Remote Speaker Enrollment Purity and Abstention Hardening v2" if not failures else "Restore Input Integrity",
             "selected_residual_class": "unknown_remote_speaker" if not failures else None,
             "rationale": (
-                "The frozen 41-slot review is complete with 0.875 repeat consistency and exactly eight "
-                "direct speaker attributions. The next bounded step must score the unchanged control "
-                "and enrollment candidate against that truth before proposing another backend."
+                "Direct-truth adjudication kept Coverage v3: the enrollment candidate gained three "
+                "correct identities but lost two correct controls and raised fail-closed unsafe accepts "
+                "from 8 to 13. The next candidate must preserve control decisions, purify enrollment "
+                "and add identities only under stricter abstention evidence; promotion requires disjoint truth."
                 if not failures
                 else "Input integrity must be restored before selecting an engineering goal."
             ),

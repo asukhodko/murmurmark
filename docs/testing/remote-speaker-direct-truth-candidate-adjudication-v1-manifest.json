@@ -1,0 +1,201 @@
+{
+  "artifacts": {
+    "markdown_report": {
+      "bytes": 881,
+      "id": "markdown_report",
+      "path": "sessions/_reports/remote-speaker-direct-truth-candidate-adjudication-v1/remote_speaker_direct_truth_candidate_adjudication_report.md",
+      "sha256": "80bbb026b96757164cafe843cd150a4b73c6b6c3c06764af5e2dcd662111b322"
+    },
+    "policy": {
+      "bytes": 6742,
+      "id": "policy",
+      "path": "policies/remote-speaker-direct-truth-candidate-adjudication-v1.json",
+      "sha256": "f16c0a7b8a1b0b24a33fcca2c81bda5371c6a5b82f7ec42090be800d4ea7962e"
+    },
+    "public_input_manifest": {
+      "bytes": 5213,
+      "id": "public_input_manifest",
+      "path": "sessions/_reports/remote-speaker-direct-truth-candidate-adjudication-v1/input_manifest.public.json",
+      "sha256": "b419cd8188165c35d395a2523ecbb3a10e133433cb60079ea0d92aded1dd5a1b"
+    },
+    "replay_report": {
+      "bytes": 280,
+      "id": "replay_report",
+      "path": "sessions/_reports/remote-speaker-direct-truth-candidate-adjudication-v1/replay_report.json",
+      "sha256": "53fb01280f796fe09a9f633530be549524c400cd94afb5488f50f0bfb4dd3cfc"
+    },
+    "report": {
+      "bytes": 7207,
+      "id": "report",
+      "path": "sessions/_reports/remote-speaker-direct-truth-candidate-adjudication-v1/remote_speaker_direct_truth_candidate_adjudication_report.json",
+      "sha256": "cef825e6772d8228659630cf40b5f85b5741b7d518eb40ae3ca28ecf3bd35c6f"
+    }
+  },
+  "comparison": {
+    "candidate_fail_closed_unsafe_acceptance_items": 13,
+    "change_matrix": [
+      {
+        "candidate_outcome": "abstained_positive",
+        "control_outcome": "abstained_positive",
+        "items": 1,
+        "stratum": "mixed_candidate",
+        "truth_kind": "positive_identity"
+      },
+      {
+        "candidate_outcome": "safe_abstention",
+        "control_outcome": "safe_abstention",
+        "items": 2,
+        "stratum": "mixed_candidate",
+        "truth_kind": "unknown_speaker"
+      },
+      {
+        "candidate_outcome": "unsafe_fail_closed_acceptance",
+        "control_outcome": "safe_abstention",
+        "items": 2,
+        "stratum": "newly_accepted",
+        "truth_kind": "mixed"
+      },
+      {
+        "candidate_outcome": "correct_identity",
+        "control_outcome": "abstained_positive",
+        "items": 3,
+        "stratum": "newly_accepted",
+        "truth_kind": "positive_identity"
+      },
+      {
+        "candidate_outcome": "unsafe_fail_closed_acceptance",
+        "control_outcome": "safe_abstention",
+        "items": 4,
+        "stratum": "newly_accepted",
+        "truth_kind": "unknown_speaker"
+      },
+      {
+        "candidate_outcome": "unsafe_fail_closed_acceptance",
+        "control_outcome": "safe_abstention",
+        "items": 2,
+        "stratum": "newly_accepted",
+        "truth_kind": "unusable"
+      },
+      {
+        "candidate_outcome": "abstained_positive",
+        "control_outcome": "correct_identity",
+        "items": 2,
+        "stratum": "removed_acceptance",
+        "truth_kind": "positive_identity"
+      },
+      {
+        "candidate_outcome": "safe_abstention",
+        "control_outcome": "unsafe_fail_closed_acceptance",
+        "items": 1,
+        "stratum": "removed_acceptance",
+        "truth_kind": "unknown_speaker"
+      },
+      {
+        "candidate_outcome": "safe_abstention",
+        "control_outcome": "unsafe_fail_closed_acceptance",
+        "items": 2,
+        "stratum": "removed_acceptance",
+        "truth_kind": "unusable"
+      },
+      {
+        "candidate_outcome": "safe_abstention",
+        "control_outcome": "safe_abstention",
+        "items": 2,
+        "stratum": "stable_abstention",
+        "truth_kind": "mixed"
+      },
+      {
+        "candidate_outcome": "abstained_positive",
+        "control_outcome": "abstained_positive",
+        "items": 1,
+        "stratum": "stable_abstention",
+        "truth_kind": "positive_identity"
+      },
+      {
+        "candidate_outcome": "safe_abstention",
+        "control_outcome": "safe_abstention",
+        "items": 3,
+        "stratum": "stable_abstention",
+        "truth_kind": "unknown_speaker"
+      },
+      {
+        "candidate_outcome": "correct_identity",
+        "control_outcome": "correct_identity",
+        "items": 1,
+        "stratum": "stable_accept",
+        "truth_kind": "positive_identity"
+      },
+      {
+        "candidate_outcome": "unsafe_fail_closed_acceptance",
+        "control_outcome": "unsafe_fail_closed_acceptance",
+        "items": 1,
+        "stratum": "stable_accept",
+        "truth_kind": "unknown_speaker"
+      },
+      {
+        "candidate_outcome": "unsafe_fail_closed_acceptance",
+        "control_outcome": "unsafe_fail_closed_acceptance",
+        "items": 4,
+        "stratum": "stable_accept",
+        "truth_kind": "unusable"
+      },
+      {
+        "candidate_outcome": "safe_abstention",
+        "control_outcome": "safe_abstention",
+        "items": 2,
+        "stratum": "unusable_candidate",
+        "truth_kind": "unusable"
+      }
+    ],
+    "control_fail_closed_unsafe_acceptance_items": 8,
+    "fail_closed_unsafe_acceptance_regression_items": 5,
+    "gained_correct_identity_items": 3,
+    "lost_correct_control_identity_items": 2,
+    "net_additional_correct_identity_items": 1,
+    "net_additional_correct_identity_ratio": 0.125,
+    "new_false_identity_items": 0
+  },
+  "decision": "KEEP_COVERAGE_V3",
+  "gates": {
+    "all_changed_items_adjudicated": true,
+    "all_primary_items_adjudicated": true,
+    "deterministic_replay": true,
+    "input_integrity": true,
+    "minimum_additional_correct_identity_items": false,
+    "minimum_additional_correct_identity_ratio": false,
+    "no_fail_closed_acceptance_regression": false,
+    "no_lost_correct_control_identity": false,
+    "no_new_false_identity": true,
+    "repeat_consistency": true
+  },
+  "limitations": {
+    "candidate_thresholds_were_not_tuned": true,
+    "direct_identity_labels": 8,
+    "exemplar_purity_directly_graded": false,
+    "fail_closed_rows_are_not_positive_identity_truth": true
+  },
+  "replay_verified": true,
+  "safety": {
+    "coverage_v3_mutated": false,
+    "cross_session_identity_used": false,
+    "echo_guard_mutated": false,
+    "primary_asr_mutated": false,
+    "production_mutated": false,
+    "raw_audio_mutated": false,
+    "selected_transcript_mutated": false,
+    "session_ids_public": false,
+    "shadow_only": true,
+    "speech_text_public": false,
+    "thresholds_tuned": false
+  },
+  "schema": "murmurmark.remote_speaker_direct_truth_candidate_adjudication_manifest/v1",
+  "scope": {
+    "attributed_primary_items": 8,
+    "changed_items": 16,
+    "fail_closed_primary_items": 25,
+    "primary_items": 33,
+    "repeat_items": 8,
+    "source_items": 278,
+    "source_words": 851
+  }
+}
