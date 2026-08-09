@@ -1,9 +1,7 @@
 # MurmurMark
 Local-first meeting transcription for sensitive work.
 
-MurmurMark records separate microphone and remote tracks, then locally produces an auditable transcript, quality verdict and optional evidence-backed derivatives.
-
-The product is CLI-first. Batch processing is authoritative. Live preview is an optional shadow that cannot replace or weaken the durable recording.
+MurmurMark records separate microphone and remote tracks, then locally produces an auditable transcript, quality verdict and optional evidence-backed derivatives. The product is CLI-first. Batch processing is authoritative. Live preview is an optional shadow that cannot replace or weaken the durable recording.
 ## Mission
 MurmurMark turns locally captured 1:1 and group calls into reliable, speaker-resolved transcripts
 without sending raw meeting audio to a cloud recorder.
@@ -295,8 +293,7 @@ murmurmark notes "$SESSION" --reviewed-speakers
 murmurmark export "$SESSION" --format markdown --include-json --reviewed-speakers
 ```
 Speaker-aware memory and exact-text notes remain optional derivatives. Transcript Perfection Corpus keeps 30/30 frozen sources explicit and never collapses unlike quality dimensions into one score.
-Lexical Accuracy Reference Corpus v1 measures its exact 67-word digital subset at WER/CER `0` and
-keeps real-meeting lexical correctness blocked by missing human-reviewed evidence:
+Lexical Accuracy Reference Corpus v1 measures its exact 67-word digital subset at WER/CER `0` and keeps real-meeting lexical correctness blocked by missing human-reviewed evidence:
 ```bash
 murmurmark corpus lexical status
 murmurmark corpus lexical replay --write-manifest docs/testing/lexical-accuracy-reference-corpus-v1-manifest.json
@@ -309,7 +306,9 @@ murmurmark corpus remote-identity-shadow-v1 status && murmurmark corpus remote-i
 murmurmark corpus remote-truth-seed-v1 status && murmurmark corpus remote-truth-adjudication-v1 status
 murmurmark corpus remote-enrollment-purity-v2 status && murmurmark corpus remote-homogeneous-enrollment-v1 status
 murmurmark corpus remote-reclustering-v1 status && murmurmark corpus remote-representation-v1 status && murmurmark corpus remote-temporal-diarization-v1 status && murmurmark corpus remote-temporal-diarization-v1 replay
+murmurmark corpus remote-truth-seed-v2 status && murmurmark corpus remote-truth-seed-v2 replay
 ```
+Current private review: frozen 72-primary + 12-repeat disjoint v2 pack; resume with `murmurmark corpus remote-truth-seed-v2 review`. It never runs during meetings or changes production.
 The dependent critical path is:
 ```text
 Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental ASR

@@ -1333,6 +1333,7 @@ enum DoctorChecks {
             "scripts/evaluate-bounded-remote-speaker-interval-purification-v1.py",
             "scripts/evaluate-session-local-remote-speaker-enrollment-hardening-v1.py",
             "scripts/build-remote-speaker-direct-truth-seed-v1.py",
+            "scripts/build-remote-speaker-disjoint-truth-v2.py",
             "scripts/adjudicate-remote-speaker-direct-truth-candidate-v1.py",
             "scripts/evaluate-remote-speaker-enrollment-purity-abstention-v2.py",
             "scripts/materialize-anonymous-rich-transcript.py",
@@ -8315,6 +8316,29 @@ enum CorpusCommands {
                 [try script("build-remote-speaker-direct-truth-seed-v1.py").path] + forwarded,
                 allowedExitCodes: [0, 2]
             )
+        case "remote-truth-seed-v2", "remote_truth_seed_v2":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(
+                    try PythonRuntime.resolve(),
+                    [try script("build-remote-speaker-disjoint-truth-v2.py").path, "--help"]
+                )
+                return
+            }
+            guard let action = forwarded.first else {
+                throw CLIError(
+                    "remote-truth-seed-v2 requires preflight, prepare, freeze, next, grade, review, progress, status, finalize, replay, or all"
+                )
+            }
+            guard [
+                "preflight", "prepare", "freeze", "next", "grade", "review", "progress", "status", "finalize", "replay", "all",
+            ].contains(action) else {
+                throw CLIError("unsupported remote-truth-seed-v2 action: \(action)")
+            }
+            _ = try Tooling.runPathAllowingExitCodes(
+                try PythonRuntime.resolve(),
+                [try script("build-remote-speaker-disjoint-truth-v2.py").path] + forwarded,
+                allowedExitCodes: [0, 2]
+            )
         case "remote-truth-adjudication-v1", "remote_truth_adjudication_v1":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 try Tooling.runPath(
@@ -8623,6 +8647,8 @@ enum CorpusHelp {
                                       [--policy policies/session-local-remote-speaker-enrollment-hardening-v1.json]
           murmurmark corpus remote-truth-seed-v1 preflight|build|next|grade|status|finalize|replay|all
                                       [--policy policies/remote-speaker-direct-truth-seed-v1.json]
+          murmurmark corpus remote-truth-seed-v2 preflight|prepare|freeze|next|grade|review|progress|status|finalize|replay|all
+                                      [--policy policies/remote-speaker-disjoint-truth-expansion-v2.json]
           murmurmark corpus remote-truth-adjudication-v1 preflight|evaluate|status|replay|finalize|all
                                       [--policy policies/remote-speaker-direct-truth-candidate-adjudication-v1.json]
           murmurmark corpus remote-enrollment-purity-v2 preflight|prepare|freeze|evaluate|replay|finalize|status|all

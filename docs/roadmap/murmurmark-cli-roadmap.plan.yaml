@@ -705,10 +705,12 @@ nodes:
     status: current
     effort: 14
     notes: |
-      Заморозить новый непересекающийся real-session truth pack минимум из 72 primary и 12 hidden
-      repeat slots на шести сессиях. Исключить прежние 33 intervals и mixed exemplars, покрыть model
-      disagreements, short turns, boundaries, overlap и five-speaker topology. Добавить resumable
-      review CLI; никакой model selection или production promotion в этой цели.
+      Pack заморожен до prior truth: 72 primary / 148 words / 155.440894s, 12 hidden repeats,
+      6/6 sessions, zero overlap with 33 v1 intervals. Все доступные model disagreements, short
+      turns, boundaries, overlap и five-speaker topology покрыты; 19 exemplars имеют bounded purity
+      basis, confirmed mixed clips исключены. Resumable review CLI готов. Осталось закрыть 84 blind
+      slots и выпустить DIRECT_TRUTH_V2_READY либо точный REFERENCE_INSUFFICIENT; никакой model
+      selection или production promotion в этой цели.
 
 views:
   roadmap-tree:

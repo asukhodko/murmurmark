@@ -285,7 +285,7 @@ fail-closed unsafe accepts 8 -> 13. Net gain 1/8 не прошёл material gate
 `KEEP_EXPLICIT_UNKNOWN`: shift stability `0.814301` прошла, но expected speaker count совпал в `0/6`
 sessions, boundary duration recall упал до `0.598626`, сохранились `2/3` gains и появились семь false identities.
 ### 26. Remote Speaker Disjoint Truth Expansion v2 — `current`
-Собрать новый непересекающийся real-session truth pack и review-петлю до выбора следующего model class.
+Pack заморожен: 72 primary / 148 words / `155.440894s`, 12 repeats, 6/6 sessions, zero v1 overlap и 19 bounded exemplars. Осталось закрыть blind review до выбора следующего model class.
 ### 27. Производные Возможности — `optional`: notes и work proposals остаются отдельными производными после transcript gates.
 ## Закрытые И Отложенные Треки
 - Human-Reviewed Lexical Seed заблокирован отсутствием реального reference; machine disagreement не заменяет truth.

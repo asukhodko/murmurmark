@@ -159,7 +159,10 @@ Read in this order:
 155. [Temporal End-to-End Remote Diarization Qualification v1 runbook](runbooks/temporal-end-to-end-remote-diarization-qualification-v1.md)
 156. [Temporal End-to-End Remote Diarization Qualification v1 result](testing/2026-08-10-temporal-end-to-end-remote-diarization-qualification-v1.md)
 157. [Temporal End-to-End Remote Diarization Qualification v1 manifest](testing/temporal-end-to-end-remote-diarization-qualification-v1-manifest.json)
-154. [Planning and development history](history/README.md)
+158. [Remote Speaker Disjoint Truth Expansion v2 contract](contracts/remote-speaker-disjoint-truth-expansion-v2.md)
+159. [Remote Speaker Disjoint Truth Expansion v2 runbook](runbooks/remote-speaker-disjoint-truth-expansion-v2.md)
+160. [Remote Speaker Disjoint Truth Expansion v2 frozen pack](testing/2026-08-10-remote-speaker-disjoint-truth-expansion-v2.md)
+161. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
@@ -214,8 +217,10 @@ labels and reached `EMBEDDING_GEOMETRY_BOUND`: minimum ECAPA/WavLM ARI `0.090170
 `0.465715`, preserved gains `0/3`. **Stronger Local Remote Speaker Representation Qualification v1**
 then froze WeSpeaker ResNet34-LM before direct truth. It preserved `3/3` confirmed gains and lost no
 correct controls, but introduced 12 new false identities, left six ambiguous clusters and closed
-`KEEP_EXPLICIT_UNKNOWN`. Lightweight fixed-window embedding routes are closed; the next bounded goal
-qualifies temporal/end-to-end remote diarization. Notes and retrieval remain parked.
+`KEEP_EXPLICIT_UNKNOWN`. Temporal AHC/VBx then passed shift stability but matched the expected
+speaker count in `0/6` sessions, preserved `2/3` gains and introduced seven false identities. The
+current bounded goal has frozen a disjoint 72-primary + 12-repeat truth pack; its blind review is in
+progress before another model class may be selected. Notes and retrieval remain parked.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

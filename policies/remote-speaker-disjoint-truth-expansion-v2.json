@@ -1,0 +1,81 @@
+{
+  "schema": "murmurmark.remote_speaker_disjoint_truth_policy/v2",
+  "state": "frozen_sampling_before_prior_truth",
+  "sources": [
+    {"id":"truth_v1_policy","path":"policies/remote-speaker-direct-truth-seed-v1.json","bytes":5799,"sha256":"63d76fe9c579e52f16996a0471d1332ca5a445e9c08e4af533e78a23ef3e46f2","phase":"selection"},
+    {"id":"truth_v1_manifest","path":"docs/testing/remote-speaker-direct-truth-seed-v1-manifest.json","bytes":2367,"sha256":"59ff0636daf3265e6d629e7e0bf2020dd5e29eee7e549090a7b1e2ab1857a701","phase":"selection"},
+    {"id":"truth_v1_pack","path":"sessions/_reports/remote-speaker-direct-truth-seed-v1/private/pack.json","bytes":17746,"sha256":"4084ebcfa310ba37a431c9c15b020983bbe18c4c928ef957991ac9e931938d19","phase":"selection"},
+    {"id":"truth_v1_selection","path":"sessions/_reports/remote-speaker-direct-truth-seed-v1/private/seed_selection.jsonl","bytes":28627,"sha256":"d3b38fd8b0106a53d69aa32a9b86725fc19136bf21684252e2fd8af89862996a","phase":"selection"},
+    {"id":"truth_v1_slot_map","path":"sessions/_reports/remote-speaker-direct-truth-seed-v1/private/slot_map.jsonl","bytes":9943,"sha256":"74e8b88c3a1322f47f9596bba39be26fcbb052ff9f821fd9f8784974258d9500","phase":"post_freeze"},
+    {"id":"truth_v1_answers","path":"sessions/_reports/remote-speaker-direct-truth-seed-v1/private/answers.jsonl","bytes":8009,"sha256":"e0ee5425e649dc030ed7ecfdeb5e927d9e5f88d4102270d33bd4780a97e64ab2","phase":"post_freeze"},
+    {"id":"truth_v1_report","path":"sessions/_reports/remote-speaker-direct-truth-seed-v1/remote_speaker_direct_truth_seed_report.json","bytes":2342,"sha256":"0103e32038fa13ec0c001d92f797b4909bff482a1ef12c61e1538d91c0e95d09","phase":"post_freeze"},
+    {"id":"residual_pack","path":"sessions/_reports/remote-speaker-residual-reference-corpus-v1/private/pack.json","bytes":14285,"sha256":"0a61f4870d31acb30f9e17ae54b9961c8552eea32e25ce580502793696670444","phase":"selection"},
+    {"id":"residual_items","path":"sessions/_reports/remote-speaker-residual-reference-corpus-v1/private/review_items.jsonl","bytes":244657,"sha256":"423ee3ff23fa73f170001dd597d09d97f5c50d759e064b95563b80ecfc161166","phase":"selection"},
+    {"id":"residual_exemplars","path":"sessions/_reports/remote-speaker-residual-reference-corpus-v1/private/speaker_exemplars.jsonl","bytes":12138,"sha256":"ceefed9e36cd30000a65000d7656f733a5a48c46d54a1263dc2327cab6cf5e82","phase":"post_freeze"},
+    {"id":"enrollment_comparison","path":"sessions/_reports/session-local-remote-speaker-enrollment-hardening-v1/private/item_comparison.jsonl","bytes":508547,"sha256":"77fb798318696e00ca515882771cd3db87b0639507dcbc3bdb302d7d0a5e1d45","phase":"selection"},
+    {"id":"ecapa_wavlm_pack","path":"sessions/_reports/session-local-remote-speaker-reclustering-feasibility-v1/private/reclustering_pack.frozen.json","bytes":65801,"sha256":"df2f9bf8fe2df0122f870bc635591862cec39c454da91f7194be8eb2c303b00d","phase":"selection"},
+    {"id":"wespeaker_pack","path":"sessions/_reports/stronger-local-remote-speaker-representation-qualification-v1/private/candidate_pack.frozen.json","bytes":72476,"sha256":"00faf7ef22616f0fc9beb4849f8319e5aa7e6b6023c29d402e205221aa887653","phase":"selection"},
+    {"id":"temporal_pack","path":"sessions/_reports/temporal-end-to-end-remote-diarization-qualification-v1/private/candidate_pack.frozen.json","bytes":378870,"sha256":"dc958d9c150ece150781dcd0eb421821740ad42bd91dd8793961538be51e0268","phase":"selection"},
+    {"id":"temporal_windows","path":"sessions/_reports/temporal-end-to-end-remote-diarization-qualification-v1/private/unlabeled_windows.jsonl","bytes":117623,"sha256":"4aaa314ad012ee4ca634a7d36e003634051ac2d44caf009ff86b533df46e99ac","phase":"selection"},
+    {"id":"temporal_mappings","path":"sessions/_reports/temporal-end-to-end-remote-diarization-qualification-v1/private/post_freeze_cluster_mappings.json","bytes":3776,"sha256":"85c154009e692c9240e5dd34d76f8c5f6b18e5c9c7778f5b3e391a4f8bbd32a9","phase":"post_freeze"},
+    {"id":"transcript_perfection_manifest","path":"docs/testing/transcript-perfection-corpus-v1-manifest.json","bytes":17197,"sha256":"bb7f7d163641caf7684ed6e0900851ac9aa08f61b649e40573aeeb52d6b3dde7","phase":"selection","snapshot_before_append":true},
+    {"id":"transcript_perfection_report","path":"sessions/_reports/transcript-perfection-corpus-v1/transcript_perfection_corpus_report.json","bytes":60970,"sha256":"0da44ab777f347dbd8b300dc248c0645efb7a525de44b68384c3dd58a540f79d","phase":"selection","snapshot_before_append":true}
+  ],
+  "selection": {
+    "id": "disjoint_stratified_remote_truth_v2",
+    "salt": "murmurmark.remote-speaker-disjoint-truth-v2.selection",
+    "source_items": 278,
+    "source_words": 851,
+    "source_seconds": 597.799509,
+    "source_declared_scope_seconds": 598.239509,
+    "exclude_all_v1_primary_intervals": true,
+    "minimum_overlap_to_exclude_sec": 0.000001,
+    "nearest_model_window_max_distance_sec": 3.0,
+    "session_quotas": {
+      "2026-06-23_14-04-37": 10,
+      "2026-06-24_15-03-52": 10,
+      "2026-06-26_11-15-50": 15,
+      "2026-06-26_12-04-04": 12,
+      "2026-07-14_15-01-19-live": 15,
+      "2026-07-20_15-15-26-live": 10
+    },
+    "five_speaker_session": "2026-06-26_11-15-50",
+    "expected_primary_items": 72,
+    "expected_primary_words": 148,
+    "expected_primary_seconds": 155.440894,
+    "expected_remaining_pool_items": 245,
+    "forbidden_inputs": ["speech_text", "transcript_fragment", "human_name", "prior_truth_outcome", "candidate_correctness", "production_label"]
+  },
+  "repeats": {
+    "salt": "murmurmark.remote-speaker-disjoint-truth-v2.repeat",
+    "per_session": 2,
+    "expected_items": 12,
+    "minimum_consistency": 0.85
+  },
+  "exemplars": {
+    "maximum_per_speaker": 2,
+    "minimum_temporal_speech_sec": 1.0,
+    "minimum_temporal_cluster_purity": 0.95,
+    "allow_single_speaker_topology_fallback": true,
+    "forbid_mixed_truth": true
+  },
+  "review": {
+    "special_outcomes": ["unknown_speaker", "mixed", "unusable"],
+    "truth_grades": ["human_reviewed"],
+    "show_model_suggestion": false,
+    "allow_human_names": false,
+    "allow_cross_session_identity": false
+  },
+  "readiness": {
+    "required_primary_answers": 72,
+    "required_repeat_answers": 12,
+    "minimum_attributed_primary_answers": 18,
+    "minimum_attributed_sessions": 4,
+    "minimum_repeat_consistency": 0.85
+  },
+  "decision": {
+    "allowed_outcomes": ["DIRECT_TRUTH_V2_READY", "REFERENCE_INSUFFICIENT"],
+    "production_promotion_allowed": false,
+    "model_selection_allowed": false
+  }
+}

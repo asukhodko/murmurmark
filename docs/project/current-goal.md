@@ -23,6 +23,20 @@ Fixed-window ECAPA/WavLM/WeSpeaker и temporal AHC/VBx проверены на �
 model можно будет выбрать один раз без переиспользования development truth. Эта цель улучшает
 доказательную базу и review UX, но не меняет production speaker attribution.
 
+## Current State
+
+Sampling и tooling готовы. Pack из `72` primary items / `148` words / `155.440894s` и `12` hidden
+repeats заморожен на шести сессиях. Он не пересекается с 33 v1 primary intervals, содержит все
+доступные model disagreements и использует 19 bounded exemplar clips без confirmed mixed
+exemplars. Candidate-pack replay побайтно точен, все 355 guards проходят.
+
+Остались blind review, terminal report, append в Transcript Perfection, переход планирования,
+проверки, commit и push. Разметка прерывается и продолжается одной командой:
+
+```bash
+murmurmark corpus remote-truth-seed-v2 review
+```
+
 ## Required Work
 
 1. Проверить 30 frozen Transcript Perfection sources, 355 production guards и прежний truth seed.

@@ -115,6 +115,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-mixed-utterance-separation.py
 "$python_bin" scripts/check-experiment-compare-timeout.py
 "$python_bin" scripts/check-planning-consistency.py
+"$python_bin" scripts/check-remote-speaker-disjoint-truth-v2.py
 "$python_bin" scripts/check-release-quality.py
 MURMURMARK_BIN="$repo_root/.build/debug/murmurmark" \
   "$python_bin" scripts/check-derived-compaction.py
