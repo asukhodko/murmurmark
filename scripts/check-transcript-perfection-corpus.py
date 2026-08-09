@@ -860,6 +860,47 @@ def build_fixture(root: Path) -> Path:
             },
             ["remote_speaker_turns"],
         ),
+        "temporal_end_to_end_remote_diarization_qualification_v1": (
+            files / "temporal-end-to-end-remote-diarization-qualification-v1.json",
+            {
+                "schema": "murmurmark.temporal_remote_diarization_report/v1",
+                "decision": "KEEP_EXPLICIT_UNKNOWN",
+                "candidate": {"id": "dia_community1_temporal_vbx_v1"},
+                "scope": {"sessions": 6, "profiles": 14, "windows": 347, "development_items": 33},
+                "temporal": {
+                    "values": {"minimum_temporal_stability_ari": 0.814301},
+                    "gates": {"minimum_temporal_stability_ari": True},
+                },
+                "mapping": {
+                    "values": {"exact_speaker_count_sessions": 0, "ambiguous_clusters": 3},
+                    "gates": {"exact_speaker_count_all_sessions": False},
+                },
+                "direct_truth": {
+                    "preserved_confirmed_v1_additive_gains": 2,
+                    "confirmed_v1_additive_gains": 3,
+                    "new_false_identity_items": 7,
+                },
+                "invariants": {
+                    "candidate_models_sequence": True,
+                    "candidate_models_temporal_activity": True,
+                    "pack_frozen_before_coverage_labels": True,
+                    "pack_frozen_before_direct_truth": True,
+                    "production_promotion_disabled": True,
+                    "speaker_count_not_from_truth": True,
+                    "thresholds_not_tuned": True,
+                },
+                "safety": {
+                    "raw_audio_mutated": False,
+                    "selected_transcript_mutated": False,
+                    "primary_asr_mutated": False,
+                    "echo_guard_mutated": False,
+                    "coverage_v3_accepts_preserved": 68,
+                    "production_guards_verified": 355,
+                    "transcript_perfection_sources_preserved": 29,
+                },
+            },
+            ["remote_speaker_turns"],
+        ),
     }
     sources: list[dict[str, object]] = []
     for source_id, (path, payload, dimensions) in payloads.items():
@@ -911,7 +952,7 @@ def run(manifest: Path, out: Path) -> subprocess.CompletedProcess[str]:
 
 def main() -> int:
     runbook = (ROOT / "docs/runbooks/transcript-perfection-corpus.md").read_text(encoding="utf-8")
-    assert "next_goal: Temporal End-to-End Remote Diarization Qualification v1" in runbook
+    assert "next_goal: Remote Speaker Disjoint Truth Expansion v2" in runbook
     assert "next_goal: Remote Speaker Direct Truth Seed v1" not in runbook
     with tempfile.TemporaryDirectory(prefix=".transcript-perfection-fixture-", dir=ROOT) as temporary:
         root = Path(temporary)
@@ -921,14 +962,14 @@ def main() -> int:
         assert result.returncode == 0, result.stdout + result.stderr
         report = json.loads((out / "transcript_perfection_corpus_report.json").read_text())
         assert report["decision"] == "BASELINE_ESTABLISHED"
-        assert report["summary"]["verified_sources"] == 29
+        assert report["summary"]["verified_sources"] == 30
         assert report["summary"]["aggregate_quality_score"] is None
         assert report["summary"]["aggregate_residual_seconds"] is None
         words = next(row for row in report["dimensions"] if row["id"] == "recognized_words")
         assert words["correctness_status"] == "bounded_exact_subset_only"
         assert words["metrics"]["exact_subset_wer"] == 0.0
         assert report["residuals"][0]["class"] == "unknown_remote_speaker"
-        assert report["next_goal"]["id"] == "temporal-end-to-end-remote-diarization-qualification-v1"
+        assert report["next_goal"]["id"] == "remote-speaker-disjoint-truth-expansion-v2"
         assert report["next_goal"]["selected_residual_class"] == "unknown_remote_speaker"
         assert report["lexical_prerequisite"]["id"] == "human-reviewed-lexical-seed-v1"
         assert report["lexical_prerequisite"]["status"] == "external_evidence_required"

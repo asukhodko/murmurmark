@@ -1,0 +1,39 @@
+{
+  "schema": "murmurmark.temporal_remote_diarization_tracked_manifest/v1",
+  "decision": "KEEP_EXPLICIT_UNKNOWN",
+  "artifacts": {
+    "policy": {
+      "path": "policies/temporal-end-to-end-remote-diarization-qualification-v1.json",
+      "bytes": 9095,
+      "sha256": "3ea458abc55317baa894a3bc5defcda1576d0ae8f1d826fe6175dc55b142b926"
+    },
+    "report": {
+      "path": "sessions/_reports/temporal-end-to-end-remote-diarization-qualification-v1/temporal_remote_diarization_report.json",
+      "bytes": 10336,
+      "sha256": "3cb0f386e6299ac8f4981dee9cc20f2a7b9a3412fcd98d1b51f995b1e26e4788"
+    },
+    "freeze": {
+      "path": "sessions/_reports/temporal-end-to-end-remote-diarization-qualification-v1/freeze_manifest.json",
+      "bytes": 11767,
+      "sha256": "19a408846060971917597863486618243c2aaea7206bfd4e99f74414cbff183d"
+    },
+    "public_pack": {
+      "path": "sessions/_reports/temporal-end-to-end-remote-diarization-qualification-v1/candidate_pack.public.json",
+      "bytes": 2969,
+      "sha256": "fac6048ec6ef31f00a4cf131f4fbac0b40a2a9e2977bfd006b1969107a32b9c0"
+    },
+    "replay": {
+      "path": "sessions/_reports/temporal-end-to-end-remote-diarization-qualification-v1/replay_report.json",
+      "bytes": 291,
+      "sha256": "583443fbd985949b91e69e710417da8875a6d1b322567b5bc685c7f94b6154e6"
+    }
+  },
+  "external_model": {
+    "model_id": "FinDIT-Studio/dia-models",
+    "revision": "6eef479c954ec180e79cee316af2f16d5f7720bd",
+    "file": "wespeaker_resnet34_lm.onnx",
+    "bytes": 26775465,
+    "sha256": "f23f04aa9d0f6b8b0a28de016d226dcbe92d7461a6e58045401acfbed623838a"
+  },
+  "production_promotion_allowed": false
+}

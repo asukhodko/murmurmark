@@ -683,7 +683,7 @@ nodes:
       production остался Coverage v3.
 
   quality-lightweight-remote-speaker-representation-frontier-v1:
-    title: "Lightweight Remote Speaker Representation Frontier v1"
+    title: "Local Remote Speaker Backend Frontier v1"
     kind: task
     parent: murmurmark-cli
     deps: [quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1]
@@ -693,20 +693,22 @@ nodes:
       Два freeze-first эксперимента закрыли fixed-window route. ECAPA/WavLM re-clustering завершён
       EMBEDDING_GEOMETRY_BOUND: agreement ARI 0.090170, stability 0.465715, gains 0/3. WeSpeaker
       ResNet34-LM завершён KEEP_EXPLICIT_UNKNOWN: gains 3/3 и controls сохранены, но появились
-      12 new false identities, 17 unsafe accepts и 6 ambiguous clusters. Production остался Coverage v3.
+      12 new false identities. Temporal AHC/VBx затем прошёл shift stability, но совпал по speaker
+      count в 0/6 sessions, сохранил 2/3 gains и добавил 7 false identities. Доступные local
+      fixed-window и temporal routes закрыты; production остался Coverage v3.
 
-  quality-temporal-end-to-end-remote-diarization-qualification-v1:
-    title: "Temporal End-to-End Remote Diarization Qualification v1"
+  quality-remote-speaker-disjoint-truth-expansion-v2:
+    title: "Remote Speaker Disjoint Truth Expansion v2"
     kind: task
     parent: murmurmark-cli
     deps: [quality-lightweight-remote-speaker-representation-frontier-v1]
     status: current
-    effort: 18
+    effort: 14
     notes: |
-      Квалифицировать минимум один fully local temporal/end-to-end diarization backend, который
-      моделирует speaker activity, overlap и sequence context и поддерживает минимум пять remote
-      speakers. До Coverage labels и 33-item direct truth заморозить model/license/runtime,
-      segmentation, speaker-count policy и candidate pack. Production promotion запрещён.
+      Заморозить новый непересекающийся real-session truth pack минимум из 72 primary и 12 hidden
+      repeat slots на шести сессиях. Исключить прежние 33 intervals и mixed exemplars, покрыть model
+      disagreements, short turns, boundaries, overlap и five-speaker topology. Добавить resumable
+      review CLI; никакой model selection или production promotion в этой цели.
 
 views:
   roadmap-tree:
@@ -725,7 +727,7 @@ views:
         nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-temporal-end-to-end-remote-diarization-qualification-v1]
+        nodes: [quality-remote-speaker-disjoint-truth-expansion-v2]
       dependent:
         title: "Blind real-session reference blocker"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
@@ -782,7 +784,7 @@ views:
           - quality-remote-speaker-enrollment-purity-abstention-hardening-v2
           - quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1
           - quality-lightweight-remote-speaker-representation-frontier-v1
-          - quality-temporal-end-to-end-remote-diarization-qualification-v1
+          - quality-remote-speaker-disjoint-truth-expansion-v2
 
   echo-frontier:
     title: "Пред-ASR отделение Me от remote"
@@ -818,8 +820,8 @@ views:
         title: "Доказанная speaker evidence"
         nodes: [research-remote-diarization, research-rich-transcript, quality-remote-speaker-diarization-v2]
       current:
-        title: "Temporal end-to-end remote diarization"
-        nodes: [quality-temporal-end-to-end-remote-diarization-qualification-v1]
+        title: "Disjoint real-session speaker truth"
+        nodes: [quality-remote-speaker-disjoint-truth-expansion-v2]
       blocker:
         title: "Blind real-session reference"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
@@ -884,14 +886,14 @@ views:
           - quality-remote-speaker-enrollment-purity-abstention-hardening-v2
           - quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1
           - quality-lightweight-remote-speaker-representation-frontier-v1
-          - quality-temporal-end-to-end-remote-diarization-qualification-v1
+          - quality-remote-speaker-disjoint-truth-expansion-v2
 
 x:
   exec:
     program:
       nearest_goal: >-
-        Temporal End-to-End Remote Diarization Qualification v1: сохранить Coverage v3, selected transcripts, raw CAF, primary ASR, Echo Guard и 29 frozen Transcript Perfection sources неизменными; выбрать и зафиксировать минимум один полностью локальный temporal/end-to-end diarization backend, который моделирует speaker activity и последовательность разговора, а не только кластеризует независимые ECAPA/WavLM/WeSpeaker windows; до чтения Coverage labels и 33-item direct truth заморозить model/license/runtime provenance, remote-audio hashes, segmentation, overlap policy, speaker-count strategy и candidate diarization pack; на том же шестисессионном корпусе, включая сессию с пятью remote profiles, измерить temporal stability, boundary conservation, overlap safety, cluster-to-profile ambiguity, open-set errors и сохранение трёх подтверждённых gains; выпустить TEMPORAL_DIARIZATION_READY, KEEP_EXPLICIT_UNKNOWN либо EVIDENCE_BOUND без production promotion; добавить deterministic evaluator, replay, tests и corpus report; актуализировать документацию, Transcript Perfection и планирование; пройти проверки, закоммитить изменения и отправить их в origin/main.
-      success_by_next_sync: "Temporal local diarization backend квалифицирован на six-session/five-speaker scope либо доступный backend frontier закрыт с explicit unknown; Coverage v3 неизменён."
+        Remote Speaker Disjoint Truth Expansion v2: сохранить Coverage v3, selected transcripts, raw CAF, primary ASR, Echo Guard, 30 frozen Transcript Perfection sources и прежние 33 primary + 8 repeat truth decisions неизменными; из остатка 851 unknown remote words / 598.240s и disagreement evidence ECAPA, WavLM, WeSpeaker и temporal AHC/VBx до чтения прежних labels детерминированно отобрать новый непересекающийся стратифицированный pack минимум из 72 primary и 12 hidden repeat slots на шести real sessions, включая short turns, boundaries, overlap, mixed и five-speaker session; исключить прежние интервалы и mixed exemplars, давать для сравнения только speaker-pure bounded exemplars и явные unknown/mixed/unusable outcomes; добавить короткую resumable CLI review-петлю, SHA-256 provenance, privacy-safe public aggregates, repeat-consistency и coverage отчёт; выпустить DIRECT_TRUTH_V2_READY либо REFERENCE_INSUFFICIENT без выбора модели и production promotion; обновить Transcript Perfection, документацию и планирование, пройти проверки, закоммитить изменения и отправить их в origin/main.
+      success_by_next_sync: "Новый disjoint truth pack заморожен и размечен либо exact evidence ceiling зафиксирован без изменения Coverage v3."
     defaults:
       status_progress:
         done: 1.0
@@ -912,13 +914,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle и batch transcript работают; three-session replay подтвердил raw/cache/speaker conservation и закрыл legacy cache preflight."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Temporal End-to-End Remote Diarization v1"
-        scope_nodes: [quality-temporal-end-to-end-remote-diarization-qualification-v1]
+        title: "Remote Speaker Disjoint Truth Expansion v2"
+        scope_nodes: [quality-remote-speaker-disjoint-truth-expansion-v2]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "WeSpeaker сохранил gains 3/3, но дал 12 new false identities; fixed-window embedding route закрыт KEEP_EXPLICIT_UNKNOWN."
-          next_sync_goal: "Квалифицировать local temporal/end-to-end diarization backend с five-speaker support."
+          sync_note: "Temporal AHC/VBx стабилен по времени, но speaker count 0/6, gains 2/3 и семь new false identities; local model frontier закрыт."
+          next_sync_goal: "Собрать disjoint real-session truth до выбора следующего model class."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -946,7 +948,7 @@ x:
           - quality-remote-speaker-enrollment-purity-abstention-hardening-v2
           - quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1
           - quality-lightweight-remote-speaker-representation-frontier-v1
-          - quality-temporal-end-to-end-remote-diarization-qualification-v1
+          - quality-remote-speaker-disjoint-truth-expansion-v2
         kind: main
         mgmt:
           health: yellow

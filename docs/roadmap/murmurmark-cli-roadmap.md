@@ -1,6 +1,6 @@
 # MurmurMark CLI Roadmap
 
-Updated: 2026-08-09
+Updated: 2026-08-10
 Это читаемое представление активного плана OpsKarta v3:
 
 - `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`
@@ -88,8 +88,8 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Homogeneous enrollment mining | `done` | `KEEP_EXISTING_ENROLLMENT`: 39 windows, 0/3 gains preserved |
 | Label-independent re-clustering | `done` | `EMBEDDING_GEOMETRY_BOUND`: ARI `0.090170`, stability `0.465715` |
 | Stronger local speaker representation | `done` | `KEEP_EXPLICIT_UNKNOWN`: 3/3 gains, but 12 new false identities |
-| Temporal end-to-end remote diarization | `current` | Qualify a local sequence-aware backend with five-speaker support |
-| Производные заметки | `done/optional` | Exact evidence memory и безопасный ID-only selector доступны |
+| Temporal end-to-end remote diarization | `done` | `KEEP_EXPLICIT_UNKNOWN`: stable timing, but speaker count `0/6`, seven false identities |
+| Disjoint remote-speaker truth v2 | `current` | Expand real direct truth before another model selection or tuning |
 ## Актуальная Цепочка
 ```mermaid
 flowchart LR
@@ -118,13 +118,12 @@ flowchart LR
     Y["Done: KEEP EXISTING<br/>Homogeneous Session-Local<br/>Enrollment Mining v1"]
     RC["Done: GEOMETRY BOUND<br/>Label-Independent<br/>Re-Clustering v1"]
     SR["Done: KEEP EXPLICIT UNKNOWN<br/>Stronger Local Speaker<br/>Representation v1"]
-    TD["Current<br/>Temporal End-to-End Remote<br/>Diarization v1"]
-    M["Idea<br/>Local Mic Multi-Speaker<br/>Diarization v1"]
+    TD["Done: KEEP EXPLICIT UNKNOWN<br/>Temporal End-to-End Remote<br/>Diarization v1"]
+    M["Current<br/>Remote Speaker Disjoint<br/>Truth Expansion v2"]
     O["Optional<br/>Notes, retrieval,<br/>work proposals"]
 
-    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> W --> X --> Y --> RC --> SR --> TD
+    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> W --> X --> Y --> RC --> SR --> TD --> M
     F --> D
-    P -. "real local scenario" .-> M
     L -.-> O
 ```
 ### 1. Remote Speaker Evidence Map v1 — `done`
@@ -282,10 +281,11 @@ fail-closed unsafe accepts 8 -> 13. Net gain 1/8 не прошёл material gate
 ### 24. Stronger Local Remote Speaker Representation Qualification v1 — `done`
 `KEEP_EXPLICIT_UNKNOWN`: WeSpeaker ResNet34-LM сохранил 3/3 gains и все correct controls, но дал
 17 unsafe accepts, 12 новых false identities и шесть ambiguous clusters; stability упала до `0.442394`.
-### 25. Temporal End-to-End Remote Diarization Qualification v1 — `current`
-Квалифицировать полностью локальный temporal backend с overlap и минимум пятью remote speakers;
-model, segmentation, speaker-count policy и candidate pack заморозить до labels/direct truth.
-### 26. Local Mic Multi-Speaker Diarization v1 — `idea`: при реальном corpus разделять Target-Me, other local speakers и `unknown`.
+### 25. Temporal End-to-End Remote Diarization Qualification v1 — `done`
+`KEEP_EXPLICIT_UNKNOWN`: shift stability `0.814301` прошла, но expected speaker count совпал в `0/6`
+sessions, boundary duration recall упал до `0.598626`, сохранились `2/3` gains и появились семь false identities.
+### 26. Remote Speaker Disjoint Truth Expansion v2 — `current`
+Собрать новый непересекающийся real-session truth pack и review-петлю до выбора следующего model class.
 ### 27. Производные Возможности — `optional`: notes и work proposals остаются отдельными производными после transcript gates.
 ## Закрытые И Отложенные Треки
 - Human-Reviewed Lexical Seed заблокирован отсутствием реального reference; machine disagreement не заменяет truth.

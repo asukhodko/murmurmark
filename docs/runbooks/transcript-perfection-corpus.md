@@ -34,10 +34,10 @@ Expected frozen baseline:
 
 ```text
 decision: BASELINE_ESTABLISHED
-sources: 29/29 verified
+sources: 30/30 verified
 release_ready: false
 largest_actionable_residual: unknown_remote_speaker (598.240s)
-next_goal: Temporal End-to-End Remote Diarization Qualification v1
+next_goal: Remote Speaker Disjoint Truth Expansion v2
 ```
 
 ## Reading The Result
@@ -67,8 +67,10 @@ next_goal: Temporal End-to-End Remote Diarization Qualification v1
   `0.465715`, and direct truth preserved `0/3` gains; the current ECAPA/WavLM route is closed;
 - WeSpeaker ResNet34-LM preserved `3/3` gains and all correct controls, but added 12 false identities,
   17 unsafe accepts and six ambiguous clusters, closing `KEEP_EXPLICIT_UNKNOWN`;
-- the next bounded experiment must qualify temporal/end-to-end remote diarization with overlap and
-  five-speaker support;
+- temporal AHC/VBx passed shift stability but matched speaker count in `0/6` sessions, preserved
+  `2/3` gains and introduced seven false identities;
+- the next bounded goal must expand disjoint real-session truth before selecting or tuning another
+  remote-speaker model;
 - residual seconds belong to different frozen scopes and must not be summed.
 - the first residual row selects the next bounded engineering goal.
 

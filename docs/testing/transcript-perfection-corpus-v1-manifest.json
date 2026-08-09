@@ -383,6 +383,18 @@
       "path": "sessions/_reports/stronger-local-remote-speaker-representation-qualification-v1/stronger_local_remote_speaker_representation_report.json",
       "required": true,
       "sha256": "6c14e8e315927deba912c205565ce33b74494e57d23eed5986c83ed249bd413d"
+    },
+    {
+      "bytes": 10336,
+      "dimensions": [
+        "remote_speaker_turns"
+      ],
+      "evidence_level": "frozen_temporal_activity_vbx_diarization_and_direct_truth_evaluation",
+      "expected_schema": "murmurmark.temporal_remote_diarization_report/v1",
+      "id": "temporal_end_to_end_remote_diarization_qualification_v1",
+      "path": "sessions/_reports/temporal-end-to-end-remote-diarization-qualification-v1/temporal_remote_diarization_report.json",
+      "required": true,
+      "sha256": "3cb0f386e6299ac8f4981dee9cc20f2a7b9a3412fcd98d1b51f995b1e26e4788"
     }
   ]
 }

@@ -699,6 +699,29 @@ def semantic_gates(
         {"invariants": stronger.get("invariants"), "safety": stronger_safety},
     )
 
+    temporal = payloads.get("temporal_end_to_end_remote_diarization_qualification_v1") or {}
+    temporal_safety = temporal.get("safety") or {}
+    add(
+        "temporal_end_to_end_remote_diarization_qualification_v1",
+        "terminal_decision",
+        temporal.get("decision")
+        in {"TEMPORAL_DIARIZATION_READY", "KEEP_EXPLICIT_UNKNOWN", "EVIDENCE_BOUND"},
+        temporal.get("decision"),
+    )
+    add(
+        "temporal_end_to_end_remote_diarization_qualification_v1",
+        "frozen_temporal_diarization_integrity",
+        all((temporal.get("invariants") or {}).values())
+        and temporal_safety.get("raw_audio_mutated") is False
+        and temporal_safety.get("selected_transcript_mutated") is False
+        and temporal_safety.get("primary_asr_mutated") is False
+        and temporal_safety.get("echo_guard_mutated") is False
+        and int(temporal_safety.get("coverage_v3_accepts_preserved", -1)) == 68
+        and int(temporal_safety.get("production_guards_verified", -1)) == 355
+        and int(temporal_safety.get("transcript_perfection_sources_preserved", -1)) == 29,
+        {"invariants": temporal.get("invariants"), "safety": temporal_safety},
+    )
+
     failures = [f"semantic_gate:{row['source']}:{row['gate']}" for row in checks if not row["passed"]]
     return checks, failures
 
@@ -863,6 +886,9 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
     reclustering = payloads["session_local_remote_speaker_reclustering_feasibility_v1"]
     stronger_representation = payloads[
         "stronger_local_remote_speaker_representation_qualification_v1"
+    ]
+    temporal_diarization = payloads[
+        "temporal_end_to_end_remote_diarization_qualification_v1"
     ]
 
     return [
@@ -1205,6 +1231,19 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 "stronger_representation_new_false_identity_items": int(
                     stronger_representation["direct_truth"]["new_false_identity_items"]
                 ),
+                "temporal_diarization_decision": temporal_diarization["decision"],
+                "temporal_diarization_minimum_stability_ari": float(
+                    temporal_diarization["temporal"]["values"]["minimum_temporal_stability_ari"]
+                ),
+                "temporal_diarization_exact_speaker_count_sessions": int(
+                    temporal_diarization["mapping"]["values"]["exact_speaker_count_sessions"]
+                ),
+                "temporal_diarization_preserved_confirmed_gains": int(
+                    temporal_diarization["direct_truth"]["preserved_confirmed_v1_additive_gains"]
+                ),
+                "temporal_diarization_new_false_identity_items": int(
+                    temporal_diarization["direct_truth"]["new_false_identity_items"]
+                ),
             },
             "residual_classes": ["unknown_remote_speaker"],
         },
@@ -1417,6 +1456,11 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
         != "STRONGER_REPRESENTATION_READY"
     ):
         release_blockers.insert(2, "remote_speaker_turns.stronger_representation_not_ready")
+    if (
+        (payloads.get("temporal_end_to_end_remote_diarization_qualification_v1") or {}).get("decision")
+        != "TEMPORAL_DIARIZATION_READY"
+    ):
+        release_blockers.insert(2, "remote_speaker_turns.temporal_diarization_not_ready")
     report = {
         "schema": REPORT_SCHEMA,
         "generator": {"name": "report-transcript-perfection-corpus", "version": "1.8.0", "mode": "deterministic_offline"},
@@ -1508,15 +1552,15 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
             ),
         },
         "next_goal": {
-            "id": "temporal-end-to-end-remote-diarization-qualification-v1" if not failures else "restore-input-integrity",
-            "title": "Temporal End-to-End Remote Diarization Qualification v1" if not failures else "Restore Input Integrity",
+            "id": "remote-speaker-disjoint-truth-expansion-v2" if not failures else "restore-input-integrity",
+            "title": "Remote Speaker Disjoint Truth Expansion v2" if not failures else "Restore Input Integrity",
             "selected_residual_class": "unknown_remote_speaker" if not failures else None,
             "rationale": (
-                "Frozen WeSpeaker qualification preserved all 3/3 confirmed gains and correct controls, "
-                "but stability fell to 0.442394, mapping left six ambiguous clusters and direct truth "
-                "found 12 new false identities. Fixed-window ECAPA/WavLM/WeSpeaker routes are closed. "
-                "The next bounded step must qualify temporal/end-to-end remote diarization with overlap "
-                "and five-speaker support before any production integration."
+                "The frozen temporal backend was stable under input shift but matched the expected "
+                "speaker count in 0/6 sessions, preserved only 2/3 confirmed gains, lost one correct "
+                "control and introduced seven false identities. Fixed-window and temporal local routes "
+                "are now bounded on the same 33 items. A new disjoint real-session truth set is required "
+                "before selecting or tuning another speaker model."
                 if not failures
                 else "Input integrity must be restored before selecting an engineering goal."
             ),

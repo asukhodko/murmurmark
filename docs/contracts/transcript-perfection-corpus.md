@@ -118,6 +118,12 @@ confirmed gains but records 12 new false identities, 17 unsafe accepts and six a
 Fixed-window embedding routes remain audit-only; the next bounded class is temporal/end-to-end
 remote diarization.
 
+Temporal End-to-End Remote Diarization Qualification v1 is the thirtieth source. Its frozen
+Community-1-equivalent AHC/VBx candidate passes shift stability but matches speaker count in `0/6`
+sessions, preserves `2/3` gains and adds seven false identities. `KEEP_EXPLICIT_UNKNOWN` closes the
+currently available local diarization route; another model decision requires disjoint real-session
+truth.
+
 ## Outputs
 
 The command writes only under:

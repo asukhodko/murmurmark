@@ -81,7 +81,7 @@ CRITICAL_PATH = (
     "quality-remote-speaker-enrollment-purity-abstention-hardening-v2",
     "quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1",
     "quality-lightweight-remote-speaker-representation-frontier-v1",
-    "quality-temporal-end-to-end-remote-diarization-qualification-v1",
+    "quality-remote-speaker-disjoint-truth-expansion-v2",
 )
 
 EXPECTED_STATUSES = {"done", "current", "next", "later", "idea", "optional", "blocked"}
@@ -478,13 +478,13 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
     )
     require(
         "quality-lightweight-remote-speaker-representation-frontier-v1"
-        in nodes["quality-temporal-end-to-end-remote-diarization-qualification-v1"].get("deps", []),
-        "temporal diarization qualification must follow the lightweight representation frontier",
+        in nodes["quality-remote-speaker-disjoint-truth-expansion-v2"].get("deps", []),
+        "disjoint truth expansion must follow the completed local representation frontier",
     )
     require(
-        nodes["quality-temporal-end-to-end-remote-diarization-qualification-v1"].get("status")
+        nodes["quality-remote-speaker-disjoint-truth-expansion-v2"].get("status")
         == "current",
-        "temporal end-to-end remote diarization must be the current quality goal",
+        "disjoint remote-speaker truth expansion must be the current quality goal",
     )
     require("parked-ui" not in nodes, "UI must not occupy the active CLI roadmap")
 

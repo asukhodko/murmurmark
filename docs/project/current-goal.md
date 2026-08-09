@@ -1,89 +1,70 @@
 # Current Goal
 
-Updated: 2026-08-09
+Updated: 2026-08-10
 
 This document expands the single executable goal from
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`.
 `scripts/check-planning-consistency.py` keeps the README, roadmap and OpsKarta wording aligned.
 
-## Temporal End-to-End Remote Diarization Qualification v1
+## Remote Speaker Disjoint Truth Expansion v2
 
-OpsKarta nearest goal: Temporal End-to-End Remote Diarization Qualification v1: сохранить Coverage
-v3, selected transcripts, raw CAF, primary ASR, Echo Guard и 29 frozen Transcript Perfection sources
-неизменными; выбрать и зафиксировать минимум один полностью локальный temporal/end-to-end
-diarization backend, который моделирует speaker activity и последовательность разговора, а не только
-кластеризует независимые ECAPA/WavLM/WeSpeaker windows; до чтения Coverage labels и 33-item direct
-truth заморозить model/license/runtime provenance, remote-audio hashes, segmentation, overlap policy,
-speaker-count strategy и candidate diarization pack; на том же шестисессионном корпусе, включая
-сессию с пятью remote profiles, измерить temporal stability, boundary conservation, overlap safety,
-cluster-to-profile ambiguity, open-set errors и сохранение трёх подтверждённых gains; выпустить
-TEMPORAL_DIARIZATION_READY, KEEP_EXPLICIT_UNKNOWN либо EVIDENCE_BOUND без production promotion;
-добавить deterministic evaluator, replay, tests и corpus report; актуализировать документацию,
-Transcript Perfection и планирование; пройти проверки, закоммитить изменения и отправить их в
-origin/main.
+OpsKarta nearest goal: Remote Speaker Disjoint Truth Expansion v2: сохранить Coverage v3, selected transcripts, raw CAF, primary ASR, Echo Guard, 30 frozen Transcript Perfection sources и прежние 33 primary + 8 repeat truth decisions неизменными; из остатка 851 unknown remote words / 598.240s и disagreement evidence ECAPA, WavLM, WeSpeaker и temporal AHC/VBx до чтения прежних labels детерминированно отобрать новый непересекающийся стратифицированный pack минимум из 72 primary и 12 hidden repeat slots на шести real sessions, включая short turns, boundaries, overlap, mixed и five-speaker session; исключить прежние интервалы и mixed exemplars, давать для сравнения только speaker-pure bounded exemplars и явные unknown/mixed/unusable outcomes; добавить короткую resumable CLI review-петлю, SHA-256 provenance, privacy-safe public aggregates, repeat-consistency и coverage отчёт; выпустить DIRECT_TRUTH_V2_READY либо REFERENCE_INSUFFICIENT без выбора модели и production promotion; обновить Transcript Perfection, документацию и планирование, пройти проверки, закоммитить изменения и отправить их в origin/main.
 
 ## Why Now
 
-Три класса независимых fixed-window embeddings уже ограничены реальными данными. ECAPA/WavLM
-re-clustering дал minimum agreement ARI `0.090170` и сохранил `0/3` gains. WeSpeaker ResNet34-LM
-заметно улучшил blind geometry на трёх сессиях и сохранил `3/3` gains, но на четвёртой stability ARI
-упал до `0.442394`; post-freeze mapping оставил шесть ambiguous clusters и добавил 12 новых false
-identities. Новая настройка similarity thresholds повторит уже закрытый маршрут.
+Fixed-window ECAPA/WavLM/WeSpeaker и temporal AHC/VBx проверены на одних 33 direct-truth items.
+Последний backend прошёл temporal stability, но совпал по числу speakers в `0/6` сессий, сохранил
+`2/3` gains, потерял control и добавил семь false identities. Настраивать следующий алгоритм на той
+же маленькой truth выборке больше нельзя.
 
 ## Objective
 
-Проверить, устраняет ли модель временной структуры разговора главный предел независимых embeddings:
-нестабильные редкие speakers, короткие смены, overlap и неоднозначное cluster-to-profile mapping.
-Цель сначала квалифицирует backend и его ограничения. Она не внедряет его в обычный transcript.
+Создать достаточный disjoint real-session reference, на котором следующий materially new speaker
+model можно будет выбрать один раз без переиспользования development truth. Эта цель улучшает
+доказательную базу и review UX, но не меняет production speaker attribution.
 
 ## Required Work
 
-1. Проверить 29 frozen Transcript Perfection sources и 355 production guards.
-2. Сравнить локальные temporal candidates: pyannote Community-1, NeMo Sortformer и NeMo MSDD либо
-   равноценные backends; зафиксировать license, model size, CPU/offline runtime и speaker limits.
-3. Отбросить candidate, который не поддерживает минимум пять remote speakers или требует cloud API.
-4. Выбрать минимум один backend, использующий temporal speaker activity, overlap-aware segmentation
-   или sequence decoding, а не прежний fixed-window clustering.
-5. До labels/truth заморозить model SHA-256, runtime, audio-only preprocessing, remote input hashes,
-   speaker-count source, overlap policy, output normalization и candidate pack.
-6. Использовать те же шесть real sessions и 33 direct-truth items; любое изменение корпуса оформить
-   отдельной версией до оценки.
-7. Измерить temporal replay stability, boundary conservation, speaker collapse/fragmentation,
-   cluster-to-profile purity/margin, open-set safety и поведение mixed/unusable clips.
-8. Проверить три confirmed gains, control identities и отсутствие новых false identities.
-9. Fail-open при missing model, unsupported speaker count, conflict или weak evidence.
-10. Добавить CLI, replay, fixture tests, public aggregate report, docs and planning; commit and push.
+1. Проверить 30 frozen Transcript Perfection sources, 355 production guards и прежний truth seed.
+2. Запретить пересечение новых primary/repeat slots со всеми 33 прежними primary intervals.
+3. До прежних labels заморозить sampling policy, source hashes, strata, interval bounds и pack.
+4. Покрыть все шесть сессий, temporal/model disagreements, короткие turns, boundaries, overlap и
+   five-speaker topology.
+5. Не использовать mixed clips как speaker exemplars; каждый exemplar должен быть speaker-pure и
+   bounded либо отсутствовать.
+6. Дать outcomes `remote_speaker_N`, `unknown_speaker`, `mixed`, `unusable` без human names.
+7. Сделать `next --play`, `grade`, `progress`, `finalize` и resume детерминированными и короткими.
+8. Проверить hidden repeats, provenance, privacy и отсутствие production mutations.
+9. Добавить corpus report, replay, fixtures, CLI, docs and planning; commit and push.
 
 ## Acceptance Gates
 
-- backend работает полностью локально и детерминированно на CPU либо явно фиксированном local device;
-- license и model/runtime provenance достаточны для open-source проекта;
-- одна frozen конфигурация поддерживает все шесть сессий, включая пять remote profiles;
-- truth не выбирает model checkpoint, speaker count, segmentation, thresholds или mapping rules;
-- speaker turns и word order сохраняются, mixed/overlap не превращаются в ложную identity;
-- direct truth не добавляет false identity и не теряет correct control identity;
-- все `3/3` confirmed gains сохранены либо candidate остаётся explicit unknown;
-- production promotion запрещён в этой цели.
+- минимум 72 disjoint primary и 12 hidden repeat slots либо точный `REFERENCE_INSUFFICIENT`;
+- все шесть sessions и все заявленные strata представлены;
+- нулевое пересечение с v1 primary intervals;
+- ни один exemplar не содержит подтверждённую mixed speech;
+- repeat consistency не ниже `0.85` для `DIRECT_TRUTH_V2_READY`;
+- public artifacts не содержат speech, human names, absolute paths или private labels;
+- Coverage v3, selected transcripts, raw CAF, ASR, Echo Guard и 355 guards неизменны;
+- никакой candidate model не выбирается и не продвигается в этой цели.
 
 ## Terminal Outcomes
 
-- `TEMPORAL_DIARIZATION_READY`: temporal backend проходит frozen geometry, boundary и direct-truth
-  gates; для него можно открыть отдельный monotonic shadow profile.
-- `KEEP_EXPLICIT_UNKNOWN`: backend воспроизводим, но не превосходит безопасный Coverage v3 residual.
-- `EVIDENCE_BOUND`: model/license/runtime, five-speaker support или frozen evidence не позволяют
-  честную оценку.
+- `DIRECT_TRUTH_V2_READY`: новый disjoint reference достаточен для one-shot qualification следующего
+  model class.
+- `REFERENCE_INSUFFICIENT`: доступный residual не даёт достаточных чистых и проверяемых slots;
+  отчёт фиксирует точный предел без ослабления требований.
 
 ## Previous Goal Result
 
-Stronger Local Remote Speaker Representation Qualification v1 завершён `KEEP_EXPLICIT_UNKNOWN`.
-WeSpeaker ResNet34-LM был заморожен до labels/direct truth на 347 окнах. Minimum silhouette
-`0.263291` прошёл gate, minimum stability ARI `0.442394` не прошёл. Candidate сохранил `3/3` gains и
-не потерял correct controls, но дал 17 unsafe accepts, включая 12 новых false identities, и шесть
-ambiguous clusters. Coverage v3, selected transcripts, raw CAF, ASR и Echo Guard не изменены.
+Temporal End-to-End Remote Diarization Qualification v1 завершён `KEEP_EXPLICIT_UNKNOWN`.
+Community-1-equivalent temporal backend дал stability ARI `0.814301` и activity Jaccard `0.972946`,
+но speaker count совпал в `0/6` sessions, minimum duration recall составил `0.598626`, сохранились
+`2/3` gains, потерян один control и добавлены семь false identities. Production остался Coverage v3.
 
 ## After This Goal
 
-1. `TEMPORAL_DIARIZATION_READY` открывает отдельный monotonic temporal shadow candidate.
-2. `KEEP_EXPLICIT_UNKNOWN` закрывает доступные локальные diarization backends до нового model class
-   или расширения direct truth.
-3. `EVIDENCE_BOUND` чинит только acquisition, license, runtime, speaker-limit или provenance.
+1. `DIRECT_TRUTH_V2_READY` разрешает выбрать один materially new speaker model и открыть disjoint
+   one-shot qualification.
+2. `REFERENCE_INSUFFICIENT` фиксирует evidence ceiling; дальнейшее улучшение потребует новых
+   записей с известными remote speakers или отдельного controlled corpus.

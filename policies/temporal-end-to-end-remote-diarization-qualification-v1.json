@@ -1,0 +1,205 @@
+{
+  "schema": "murmurmark.temporal_remote_diarization_policy/v1",
+  "state": "frozen_before_coverage_and_direct_truth_evaluation",
+  "candidate": {
+    "id": "dia_community1_temporal_vbx_v1",
+    "family": "pyannote_community1_equivalent_temporal_diarization",
+    "crate": "diarization",
+    "crate_version": "0.1.0",
+    "crate_revision": "cc50bd27e9373b56bdf325eab8fa390a1d006609",
+    "crate_license": "MIT OR Apache-2.0",
+    "architecture": "powerset speaker segmentation plus overlap-aware masked WeSpeaker embeddings plus PLDA, AHC and VBx temporal clustering",
+    "default_model_path": "~/.local/share/murmurmark/models/temporal-remote-diarization-v1/dia-community-1/wespeaker_resnet34_lm.onnx",
+    "model_repository": "FinDIT-Studio/dia-models",
+    "model_revision": "6eef479c954ec180e79cee316af2f16d5f7720bd",
+    "model_sha256": "f23f04aa9d0f6b8b0a28de016d226dcbe92d7461a6e58045401acfbed623838a",
+    "model_bytes": 26775465,
+    "segmentation_model": "pyannote/segmentation-3.0 ONNX bundled in diarization 0.1.0",
+    "segmentation_sha256": "057ee564753071c0b09b5b611648b50ac188d50846bff5f01e9f7bbf1591ea25",
+    "licenses": {
+      "embedding": "Apache-2.0",
+      "segmentation": "MIT",
+      "plda": "CC-BY-4.0"
+    },
+    "provenance_files": {
+      "README.md": "74263025774d43b3e54f93e15ec2274686f5798b5c160e5cd954f748d093cec1",
+      "LICENSE.APACHE-2.0": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "LICENSE.MIT": "fa146dfdd7c504787408d6b0ec05021a8e14aaef85f3f8b278d8b63c1d2ff05c",
+      "LICENSE.CC-BY-4.0": "14067feae14f244ed4aabea08941319d8f7b775675af64e3bc7cf4c6bfc6a2a0"
+    }
+  },
+  "runtime": {
+    "offline": true,
+    "device": "cpu",
+    "nice": 20,
+    "rustc": "1.96.0",
+    "cargo": "1.96.0",
+    "ffmpeg": "8.1.2",
+    "worker_binary_sha256": "89adf6f0573d34a1531ace6a3c49fe5de48da30b43f960cab49afad3432528b7",
+    "worker_cargo_lock_sha256": "fe9fbb007302aee4efbacb79ea224ea955d01badce9c511c0771fa5b0a08069c",
+    "worker_cargo_toml_sha256": "bd3fdf7c091172ea46f807efba5d060702f6fe0913f68e2c9122fe05a063097d",
+    "worker_source_sha256": "4c0d4aabfc6e1cc28d54a52c89727715da96c92919f31f7ff593ae111130113f"
+  },
+  "algorithm": {
+    "sample_rate": 16000,
+    "normalization": "ffmpeg mono pcm_s16le without loudness processing",
+    "chunk_duration_sec": 10.0,
+    "chunk_step_sec": 1.0,
+    "powerset_simultaneous_speaker_slots": 3,
+    "embedding_exclude_overlap": true,
+    "onset": 0.5,
+    "ahc_threshold": 0.6,
+    "vbx_fa": 0.07,
+    "vbx_fb": 0.8,
+    "vbx_max_iterations": 20,
+    "minimum_duration_off_sec": 0.0,
+    "smoothing_epsilon": null,
+    "speaker_count_strategy": "inferred_unbounded_vbx",
+    "speaker_count_from_truth": false,
+    "canonicalization": "speaker clusters ordered by first span start then original cluster id",
+    "stability_variant": {
+      "id": "trim_start_500ms",
+      "trim_start_sec": 0.5,
+      "restore_timeline_offset_sec": 0.5
+    },
+    "window_assignment_minimum_overlap_sec": 0.25,
+    "truth_guided_tuning_allowed": false
+  },
+  "evaluation": {
+    "minimum_multispeaker_sessions": 4,
+    "minimum_temporal_stability_ari": 0.8,
+    "minimum_activity_jaccard": 0.9,
+    "require_stable_cluster_count": true,
+    "minimum_remote_interval_duration_recall": 0.9,
+    "minimum_remote_interval_center_recall": 0.9,
+    "maximum_median_boundary_distance_sec": 1.0,
+    "minimum_cluster_mapping_purity": 0.8,
+    "minimum_mapping_margin": 0.25,
+    "maximum_ambiguous_clusters": 0,
+    "minimum_preserved_confirmed_v1_additive_gains": 3,
+    "maximum_unsafe_fail_closed_accepts": 0,
+    "maximum_new_false_identity_items": 0,
+    "maximum_lost_correct_control_identity_items": 0,
+    "direct_truth_minimum_cluster_coverage_ratio": 0.6,
+    "direct_truth_minimum_cluster_dominance_margin": 0.2,
+    "direct_truth_maximum_secondary_cluster_ratio": 0.15,
+    "post_hoc_tuning_allowed": false
+  },
+  "scope": {
+    "expected_sessions": 6,
+    "expected_profiles": 14,
+    "expected_windows": 347,
+    "expected_development_items": 33,
+    "expected_confirmed_v1_additive_gains": 3,
+    "expected_coverage_v3_accepts": 68,
+    "expected_production_guards": 355,
+    "expected_transcript_perfection_sources": 29,
+    "sessions": [
+      {
+        "session_id": "2026-06-23_14-04-37",
+        "raw_remote_path": "sessions/2026-06-23_14-04-37/audio/remote/000001.caf",
+        "raw_remote_sha256": "0631d243ab97045e401df8ae85ca16ce2ad08743df70e6160f9af3e7f3609232",
+        "duration_sec": 2422.12
+      },
+      {
+        "session_id": "2026-06-24_15-03-52",
+        "raw_remote_path": "sessions/2026-06-24_15-03-52/audio/remote/000001.caf",
+        "raw_remote_sha256": "7396fd722b1db890ac152e153cc4bd03b5ef65772ee6f87b54130240bad60b3d",
+        "duration_sec": 2852.6
+      },
+      {
+        "session_id": "2026-06-26_11-15-50",
+        "raw_remote_path": "sessions/2026-06-26_11-15-50/audio/remote/000001.caf",
+        "raw_remote_sha256": "425cfbb4989de6893d90a128d46a778f3de6ce584abc260b7ad1a4bd8fd1f735",
+        "duration_sec": 2775.7
+      },
+      {
+        "session_id": "2026-06-26_12-04-04",
+        "raw_remote_path": "sessions/2026-06-26_12-04-04/audio/remote/000001.caf",
+        "raw_remote_sha256": "2417d5dae41493365e596abca451cb1efa611a0234efaef48309608091a0dfdc",
+        "duration_sec": 1590.94
+      },
+      {
+        "session_id": "2026-07-14_15-01-19-live",
+        "raw_remote_path": "sessions/2026-07-14_15-01-19-live/audio/remote/000001.caf",
+        "raw_remote_sha256": "c3eff1ab9cde83d8a5dca1ebfb4e7b39c77b8e1b1e477391772142c1b5052b19",
+        "duration_sec": 4146.716708
+      },
+      {
+        "session_id": "2026-07-20_15-15-26-live",
+        "raw_remote_path": "sessions/2026-07-20_15-15-26-live/audio/remote/000001.caf",
+        "raw_remote_sha256": "a9e31460593a929e808de346ebfed668b401a9eaf9fba33d1da87f5a6440f2ff",
+        "duration_sec": 1896.793292
+      }
+    ]
+  },
+  "sources": {
+    "stronger_representation_policy": {
+      "path": "policies/stronger-local-remote-speaker-representation-qualification-v1.json",
+      "sha256": "8d293f7fe70cf8cc968494cdbeda7c6b1219c50102cb9f1452b08564da25b402",
+      "phase": "evaluate_after_freeze"
+    },
+    "stronger_representation_freeze": {
+      "path": "sessions/_reports/stronger-local-remote-speaker-representation-qualification-v1/freeze_manifest.json",
+      "sha256": "37e5fde688832172617fb895bd35e6a0f547fbe0ab8b12689d2f3ca21c17c0d4",
+      "phase": "prepare"
+    },
+    "stronger_representation_pack": {
+      "path": "sessions/_reports/stronger-local-remote-speaker-representation-qualification-v1/private/candidate_pack.frozen.json",
+      "sha256": "00faf7ef22616f0fc9beb4849f8319e5aa7e6b6023c29d402e205221aa887653",
+      "phase": "prepare"
+    },
+    "unlabeled_windows": {
+      "path": "sessions/_reports/session-local-remote-speaker-reclustering-feasibility-v1/private/unlabeled_windows.jsonl",
+      "sha256": "4aaa314ad012ee4ca634a7d36e003634051ac2d44caf009ff86b533df46e99ac",
+      "phase": "prepare"
+    },
+    "transcript_perfection_manifest": {
+      "path": "docs/testing/transcript-perfection-corpus-v1-manifest.json",
+      "sha256": "5fbb170123579d34521e0e8f42b6ca78e8547654401863cdaba62ac6abde3903",
+      "phase": "prepare"
+    },
+    "transcript_perfection_report": {
+      "path": "sessions/_reports/transcript-perfection-corpus-v1/transcript_perfection_corpus_report.json",
+      "sha256": "8c1b76f008a3dac3c631cdd8fe9d56c4eb53d6d191c18e806d988d2956d5e977",
+      "phase": "prepare"
+    },
+    "direct_truth_items": {
+      "path": "sessions/_reports/remote-speaker-direct-truth-seed-v1/private/seed_selection.jsonl",
+      "sha256": "d3b38fd8b0106a53d69aa32a9b86725fc19136bf21684252e2fd8af89862996a",
+      "phase": "evaluate_after_freeze"
+    },
+    "direct_truth_slots": {
+      "path": "sessions/_reports/remote-speaker-direct-truth-seed-v1/private/slot_map.jsonl",
+      "sha256": "74e8b88c3a1322f47f9596bba39be26fcbb052ff9f821fd9f8784974258d9500",
+      "phase": "evaluate_after_freeze"
+    },
+    "direct_truth_answers": {
+      "path": "sessions/_reports/remote-speaker-direct-truth-seed-v1/private/answers.jsonl",
+      "sha256": "e0ee5425e649dc030ed7ecfdeb5e927d9e5f88d4102270d33bd4780a97e64ab2",
+      "phase": "evaluate_after_freeze"
+    },
+    "development_adjudication": {
+      "path": "sessions/_reports/remote-speaker-enrollment-purity-abstention-hardening-v2/private/development_adjudication.jsonl",
+      "sha256": "86a33aa123c8623cabf7081a84c04e82b9320b53320b5a8564e18c2e6eba2122",
+      "phase": "evaluate_after_freeze"
+    }
+  },
+  "safety": {
+    "coverage_v3_mutation_allowed": false,
+    "selected_transcript_mutation_allowed": false,
+    "raw_audio_mutation_allowed": false,
+    "primary_asr_mutation_allowed": false,
+    "echo_guard_mutation_allowed": false,
+    "production_promotion_allowed": false,
+    "cross_session_voice_linking_allowed": false
+  },
+  "decision": {
+    "allowed_outcomes": [
+      "TEMPORAL_DIARIZATION_READY",
+      "KEEP_EXPLICIT_UNKNOWN",
+      "EVIDENCE_BOUND"
+    ],
+    "production_promotion_allowed": false
+  }
+}

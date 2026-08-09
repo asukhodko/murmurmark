@@ -155,6 +155,10 @@ Read in this order:
 151. [Stronger Local Remote Speaker Representation Qualification v1 runbook](runbooks/stronger-local-remote-speaker-representation-qualification-v1.md)
 152. [Stronger Local Remote Speaker Representation Qualification v1 result](testing/2026-08-09-stronger-local-remote-speaker-representation-qualification-v1.md)
 153. [Stronger Local Remote Speaker Representation Qualification v1 manifest](testing/stronger-local-remote-speaker-representation-qualification-v1-manifest.json)
+154. [Temporal End-to-End Remote Diarization Qualification v1 contract](contracts/temporal-end-to-end-remote-diarization-qualification-v1.md)
+155. [Temporal End-to-End Remote Diarization Qualification v1 runbook](runbooks/temporal-end-to-end-remote-diarization-qualification-v1.md)
+156. [Temporal End-to-End Remote Diarization Qualification v1 result](testing/2026-08-10-temporal-end-to-end-remote-diarization-qualification-v1.md)
+157. [Temporal End-to-End Remote Diarization Qualification v1 manifest](testing/temporal-end-to-end-remote-diarization-qualification-v1-manifest.json)
 154. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
