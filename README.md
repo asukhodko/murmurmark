@@ -286,7 +286,6 @@ speaker profile and fallback reason. `--rich` remains a compatible diagnostic vi
 Anonymous Rich Transcript Handoff v1 passed all `1235` references on 6/6 sessions. Reviewed Remote
 Speaker Naming v1 and Reviewed Speaker-Aware Meeting Memory v1 add only explicit session-local
 labels and optional evidence-backed notes/export:
-
 ```bash
 murmurmark speakers template "$SESSION"
 # Edit review/remote-speaker-labels.v1.json: resolve every row, then set review_completed to true.
@@ -295,7 +294,7 @@ murmurmark transcript "$SESSION" --rich --reviewed-speakers
 murmurmark notes "$SESSION" --reviewed-speakers
 murmurmark export "$SESSION" --format markdown --include-json --reviewed-speakers
 ```
-Speaker-aware memory and exact-text notes remain optional derivatives. Transcript Perfection Corpus keeps 26/26 frozen sources explicit and never collapses unlike quality dimensions into one score.
+Speaker-aware memory and exact-text notes remain optional derivatives. Transcript Perfection Corpus keeps 28/28 frozen sources explicit and never collapses unlike quality dimensions into one score.
 Lexical Accuracy Reference Corpus v1 measures its exact 67-word digital subset at WER/CER `0` and
 keeps real-meeting lexical correctness blocked by missing human-reviewed evidence:
 ```bash
@@ -309,6 +308,7 @@ murmurmark corpus remote-identity-v1 setup && murmurmark corpus remote-identity-
 murmurmark corpus remote-identity-shadow-v1 status && murmurmark corpus remote-identity-shadow-errors-v1 status && murmurmark corpus remote-identity-interval-v1 status && murmurmark corpus remote-identity-enrollment-v1 status && murmurmark corpus remote-identity-enrollment-v1 replay
 murmurmark corpus remote-truth-seed-v1 status && murmurmark corpus remote-truth-adjudication-v1 status
 murmurmark corpus remote-enrollment-purity-v2 status && murmurmark corpus remote-homogeneous-enrollment-v1 status
+murmurmark corpus remote-reclustering-v1 status && murmurmark corpus remote-reclustering-v1 replay
 ```
 The dependent critical path is:
 ```text
@@ -327,14 +327,14 @@ Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental 
 -> Remote Speaker Attribution Error Decomposition v1 (done: identity is the dominant bottleneck)
 -> Stronger Remote Speaker Identity Backend Qualification v1 (done: PROMOTE lab-only ECAPA)
 -> ECAPA Remote Speaker Shadow Qualification v1 (done: DO_NOT_PROMOTE on real sessions)
--> Remote Speaker Shadow Error Decomposition v1 (done) -> Bounded Remote Speaker Interval Purification v1 (done: DO_NOT_ADVANCE) -> Session-Local Remote Speaker Enrollment Hardening v1 (done: DO_NOT_ADVANCE) -> Remote Speaker Direct Truth Seed v1 (done: DIRECT_TRUTH_SEED_READY) -> Remote Speaker Direct-Truth Candidate Adjudication v1 (done: KEEP_COVERAGE_V3) -> Enrollment Purity and Abstention Hardening v2 (done: KEEP_COVERAGE_V3) -> Homogeneous Enrollment Mining v1 (done: KEEP_EXISTING_ENROLLMENT) -> Session-Local Remote Speaker Re-Clustering Feasibility v1 (current)
+-> Remote Speaker Shadow Error Decomposition v1 (done) -> Bounded Remote Speaker Interval Purification v1 (done: DO_NOT_ADVANCE) -> Session-Local Remote Speaker Enrollment Hardening v1 (done: DO_NOT_ADVANCE) -> Remote Speaker Direct Truth Seed v1 (done: DIRECT_TRUTH_SEED_READY) -> Remote Speaker Direct-Truth Candidate Adjudication v1 (done: KEEP_COVERAGE_V3) -> Enrollment Purity and Abstention Hardening v2 (done: KEEP_COVERAGE_V3) -> Homogeneous Enrollment Mining v1 (done: KEEP_EXISTING_ENROLLMENT) -> Session-Local Remote Speaker Re-Clustering Feasibility v1 (done: EMBEDDING_GEOMETRY_BOUND) -> Stronger Local Remote Speaker Representation Qualification v1 (current)
 ```
 Independent WavLM recovered only `6.2280%` of residual words; its original 53 proposals remain
 ungraded, while the later bounded 33-item seed now has direct truth. Exact synthetic truth qualified the Coverage v3 control (`0.983505` B-cubed F1, zero
 open-set errors). Blind hard-v2 then rejected conservative word-level fusion despite precision `1.0`:
 known recall was `0.551402`, boundary recall `0.321429`. Oracle decomposition over 393 exact words
 measured identity gain `0.351382` versus segmentation `0.063882` and overlap/open-set `0.036364`.
-The independently trained ECAPA candidate passed every fixed one-shot hard-v4 gate: B-cubed F1 `0.948042`, pairwise precision `1.0`, known-speaker recall `0.947368`, zero open-set false attribution and exact 154/154 word conservation. Its real-session shadow failed promotion; decomposition routed 93/214 failures to interval purity. The fixed crop recovered only 2 words / 4.155s. Enrollment hardening then added 11 acceptances but lost five controls and closed `DO_NOT_ADVANCE`. Blind review closed all 33 primary and 8 repeat slots: 8 attributed, 11 unknown, 4 mixed, 10 unusable, consistency `7/8`. Direct adjudication kept Coverage v3: the candidate gained 3 correct identities, lost 2 correct controls and raised unsafe accepts from 8 to 13. Purity v2 restored control safety but produced zero additions from only 7/14 qualified profiles. Homogeneous mining then found 39 windows for 9/14 profiles but preserved 0/3 gains, lost three controls and added four false identities. The current goal tests label-independent session-local re-clustering; production stays Coverage v3.
+The independently trained ECAPA candidate passed every fixed one-shot hard-v4 gate: B-cubed F1 `0.948042`, pairwise precision `1.0`, known-speaker recall `0.947368`, zero open-set false attribution and exact 154/154 word conservation. Its real-session shadow failed promotion; decomposition routed 93/214 failures to interval purity. The fixed crop recovered only 2 words / 4.155s. Enrollment hardening then added 11 acceptances but lost five controls and closed `DO_NOT_ADVANCE`. Blind review closed all 33 primary and 8 repeat slots: 8 attributed, 11 unknown, 4 mixed, 10 unusable, consistency `7/8`. Direct adjudication kept Coverage v3: the candidate gained 3 correct identities, lost 2 correct controls and raised unsafe accepts from 8 to 13. Purity v2 restored control safety but produced zero additions from only 7/14 qualified profiles. Homogeneous mining found 39 windows for 9/14 profiles but preserved 0/3 gains. Label-independent re-clustering then froze 347 windows and reached `EMBEDDING_GEOMETRY_BOUND`: minimum ECAPA/WavLM ARI `0.090170`, stability `0.465715`, and `0/3` gains preserved. Production stays Coverage v3; the next goal qualifies a materially different local speaker representation.
 See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 ## Scope And Limitations
 

@@ -1,0 +1,171 @@
+{
+  "schema": "murmurmark.session_local_remote_speaker_reclustering_policy/v1",
+  "version": "1.0.0",
+  "state": "frozen_before_label_and_direct_truth_evaluation",
+  "scope": {
+    "expected_sessions": 6,
+    "expected_profiles": 14,
+    "expected_coverage_v3_accepts": 68,
+    "expected_development_items": 33,
+    "expected_confirmed_v1_additive_gains": 3,
+    "expected_production_guards": 355,
+    "sessions": [
+      {
+        "session_id": "2026-06-23_14-04-37",
+        "cluster_count": 1,
+        "dialogue_path": "sessions/2026-06-23_14-04-37/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.order_repair_v1.json",
+        "dialogue_sha256": "53c3423358ff7c84a4564c36f8d93410a0030beb6a0179dd6de0624c077da57a"
+      },
+      {
+        "session_id": "2026-06-24_15-03-52",
+        "cluster_count": 1,
+        "dialogue_path": "sessions/2026-06-24_15-03-52/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.order_repair_v1.json",
+        "dialogue_sha256": "77a3a437b0fc3052a8fb96741bcc9db73a391c929405893ee0fb6a7b369c7455"
+      },
+      {
+        "session_id": "2026-06-26_11-15-50",
+        "cluster_count": 5,
+        "dialogue_path": "sessions/2026-06-26_11-15-50/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.reviewed_v1.json",
+        "dialogue_sha256": "ec63f119a107e0ab9547fadd1aef38789a4174ee5d2541432d10331268286279"
+      },
+      {
+        "session_id": "2026-06-26_12-04-04",
+        "cluster_count": 2,
+        "dialogue_path": "sessions/2026-06-26_12-04-04/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.reviewed_v1.json",
+        "dialogue_sha256": "5b796ea89a3d473ea7204272ecbb29cdde71a5573a24515a220843b352f74b43"
+      },
+      {
+        "session_id": "2026-07-14_15-01-19-live",
+        "cluster_count": 3,
+        "dialogue_path": "sessions/2026-07-14_15-01-19-live/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.reviewed_v1.json",
+        "dialogue_sha256": "8d2703ae3f76d8d52c1bdcd83c58f5269278494e4178c7019488d4c7914e13e0"
+      },
+      {
+        "session_id": "2026-07-20_15-15-26-live",
+        "cluster_count": 2,
+        "dialogue_path": "sessions/2026-07-20_15-15-26-live/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.audit_cleanup_v2.json",
+        "dialogue_sha256": "33f5a12198c91cfbd62174e187877c47de345559b9c42abf32d2128255c5fa81"
+      }
+    ]
+  },
+  "sources": {
+    "coverage_policy": {
+      "path": "policies/remote-speaker-coverage-v3.json",
+      "sha256": "41a40a4be53d7c9732165021900808a6a02c205601408aa9424f9d6ad476b8ff",
+      "phase": "prepare"
+    },
+    "ecapa_policy": {
+      "path": "policies/ecapa-remote-speaker-shadow-qualification-v1.json",
+      "sha256": "914bfe83dd3810149317ac23e99dc6d493a1c5cfaac982fe613ff9653370a468",
+      "phase": "prepare"
+    },
+    "wavlm_policy": {
+      "path": "policies/independent-remote-speaker-evidence-v1.json",
+      "sha256": "52e64f0e61508446bb34d3ec2df9fdcdb7a1a6fc6c01d8b845ac71db928e33d1",
+      "phase": "prepare"
+    },
+    "homogeneous_report": {
+      "path": "sessions/_reports/session-local-homogeneous-remote-speaker-enrollment-mining-v1/session_local_homogeneous_remote_speaker_enrollment_report.json",
+      "sha256": "529caeb3f6f08f67d707528d4fc3cfc2c54f76d0ed5c6d7648ac97bcf9fc697d",
+      "phase": "prepare"
+    },
+    "direct_truth_items": {
+      "path": "sessions/_reports/remote-speaker-direct-truth-seed-v1/private/seed_selection.jsonl",
+      "sha256": "d3b38fd8b0106a53d69aa32a9b86725fc19136bf21684252e2fd8af89862996a",
+      "phase": "evaluate_after_freeze"
+    },
+    "direct_truth_slots": {
+      "path": "sessions/_reports/remote-speaker-direct-truth-seed-v1/private/slot_map.jsonl",
+      "sha256": "74e8b88c3a1322f47f9596bba39be26fcbb052ff9f821fd9f8784974258d9500",
+      "phase": "evaluate_after_freeze"
+    },
+    "direct_truth_answers": {
+      "path": "sessions/_reports/remote-speaker-direct-truth-seed-v1/private/answers.jsonl",
+      "sha256": "e0ee5425e649dc030ed7ecfdeb5e927d9e5f88d4102270d33bd4780a97e64ab2",
+      "phase": "evaluate_after_freeze"
+    },
+    "development_adjudication": {
+      "path": "sessions/_reports/remote-speaker-enrollment-purity-abstention-hardening-v2/private/development_adjudication.jsonl",
+      "sha256": "86a33aa123c8623cabf7081a84c04e82b9320b53320b5a8564e18c2e6eba2122",
+      "phase": "evaluate_after_freeze"
+    }
+  },
+  "inventory": {
+    "role": "remote",
+    "target_text_read": false,
+    "speaker_assignments_read": false,
+    "human_names_read": false,
+    "cross_session_voice_linking": false,
+    "minimum_utterance_sec": 4.5,
+    "boundary_inset_sec": 0.25,
+    "window_sec": 4.0,
+    "window_stride_sec": 6.0,
+    "minimum_rms_dbfs": -50.0,
+    "maximum_windows_per_utterance": 4,
+    "maximum_windows_per_session": 64,
+    "minimum_windows_per_cluster": 4,
+    "sampling": "all_fixed_stride_then_even_temporal_subsample"
+  },
+  "clustering": {
+    "algorithm": "agglomerative_average_cosine_fixed_k",
+    "cluster_count_source": "frozen_preexisting_session_topology_count_only",
+    "cluster_count_tuning_allowed": false,
+    "truth_guided_tuning_allowed": false,
+    "renumbering": "earliest_window_start",
+    "stability_folds": 5,
+    "consensus": "intersection_of_ecapa_and_wavlm_partitions"
+  },
+  "ecapa": {
+    "model_id": "speechbrain/spkrec-ecapa-voxceleb",
+    "default_model_path": "~/.local/share/murmurmark/models/remote-speaker-identity-v1/ecapa-voxceleb",
+    "default_runtime_path": "~/.local/share/murmurmark/runtimes/remote-speaker-identity-v1",
+    "minimum_target_similarity": 0.45,
+    "minimum_target_margin": 0.30
+  },
+  "wavlm": {
+    "model_id": "microsoft/wavlm-base-plus-sv",
+    "default_model_path": "~/.local/share/murmurmark/models/target-me/wavlm-base-plus-sv",
+    "minimum_target_similarity": 0.90,
+    "minimum_target_margin": 0.04
+  },
+  "evaluation": {
+    "threshold_grid_search_allowed": false,
+    "post_hoc_tuning_allowed": false,
+    "geometry_aggregation": "minimum_across_multispeaker_sessions",
+    "minimum_multispeaker_sessions": 4,
+    "minimum_model_agreement_ari": 0.70,
+    "minimum_model_agreement_nmi": 0.75,
+    "minimum_ecapa_silhouette": 0.15,
+    "minimum_wavlm_silhouette": 0.15,
+    "minimum_ecapa_stability_ari": 0.75,
+    "minimum_wavlm_stability_ari": 0.75,
+    "maximum_consensus_fragmentation_ratio": 1.50,
+    "minimum_window_truth_dominance": 0.80,
+    "minimum_cluster_mapping_purity": 0.80,
+    "minimum_mapping_margin": 0.15,
+    "minimum_preserved_confirmed_v1_additive_gains": 3,
+    "maximum_unsafe_fail_closed_accepts": 8,
+    "require_no_new_false_identity": true,
+    "require_no_lost_correct_control_identity": true
+  },
+  "decision": {
+    "allowed_outcomes": [
+      "RECLUSTERING_ROUTE_READY",
+      "LABEL_MAPPING_BOUND",
+      "EMBEDDING_GEOMETRY_BOUND",
+      "EVIDENCE_BOUND"
+    ],
+    "production_promotion_allowed": false,
+    "candidate_profile": "session_local_remote_speaker_reclustering_feasibility_v1"
+  },
+  "safety": {
+    "raw_caf_mutation": false,
+    "coverage_v3_mutation": false,
+    "selected_transcript_mutation": false,
+    "primary_asr_mutation": false,
+    "echo_guard_mutation": false,
+    "cloud_allowed": false,
+    "private_intervals_in_public_report": false,
+    "fail_closed_on_missing_or_conflicting_evidence": true
+  }
+}

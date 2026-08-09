@@ -1,0 +1,63 @@
+{
+  "schema": "murmurmark.session_local_remote_speaker_reclustering_manifest/v1",
+  "decision": "EMBEDDING_GEOMETRY_BOUND",
+  "scope": {
+    "sessions": 6,
+    "profiles": 14,
+    "unlabeled_windows": 347,
+    "development_items": 33
+  },
+  "geometry": {
+    "minimum_model_agreement_ari": 0.09017,
+    "minimum_model_agreement_nmi": 0.231989,
+    "minimum_ecapa_stability_ari": 0.475074,
+    "minimum_wavlm_stability_ari": 0.465715,
+    "maximum_consensus_fragmentation_ratio": 1.8
+  },
+  "direct_truth": {
+    "confirmed_gains": 3,
+    "preserved_gains": 0,
+    "unsafe_accepts": 4,
+    "new_false_identities": 4,
+    "lost_correct_controls": 3
+  },
+  "frozen_pack_sha256": "df2f9bf8fe2df0122f870bc635591862cec39c454da91f7194be8eb2c303b00d",
+  "replay_verified": true,
+  "safety": {
+    "production_mutated": false,
+    "coverage_v3_mutated": false,
+    "selected_transcript_mutated": false,
+    "raw_audio_mutated": false,
+    "labels_read_before_freeze": false,
+    "direct_truth_read_before_freeze": false,
+    "cluster_count_tuned": false,
+    "thresholds_tuned": false
+  },
+  "artifacts": {
+    "policy": {
+      "path": "policies/session-local-remote-speaker-reclustering-feasibility-v1.json",
+      "bytes": 7306,
+      "sha256": "2934f64e0c9af2f3c509ceb66ff3b82a0d99c8b1ba567dd866f4adb04325aaab"
+    },
+    "freeze": {
+      "path": "sessions/_reports/session-local-remote-speaker-reclustering-feasibility-v1/freeze_manifest.json",
+      "bytes": 2165,
+      "sha256": "d57e2d57c239789e22f9f5e8cfa15aadb3c7fde574263a43a059a190792cc902"
+    },
+    "public_pack": {
+      "path": "sessions/_reports/session-local-remote-speaker-reclustering-feasibility-v1/reclustering_pack.public.json",
+      "bytes": 4444,
+      "sha256": "36b6014ac77b3a54c71bfb42c78b0402cc26091e9b2f9ba995d8b638df7563c8"
+    },
+    "report": {
+      "path": "sessions/_reports/session-local-remote-speaker-reclustering-feasibility-v1/session_local_remote_speaker_reclustering_report.json",
+      "bytes": 11333,
+      "sha256": "6715adb849ab4101574ac88b054b1e5743d0f60ed35362e6b7baa217d8a7fdbb"
+    },
+    "replay": {
+      "path": "sessions/_reports/session-local-remote-speaker-reclustering-feasibility-v1/replay_report.json",
+      "bytes": 376,
+      "sha256": "cbd577ae3001647759bbb144f1d20cd99854b3e63f8625a40ad0a45ed50aa3c6"
+    }
+  }
+}

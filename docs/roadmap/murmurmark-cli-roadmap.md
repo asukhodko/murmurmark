@@ -85,7 +85,9 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Blind remote-speaker review | `done` | 8 attributed, 11 unknown, 4 mixed, 10 unusable; production unchanged |
 | Direct-truth candidate adjudication | `done` | `KEEP_COVERAGE_V3`: +3 correct, -2 correct controls, unsafe accepts 8 -> 13 |
 | Enrollment purity / abstention v2 | `done` | `KEEP_COVERAGE_V3`: 7/14 profiles qualified, 0 additions, unsafe 13 -> 8 |
-| Homogeneous mining / re-clustering | `current` | Mining kept Coverage v3; test label-independent cluster geometry next |
+| Homogeneous enrollment mining | `done` | `KEEP_EXISTING_ENROLLMENT`: 39 windows, 0/3 gains preserved |
+| Label-independent re-clustering | `done` | `EMBEDDING_GEOMETRY_BOUND`: ARI `0.090170`, stability `0.465715` |
+| Stronger local speaker representation | `current` | Qualify a materially independent offline backend on frozen evidence |
 | Производные заметки | `done/optional` | Exact evidence memory и безопасный ID-only selector доступны |
 ## Актуальная Цепочка
 ```mermaid
@@ -112,11 +114,13 @@ flowchart LR
     T["Done: DIRECT TRUTH READY<br/>Remote Speaker<br/>Direct Truth Seed v1"]
     W["Done: KEEP COVERAGE V3<br/>Direct-Truth Candidate<br/>Adjudication v1"]
     X["Done: KEEP COVERAGE V3<br/>Enrollment Purity and<br/>Abstention Hardening v2"]
-    Y["Current<br/>Homogeneous Session-Local<br/>Enrollment Mining v1"]
+    Y["Done: KEEP EXISTING<br/>Homogeneous Session-Local<br/>Enrollment Mining v1"]
+    RC["Done: GEOMETRY BOUND<br/>Label-Independent<br/>Re-Clustering v1"]
+    SR["Current<br/>Stronger Local Speaker<br/>Representation v1"]
     M["Idea<br/>Local Mic Multi-Speaker<br/>Diarization v1"]
     O["Optional<br/>Notes, retrieval,<br/>work proposals"]
 
-    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> W --> X --> Y
+    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> W --> X --> Y --> RC --> SR
     F --> D
     P -. "real local scenario" .-> M
     L -.-> O
@@ -139,7 +143,7 @@ Word/frame-level diarization работает по authoritative remote audio, �
 ### 3. Transcript Perfection Corpus v1 — `done`
 
 Единый корпус связывает проверку текста, порядка, ролей, speaker turns, overlap, missing `Me`,
-remote leakage и acoustic modes. Baseline `BASELINE_ESTABLISHED`: 26/26 frozen sources verified,
+remote leakage и acoustic modes. Baseline `BASELINE_ESTABLISHED`: 28/28 frozen sources verified,
 восемь явных dimensions, exact lexical subset измерен, real meetings остаются
 reference-insufficient, aggregate score запрещён. Interval и enrollment results включены frozen
 sources; direct adjudication сохраняет Coverage v3 и направляет следующий monotonic candidate.
@@ -276,24 +280,20 @@ fail-closed unsafe accepts 8 -> 13. Net gain 1/8 не прошёл material gate
 ### 21. Enrollment Purity and Abstention v2 — `done`: `KEEP_COVERAGE_V3`, 68 accepts сохранены, unsafe 13 -> 8, 7/14 profiles rejected, 0 additions.
 ### 22. Session-Local Homogeneous Remote Speaker Enrollment Mining v1 — `done`
 `KEEP_EXISTING_ENROLLMENT`: 39 окон, 9/14 profiles, 0/3 gains, 4 new false identities.
-### 23. Session-Local Remote Speaker Re-Clustering Feasibility v1 — `current`
-Заморозить label-independent ECAPA/WavLM clusters и отделить geometry от profile mapping errors.
-### 24. Local Mic Multi-Speaker Diarization v1 — `idea`: при реальном corpus разделять Target-Me, other local speakers и `unknown`.
-### 25. Производные Возможности — `optional`: notes и work proposals остаются отдельными производными после transcript gates.
+### 23. Session-Local Remote Speaker Re-Clustering Feasibility v1 — `done`
+`EMBEDDING_GEOMETRY_BOUND`: 347 blind windows, ARI `0.090170`, stability `0.465715`, gains `0/3`.
+### 24. Stronger Local Remote Speaker Representation Qualification v1 — `current`
+Квалифицировать independent offline backend; model, runtime и rules заморозить до direct truth.
+### 25. Local Mic Multi-Speaker Diarization v1 — `idea`: при реальном corpus разделять Target-Me, other local speakers и `unknown`.
+### 26. Производные Возможности — `optional`: notes и work proposals остаются отдельными производными после transcript gates.
 ## Закрытые И Отложенные Треки
-- Human-Reviewed Lexical Seed заблокирован отсутствием проверенного реального reference; machine
-  disagreement не является заменой.
-- Пред-ASR разделение закрыто на текущем ресурсе; открыть его может новая независимая проверка
-  присутствия Target-Me, а не ещё один separator поверх тех же данных.
+- Human-Reviewed Lexical Seed заблокирован отсутствием реального reference; machine disagreement не заменяет truth.
+- Пред-ASR разделение закрыто; открыть его может новая независимая проверка Target-Me presence.
 - Free-text local synthesis закрыт `DO_NOT_PROMOTE`; ID-only selector остаётся opt-in.
 - Cross-session voice identity запрещена без отдельного privacy contract. Имена только из review.
 - Live promotion заблокирован; Live Shadow остаётся диагностическим черновиком.
 - Cloud, автоматические внешние записи и UI остаются необязательным хвостом.
-
 ## Ворота Продвижения
-Каждая гипотеза замораживает inputs, работает в отдельном профиле и проверяет deterministic replay,
-referential integrity, fallback, word conservation и ordinary-output non-regression. Coverage нельзя
-повышать ценой ложной уверенности: слабые интервалы остаются `unknown`.
+Каждая гипотеза замораживает inputs и проверяет replay, integrity, fallback и non-regression; слабые интервалы остаются `unknown`.
 ## Проверка Плана
-`scripts/check-planning-consistency.py`
-`PYTHONPATH=../opskarta .venv/bin/python -m specs.v3.tools.cli validate docs/roadmap/murmurmark-cli-roadmap.plan.yaml`
+`scripts/check-planning-consistency.py`; `PYTHONPATH=../opskarta .venv/bin/python -m specs.v3.tools.cli validate docs/roadmap/murmurmark-cli-roadmap.plan.yaml`

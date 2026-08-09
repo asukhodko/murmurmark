@@ -3,7 +3,7 @@
 ## Full Replay
 
 ```bash
-cd ~/dalamar81/murmurmark
+cd /path/to/murmurmark
 source .venv/bin/activate
 
 murmurmark corpus remote-homogeneous-enrollment-v1 preflight

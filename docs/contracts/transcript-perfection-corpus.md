@@ -105,6 +105,12 @@ frozen dual-model pack selects 39 windows for 9/14 profiles, but preserves 0/3 g
 correct controls and introduces four false identities. `KEEP_EXISTING_ENROLLMENT` is a complete
 negative result; the next experiment must remove Coverage labels from clustering itself.
 
+Session-Local Remote Speaker Re-Clustering Feasibility v1 is the twenty-eighth source. It freezes
+347 label-independent ECAPA/WavLM windows before Coverage assignments and direct truth. Its
+`EMBEDDING_GEOMETRY_BOUND` result records minimum model agreement ARI `0.090170`, minimum stability
+ARI `0.465715`, `0/3` preserved gains and three lost controls. This closes the current
+ECAPA/WavLM re-clustering route without changing Coverage v3.
+
 ## Outputs
 
 The command writes only under:

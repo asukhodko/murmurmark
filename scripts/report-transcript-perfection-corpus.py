@@ -642,6 +642,37 @@ def semantic_gates(
         {"gates": homogeneous.get("gates"), "safety": homogeneous_safety},
     )
 
+    reclustering = payloads.get("session_local_remote_speaker_reclustering_feasibility_v1") or {}
+    reclustering_safety = reclustering.get("safety") or {}
+    add(
+        "session_local_remote_speaker_reclustering_feasibility_v1",
+        "terminal_decision",
+        reclustering.get("decision")
+        in {
+            "RECLUSTERING_ROUTE_READY",
+            "LABEL_MAPPING_BOUND",
+            "EMBEDDING_GEOMETRY_BOUND",
+            "EVIDENCE_BOUND",
+        },
+        reclustering.get("decision"),
+    )
+    add(
+        "session_local_remote_speaker_reclustering_feasibility_v1",
+        "frozen_label_independent_integrity",
+        reclustering.get("replay_verified") is True
+        and all((reclustering.get("invariants") or {}).values())
+        and reclustering_safety.get("raw_caf_mutation") is False
+        and reclustering_safety.get("coverage_v3_mutation") is False
+        and reclustering_safety.get("selected_transcript_mutation") is False
+        and reclustering_safety.get("primary_asr_mutation") is False
+        and reclustering_safety.get("echo_guard_mutation") is False
+        and reclustering_safety.get("cluster_count_tuned") is False
+        and reclustering_safety.get("thresholds_tuned") is False
+        and int(reclustering_safety.get("coverage_v3_accepts_preserved", -1)) == 68
+        and int(reclustering_safety.get("production_guards_verified", -1)) == 355,
+        {"invariants": reclustering.get("invariants"), "safety": reclustering_safety},
+    )
+
     failures = [f"semantic_gate:{row['source']}:{row['gate']}" for row in checks if not row["passed"]]
     return checks, failures
 
@@ -803,6 +834,7 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
     homogeneous_enrollment = payloads[
         "session_local_homogeneous_remote_speaker_enrollment_mining_v1"
     ]
+    reclustering = payloads["session_local_remote_speaker_reclustering_feasibility_v1"]
 
     return [
         {
@@ -1116,6 +1148,20 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 "homogeneous_enrollment_new_false_identity_items": int(
                     homogeneous_enrollment["development"]["new_false_identity_items"]
                 ),
+                "reclustering_decision": reclustering["decision"],
+                "reclustering_windows": int(reclustering["scope"]["windows"]),
+                "reclustering_minimum_model_agreement_ari": float(
+                    reclustering["geometry"]["values"]["minimum_model_agreement_ari"]
+                ),
+                "reclustering_minimum_model_agreement_nmi": float(
+                    reclustering["geometry"]["values"]["minimum_model_agreement_nmi"]
+                ),
+                "reclustering_ambiguous_clusters": int(
+                    reclustering["mapping"]["values"]["ambiguous_clusters"]
+                ),
+                "reclustering_preserved_confirmed_gains": int(
+                    reclustering["direct_truth"]["preserved_confirmed_v1_additive_gains"]
+                ),
             },
             "residual_classes": ["unknown_remote_speaker"],
         },
@@ -1318,9 +1364,14 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
         != "HOMOGENEOUS_ENROLLMENT_READY"
     ):
         release_blockers.insert(2, "remote_speaker_turns.homogeneous_enrollment_not_ready")
+    if (
+        (payloads.get("session_local_remote_speaker_reclustering_feasibility_v1") or {}).get("decision")
+        != "RECLUSTERING_ROUTE_READY"
+    ):
+        release_blockers.insert(2, "remote_speaker_turns.reclustering_route_not_ready")
     report = {
         "schema": REPORT_SCHEMA,
-        "generator": {"name": "report-transcript-perfection-corpus", "version": "1.6.0", "mode": "deterministic_offline"},
+        "generator": {"name": "report-transcript-perfection-corpus", "version": "1.7.0", "mode": "deterministic_offline"},
         "decision": decision,
         "manifest": {
             "path": portable_path(Path(str(manifest["_path"]))),
@@ -1405,15 +1456,15 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
             ),
         },
         "next_goal": {
-            "id": "session-local-remote-speaker-reclustering-feasibility-v1" if not failures else "restore-input-integrity",
-            "title": "Session-Local Remote Speaker Re-Clustering Feasibility v1" if not failures else "Restore Input Integrity",
+            "id": "stronger-local-remote-speaker-representation-qualification-v1" if not failures else "restore-input-integrity",
+            "title": "Stronger Local Remote Speaker Representation Qualification v1" if not failures else "Restore Input Integrity",
             "selected_residual_class": "unknown_remote_speaker" if not failures else None,
             "rationale": (
-                "Label-conditioned enrollment mining also kept Coverage v3: 39 homogeneous windows "
-                "qualified 9/14 profiles but preserved 0/3 confirmed gains and added four false "
-                "identities. The next bounded experiment must cluster remote windows independently "
-                "of Coverage labels and measure whether label contamination, not embedding capacity, "
-                "is the binding limit."
+                "Label-independent re-clustering reached EMBEDDING_GEOMETRY_BOUND: minimum ECAPA/WavLM "
+                "agreement ARI was 0.090170, stability fell to 0.465715 and direct truth preserved 0/3 "
+                "confirmed gains. The current ECAPA/WavLM route is closed. The next bounded step must "
+                "qualify a materially different local diarization or speaker representation backend "
+                "against the same frozen evidence before any production integration."
                 if not failures
                 else "Input integrity must be restored before selecting an engineering goal."
             ),

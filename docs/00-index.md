@@ -147,7 +147,11 @@ Read in this order:
 143. [Session-Local Homogeneous Remote Speaker Enrollment Mining v1 runbook](runbooks/session-local-homogeneous-remote-speaker-enrollment-mining-v1.md)
 144. [Session-Local Homogeneous Remote Speaker Enrollment Mining v1 result](testing/2026-08-09-session-local-homogeneous-remote-speaker-enrollment-mining-v1.md)
 145. [Session-Local Homogeneous Remote Speaker Enrollment Mining v1 manifest](testing/session-local-homogeneous-remote-speaker-enrollment-mining-v1-manifest.json)
-142. [Planning and development history](history/README.md)
+146. [Session-Local Remote Speaker Re-Clustering Feasibility v1 contract](contracts/session-local-remote-speaker-reclustering-feasibility-v1.md)
+147. [Session-Local Remote Speaker Re-Clustering Feasibility v1 runbook](runbooks/session-local-remote-speaker-reclustering-feasibility-v1.md)
+148. [Session-Local Remote Speaker Re-Clustering Feasibility v1 result](testing/2026-08-09-session-local-remote-speaker-reclustering-feasibility-v1.md)
+149. [Session-Local Remote Speaker Re-Clustering Feasibility v1 manifest](testing/session-local-remote-speaker-reclustering-feasibility-v1-manifest.json)
+150. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
@@ -197,8 +201,10 @@ accepts. **Remote Speaker Enrollment Purity and Abstention Hardening v2** also k
 7/14 profiles qualified, unsafe accepts returned to 8, but no identity was added. **Session-Local
 Homogeneous Remote Speaker Enrollment Mining v1** then qualified 9/14 profiles and 39 windows, but
 preserved 0/3 gains, lost three controls and added four false identities, so it also kept Coverage v3.
-The next bounded experiment is label-independent session-local re-clustering. Notes and retrieval
-remain parked.
+**Session-Local Remote Speaker Re-Clustering Feasibility v1** then froze 347 blind windows before
+labels and reached `EMBEDDING_GEOMETRY_BOUND`: minimum ECAPA/WavLM ARI `0.090170`, stability
+`0.465715`, preserved gains `0/3`. The current models are closed; the next bounded goal qualifies a
+materially independent local speaker representation. Notes and retrieval remain parked.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

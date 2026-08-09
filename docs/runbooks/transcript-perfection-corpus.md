@@ -34,10 +34,10 @@ Expected frozen baseline:
 
 ```text
 decision: BASELINE_ESTABLISHED
-sources: 27/27 verified
+sources: 28/28 verified
 release_ready: false
 largest_actionable_residual: unknown_remote_speaker (598.240s)
-next_goal: Session-Local Remote Speaker Re-Clustering Feasibility v1
+next_goal: Stronger Local Remote Speaker Representation Qualification v1
 ```
 
 ## Reading The Result
@@ -63,7 +63,9 @@ next_goal: Session-Local Remote Speaker Re-Clustering Feasibility v1
   profiles produced zero additions and preserved none of the three confirmed gains;
 - homogeneous mining found 39 windows for 9/14 profiles but preserved 0/3 gains, lost three
   correct controls and introduced four false identities;
-- the next experiment clusters remote windows without Coverage speaker labels, then measures mapping;
+- label-independent re-clustering froze 347 windows, but model ARI fell to `0.090170`, stability to
+  `0.465715`, and direct truth preserved `0/3` gains; the current ECAPA/WavLM route is closed;
+- the next bounded experiment must qualify a materially different local speaker representation;
 - residual seconds belong to different frozen scopes and must not be summed.
 - the first residual row selects the next bounded engineering goal.
 

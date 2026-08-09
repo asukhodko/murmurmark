@@ -774,6 +774,49 @@ def build_fixture(root: Path) -> Path:
             },
             ["remote_speaker_turns"],
         ),
+        "session_local_remote_speaker_reclustering_feasibility_v1": (
+            files / "session-local-remote-speaker-reclustering-feasibility-v1.json",
+            {
+                "schema": "murmurmark.session_local_remote_speaker_reclustering_report/v1",
+                "decision": "EMBEDDING_GEOMETRY_BOUND",
+                "replay_verified": True,
+                "scope": {"sessions": 6, "profiles": 14, "windows": 347, "development_items": 33},
+                "geometry": {
+                    "values": {
+                        "minimum_model_agreement_ari": 0.09017,
+                        "minimum_model_agreement_nmi": 0.231989,
+                    },
+                    "gates": {"minimum_model_agreement_ari": False},
+                },
+                "mapping": {
+                    "values": {"ambiguous_clusters": 12},
+                    "gates": {"minimum_cluster_mapping_purity": False},
+                },
+                "direct_truth": {
+                    "preserved_confirmed_v1_additive_gains": 0,
+                    "confirmed_v1_additive_gains": 3,
+                },
+                "invariants": {
+                    "pack_frozen_before_labels": True,
+                    "pack_frozen_before_direct_truth": True,
+                    "cluster_count_not_tuned": True,
+                    "thresholds_not_tuned": True,
+                    "production_promotion_disabled": True,
+                },
+                "safety": {
+                    "raw_caf_mutation": False,
+                    "coverage_v3_mutation": False,
+                    "selected_transcript_mutation": False,
+                    "primary_asr_mutation": False,
+                    "echo_guard_mutation": False,
+                    "cluster_count_tuned": False,
+                    "thresholds_tuned": False,
+                    "coverage_v3_accepts_preserved": 68,
+                    "production_guards_verified": 355,
+                },
+            },
+            ["remote_speaker_turns"],
+        ),
     }
     sources: list[dict[str, object]] = []
     for source_id, (path, payload, dimensions) in payloads.items():
@@ -825,7 +868,7 @@ def run(manifest: Path, out: Path) -> subprocess.CompletedProcess[str]:
 
 def main() -> int:
     runbook = (ROOT / "docs/runbooks/transcript-perfection-corpus.md").read_text(encoding="utf-8")
-    assert "next_goal: Session-Local Remote Speaker Re-Clustering Feasibility v1" in runbook
+    assert "next_goal: Stronger Local Remote Speaker Representation Qualification v1" in runbook
     assert "next_goal: Remote Speaker Direct Truth Seed v1" not in runbook
     with tempfile.TemporaryDirectory(prefix=".transcript-perfection-fixture-", dir=ROOT) as temporary:
         root = Path(temporary)
@@ -835,14 +878,14 @@ def main() -> int:
         assert result.returncode == 0, result.stdout + result.stderr
         report = json.loads((out / "transcript_perfection_corpus_report.json").read_text())
         assert report["decision"] == "BASELINE_ESTABLISHED"
-        assert report["summary"]["verified_sources"] == 27
+        assert report["summary"]["verified_sources"] == 28
         assert report["summary"]["aggregate_quality_score"] is None
         assert report["summary"]["aggregate_residual_seconds"] is None
         words = next(row for row in report["dimensions"] if row["id"] == "recognized_words")
         assert words["correctness_status"] == "bounded_exact_subset_only"
         assert words["metrics"]["exact_subset_wer"] == 0.0
         assert report["residuals"][0]["class"] == "unknown_remote_speaker"
-        assert report["next_goal"]["id"] == "session-local-remote-speaker-reclustering-feasibility-v1"
+        assert report["next_goal"]["id"] == "stronger-local-remote-speaker-representation-qualification-v1"
         assert report["next_goal"]["selected_residual_class"] == "unknown_remote_speaker"
         assert report["lexical_prerequisite"]["id"] == "human-reviewed-lexical-seed-v1"
         assert report["lexical_prerequisite"]["status"] == "external_evidence_required"

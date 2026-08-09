@@ -359,6 +359,18 @@
       "path": "sessions/_reports/session-local-homogeneous-remote-speaker-enrollment-mining-v1/session_local_homogeneous_remote_speaker_enrollment_report.json",
       "required": true,
       "sha256": "529caeb3f6f08f67d707528d4fc3cfc2c54f76d0ed5c6d7648ac97bcf9fc697d"
+    },
+    {
+      "bytes": 11333,
+      "dimensions": [
+        "remote_speaker_turns"
+      ],
+      "evidence_level": "frozen_label_independent_dual_model_session_local_reclustering_direct_truth_evaluation",
+      "expected_schema": "murmurmark.session_local_remote_speaker_reclustering_report/v1",
+      "id": "session_local_remote_speaker_reclustering_feasibility_v1",
+      "path": "sessions/_reports/session-local-remote-speaker-reclustering-feasibility-v1/session_local_remote_speaker_reclustering_report.json",
+      "required": true,
+      "sha256": "6715adb849ab4101574ac88b054b1e5743d0f60ed35362e6b7baa217d8a7fdbb"
     }
   ]
 }

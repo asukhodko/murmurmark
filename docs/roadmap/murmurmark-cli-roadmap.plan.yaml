@@ -56,19 +56,6 @@ nodes:
       считаются активной разработкой только из-за постоянного использования. Основа включает
       doctor, self-test, acceptance, local installer, public docs, license и readiness checks.
 
-  capability-echo-preprocess:
-    title: "Echo Guard и speech preprocessing"
-    kind: task
-    parent: working-capabilities
-    status: done
-    effort: 6
-    notes: |
-      Personalized Speaker-Preserving Neural Echo v2 продвинут для совместимых speaker-playback
-      сессий. Он подаёт candidate audio напрямую в whisper.cpp и транзакционно публикует результат;
-      headphones, stale/missing evidence и любые regressions выбирают exact local_fir fallback.
-      Production Requalification v2.17 прошёл hard 3/3 и corpus 12/12 под текущим incremental ASR:
-      те же 5/12 candidates, 41.940s, 90 tokens, retention 1.0; runtime mismatch виден в outcome.
-
   product-one-command-meeting-lifecycle-v1:
     title: "One-Command Meeting Lifecycle v1"
     kind: task
@@ -700,13 +687,26 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1]
-    status: current
+    status: done
     effort: 12
     notes: |
-      Построить label-independent session-local clustering remote speech windows отдельно в ECAPA
-      и WavLM, заморозить windows, embeddings, cluster count и consensus до чтения Coverage labels
-      и direct truth. После freeze измерить geometry stability, model agreement и mapping ambiguity;
-      production promotion, target text, names и cross-session linking запрещены.
+      Завершено EMBEDDING_GEOMETRY_BOUND. 347 blind windows заморожены до labels; minimum
+      ECAPA/WavLM ARI 0.090170, NMI 0.231989, stability ARI 0.465715, fragmentation 1.8.
+      Direct truth сохранил 0/3 gains, добавил 4 false identities и потерял 3 controls.
+      Current ECAPA/WavLM route закрыт; production остался Coverage v3.
+
+  quality-stronger-local-remote-speaker-representation-qualification-v1:
+    title: "Stronger Local Remote Speaker Representation Qualification v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-session-local-remote-speaker-reclustering-feasibility-v1]
+    status: current
+    effort: 14
+    notes: |
+      Выбрать минимум один materially independent local diarization/speaker backend. Заморозить
+      model/license/runtime provenance, audio-only segmentation, embeddings и clustering rule до
+      direct truth. На тех же six sessions и 33 items измерить geometry, open-set safety, mapping
+      ambiguity и 3 confirmed gains. Production promotion и tuning текущих ECAPA/WavLM запрещены.
 
 views:
   roadmap-tree:
@@ -725,7 +725,7 @@ views:
         nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-session-local-remote-speaker-reclustering-feasibility-v1]
+        nodes: [quality-stronger-local-remote-speaker-representation-qualification-v1]
       dependent:
         title: "Blind real-session reference blocker"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
@@ -782,6 +782,7 @@ views:
           - quality-remote-speaker-enrollment-purity-abstention-hardening-v2
           - quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1
           - quality-session-local-remote-speaker-reclustering-feasibility-v1
+          - quality-stronger-local-remote-speaker-representation-qualification-v1
 
   echo-frontier:
     title: "Пред-ASR отделение Me от remote"
@@ -798,7 +799,7 @@ views:
       fallback:
         title: "Production plateau"
         nodes:
-          - capability-echo-preprocess
+          - working-capabilities
 
   parallel-research-view:
     title: "Параллельные исследования"
@@ -817,8 +818,8 @@ views:
         title: "Доказанная speaker evidence"
         nodes: [research-remote-diarization, research-rich-transcript, quality-remote-speaker-diarization-v2]
       current:
-        title: "Label-independent re-clustering"
-        nodes: [quality-session-local-remote-speaker-reclustering-feasibility-v1]
+        title: "Stronger local speaker representation"
+        nodes: [quality-stronger-local-remote-speaker-representation-qualification-v1]
       blocker:
         title: "Blind real-session reference"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
@@ -883,13 +884,14 @@ views:
           - quality-remote-speaker-enrollment-purity-abstention-hardening-v2
           - quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1
           - quality-session-local-remote-speaker-reclustering-feasibility-v1
+          - quality-stronger-local-remote-speaker-representation-qualification-v1
 
 x:
   exec:
     program:
       nearest_goal: >-
-        Session-Local Remote Speaker Re-Clustering Feasibility v1: сохранить Coverage v3, selected transcripts, raw CAF, primary ASR, Echo Guard и все frozen reports неизменными; построить внутри каждой сессии label-independent clustering remote speech windows отдельно в ECAPA и WavLM; заморозить unlabeled windows, embeddings, cluster count и consensus до чтения Coverage labels и direct truth; после freeze измерить cluster stability, model agreement, mapping ambiguity и direct-truth outcomes; выпустить RECLUSTERING_ROUTE_READY, LABEL_MAPPING_BOUND, EMBEDDING_GEOMETRY_BOUND либо EVIDENCE_BOUND без production promotion; добавить deterministic evaluator, tests и corpus report, обновить документацию и планирование, пройти проверки, закоммитить и отправить изменения.
-      success_by_next_sync: "Предел remote identity локализован между embedding geometry и profile mapping; Coverage v3 и production неизменны."
+        Stronger Local Remote Speaker Representation Qualification v1: сохранить Coverage v3, selected transcripts, raw CAF, primary ASR, Echo Guard и 28 frozen Transcript Perfection sources неизменными; выбрать и зафиксировать минимум один существенно иной локальный diarization или speaker-representation backend, который не сводится к новым порогам ECAPA/WavLM; до чтения direct truth заморозить model provenance, license, offline runtime, audio-only segmentation, embeddings, clustering rule и candidate pack; на том же шестисессионном корпусе и 33 direct-truth items измерить geometry stability, open-set safety, mapping ambiguity и сохранение трёх подтверждённых gains; выпустить STRONGER_REPRESENTATION_READY, KEEP_EXPLICIT_UNKNOWN либо EVIDENCE_BOUND без production promotion; добавить deterministic evaluator, tests и corpus report, обновить документацию и планирование, пройти проверки, закоммитить и отправить изменения.
+      success_by_next_sync: "Новый materially independent local speaker backend квалифицирован либо доступный model frontier закрыт с explicit unknown; Coverage v3 неизменён."
     defaults:
       status_progress:
         done: 1.0
@@ -910,13 +912,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle и batch transcript работают; three-session replay подтвердил raw/cache/speaker conservation и закрыл legacy cache preflight."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Remote Speaker Re-Clustering Feasibility v1"
-        scope_nodes: [quality-session-local-remote-speaker-reclustering-feasibility-v1]
+        title: "Stronger Local Speaker Representation v1"
+        scope_nodes: [quality-stronger-local-remote-speaker-representation-qualification-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Homogeneous mining квалифицировал 9/14 profiles, но сохранил 0/3 gains и добавил 4 false identities."
-          next_sync_goal: "Отделить label-independent cluster geometry от ошибок cluster-to-profile mapping."
+          sync_note: "Label-independent re-clustering закрыл ECAPA/WavLM route: ARI 0.090170, stability 0.465715, preserved gains 0/3."
+          next_sync_goal: "Квалифицировать materially independent local diarization/speaker representation backend."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -944,6 +946,7 @@ x:
           - quality-remote-speaker-enrollment-purity-abstention-hardening-v2
           - quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1
           - quality-session-local-remote-speaker-reclustering-feasibility-v1
+          - quality-stronger-local-remote-speaker-representation-qualification-v1
         kind: main
         mgmt:
           health: yellow
@@ -964,7 +967,7 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: homogeneous enrollment не прошёл; текущий фокус — label-independent session-local re-clustering."
+        caption: "Короткая карта: ECAPA/WavLM geometry закрыта; текущий фокус — materially independent local speaker backend."
         blocks:
           - working-now
           - current-quality

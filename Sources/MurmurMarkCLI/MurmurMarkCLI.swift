@@ -1285,6 +1285,7 @@ enum DoctorChecks {
             "scripts/report-asr-chunk-cache-corpus.py",
             "scripts/report-authoritative-incremental-asr.py",
             "scripts/report-transcript-perfection-corpus.py",
+            "scripts/evaluate-session-local-remote-speaker-reclustering-feasibility-v1.py",
             "scripts/report-lexical-accuracy-reference-corpus.py",
             "scripts/report-speaker-resolved-transcript-default-corpus.py",
             "scripts/transcribe-simple-whispercpp.py",
@@ -8377,6 +8378,29 @@ enum CorpusCommands {
                 [try script("mine-session-local-homogeneous-remote-speaker-enrollment-v1.py").path] + forwarded,
                 allowedExitCodes: [0, 2]
             )
+        case "remote-reclustering-v1", "remote_reclustering_v1":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(
+                    try PythonRuntime.resolve(),
+                    [try script("evaluate-session-local-remote-speaker-reclustering-feasibility-v1.py").path, "--help"]
+                )
+                return
+            }
+            guard let action = forwarded.first else {
+                throw CLIError(
+                    "remote-reclustering-v1 requires preflight, prepare, freeze, evaluate, replay, finalize, status, or all"
+                )
+            }
+            guard [
+                "preflight", "prepare", "freeze", "evaluate", "replay", "finalize", "status", "all",
+            ].contains(action) else {
+                throw CLIError("unsupported remote-reclustering-v1 action: \(action)")
+            }
+            _ = try Tooling.runPathAllowingExitCodes(
+                try PythonRuntime.resolve(),
+                [try script("evaluate-session-local-remote-speaker-reclustering-feasibility-v1.py").path] + forwarded,
+                allowedExitCodes: [0, 2]
+            )
         case "lifecycle":
             try Tooling.runPath(
                 try PythonRuntime.resolve(),
@@ -8553,6 +8577,8 @@ enum CorpusHelp {
                                       [--policy policies/remote-speaker-enrollment-purity-abstention-hardening-v2.json]
           murmurmark corpus remote-homogeneous-enrollment-v1 preflight|prepare|freeze|evaluate|replay|finalize|status|all
                                       [--policy policies/session-local-homogeneous-remote-speaker-enrollment-mining-v1.json]
+          murmurmark corpus remote-reclustering-v1 preflight|prepare|freeze|evaluate|replay|finalize|status|all
+                                      [--policy policies/session-local-remote-speaker-reclustering-feasibility-v1.json]
           murmurmark corpus perfection all [--verify-existing]
                                         [--manifest docs/testing/transcript-perfection-corpus-v1-manifest.json]
           murmurmark corpus lexical import SESSION SOURCE --source-id ID
