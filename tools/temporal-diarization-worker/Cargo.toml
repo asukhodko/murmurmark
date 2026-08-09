@@ -8,3 +8,4 @@ license = "MIT OR Apache-2.0"
 diarization = { version = "=0.1.0", default-features = true }
 hound = "3.5.1"
 serde_json = "1.0"
+
