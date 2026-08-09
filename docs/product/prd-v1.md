@@ -148,7 +148,9 @@ then froze 33 primary items / 116 words / `90.100820s`, 8 hidden repeats and 41 
 six sessions. Blind review completed 33/33 primary and 8/8 repeat answers: 8 attributed, 11 unknown,
 4 mixed and 10 unusable, consistency `0.875`. Direct adjudication closed `KEEP_COVERAGE_V3`: three
 correct gains came with two lost correct controls and 13 versus 8 fail-closed unsafe accepts. Remote
-Speaker Enrollment Purity and Abstention Hardening v2 is current; production remains Coverage v3.
+Speaker Enrollment Purity and Abstention Hardening v2 then closed `KEEP_COVERAGE_V3`: 7/14 profiles
+qualified, zero identities were added and unsafe accepts returned to control 8. Homogeneous
+session-local enrollment mining is current; production remains Coverage v3.
 Notes, external writes and UI remain optional.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.

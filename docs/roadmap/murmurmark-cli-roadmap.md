@@ -84,7 +84,8 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Direct remote-speaker truth seed | `done` | 33 primary + 8 repeats; `DIRECT_TRUTH_SEED_READY`, consistency `7/8` |
 | Blind remote-speaker review | `done` | 8 attributed, 11 unknown, 4 mixed, 10 unusable; production unchanged |
 | Direct-truth candidate adjudication | `done` | `KEEP_COVERAGE_V3`: +3 correct, -2 correct controls, unsafe accepts 8 -> 13 |
-| Enrollment purity / abstention v2 | `current` | Monotonic additive identity; disjoint truth required before promotion |
+| Enrollment purity / abstention v2 | `done` | `KEEP_COVERAGE_V3`: 7/14 profiles qualified, 0 additions, unsafe 13 -> 8 |
+| Homogeneous enrollment mining v1 | `current` | Mine several clean session-local windows before another candidate |
 | Производные заметки | `done/optional` | Exact evidence memory и безопасный ID-only selector доступны |
 ## Актуальная Цепочка
 ```mermaid
@@ -110,11 +111,12 @@ flowchart LR
     G["Done: DO NOT ADVANCE<br/>Session-Local Remote Speaker<br/>Enrollment Hardening v1"]
     T["Done: DIRECT TRUTH READY<br/>Remote Speaker<br/>Direct Truth Seed v1"]
     W["Done: KEEP COVERAGE V3<br/>Direct-Truth Candidate<br/>Adjudication v1"]
-    X["Current<br/>Enrollment Purity and<br/>Abstention Hardening v2"]
+    X["Done: KEEP COVERAGE V3<br/>Enrollment Purity and<br/>Abstention Hardening v2"]
+    Y["Current<br/>Homogeneous Session-Local<br/>Enrollment Mining v1"]
     M["Idea<br/>Local Mic Multi-Speaker<br/>Diarization v1"]
     O["Optional<br/>Notes, retrieval,<br/>work proposals"]
 
-    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> W --> X
+    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> W --> X --> Y
     F --> D
     P -. "real local scenario" .-> M
     L -.-> O
@@ -137,7 +139,7 @@ Word/frame-level diarization работает по authoritative remote audio, �
 ### 3. Transcript Perfection Corpus v1 — `done`
 
 Единый корпус связывает проверку текста, порядка, ролей, speaker turns, overlap, missing `Me`,
-remote leakage и acoustic modes. Baseline `BASELINE_ESTABLISHED`: 25/25 frozen sources verified,
+remote leakage и acoustic modes. Baseline `BASELINE_ESTABLISHED`: 26/26 frozen sources verified,
 восемь явных dimensions, exact lexical subset измерен, real meetings остаются
 reference-insufficient, aggregate score запрещён. Interval и enrollment results включены frozen
 sources; direct adjudication сохраняет Coverage v3 и направляет следующий monotonic candidate.
@@ -271,13 +273,11 @@ replay byte-exact, production и thresholds неизменны.
 ### 20. Remote Speaker Direct-Truth Candidate Adjudication v1 — `done`
 `KEEP_COVERAGE_V3`: candidate приобрёл 3 correct identities, потерял 2 correct controls и увеличил
 fail-closed unsafe accepts 8 -> 13. Net gain 1/8 не прошёл material gates; replay byte-exact.
-### 21. Remote Speaker Enrollment Purity and Abstention Hardening v2 — `current`
-Сохранить Coverage v3 byte-exact; additive identity требует purity, duration, margin и open-set.
-Direct Truth v1 — development set; promotion требует нового disjoint held-out.
-### 22. Local Mic Multi-Speaker Diarization v1 — `idea`
-При реальном multi-person local corpus разделять mic на Target-Me, other local speakers и `unknown`.
-Этап зависит от remote v2 и не нужен для нынешнего основного сценария одного пользователя.
-### 23. Производные Возможности — `optional`
+### 21. Enrollment Purity and Abstention v2 — `done`: `KEEP_COVERAGE_V3`, 68 accepts сохранены, unsafe 13 -> 8, 7/14 profiles rejected, 0 additions.
+### 22. Session-Local Homogeneous Remote Speaker Enrollment Mining v1 — `current`
+Добыть несколько неперекрывающихся ECAPA/WavLM-consistent remote windows на профиль внутри сессии.
+### 23. Local Mic Multi-Speaker Diarization v1 — `idea`: при реальном corpus разделять Target-Me, other local speakers и `unknown`.
+### 24. Производные Возможности — `optional`
 Notes, reviewed speaker memory, поиск и work proposals развиваются отдельно после transcript gates
 и не могут менять источник транскрибации.
 ## Закрытые И Отложенные Треки

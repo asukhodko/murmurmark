@@ -139,7 +139,11 @@ Read in this order:
 135. [Remote Speaker Direct-Truth Candidate Adjudication v1 runbook](runbooks/remote-speaker-direct-truth-candidate-adjudication-v1.md)
 136. [Remote Speaker Direct-Truth Candidate Adjudication v1 result](testing/2026-08-09-remote-speaker-direct-truth-candidate-adjudication-v1.md)
 137. [Remote Speaker Direct-Truth Candidate Adjudication v1 manifest](testing/remote-speaker-direct-truth-candidate-adjudication-v1-manifest.json)
-138. [Planning and development history](history/README.md)
+138. [Remote Speaker Enrollment Purity and Abstention Hardening v2 contract](contracts/remote-speaker-enrollment-purity-abstention-hardening-v2.md)
+139. [Remote Speaker Enrollment Purity and Abstention Hardening v2 runbook](runbooks/remote-speaker-enrollment-purity-abstention-hardening-v2.md)
+140. [Remote Speaker Enrollment Purity and Abstention Hardening v2 result](testing/2026-08-09-remote-speaker-enrollment-purity-abstention-hardening-v2.md)
+141. [Remote Speaker Enrollment Purity and Abstention Hardening v2 manifest](testing/remote-speaker-enrollment-purity-abstention-hardening-v2-manifest.json)
+142. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
@@ -185,8 +189,9 @@ new acceptances / `44.694004s`, five removed controls and only 4/83 target failu
 4 mixed and 10 unusable primary outcomes; repeat consistency is `7/8`. The result is
 `DIRECT_TRUTH_SEED_READY`. **Remote Speaker Direct-Truth Candidate Adjudication v1** then closed
 `KEEP_COVERAGE_V3`: 3 correct gains, 2 lost correct controls and 13 versus 8 fail-closed unsafe
-accepts. **Remote Speaker Enrollment Purity and Abstention Hardening v2** is current; it permits only
-monotonic additions and cannot promote without disjoint truth. Notes and retrieval remain parked.
+accepts. **Remote Speaker Enrollment Purity and Abstention Hardening v2** also kept Coverage v3:
+7/14 profiles qualified, unsafe accepts returned to 8, but no identity was added. **Session-Local
+Homogeneous Remote Speaker Enrollment Mining v1** is current. Notes and retrieval remain parked.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

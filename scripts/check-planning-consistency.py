@@ -79,6 +79,7 @@ CRITICAL_PATH = (
     "quality-remote-speaker-direct-truth-seed-v1",
     "quality-remote-speaker-direct-truth-candidate-adjudication-v1",
     "quality-remote-speaker-enrollment-purity-abstention-hardening-v2",
+    "quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1",
 )
 
 EXPECTED_STATUSES = {"done", "current", "next", "later", "idea", "optional", "blocked"}
@@ -450,8 +451,18 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
     )
     require(
         nodes["quality-remote-speaker-enrollment-purity-abstention-hardening-v2"].get("status")
+        == "done",
+        "enrollment purity and abstention hardening v2 must remain completed",
+    )
+    require(
+        "quality-remote-speaker-enrollment-purity-abstention-hardening-v2"
+        in nodes["quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1"].get("deps", []),
+        "homogeneous enrollment mining must follow purity hardening v2",
+    )
+    require(
+        nodes["quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1"].get("status")
         == "current",
-        "enrollment purity and abstention hardening v2 must be the current quality goal",
+        "homogeneous remote speaker enrollment mining must be the current quality goal",
     )
     require("parked-ui" not in nodes, "UI must not occupy the active CLI roadmap")
 

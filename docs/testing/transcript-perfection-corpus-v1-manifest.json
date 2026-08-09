@@ -335,6 +335,18 @@
       "path": "sessions/_reports/remote-speaker-direct-truth-candidate-adjudication-v1/remote_speaker_direct_truth_candidate_adjudication_report.json",
       "required": true,
       "sha256": "cef825e6772d8228659630cf40b5f85b5741b7d518eb40ae3ca28ecf3bd35c6f"
+    },
+    {
+      "bytes": 4899,
+      "dimensions": [
+        "remote_speaker_turns"
+      ],
+      "evidence_level": "one_shot_monotonic_subwindow_purity_development_evaluation",
+      "expected_schema": "murmurmark.remote_speaker_enrollment_purity_abstention_report/v2",
+      "id": "remote_speaker_enrollment_purity_abstention_hardening_v2",
+      "path": "sessions/_reports/remote-speaker-enrollment-purity-abstention-hardening-v2/remote_speaker_enrollment_purity_abstention_report.json",
+      "required": true,
+      "sha256": "f74a545b416e9826e5456d92d1449666f875d1d69826e6e1176e6316a4f1701a"
     }
   ]
 }

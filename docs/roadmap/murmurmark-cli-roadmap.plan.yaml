@@ -454,7 +454,7 @@ nodes:
     status: done
     effort: 10
     notes: |
-      Завершено BASELINE_ESTABLISHED. После direct adjudication проверяет 25/25 frozen
+      Завершено BASELINE_ESTABLISHED. После purity v2 проверяет 26/26 frozen
       sources; восемь dimensions разделяют correctness, coverage, uncertainty и review. Exact
       lexical subset измерен, real meetings reference-insufficient, aggregate score запрещён.
       Ranked residual leader: 598.240s / 851 unknown remote words / 6 sessions.
@@ -509,7 +509,7 @@ nodes:
       Завершено REFERENCE_INSUFFICIENT. Девять graded sources отделяют exact generated evidence от
       scripted expected и independent machine diagnostics. Exact digital subset: 67 words, WER/CER
       0, term accuracy 1.0; human-reviewed real sessions: 0. Public/tracked artifacts не содержат
-      речь, имена или absolute paths; replay детерминирован. Transcript Perfection проверяет 25/25
+      речь, имена или absolute paths; replay детерминирован. Transcript Perfection проверяет 26/26
       sources и сохраняет real-meeting lexical blocker.
 
   quality-independent-remote-speaker-evidence-v1:
@@ -690,26 +690,25 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-remote-speaker-direct-truth-candidate-adjudication-v1]
+    status: done
+    effort: 12
+    notes: |
+      Завершено KEEP_COVERAGE_V3. Все 68 Coverage v3 accepts сохранены; unsafe accepts снижены
+      с 13 до control 8, но 7/14 profiles rejected и candidate добавил 0 items, сохранив 0/3
+      confirmed gains. Replay, 355 guards и conservation проходят. Production неизменен.
+
+  quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1:
+    title: "Session-Local Homogeneous Remote Speaker Enrollment Mining v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-remote-speaker-enrollment-purity-abstention-hardening-v2]
     status: current
     effort: 12
     notes: |
-      Построить один monotonic candidate: accepted Coverage v3 labels byte-exact сохраняются,
-      candidate может только заполнять control abstentions. Direct Truth Seed v1 используется как
-      development evidence для purity, duration, margin и open-set правил; mixed/unknown/unusable
-      остаются fail-closed. Выход CANDIDATE_READY_FOR_DISJOINT_TRUTH_V2, KEEP_COVERAGE_V3 либо
-      EVIDENCE_BOUND. Production promotion запрещён до нового disjoint blind held-out.
-
-  future-local-mic-diarization-v1:
-    title: "Local Mic Multi-Speaker Diarization v1"
-    kind: task
-    parent: murmurmark-cli
-    deps: [quality-transcript-perfection-corpus-v1]
-    status: idea
-    effort: 10
-    notes: |
-      После появления реального multi-person local сценария и labelled corpus различать Target-Me,
-      other local speakers и unknown внутри mic-потока. Не считать всю локальную речь владельцем
-      ноутбука и не ослаблять текущие Target-Me protection gates.
+      Добыть несколько неперекрывающихся speaker-homogeneous remote windows на каждый существующий
+      анонимный profile только внутри сессии. Требовать speech/turn boundaries, within-profile
+      consistency, impostor separation и согласие ECAPA/WavLM; заморозить candidate pack до
+      development truth. Production promotion, target text, names и cross-session linking запрещены.
 
 views:
   roadmap-tree:
@@ -728,13 +727,10 @@ views:
         nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-remote-speaker-enrollment-purity-abstention-hardening-v2]
+        nodes: [quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1]
       dependent:
         title: "Blind real-session reference blocker"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
-      conditional:
-        title: "Только при появлении local multi-speaker evidence"
-        nodes: [future-local-mic-diarization-v1]
 
   critical-path:
     title: "Критический CLI-путь"
@@ -786,6 +782,7 @@ views:
           - quality-remote-speaker-direct-truth-seed-v1
           - quality-remote-speaker-direct-truth-candidate-adjudication-v1
           - quality-remote-speaker-enrollment-purity-abstention-hardening-v2
+          - quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1
 
   echo-frontier:
     title: "Пред-ASR отделение Me от remote"
@@ -821,8 +818,8 @@ views:
         title: "Доказанная speaker evidence"
         nodes: [research-remote-diarization, research-rich-transcript, quality-remote-speaker-diarization-v2]
       current:
-        title: "Monotonic identity candidate"
-        nodes: [quality-remote-speaker-enrollment-purity-abstention-hardening-v2]
+        title: "Homogeneous enrollment mining"
+        nodes: [quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1]
       blocker:
         title: "Blind real-session reference"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
@@ -832,9 +829,6 @@ views:
       release:
         title: "Основной speaker-resolved result"
         nodes: [product-speaker-resolved-transcript-default-v1]
-      conditional:
-        title: "Условный local multi-speaker"
-        nodes: [future-local-mic-diarization-v1]
 
   deps-map:
     title: "Зависимости активного плана"
@@ -888,14 +882,14 @@ views:
           - quality-remote-speaker-direct-truth-seed-v1
           - quality-remote-speaker-direct-truth-candidate-adjudication-v1
           - quality-remote-speaker-enrollment-purity-abstention-hardening-v2
-          - future-local-mic-diarization-v1
+          - quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1
 
 x:
   exec:
     program:
       nearest_goal: >-
-        Remote Speaker Enrollment Purity and Abstention Hardening v2: сохранить Coverage v3, selected transcripts, raw CAF, primary ASR, Echo Guard и все frozen v1 reports неизменными; использовать 33 primary direct-truth items только как development evidence; построить один monotonic session-local identity candidate, который никогда не удаляет и не меняет accepted Coverage v3 labels, очищает enrollment от слабых или смешанных exemplars и добавляет speaker ID только при независимом согласии purity, duration, margin и open-set evidence; отдельно измерить три подтверждённых v1 gains, восемь fail-closed false accepts, две lost controls и exemplar-purity limitation; выпустить CANDIDATE_READY_FOR_DISJOINT_TRUTH_V2, KEEP_COVERAGE_V3 либо EVIDENCE_BOUND без production promotion или tuning на будущем held-out; добавить deterministic evaluator, corpus report и tests; обновить документацию и планирование, пройти проверки, закоммитить и отправить изменения.
-      success_by_next_sync: "Monotonic additive candidate либо честный evidence ceiling воспроизводим; Coverage v3 и production неизменны."
+        Session-Local Homogeneous Remote Speaker Enrollment Mining v1: сохранить Coverage v3, selected transcripts, raw CAF, primary ASR, Echo Guard и все frozen reports неизменными; заменить два часто смешанных шестисекундных enrollment exemplar на воспроизводимо добытые speaker-homogeneous интервалы только внутри той же сессии; использовать remote speech activity, устойчивые turn boundaries, несколько неперекрывающихся окон и согласие ECAPA с независимым WavLM evidence, не читая target text, human names и cross-session voices; заморозить mining policy и candidate pack до проверки на существующем development truth; выпустить HOMOGENEOUS_ENROLLMENT_READY, KEEP_EXISTING_ENROLLMENT либо EVIDENCE_BOUND без production promotion; добавить deterministic evaluator, tests и corpus report, обновить документацию и планирование, пройти проверки, закоммитить и отправить изменения.
+      success_by_next_sync: "Чистый session-local enrollment pack либо честный evidence ceiling воспроизводим; Coverage v3 и production неизменны."
     defaults:
       status_progress:
         done: 1.0
@@ -916,13 +910,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle и batch transcript работают; three-session replay подтвердил raw/cache/speaker conservation и закрыл legacy cache preflight."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Remote Speaker Enrollment Purity and Abstention Hardening v2"
-        scope_nodes: [quality-remote-speaker-enrollment-purity-abstention-hardening-v2]
+        title: "Homogeneous Remote Speaker Enrollment Mining v1"
+        scope_nodes: [quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Direct adjudication сохранил Coverage v3: candidate потерял 2 correct controls и дал 13 unsafe accepts против 8."
-          next_sync_goal: "Сделать monotonic additive candidate с purity и abstention gates; не продвигать без disjoint truth."
+          sync_note: "Purity v2 сохранил control safety, но 7/14 profiles rejected и safe additions равны нулю."
+          next_sync_goal: "Добыть homogeneous session-local enrollment и заморозить его до development evaluation."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -948,19 +942,12 @@ x:
           - quality-remote-speaker-direct-truth-seed-v1
           - quality-remote-speaker-direct-truth-candidate-adjudication-v1
           - quality-remote-speaker-enrollment-purity-abstention-hardening-v2
+          - quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1
         kind: main
         mgmt:
           health: yellow
           sync_note: "Speaker-resolved handoff готов; exact lexical subset измерен, real-meeting lexical truth требует внешней проверки."
           next_sync_goal: "Сохранить Coverage v3 и требовать disjoint truth для любого следующего promotion."
-      research:
-        title: "Будущий local multi-speaker"
-        scope_nodes: [future-local-mic-diarization-v1]
-        kind: context
-        mgmt:
-          health: neutral
-          sync_note: "Архитектурный путь отмечен, но реального multi-person mic corpus пока нет."
-          next_sync_goal: "Не стартовать до появления реального сценария и labelled local-speaker evidence."
     edges:
       - from: working-now
         to: current-quality
@@ -968,12 +955,6 @@ x:
       - from: current-quality
         to: dependent-path
         type: required
-      - from: working-now
-        to: research
-        type: context
-      - from: research
-        to: dependent-path
-        type: context
     views:
       exec-top:
         direction: LR
@@ -982,9 +963,8 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: direct adjudication сохранил Coverage v3; текущий фокус — monotonic additive identity с purity/abstention gates."
+        caption: "Короткая карта: purity v2 сохранил Coverage v3 без gains; текущий фокус — homogeneous session-local enrollment."
         blocks:
           - working-now
           - current-quality
           - dependent-path
-          - research

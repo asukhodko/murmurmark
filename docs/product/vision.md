@@ -79,8 +79,9 @@ Exact local multi-speaker truth qualified the Coverage v3 control. Blind hard-v2
 word-level duration/fusion candidates; blind hard-v3 then rejected long-span segment-context fusion
 with `0/20` boundaries and two open-set errors. Interval and enrollment candidates then failed their
 material gates. Direct blind adjudication kept Coverage v3 after the candidate lost two correct
-controls and increased fail-closed unsafe accepts from 8 to 13. The next candidate is monotonic and
-purity-gated; any promotion still requires disjoint direct truth and corpus-wide qualification.
+controls and increased fail-closed unsafe accepts from 8 to 13. Purity v2 restored control safety
+but only 7/14 profiles qualified and no safe identity was added. The next stage mines homogeneous
+session-local enrollment; any promotion still requires disjoint direct truth and corpus qualification.
 
 ## Core User Jobs
 
@@ -117,11 +118,11 @@ met, unless an explicit product decision changes the priority.
 
 ## Near-Term Direction
 
-1. **Transcript Perfection Corpus v1:** maintain the completed 25-source benchmark for text,
+1. **Transcript Perfection Corpus v1:** maintain the completed 26-source benchmark for text,
    chronology, roles, speakers, overlap, acoustic modes and known residual defects.
-2. **Remote Speaker Enrollment Purity and Abstention Hardening v2:** preserve every Coverage v3
-   label and add identity only when purity, duration, margin and open-set evidence agree.
-3. **Disjoint direct truth:** qualify a frozen v2 candidate only on a new held-out set; current
+2. **Session-Local Homogeneous Remote Speaker Enrollment Mining v1:** mine several clean,
+   speaker-bounded windows per anonymous profile before testing another additive candidate.
+3. **Disjoint direct truth:** qualify only a frozen candidate that first passes development gates;
    development truth, synthetic evidence or machine agreement cannot promote it.
 4. **Human-Reviewed Lexical Seed v1:** external-evidence prerequisite; do not tune ASR from machine
    agreement while it is absent.

@@ -34,10 +34,10 @@ Expected frozen baseline:
 
 ```text
 decision: BASELINE_ESTABLISHED
-sources: 25/25 verified
+sources: 26/26 verified
 release_ready: false
 largest_actionable_residual: unknown_remote_speaker (598.240s)
-next_goal: Remote Speaker Enrollment Purity and Abstention Hardening v2
+next_goal: Session-Local Homogeneous Remote Speaker Enrollment Mining v1
 ```
 
 ## Reading The Result
@@ -59,7 +59,9 @@ next_goal: Remote Speaker Enrollment Purity and Abstention Hardening v2
 - 8 primary items have direct speaker attribution, while 11 are unknown, 4 mixed and 10 unusable;
 - direct adjudication kept Coverage v3: candidate gained three correct identities, lost two correct
   controls and raised fail-closed unsafe accepts from 8 to 13;
-- the next candidate must preserve Coverage v3 labels and needs disjoint truth before promotion;
+- enrollment purity kept Coverage v3 and reduced unsafe accepts to control, but its seven qualified
+  profiles produced zero additions and preserved none of the three confirmed gains;
+- the next experiment mines longer homogeneous session-local enrollment before another candidate;
 - residual seconds belong to different frozen scopes and must not be summed.
 - the first residual row selects the next bounded engineering goal.
 

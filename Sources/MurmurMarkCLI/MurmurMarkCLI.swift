@@ -1327,6 +1327,7 @@ enum DoctorChecks {
             "scripts/evaluate-session-local-remote-speaker-enrollment-hardening-v1.py",
             "scripts/build-remote-speaker-direct-truth-seed-v1.py",
             "scripts/adjudicate-remote-speaker-direct-truth-candidate-v1.py",
+            "scripts/evaluate-remote-speaker-enrollment-purity-abstention-v2.py",
             "scripts/materialize-anonymous-rich-transcript.py",
             "scripts/review-remote-speaker-labels.py",
             "scripts/materialize-reviewed-speaker-memory.py",
@@ -8330,6 +8331,29 @@ enum CorpusCommands {
                 [try script("adjudicate-remote-speaker-direct-truth-candidate-v1.py").path] + forwarded,
                 allowedExitCodes: [0, 2]
             )
+        case "remote-enrollment-purity-v2", "remote_enrollment_purity_v2":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(
+                    try PythonRuntime.resolve(),
+                    [try script("evaluate-remote-speaker-enrollment-purity-abstention-v2.py").path, "--help"]
+                )
+                return
+            }
+            guard let action = forwarded.first else {
+                throw CLIError(
+                    "remote-enrollment-purity-v2 requires preflight, prepare, freeze, evaluate, replay, finalize, status, or all"
+                )
+            }
+            guard [
+                "preflight", "prepare", "freeze", "evaluate", "replay", "finalize", "status", "all",
+            ].contains(action) else {
+                throw CLIError("unsupported remote-enrollment-purity-v2 action: \(action)")
+            }
+            _ = try Tooling.runPathAllowingExitCodes(
+                try PythonRuntime.resolve(),
+                [try script("evaluate-remote-speaker-enrollment-purity-abstention-v2.py").path] + forwarded,
+                allowedExitCodes: [0, 2]
+            )
         case "lifecycle":
             try Tooling.runPath(
                 try PythonRuntime.resolve(),
@@ -8502,6 +8526,8 @@ enum CorpusHelp {
                                       [--policy policies/remote-speaker-direct-truth-seed-v1.json]
           murmurmark corpus remote-truth-adjudication-v1 preflight|evaluate|status|replay|finalize|all
                                       [--policy policies/remote-speaker-direct-truth-candidate-adjudication-v1.json]
+          murmurmark corpus remote-enrollment-purity-v2 preflight|prepare|freeze|evaluate|replay|finalize|status|all
+                                      [--policy policies/remote-speaker-enrollment-purity-abstention-hardening-v2.json]
           murmurmark corpus perfection all [--verify-existing]
                                         [--manifest docs/testing/transcript-perfection-corpus-v1-manifest.json]
           murmurmark corpus lexical import SESSION SOURCE --source-id ID

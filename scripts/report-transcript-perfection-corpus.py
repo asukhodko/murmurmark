@@ -588,6 +588,32 @@ def semantic_gates(
         {"gates": adjudication.get("gates"), "safety": adjudication_safety},
     )
 
+    purity = payloads.get("remote_speaker_enrollment_purity_abstention_hardening_v2") or {}
+    purity_safety = purity.get("safety") or {}
+    add(
+        "remote_speaker_enrollment_purity_abstention_hardening_v2",
+        "terminal_decision",
+        purity.get("decision")
+        in {"CANDIDATE_READY_FOR_DISJOINT_TRUTH_V2", "KEEP_COVERAGE_V3", "EVIDENCE_BOUND"},
+        purity.get("decision"),
+    )
+    add(
+        "remote_speaker_enrollment_purity_abstention_hardening_v2",
+        "monotonic_safety",
+        purity.get("gates", {}).get("all_coverage_v3_accepts_preserved") is True
+        and purity.get("gates", {}).get("exact_word_and_timestamp_conservation") is True
+        and purity.get("gates", {}).get("no_changed_accepted_identity") is True
+        and purity.get("gates", {}).get("no_lost_correct_control_identity") is True
+        and purity.get("gates", {}).get("no_new_false_identity") is True
+        and purity.get("gates", {}).get("deterministic_replay") is True
+        and purity.get("replay_verified") is True
+        and purity_safety.get("production_mutated") is False
+        and purity_safety.get("coverage_v3_mutated") is False
+        and purity_safety.get("selected_transcript_mutated") is False
+        and purity_safety.get("thresholds_tuned") is False,
+        {"gates": purity.get("gates"), "safety": purity_safety},
+    )
+
     failures = [f"semantic_gate:{row['source']}:{row['gate']}" for row in checks if not row["passed"]]
     return checks, failures
 
@@ -744,6 +770,8 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
     direct_truth_seed = payloads["remote_speaker_direct_truth_seed_v1"]
     direct_truth_adjudication = payloads["remote_speaker_direct_truth_candidate_adjudication_v1"]
     adjudication_aggregate = direct_truth_adjudication["portable_aggregate"]
+    purity_hardening = payloads["remote_speaker_enrollment_purity_abstention_hardening_v2"]
+    purity_aggregate = purity_hardening["portable_aggregate"]
 
     return [
         {
@@ -827,6 +855,7 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 "session_local_remote_speaker_enrollment_hardening_v1",
                 "remote_speaker_direct_truth_seed_v1",
                 "remote_speaker_direct_truth_candidate_adjudication_v1",
+                "remote_speaker_enrollment_purity_abstention_hardening_v2",
             ],
             "metrics": {
                 "attributable_speech_ratio": float(remote_summary["attributable_remote_speech_ratio"]),
@@ -1023,6 +1052,22 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 "direct_truth_candidate_unsafe_accept_items": int(
                     adjudication_aggregate["candidate_fail_closed_unsafe_acceptance_items"]
                 ),
+                "enrollment_purity_decision": purity_hardening["decision"],
+                "enrollment_purity_qualified_profiles": int(
+                    purity_aggregate["qualified_profiles"]
+                ),
+                "enrollment_purity_rejected_profiles": int(
+                    purity_aggregate["rejected_profiles"]
+                ),
+                "enrollment_purity_candidate_added_items": int(
+                    purity_aggregate["candidate_added_items"]
+                ),
+                "enrollment_purity_preserved_confirmed_gains": int(
+                    purity_aggregate["preserved_confirmed_v1_gains"]
+                ),
+                "enrollment_purity_fail_closed_unsafe_accepts": int(
+                    purity_aggregate["candidate_fail_closed_unsafe_accepts"]
+                ),
             },
             "residual_classes": ["unknown_remote_speaker"],
         },
@@ -1215,9 +1260,14 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
         != "ADVANCE_DIRECT_TRUTH_IDENTITY"
     ):
         release_blockers.insert(2, "remote_speaker_turns.direct_truth_candidate_not_advanced")
+    if (
+        (payloads.get("remote_speaker_enrollment_purity_abstention_hardening_v2") or {}).get("decision")
+        != "CANDIDATE_READY_FOR_DISJOINT_TRUTH_V2"
+    ):
+        release_blockers.insert(2, "remote_speaker_turns.enrollment_purity_candidate_not_ready")
     report = {
         "schema": REPORT_SCHEMA,
-        "generator": {"name": "report-transcript-perfection-corpus", "version": "1.4.0", "mode": "deterministic_offline"},
+        "generator": {"name": "report-transcript-perfection-corpus", "version": "1.5.0", "mode": "deterministic_offline"},
         "decision": decision,
         "manifest": {
             "path": portable_path(Path(str(manifest["_path"]))),
@@ -1299,14 +1349,14 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
             ),
         },
         "next_goal": {
-            "id": "remote-speaker-enrollment-purity-abstention-hardening-v2" if not failures else "restore-input-integrity",
-            "title": "Remote Speaker Enrollment Purity and Abstention Hardening v2" if not failures else "Restore Input Integrity",
+            "id": "session-local-homogeneous-remote-speaker-enrollment-mining-v1" if not failures else "restore-input-integrity",
+            "title": "Session-Local Homogeneous Remote Speaker Enrollment Mining v1" if not failures else "Restore Input Integrity",
             "selected_residual_class": "unknown_remote_speaker" if not failures else None,
             "rationale": (
-                "Direct-truth adjudication kept Coverage v3: the enrollment candidate gained three "
-                "correct identities but lost two correct controls and raised fail-closed unsafe accepts "
-                "from 8 to 13. The next candidate must preserve control decisions, purify enrollment "
-                "and add identities only under stricter abstention evidence; promotion requires disjoint truth."
+                "Purity hardening kept Coverage v3: seven of fourteen existing enrollment profiles "
+                "failed strict subwindow purity and the seven qualified profiles produced zero safe "
+                "additions. The next experiment must mine longer speaker-homogeneous session-local "
+                "enrollment intervals before another additive identity candidate is evaluated."
                 if not failures
                 else "Input integrity must be restored before selecting an engineering goal."
             ),

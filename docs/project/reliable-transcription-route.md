@@ -25,7 +25,8 @@ error. Session-Local Remote Speaker Enrollment Hardening v1 then closed `DO_NOT_
 acceptances, five removed controls and only 4/83 target failures recovered. Direct Truth Seed and
 Blind Review are complete: 33 primary and 8 repeat answers, consistency `0.875`. Direct adjudication
 then kept Coverage v3 after 3 correct gains, 2 lost correct controls and unsafe accepts 8 -> 13.
-Enrollment Purity and Abstention Hardening v2 is current; production remains Coverage v3. Notes,
+Enrollment Purity and Abstention Hardening v2 kept Coverage v3: 7/14 profiles qualified and no
+identity was added. Homogeneous session-local enrollment mining is current. Notes,
 retrieval and work proposals remain optional derivatives.
 Date: 2026-08-09
 
@@ -490,9 +491,9 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Remote Speaker Enrollment Purity and Abstention Hardening v2: сохранить все Coverage v3 decisions,
-очистить session-local enrollment и добавлять identity только при согласии purity, duration, margin
-и open-set evidence; development truth не заменяет новый disjoint held-out.
+Session-Local Homogeneous Remote Speaker Enrollment Mining v1: сохранить Coverage v3 и добыть
+несколько неперекрывающихся speaker-homogeneous remote windows на профиль только внутри сессии;
+заморозить material до development truth и не открывать promotion без отдельного candidate gate.
 ```
 
 Remote Speaker Attribution Error Decomposition v1 завершён

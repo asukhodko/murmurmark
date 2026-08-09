@@ -139,9 +139,9 @@ gain `0.351382` versus `0.063882` for segmentation and `0.036364` for overlap/op
 synthetic hard-v4 but failed real-session promotion; interval and enrollment variants also failed
 their material gates. Blind review then completed 33 primary and 8 repeat answers at consistency
 `0.875`. Direct adjudication kept Coverage v3: the candidate gained three correct identities, lost
-two correct controls and increased fail-closed unsafe accepts from 8 to 13. The current v2 stage
-tests only monotonic additions with purified enrollment. Synthetic, development or partial direct
-evidence cannot promote real-session labels. Notes remain optional.
+two correct controls and increased fail-closed unsafe accepts from 8 to 13. Purity v2 restored
+control safety but added no identity because only 7/14 profiles qualified. The current stage mines
+homogeneous session-local enrollment. Development evidence cannot promote labels. Notes remain optional.
 
 Target transcription path:
 

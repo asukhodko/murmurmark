@@ -198,8 +198,9 @@ boundary gates. Segment-Context v1 also failed hard-v3. ECAPA passed synthetic h
 real-session shadow gates; bounded interval and enrollment variants did not advance. The completed
 33-primary/8-repeat blind seed rejected the frozen enrollment candidate: three correct gains came
 with two lost correct controls and five additional fail-closed unsafe accepts. Coverage v3 remains
-authoritative; v2 may only add identities without changing existing labels and still needs disjoint
-truth. Synthetic labels and unqualified candidates never enter a real session.
+authoritative. Purity v2 preserved all labels and control safety but produced zero additions from
+7/14 qualified profiles. The next shadow mines longer homogeneous intervals inside each session;
+synthetic labels and unqualified candidates never enter a real session.
 
 Mic multi-speaker diarization is a later profile. It starts only after a real multi-person local
 scenario and labelled corpus exist, and must distinguish Target-Me, other local speakers and
