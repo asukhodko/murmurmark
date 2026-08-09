@@ -313,7 +313,7 @@
       "sha256": "87edf39db9def1b029b1d87d44897bd66aeefa68e61e4a949ee0506db69d61b0"
     },
     {
-      "bytes": 2040,
+      "bytes": 2342,
       "dimensions": [
         "remote_speaker_turns"
       ],
@@ -322,7 +322,7 @@
       "id": "remote_speaker_direct_truth_seed_v1",
       "path": "sessions/_reports/remote-speaker-direct-truth-seed-v1/remote_speaker_direct_truth_seed_report.json",
       "required": true,
-      "sha256": "c50157d30392890aa875b0258f71abff7ae19fc3f667cfc6a98e33f6a8f1b5e1"
+      "sha256": "0103e32038fa13ec0c001d92f797b4909bff482a1ef12c61e1538d91c0e95d09"
     }
   ]
 }

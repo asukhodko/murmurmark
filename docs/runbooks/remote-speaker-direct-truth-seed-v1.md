@@ -58,3 +58,16 @@ murmurmark corpus remote-truth-seed-v1 status
 
 `DIRECT_TRUTH_SEED_READY` permits a separate backend qualification goal. It does not change the
 current transcript. `REFERENCE_INSUFFICIENT` means only the remaining blind slots are needed.
+
+Completed frozen result:
+
+```text
+decision: DIRECT_TRUTH_SEED_READY
+primary_answers: 33
+repeat_answers: 8
+repeat_consistency: 0.875
+attributed / unknown / mixed / unusable: 8 / 11 / 4 / 10
+```
+
+Do not reopen or relabel this queue during candidate adjudication. Ambiguous exemplars were handled
+fail-closed and are part of the evidence boundary.

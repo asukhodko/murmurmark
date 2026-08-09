@@ -972,6 +972,11 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 + int(direct_truth_seed["scope"]["repeat_items"]),
                 "direct_truth_seed_primary_answers": int(direct_truth_seed["review"]["primary_answers"]),
                 "direct_truth_seed_repeat_answers": int(direct_truth_seed["review"]["repeat_answers"]),
+                "direct_truth_seed_repeat_consistency": direct_truth_seed["review"]["repeat_consistency"],
+                "direct_truth_seed_attributed_answers": int(direct_truth_seed["review"]["attributed_primary_answers"]),
+                "direct_truth_seed_unknown_answers": int(direct_truth_seed["review"]["unknown_primary_answers"]),
+                "direct_truth_seed_mixed_answers": int(direct_truth_seed["review"]["mixed_primary_answers"]),
+                "direct_truth_seed_unusable_answers": int(direct_truth_seed["review"]["unusable_primary_answers"]),
             },
             "residual_classes": ["unknown_remote_speaker"],
         },
@@ -1161,7 +1166,7 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
         release_blockers.insert(2, "remote_speaker_turns.direct_truth_seed_incomplete")
     report = {
         "schema": REPORT_SCHEMA,
-        "generator": {"name": "report-transcript-perfection-corpus", "version": "1.2.0", "mode": "deterministic_offline"},
+        "generator": {"name": "report-transcript-perfection-corpus", "version": "1.3.0", "mode": "deterministic_offline"},
         "decision": decision,
         "manifest": {
             "path": portable_path(Path(str(manifest["_path"]))),
@@ -1210,12 +1215,13 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
                     "seconds and introduced one new reference error. The frozen enrollment candidate "
                     "then found 11 new items / 44.694004 seconds without new measured reference errors, "
                     "but removed five control acceptances and recovered only 4/83 enrollment-scope items. "
-                    "A 33-item blind direct-truth seed plus eight hidden repeats is frozen, but its "
-                    "41 review slots do not yet contain direct answers"
+                    "A 33-item blind direct-truth seed plus eight hidden repeats is complete: 8 "
+                    "attributed, 11 unknown, 4 mixed and 10 unusable primary answers, with 7/8 "
+                    "repeat consistency"
                 ),
                 "next_evidence": (
-                    "complete the frozen 41-slot blind review without model suggestions, then replay "
-                    "repeat consistency before another identity backend"
+                    "adjudicate the frozen control and enrollment candidate against direct anonymous "
+                    "truth before selecting another identity backend"
                 ),
             },
             {
@@ -1240,13 +1246,13 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
             ),
         },
         "next_goal": {
-            "id": "remote-speaker-blind-review-completion-v1" if not failures else "restore-input-integrity",
-            "title": "Remote Speaker Blind Review Completion v1" if not failures else "Restore Input Integrity",
+            "id": "remote-speaker-direct-truth-candidate-adjudication-v1" if not failures else "restore-input-integrity",
+            "title": "Remote Speaker Direct-Truth Candidate Adjudication v1" if not failures else "Restore Input Integrity",
             "selected_residual_class": "unknown_remote_speaker" if not failures else None,
             "rationale": (
-                "The 33-item seed and eight hidden repeats are frozen and structurally valid, but all "
-                "41 blind review slots remain unanswered. Direct anonymous session-local truth must be "
-                "completed before another identity backend can be measured honestly."
+                "The frozen 41-slot review is complete with 0.875 repeat consistency and exactly eight "
+                "direct speaker attributions. The next bounded step must score the unchanged control "
+                "and enrollment candidate against that truth before proposing another backend."
                 if not failures
                 else "Input integrity must be restored before selecting an engineering goal."
             ),

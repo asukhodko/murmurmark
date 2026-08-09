@@ -22,9 +22,10 @@ recovery `0.183314` and independent machine-reference precision `0.878788` misse
 Shadow Error Decomposition selected interval purification: 93/214 failures and `201.273504s`.
 The fixed crop then closed `DO_NOT_ADVANCE` after 2 new words / `4.154556s` and one new reference
 error. Session-Local Remote Speaker Enrollment Hardening v1 then closed `DO_NOT_ADVANCE`: 11 new
-acceptances, five removed controls and only 4/83 target failures recovered. Remote Speaker Direct
-Truth Seed v1 is current; production remains Coverage v3. Notes, retrieval and work proposals remain
-optional derivatives.
+acceptances, five removed controls and only 4/83 target failures recovered. Direct Truth Seed and
+Blind Review are complete: 33 primary and 8 repeat answers, consistency `0.875`. Direct-Truth
+Candidate Adjudication v1 is current; production remains Coverage v3. Notes, retrieval and work
+proposals remain optional derivatives.
 Date: 2026-08-09
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
@@ -488,9 +489,9 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Remote Speaker Blind Review Completion v1: заполнить только 41 opaque slot уже замороженного
-Direct Truth Seed v1, принять только session-local anonymous speaker, unknown, mixed или unusable,
-получить repeat consistency не ниже 0.875 и не менять production transcript.
+Remote Speaker Direct-Truth Candidate Adjudication v1: один раз сравнить неизменённые Coverage v3
+control и enrollment candidate с завершённой прямой разметкой, считать unknown/mixed/unusable
+fail-closed evidence и не менять production transcript или thresholds.
 ```
 
 Remote Speaker Attribution Error Decomposition v1 завершён
@@ -528,7 +529,7 @@ The real-session shadow nevertheless failed its fixed word-recovery and independ
 precision gates. Synthetic and machine-reference evidence still cannot replace blind review of
 real-session proposals.
 
-Direct Truth Seed v1 сделал этот review конечным: 33 primary items / 116 words / `90.100820s`, 8
-hidden repeats, 41 opaque slots и 355 inherited production guards. Механизм и replay проходят, но
-прямые ответы отсутствуют, поэтому результат `REFERENCE_INSUFFICIENT`. Новые backend и threshold
-experiments закрыты до завершения этой фиксированной очереди.
+Direct Truth Seed v1 сделал review конечным: 33 primary items / 116 words / `90.100820s`, 8 hidden
+repeats, 41 opaque slots и 355 inherited production guards. Все slots закрыты: 8 attributed,
+11 unknown, 4 mixed, 10 unusable; repeat consistency `7/8`. Результат `DIRECT_TRUTH_SEED_READY`.
+Следующий evaluator использует sealed mapping один раз; backend и threshold tuning запрещены.

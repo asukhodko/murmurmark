@@ -1,11 +1,11 @@
 {
-  "decision": "REFERENCE_INSUFFICIENT",
+  "decision": "DIRECT_TRUTH_SEED_READY",
   "gates": {
-    "all_changed_answers": false,
-    "all_primary_answers": false,
-    "all_repeat_answers": false,
-    "minimum_attributed_answers": false,
-    "repeat_consistency": false
+    "all_changed_answers": true,
+    "all_primary_answers": true,
+    "all_repeat_answers": true,
+    "minimum_attributed_answers": true,
+    "repeat_consistency": true
   },
   "invariants": {
     "all_changed_items_once": true,
@@ -21,20 +21,30 @@
     "source_and_production_guards_verified": true
   },
   "report": {
-    "bytes": 2040,
+    "bytes": 2342,
     "path": "sessions/_reports/remote-speaker-direct-truth-seed-v1/remote_speaker_direct_truth_seed_report.json",
-    "sha256": "c50157d30392890aa875b0258f71abff7ae19fc3f667cfc6a98e33f6a8f1b5e1"
+    "sha256": "0103e32038fa13ec0c001d92f797b4909bff482a1ef12c61e1538d91c0e95d09"
   },
   "review": {
-    "answered_strata": {},
-    "attributed_primary_answers": 0,
-    "changed_answers": 0,
-    "primary_answers": 0,
-    "remaining_slots": 41,
-    "repeat_answers": 0,
-    "repeat_compared": 0,
-    "repeat_consistency": null,
-    "repeat_matches": 0
+    "answered_strata": {
+      "mixed_candidate": 3,
+      "newly_accepted": 11,
+      "removed_acceptance": 5,
+      "stable_abstention": 6,
+      "stable_accept": 6,
+      "unusable_candidate": 2
+    },
+    "attributed_primary_answers": 8,
+    "changed_answers": 16,
+    "mixed_primary_answers": 4,
+    "primary_answers": 33,
+    "remaining_slots": 0,
+    "repeat_answers": 8,
+    "repeat_compared": 8,
+    "repeat_consistency": 0.875,
+    "repeat_matches": 7,
+    "unknown_primary_answers": 11,
+    "unusable_primary_answers": 10
   },
   "safety": {
     "blind_review_without_model_suggestion": true,

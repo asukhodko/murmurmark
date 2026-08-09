@@ -623,6 +623,7 @@ def build_report(bundle: dict[str, Any], policy: dict[str, Any]) -> dict[str, An
     attributed = sum(
         answer["outcome"].startswith("remote_speaker_") for answer in primary_by_item.values()
     )
+    primary_outcomes = Counter(answer["outcome"] for answer in primary_by_item.values())
     strata = dict(sorted(Counter(row["stratum"] for row in selection.values()).items()))
     answered_strata = dict(sorted(Counter(selection[item]["stratum"] for item in primary_by_item).items()))
     expected_word_ids = [
@@ -665,7 +666,7 @@ def build_report(bundle: dict[str, Any], policy: dict[str, Any]) -> dict[str, An
     )
     report = {
         "schema": REPORT_SCHEMA,
-        "generator": {"name": "build-remote-speaker-direct-truth-seed-v1", "version": "1.0.0", "mode": "deterministic_offline"},
+        "generator": {"name": "build-remote-speaker-direct-truth-seed-v1", "version": "1.1.0", "mode": "deterministic_offline"},
         "decision": decision,
         "scope": {
             "source_items": int(policy["frozen_scope"]["items"]),
@@ -682,6 +683,9 @@ def build_report(bundle: dict[str, Any], policy: dict[str, Any]) -> dict[str, An
             "repeat_answers": len(repeat_by_item),
             "changed_answers": changed_answered,
             "attributed_primary_answers": attributed,
+            "unknown_primary_answers": primary_outcomes.get("unknown_speaker", 0),
+            "mixed_primary_answers": primary_outcomes.get("mixed", 0),
+            "unusable_primary_answers": primary_outcomes.get("unusable", 0),
             "answered_strata": answered_strata,
             "repeat_compared": len(repeat_compared),
             "repeat_matches": repeat_matches,
@@ -726,6 +730,9 @@ def report_markdown(report: dict[str, Any]) -> str:
         f"Seed: `{scope['seed_items']}` items / `{scope['seed_words']}` words / `{scope['seed_seconds']:.6f}s`",
         f"Sessions: `{scope['sessions']}`; hidden repeats: `{scope['repeat_items']}`",
         f"Primary answers: `{review['primary_answers']}` / `{scope['seed_items']}`",
+        f"Attributed / unknown / mixed / unusable: `{review['attributed_primary_answers']}` / "
+        f"`{review['unknown_primary_answers']}` / `{review['mixed_primary_answers']}` / "
+        f"`{review['unusable_primary_answers']}`",
         f"Repeat answers: `{review['repeat_answers']}` / `{scope['repeat_items']}`",
         f"Repeat consistency: `{review['repeat_consistency']}`",
         "",

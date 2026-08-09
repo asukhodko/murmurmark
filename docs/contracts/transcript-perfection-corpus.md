@@ -87,9 +87,10 @@ real-session promotion, decompose the residual, and close bounded interval and e
 Their completed negative outcomes remain evidence and never weaken Coverage v3.
 
 Remote Speaker Direct Truth Seed v1 is the twenty-fourth frozen source. It preserves the 278-item
-residual pack and freezes 33 primary items, 8 hidden repeats and 41 blind review slots. Its
-`REFERENCE_INSUFFICIENT` decision is valid measured evidence while answers remain 0/41; it cannot be
-reinterpreted as speaker correctness or production promotion.
+residual pack and freezes 33 primary items, 8 hidden repeats and 41 blind review slots. Its completed
+`DIRECT_TRUTH_SEED_READY` result contains 8 attributed, 11 unknown, 4 mixed and 10 unusable primary
+outcomes with 7/8 repeat consistency. It enables bounded candidate adjudication but cannot be
+reinterpreted as broad speaker correctness or production promotion.
 
 ## Outputs
 

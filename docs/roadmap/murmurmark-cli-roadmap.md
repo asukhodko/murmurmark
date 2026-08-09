@@ -83,10 +83,10 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Remote shadow error decomposition | `done` | `ADVANCE_INTERVAL_PURIFICATION`: 93/214 failures, `201.274s`, dominance `0.128982` |
 | Bounded interval purification | `done` | `DO_NOT_ADVANCE`: 2 new words / 4.155s, one new reference error |
 | Session-local enrollment hardening | `done` | `DO_NOT_ADVANCE`: 11 gains / 44.694s, but five control accepts lost |
-| Direct remote-speaker truth seed | `done/blocker` | 33 primary + 8 repeats frozen; `REFERENCE_INSUFFICIENT`, 0/41 answers |
-| Blind remote-speaker review | `current` | Complete only the frozen 41 opaque slots; production unchanged |
+| Direct remote-speaker truth seed | `done` | 33 primary + 8 repeats; `DIRECT_TRUTH_SEED_READY`, consistency `7/8` |
+| Blind remote-speaker review | `done` | 8 attributed, 11 unknown, 4 mixed, 10 unusable; production unchanged |
+| Direct-truth candidate adjudication | `current` | One-shot frozen control/candidate comparison; no tuning or promotion |
 | Производные заметки | `done/optional` | Exact evidence memory и безопасный ID-only selector доступны |
-
 ## Актуальная Цепочка
 ```mermaid
 flowchart LR
@@ -109,17 +109,17 @@ flowchart LR
     Z["Done: ADVANCE INTERVAL<br/>Remote Speaker Shadow<br/>Error Decomposition v1"]
     J["Done: DO NOT ADVANCE<br/>Bounded Remote Speaker<br/>Interval Purification v1"]
     G["Done: DO NOT ADVANCE<br/>Session-Local Remote Speaker<br/>Enrollment Hardening v1"]
-    T["Done: REFERENCE_INSUFFICIENT<br/>Remote Speaker<br/>Direct Truth Seed v1"]
-    U["Current<br/>Remote Speaker Blind<br/>Review Completion v1"]
+    T["Done: DIRECT TRUTH READY<br/>Remote Speaker<br/>Direct Truth Seed v1"]
+    U["Done<br/>Remote Speaker Blind<br/>Review Completion v1"]
+    W["Current<br/>Direct-Truth Candidate<br/>Adjudication v1"]
     M["Idea<br/>Local Mic Multi-Speaker<br/>Diarization v1"]
     O["Optional<br/>Notes, retrieval,<br/>work proposals"]
 
-    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> U
+    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> U --> W
     F --> D
     P -. "real local scenario" .-> M
     L -.-> O
 ```
-
 ### 1. Remote Speaker Evidence Map v1 — `done`
 Selected remote utterances и local Resemblyzer дали 14 устойчивых anonymous clusters на шести
 сессиях. На уже attributed речи качество высокое, но 606 из 1235 remote utterances остаются
@@ -268,15 +268,16 @@ replay byte-exact, production и thresholds неизменны.
 пять control acceptances и восстановил лишь 4/83 scope items. `DO_NOT_ADVANCE`; retuning запрещён.
 ### 19. Remote Speaker Direct Truth Seed v1 — `done`
 Заморожены 33 primary items / 116 words / `90.100820s`, все 16 changed cases и 8 hidden repeats.
-Replay и 355 guards проходят; `REFERENCE_INSUFFICIENT`, потому что direct answers остаются 0/41.
-### 20. Remote Speaker Blind Review Completion v1 — `current`
-Заполнить только 41 opaque slot без model suggestion; допустимы session-local anonymous speaker,
-`unknown_speaker`, `mixed` и `unusable`. Production и все эксперименты остаются неизменными.
-### 21. Local Mic Multi-Speaker Diarization v1 — `idea`
+Все 41 slots закрыты; `DIRECT_TRUTH_SEED_READY`, consistency `7/8`, production неизменен.
+### 20. Remote Speaker Blind Review Completion v1 — `done`
+Primary outcomes: 8 attributed, 11 unknown, 4 mixed, 10 unusable; replay и 355 guards проходят.
+### 21. Remote Speaker Direct-Truth Candidate Adjudication v1 — `current`
+Один раз сравнить frozen Coverage v3/control и enrollment candidate с direct truth без tuning/promotion.
+### 22. Local Mic Multi-Speaker Diarization v1 — `idea`
 Когда появится реальный сценарий нескольких людей у одного ноутбука и размеченный материал, mic-речь
 будет разделяться на Target-Me, other local speakers и `unknown`. Этот этап зависит от remote v2 и
 Transcript Perfection Corpus, но не нужен для нынешнего основного сценария одного пользователя.
-### 22. Производные Возможности — `optional`
+### 23. Производные Возможности — `optional`
 Extractive notes, quality verdict, reviewed speaker memory, ID-only selection, локальный поиск и
 work proposals могут развиваться после достижения transcript gates или по отдельному явному запросу.
 Они не являются мерой качества MurmurMark и не могут менять источник транскрибации.
@@ -294,7 +295,6 @@ work proposals могут развиваться после достижения
 Каждая гипотеза замораживает inputs, работает в отдельном профиле и проверяет deterministic replay,
 referential integrity, fallback, word conservation и ordinary-output non-regression. Coverage нельзя
 повышать ценой ложной уверенности: слабые интервалы остаются `unknown`.
-
 ## Проверка Плана
 `scripts/check-planning-consistency.py`
 `PYTHONPATH=../opskarta .venv/bin/python -m specs.v3.tools.cli validate docs/roadmap/murmurmark-cli-roadmap.plan.yaml`

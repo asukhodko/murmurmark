@@ -1,7 +1,7 @@
 # Remote Speaker Direct Truth Seed v1 Result
 
 Date: 2026-08-09
-Decision: `REFERENCE_INSUFFICIENT`
+Decision: `DIRECT_TRUTH_SEED_READY`
 
 ## Frozen Result
 
@@ -12,7 +12,9 @@ Decision: `REFERENCE_INSUFFICIENT`
   embedding-unavailable candidates.
 - Hidden repeat subset: 8 items.
 - Blind review slots: 41.
-- Direct answers: 0 primary / 0 repeat.
+- Direct answers: 33 primary / 8 repeat.
+- Primary outcomes: 8 anonymous speaker, 11 `unknown_speaker`, 4 `mixed`, 10 `unusable`.
+- Hidden-repeat consistency: 7/8 (`0.875`).
 - Replay: byte-exact.
 
 All source fingerprints and 355 inherited production guards pass. Review records expose no model
@@ -20,13 +22,14 @@ suggestion, stratum, speech text, human name or cross-session identity.
 
 ## Interpretation
 
-The engineering part is complete: the exact cases needed to distinguish enrollment progress from
-regression are small, frozen and locally reviewable. The evidence itself is still absent. Another
-identity backend, centroid rule or threshold change would therefore repeat the same proxy-evaluation
-problem.
+The blind queue is complete and reproducible. It provides the first bounded direct real-session
+speaker evidence for the exact cases that distinguish enrollment gains from regressions. Evidence
+margin is limited: repeat consistency equals the minimum gate, and mixed or silent exemplars led to
+fail-closed `unknown_speaker`, `mixed` or `unusable` outcomes rather than forced identity.
 
 Production remains Coverage v3. No raw audio, selected transcript, primary ASR, Echo Guard, ECAPA
 shadow, interval result or enrollment result changed.
 
-The next bounded milestone is **Remote Speaker Blind Review Completion v1**: fill only the 41 frozen
-slots, verify repeat consistency and publish `DIRECT_TRUTH_SEED_READY` or the exact remaining gap.
+The next bounded milestone is **Remote Speaker Direct-Truth Candidate Adjudication v1**: compare the
+unchanged Coverage v3 control and frozen enrollment candidate once against these direct anonymous
+outcomes. It may qualify a later experiment, but cannot promote production or tune thresholds.

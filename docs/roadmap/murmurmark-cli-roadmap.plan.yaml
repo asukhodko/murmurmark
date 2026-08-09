@@ -56,14 +56,6 @@ nodes:
       считаются активной разработкой только из-за постоянного использования. Основа включает
       doctor, self-test, acceptance, local installer, public docs, license и readiness checks.
 
-  capability-durable-capture:
-    title: "Durable two-track capture и session package"
-    kind: task
-    parent: working-capabilities
-    status: done
-    effort: 8
-    notes: "Raw mic/remote CAF, capture health, partial/silent/sparse gates и неизменяемые inputs."
-
   capability-echo-preprocess:
     title: "Echo Guard и speech preprocessing"
     kind: task
@@ -675,22 +667,35 @@ nodes:
     status: done
     effort: 12
     notes: |
-      Завершено REFERENCE_INSUFFICIENT. Заморожены 33 primary items / 116 words / 90.100820s,
-      все 16 changed cases, 8 hidden repeats и 41 opaque review slots по шести сессиям. Source,
-      privacy, conservation, 355 production guards и byte-exact replay проходят; direct answers
-      0/41. Production Coverage v3 и все upstream experiments неизменны.
+      Завершено DIRECT_TRUTH_SEED_READY. Заморожены 33 primary items / 116 words / 90.100820s,
+      8 hidden repeats и 41 opaque slot. Blind review дал 8 attributed, 11 unknown, 4 mixed и
+      10 unusable primary outcomes; consistency 7/8. Source, privacy, conservation, 355 production
+      guards и byte-exact replay проходят; production Coverage v3 неизменен.
 
   quality-remote-speaker-blind-review-completion-v1:
     title: "Remote Speaker Blind Review Completion v1"
     kind: task
     parent: murmurmark-cli
     deps: [quality-remote-speaker-direct-truth-seed-v1]
-    status: current
+    status: done
     effort: 8
     notes: |
-      Заполнить только замороженные 33 primary и 8 hidden repeat slots через blind CLI без model
-      suggestion. Разрешены session-local anonymous speaker, unknown, mixed и unusable; consistency
-      не ниже 0.875. Ни один transcript, backend или production threshold не меняется.
+      Все 33 primary и 8 hidden repeat slots заполнены через blind CLI без model suggestion.
+      Consistency 0.875 прошла gate ровно на пороге. Ни один transcript, backend или production
+      threshold не изменён; mixed/silent exemplars сохранены как fail-closed evidence limitation.
+
+  quality-remote-speaker-direct-truth-candidate-adjudication-v1:
+    title: "Remote Speaker Direct-Truth Candidate Adjudication v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-remote-speaker-blind-review-completion-v1]
+    status: current
+    effort: 10
+    notes: |
+      Один раз оценить неизменённые Coverage v3/control и enrollment candidate против завершённой
+      прямой анонимной разметки. Unknown, mixed и unusable остаются abstention evidence; repeats не
+      удваивают primary metrics. Threshold tuning, production promotion и transcript mutation
+      запрещены; выход только ADVANCE_DIRECT_TRUTH_IDENTITY, KEEP_COVERAGE_V3 или EVIDENCE_BOUND.
 
   future-local-mic-diarization-v1:
     title: "Local Mic Multi-Speaker Diarization v1"
@@ -721,7 +726,7 @@ views:
         nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-remote-speaker-blind-review-completion-v1]
+        nodes: [quality-remote-speaker-direct-truth-candidate-adjudication-v1]
       dependent:
         title: "Blind real-session reference blocker"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
@@ -778,6 +783,7 @@ views:
           - quality-session-local-remote-speaker-enrollment-hardening-v1
           - quality-remote-speaker-direct-truth-seed-v1
           - quality-remote-speaker-blind-review-completion-v1
+          - quality-remote-speaker-direct-truth-candidate-adjudication-v1
 
   echo-frontier:
     title: "Пред-ASR отделение Me от remote"
@@ -813,8 +819,8 @@ views:
         title: "Доказанная speaker evidence"
         nodes: [research-remote-diarization, research-rich-transcript, quality-remote-speaker-diarization-v2]
       current:
-        title: "Завершение blind speaker truth"
-        nodes: [quality-remote-speaker-blind-review-completion-v1]
+        title: "Прямая оценка frozen candidate"
+        nodes: [quality-remote-speaker-direct-truth-candidate-adjudication-v1]
       blocker:
         title: "Blind real-session reference"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
@@ -879,14 +885,15 @@ views:
           - quality-session-local-remote-speaker-enrollment-hardening-v1
           - quality-remote-speaker-direct-truth-seed-v1
           - quality-remote-speaker-blind-review-completion-v1
+          - quality-remote-speaker-direct-truth-candidate-adjudication-v1
           - future-local-mic-diarization-v1
 
 x:
   exec:
     program:
       nearest_goal: >-
-        Remote Speaker Blind Review Completion v1: сохранить Coverage v3, selected transcripts, raw CAF, primary ASR, Echo Guard, ECAPA shadow, закрытые interval/enrollment experiments и frozen Direct Truth Seed v1 неизменными; SHA-256 проверить 278-item source pack, 33-item / 116-word / 90.100820s seed, 8 hidden repeats, 41 opaque review slots и 355 inherited production guards; проводить review только через `murmurmark corpus remote-truth-seed-v1 next|grade`, не открывая seed selection, slot map, enrollment comparison, model references или suggestions; для каждого слота принять только session-local anonymous speaker, `unknown_speaker`, `mixed` или `unusable`; закрыть все 33 primary и 8 repeat slots, получить consistency не ниже 0.875, проверить exact word/timestamp/clip conservation и deterministic replay; выпустить `DIRECT_TRUTH_SEED_READY`, `REFERENCE_INSUFFICIENT` либо `EVIDENCE_BOUND` без production promotion; обновить Transcript Perfection, документацию и планирование, пройти проверки, закоммитить и отправить изменения.
-      success_by_next_sync: "Все 41 blind slots закрыты прямыми session-local ответами, repeat consistency измерена, а production остался неизменным."
+        Remote Speaker Direct-Truth Candidate Adjudication v1: сохранить Coverage v3, selected transcripts, raw CAF, primary ASR, Echo Guard, ECAPA shadow, interval/enrollment results и frozen Direct Truth Seed v1 неизменными; SHA-256 проверить 278-item source pack, 33 primary / 8 repeat direct answers, 355 inherited guards и byte-exact replay; только после закрытого blind review открыть sealed item mapping и один раз оценить неизменённые Coverage v3/control и contrastive_reliability_weighted_centroid_v1 enrollment candidate против direct anonymous outcomes; считать `unknown_speaker`, `mixed` и `unusable` только fail-closed abstention evidence, не положительной identity truth; отдельно измерить 11 newly accepted, 5 removed controls, stable controls/abstentions, repeat mismatch и exemplar-purity limitation; выпустить `ADVANCE_DIRECT_TRUTH_IDENTITY`, `KEEP_COVERAGE_V3` либо `EVIDENCE_BOUND` без production promotion или threshold tuning; добавить deterministic evaluator, portable aggregate report и Transcript Perfection source; обновить документацию и планирование, пройти проверки, закоммитить и отправить изменения.
+      success_by_next_sync: "Frozen control и enrollment candidate один раз оценены против direct truth; решение воспроизводимо, production не изменён."
     defaults:
       status_progress:
         done: 1.0
@@ -907,13 +914,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle и batch transcript работают; three-session replay подтвердил raw/cache/speaker conservation и закрыл legacy cache preflight."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Remote Speaker Blind Review Completion v1"
-        scope_nodes: [quality-remote-speaker-blind-review-completion-v1]
+        title: "Remote Speaker Direct-Truth Candidate Adjudication v1"
+        scope_nodes: [quality-remote-speaker-direct-truth-candidate-adjudication-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Direct Truth Seed закрыт REFERENCE_INSUFFICIENT: 33 primary + 8 repeats заморожены, replay проходит, direct answers 0/41."
-          next_sync_goal: "Заполнить только 41 opaque slot и измерить repeat consistency без model suggestion."
+          sync_note: "Direct Truth Seed готов: 33 primary + 8 repeats закрыты, consistency 7/8, production неизменён."
+          next_sync_goal: "Один раз сравнить frozen control/candidate с direct truth без tuning."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -938,11 +945,12 @@ x:
           - quality-session-local-remote-speaker-enrollment-hardening-v1
           - quality-remote-speaker-direct-truth-seed-v1
           - quality-remote-speaker-blind-review-completion-v1
+          - quality-remote-speaker-direct-truth-candidate-adjudication-v1
         kind: main
         mgmt:
           health: yellow
           sync_note: "Speaker-resolved handoff готов; exact lexical subset измерен, real-meeting lexical truth требует внешней проверки."
-          next_sync_goal: "Не продвигать real labels из synthetic truth; blind review остаётся отдельным blocker."
+          next_sync_goal: "Не продвигать candidate до отдельной qualification после direct adjudication."
       research:
         title: "Будущий local multi-speaker"
         scope_nodes: [future-local-mic-diarization-v1]
@@ -972,7 +980,7 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: blind direct speaker seed заморожен; текущий фокус — закрыть его 41 opaque slot без изменения production."
+        caption: "Короткая карта: blind direct truth готов; текущий фокус — одноразовая оценка frozen control/candidate без изменения production."
         blocks:
           - working-now
           - current-quality

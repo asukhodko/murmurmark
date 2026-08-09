@@ -327,14 +327,14 @@ Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental 
 -> Remote Speaker Attribution Error Decomposition v1 (done: identity is the dominant bottleneck)
 -> Stronger Remote Speaker Identity Backend Qualification v1 (done: PROMOTE lab-only ECAPA)
 -> ECAPA Remote Speaker Shadow Qualification v1 (done: DO_NOT_PROMOTE on real sessions)
--> Remote Speaker Shadow Error Decomposition v1 (done) -> Bounded Remote Speaker Interval Purification v1 (done: DO_NOT_ADVANCE) -> Session-Local Remote Speaker Enrollment Hardening v1 (done: DO_NOT_ADVANCE) -> Remote Speaker Direct Truth Seed v1 (done: REFERENCE_INSUFFICIENT) -> Remote Speaker Blind Review Completion v1 (current)
+-> Remote Speaker Shadow Error Decomposition v1 (done) -> Bounded Remote Speaker Interval Purification v1 (done: DO_NOT_ADVANCE) -> Session-Local Remote Speaker Enrollment Hardening v1 (done: DO_NOT_ADVANCE) -> Remote Speaker Direct Truth Seed v1 (done: DIRECT_TRUTH_SEED_READY) -> Remote Speaker Blind Review Completion v1 (done) -> Remote Speaker Direct-Truth Candidate Adjudication v1 (current)
 ```
 Independent WavLM recovered only `6.2280%` of residual words; the blind 278-item pack still lacks
 direct truth. Exact synthetic truth qualified the Coverage v3 control (`0.983505` B-cubed F1, zero
 open-set errors). Blind hard-v2 then rejected conservative word-level fusion despite precision `1.0`:
 known recall was `0.551402`, boundary recall `0.321429`. Oracle decomposition over 393 exact words
 measured identity gain `0.351382` versus segmentation `0.063882` and overlap/open-set `0.036364`.
-The independently trained ECAPA candidate passed every fixed one-shot hard-v4 gate: B-cubed F1 `0.948042`, pairwise precision `1.0`, known-speaker recall `0.947368`, zero open-set false attribution and exact 154/154 word conservation. Its real-session shadow failed promotion; decomposition routed 93/214 failures to interval purity. The fixed crop recovered only 2 words / 4.155s. Enrollment hardening then added 11 acceptances but lost five controls and closed `DO_NOT_ADVANCE`. Direct Truth Seed v1 froze 33 primary items and 8 hidden repeats across six sessions; its 41 unanswered blind slots make `REFERENCE_INSUFFICIENT` the honest result. Production remains Coverage v3 while the current goal completes only that fixed review.
+The independently trained ECAPA candidate passed every fixed one-shot hard-v4 gate: B-cubed F1 `0.948042`, pairwise precision `1.0`, known-speaker recall `0.947368`, zero open-set false attribution and exact 154/154 word conservation. Its real-session shadow failed promotion; decomposition routed 93/214 failures to interval purity. The fixed crop recovered only 2 words / 4.155s. Enrollment hardening then added 11 acceptances but lost five controls and closed `DO_NOT_ADVANCE`. Blind review closed all 33 primary and 8 repeat slots: 8 attributed, 11 unknown, 4 mixed, 10 unusable, consistency `7/8`. Production remains Coverage v3 while the current goal adjudicates the unchanged control and enrollment candidate once against this direct truth.
 See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 ## Scope And Limitations
 

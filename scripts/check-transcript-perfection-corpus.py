@@ -634,7 +634,7 @@ def build_fixture(root: Path) -> Path:
             files / "remote-speaker-direct-truth-seed-v1.json",
             {
                 "schema": "murmurmark.remote_speaker_direct_truth_seed_report/v1",
-                "decision": "REFERENCE_INSUFFICIENT",
+                "decision": "DIRECT_TRUTH_SEED_READY",
                 "scope": {
                     "source_items": 278,
                     "source_words": 851,
@@ -645,8 +645,13 @@ def build_fixture(root: Path) -> Path:
                     "repeat_items": 8,
                 },
                 "review": {
-                    "primary_answers": 0,
-                    "repeat_answers": 0,
+                    "primary_answers": 33,
+                    "repeat_answers": 8,
+                    "repeat_consistency": 0.875,
+                    "attributed_primary_answers": 8,
+                    "unknown_primary_answers": 11,
+                    "mixed_primary_answers": 4,
+                    "unusable_primary_answers": 10,
                 },
                 "invariants": {
                     "all_seed_items_unique": True,
@@ -724,7 +729,7 @@ def run(manifest: Path, out: Path) -> subprocess.CompletedProcess[str]:
 
 def main() -> int:
     runbook = (ROOT / "docs/runbooks/transcript-perfection-corpus.md").read_text(encoding="utf-8")
-    assert "next_goal: Remote Speaker Blind Review Completion v1" in runbook
+    assert "next_goal: Remote Speaker Direct-Truth Candidate Adjudication v1" in runbook
     assert "next_goal: Remote Speaker Direct Truth Seed v1" not in runbook
     with tempfile.TemporaryDirectory(prefix=".transcript-perfection-fixture-", dir=ROOT) as temporary:
         root = Path(temporary)
@@ -741,7 +746,7 @@ def main() -> int:
         assert words["correctness_status"] == "bounded_exact_subset_only"
         assert words["metrics"]["exact_subset_wer"] == 0.0
         assert report["residuals"][0]["class"] == "unknown_remote_speaker"
-        assert report["next_goal"]["id"] == "remote-speaker-blind-review-completion-v1"
+        assert report["next_goal"]["id"] == "remote-speaker-direct-truth-candidate-adjudication-v1"
         assert report["next_goal"]["selected_residual_class"] == "unknown_remote_speaker"
         assert report["lexical_prerequisite"]["id"] == "human-reviewed-lexical-seed-v1"
         assert report["lexical_prerequisite"]["status"] == "external_evidence_required"

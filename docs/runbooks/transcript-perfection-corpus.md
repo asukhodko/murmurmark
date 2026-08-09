@@ -37,7 +37,7 @@ decision: BASELINE_ESTABLISHED
 sources: 24/24 verified
 release_ready: false
 largest_actionable_residual: unknown_remote_speaker (598.240s)
-next_goal: Remote Speaker Blind Review Completion v1
+next_goal: Remote Speaker Direct-Truth Candidate Adjudication v1
 ```
 
 ## Reading The Result
@@ -55,8 +55,9 @@ next_goal: Remote Speaker Blind Review Completion v1
 - frozen real-session error decomposition routes only the dominant interval axis and keeps Coverage v3 authoritative.
 - the one-shot interval candidate is closed without tuning after only two new words and one new reference error;
 - enrollment weighting is closed after 11 gross gains also removed five control accepts and missed the 5% scope-item gate;
-- a 33-item direct-truth seed and eight hidden repeats are frozen; all 41 blind review slots remain explicit and unanswered;
-- direct real-session speaker truth must be completed before another backend or enrollment candidate;
+- the 33-item direct-truth seed and eight hidden repeats are complete; repeat consistency is `7/8`;
+- 8 primary items have direct speaker attribution, while 11 are unknown, 4 mixed and 10 unusable;
+- the frozen control and enrollment candidate must now be adjudicated against this truth before another backend;
 - residual seconds belong to different frozen scopes and must not be summed.
 - the first residual row selects the next bounded engineering goal.
 

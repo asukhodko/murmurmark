@@ -177,9 +177,10 @@ Purification v1** then closed `DO_NOT_ADVANCE`: 2 new words / `4.154556s` and on
 error. **Session-Local Remote Speaker Enrollment Hardening v1** also closed `DO_NOT_ADVANCE`: 11
 new acceptances / `44.694004s`, five removed controls and only 4/83 target failures recovered.
 **Remote Speaker Direct Truth Seed v1** then froze 33 primary items / 116 words / `90.100820s` and
-8 hidden repeats across six sessions. Its engineering gates pass, but 41 blind slots are unanswered,
-so it closed `REFERENCE_INSUFFICIENT`. **Remote Speaker Blind Review Completion v1** is current;
-production Coverage v3 remains unchanged. Notes and retrieval remain parked.
+8 hidden repeats across six sessions. Blind review closed all 41 slots with 8 attributed, 11 unknown,
+4 mixed and 10 unusable primary outcomes; repeat consistency is `7/8`. The result is
+`DIRECT_TRUTH_SEED_READY`. **Remote Speaker Direct-Truth Candidate Adjudication v1** is current;
+it compares only frozen control/candidate outputs and cannot promote production. Notes and retrieval remain parked.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

@@ -1,6 +1,6 @@
 # Remote Speaker Direct Truth Seed v1
 
-Status: completed with `REFERENCE_INSUFFICIENT`
+Status: completed with `DIRECT_TRUTH_SEED_READY`
 Version: `1`
 
 ## Purpose
@@ -65,6 +65,11 @@ Accepted direct outcomes are one listed session-local `remote_speaker_XX`, `unkn
 Missing answers produce `REFERENCE_INSUFFICIENT`. Missing or changed source/provenance, malformed
 answers, a non-blind queue or conservation failure produces `EVIDENCE_BOUND` or a fail-closed CLI
 error.
+
+The completed seed contains 33 primary and 8 repeat answers. Primary outcomes are 8 anonymous
+speaker labels, 11 `unknown_speaker`, 4 `mixed` and 10 `unusable`; repeat consistency is 7/8
+(`0.875`). This is enough for bounded candidate adjudication, not for production promotion. Mixed or
+silent exemplars and one repeat disagreement remain explicit evidence limitations.
 
 ## Safety Boundary
 

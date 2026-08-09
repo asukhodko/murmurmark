@@ -240,6 +240,8 @@ def main() -> int:
         assert report["decision"] == "REFERENCE_INSUFFICIENT", report
         assert report["scope"]["seed_items"] == 8
         assert report["scope"]["repeat_items"] == 6
+        assert report["review"]["attributed_primary_answers"] == 0
+        assert report["review"]["unknown_primary_answers"] == 0
 
         queue = [json.loads(line) for line in (out / "private/review_queue.jsonl").read_text().splitlines()]
         forbidden = {"stratum", "change", "control", "candidate", "reference", "truth", "score", "similarity", "margin", "suggested_outcome", "transcript_fragment"}
@@ -277,7 +279,10 @@ def main() -> int:
         dump_jsonl(out / "private/answers.jsonl", answers)
         final = run(policy, out, "finalize", "--write-manifest", str(manifest))
         assert final.returncode == 0, final.stdout + final.stderr
-        assert json.loads(report_path.read_text())["decision"] == "DIRECT_TRUTH_SEED_READY"
+        final_report = json.loads(report_path.read_text())
+        assert final_report["decision"] == "DIRECT_TRUTH_SEED_READY"
+        assert final_report["review"]["attributed_primary_answers"] == 8
+        assert final_report["review"]["unknown_primary_answers"] == 0
 
         repeat_slot = next(row["slot_id"] for row in slot_map if row["kind"] == "repeat")
         changed_answers = [dict(row, outcome="unknown_speaker") if row["slot_id"] == repeat_slot else row for row in answers]
