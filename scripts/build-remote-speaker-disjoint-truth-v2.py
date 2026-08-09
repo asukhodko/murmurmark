@@ -8,6 +8,7 @@ import importlib.util
 import json
 import os
 import shutil
+import subprocess
 import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
@@ -542,7 +543,15 @@ def materialize_review(policy: dict[str, Any], out: Path) -> dict[str, Any]:
                 "kind": kind,
                 "stratum": row["stratum"],
             })
-    queue.sort(key=lambda row: BASE.rank(f"{policy['selection']['salt']}:queue", row["slot_id"]))
+    slot_by_id = {row["slot_id"]: row for row in slot_map}
+    queue.sort(key=lambda row: (
+        0 if slot_by_id[row["slot_id"]]["kind"] == "primary" else 1,
+        slot_by_id[row["slot_id"]]["session_alias"],
+        BASE.rank(
+            f"{policy['selection']['salt']}:queue:{slot_by_id[row['slot_id']]['kind']}:{slot_by_id[row['slot_id']]['session_alias']}",
+            row["slot_id"],
+        ),
+    ))
     slot_map.sort(key=lambda row: row["slot_id"])
     forbidden = set(policy["selection"]["forbidden_inputs"]) | {
         "stratum", "kind", "score", "suggested_outcome", "truth", "change", "control", "candidate"
@@ -580,6 +589,8 @@ def materialize_review(policy: dict[str, Any], out: Path) -> dict[str, Any]:
         "prior_truth_read_after_candidate_freeze": True,
         "mixed_exemplars_allowed": False,
         "model_suggestions_visible": False,
+        "queue_order": "session_blocks_primary_then_blind_repeats_v1",
+        "interactive_exemplar_playback": "once_per_session_block_v1",
     }
     BASE.write_json(out / "private/review_pack.json", review_pack)
     return review_pack
@@ -770,6 +781,31 @@ def freeze(policy: dict[str, Any], out: Path, manifest_path: Path | None = None)
     return publish(policy, out, manifest_path)
 
 
+def ensure_review_refresh_allowed(answers: list[dict[str, Any]]) -> None:
+    if any(row.get("outcome") is not None for row in answers):
+        raise DisjointTruthError("review_refresh_forbidden_after_first_answer")
+
+
+def refresh_review(policy: dict[str, Any], out: Path, manifest_path: Path | None = None) -> int:
+    bundle = load_bundle(policy, out)
+    accepted_answers(bundle, policy)
+    ensure_review_refresh_allowed(bundle["answers"])
+    private = out / "private"
+    for name in ("review_pack.json", "exemplars.jsonl", "review_queue.jsonl", "slot_map.jsonl", "answers.jsonl"):
+        (private / name).unlink(missing_ok=True)
+    shutil.rmtree(private / "exemplars", ignore_errors=True)
+    review_pack = materialize_review(policy, out)
+    report = publish(policy, out, manifest_path)
+    replay(policy, out, manifest_path)
+    print(json.dumps({
+        "status": "review_pack_refreshed",
+        "decision": report["decision"],
+        "review_slots": review_pack["review_slots"],
+        "queue_order": review_pack["queue_order"],
+    }, sort_keys=True))
+    return 0
+
+
 def next_slot(policy: dict[str, Any], out: Path, play: bool) -> int:
     bundle = load_bundle(policy, out)
     accepted = accepted_answers(bundle, policy)
@@ -806,7 +842,34 @@ def grade(policy: dict[str, Any], out: Path, slot_id: str, outcome: str, reviewe
     return 0
 
 
+def play_sequence(sequence: list[tuple[str, str]]) -> None:
+    player_name = os.environ.get("MURMURMARK_BLIND_AUDIO_PLAYER", "afplay")
+    player = shutil.which(player_name) if "/" not in player_name else player_name
+    if not player or not Path(player).is_file():
+        raise BASE.DirectTruthSeedError(f"blind_audio_player_missing:{player_name}")
+    for label, path in sequence:
+        print(f"[play] {label}", flush=True)
+        result = subprocess.run([player, str(BASE.resolve(path))], check=False)
+        if result.returncode != 0:
+            raise BASE.DirectTruthSeedError(f"blind_audio_playback_failed:{label}:{result.returncode}")
+
+
+def play_target(slot: dict[str, Any]) -> None:
+    play_sequence([("target", str(slot["audio"]["path"]))])
+
+
+def play_session_reference(slot: dict[str, Any]) -> None:
+    sequence = [("target", str(slot["audio"]["path"]))]
+    sequence.extend(
+        (f"{row['speaker']} exemplar", str(row["path"]))
+        for row in slot["exemplars"]
+    )
+    sequence.append(("target again", str(slot["audio"]["path"])))
+    play_sequence(sequence)
+
+
 def interactive_review(policy: dict[str, Any], out: Path, manifest_path: Path | None) -> int:
+    last_session: str | None = None
     try:
         while True:
             bundle = load_bundle(policy, out)
@@ -817,18 +880,26 @@ def interactive_review(policy: dict[str, Any], out: Path, manifest_path: Path | 
                 return 0
             print(f"\nslot: {slot['slot_id']} ({len(accepted) + 1}/{len(bundle['queue'])})")
             print(f"session: {slot['session_alias']}")
-            BASE.play_blind_slot(slot)
+            if slot["session_alias"] != last_session:
+                print("reference: new session block; exemplars play once")
+                play_session_reference(slot)
+                last_session = slot["session_alias"]
+            else:
+                play_target(slot)
             choices = list(slot["speaker_choices"])
             for index, choice in enumerate(choices, 1):
                 print(f"  {index}: {choice}")
             aliases = {"u": "unknown_speaker", "m": "mixed", "x": "unusable"}
             while True:
-                value = input("outcome [number/u/m/x, r=replay, q=quit]: ").strip().lower()
+                value = input("outcome [number/u/m/x, r=target, e=exemplars, q=quit]: ").strip().lower()
                 if value == "q":
                     print("review: stopped; progress saved")
                     return 0
                 if value == "r":
-                    BASE.play_blind_slot(slot)
+                    play_target(slot)
+                    continue
+                if value == "e":
+                    play_session_reference(slot)
                     continue
                 outcome = aliases.get(value)
                 if value.isdigit() and 1 <= int(value) <= len(choices):
@@ -885,7 +956,7 @@ def replay(policy: dict[str, Any], out: Path, manifest_path: Path | None) -> int
 
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
-    result.add_argument("action", choices=["preflight", "prepare", "freeze", "next", "grade", "review", "progress", "status", "finalize", "replay", "all"])
+    result.add_argument("action", choices=["preflight", "prepare", "freeze", "refresh-review", "next", "grade", "review", "progress", "status", "finalize", "replay", "all"])
     result.add_argument("slot_id", nargs="?")
     result.add_argument("--policy", type=Path, default=DEFAULT_POLICY)
     result.add_argument("--out-dir", type=Path, default=DEFAULT_OUT)
@@ -917,6 +988,8 @@ def main() -> int:
             report = freeze(policy, out, manifest)
             print(json.dumps({"decision": report["decision"], "review_slots": report["scope"]["primary_items"] + report["scope"]["repeat_items"]}, sort_keys=True))
             return 0
+        if args.action == "refresh-review":
+            return refresh_review(policy, out, manifest)
         if args.action == "next":
             return next_slot(policy, out, args.play)
         if args.action == "grade":

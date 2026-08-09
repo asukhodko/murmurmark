@@ -17,7 +17,10 @@ Current decision: `REFERENCE_INSUFFICIENT`
   cases.
 - Pure bounded exemplars: 19 clips for 11 session-local profiles; confirmed mixed exemplars: 0.
 - Candidate pack SHA-256: `5eb9016f2e15033f725ba439bd0ad2e2520b55a4779836e910240c5982699ecf`.
-- Review pack SHA-256: `cc8195d0ad63cf7a66edd27aa96b28934fa16a818a7e528cb6a6560547a8501c`.
+- Review pack is session-blocked to avoid repeated exemplar playback; SHA-256:
+  `f5d8d2c6a72aa7b7d9966c8665ad3f77b294b37e5a32689df20cc8a31e043f36`.
+- The review order now has 11 session switches instead of 67. The 72 primary slots form six
+  session blocks; the 12 unlabeled repeat slots form a later blind sweep over the same six blocks.
 
 The candidate set was frozen before prior truth answers and model labels were read. The later
 exemplar stage used old answers only to accept human-reviewed single-speaker clips and otherwise

@@ -30,8 +30,12 @@ repeats заморожен на шести сессиях. Он не перес�
 доступные model disagreements и использует 19 bounded exemplar clips без confirmed mixed
 exemplars. Candidate-pack replay побайтно точен, все 355 guards проходят.
 
+Review-pack сгруппирован в сессионные блоки: 11 переключений вместо 67, а чистые exemplars
+проигрываются один раз на блок. Candidate pack при этом не изменился; после первого ответа
+перестройка review-представления запрещена.
+
 Остались blind review, terminal report, append в Transcript Perfection, переход планирования,
-проверки, commit и push. Разметка прерывается и продолжается одной командой:
+финальные проверки, commit и push. Разметка прерывается и продолжается одной командой:
 
 ```bash
 murmurmark corpus remote-truth-seed-v2 review

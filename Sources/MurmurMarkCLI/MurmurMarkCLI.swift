@@ -8326,11 +8326,12 @@ enum CorpusCommands {
             }
             guard let action = forwarded.first else {
                 throw CLIError(
-                    "remote-truth-seed-v2 requires preflight, prepare, freeze, next, grade, review, progress, status, finalize, replay, or all"
+                    "remote-truth-seed-v2 requires preflight, prepare, freeze, refresh-review, next, "
+                        + "grade, review, progress, status, finalize, replay, or all"
                 )
             }
             guard [
-                "preflight", "prepare", "freeze", "next", "grade", "review", "progress", "status", "finalize", "replay", "all",
+                "preflight", "prepare", "freeze", "refresh-review", "next", "grade", "review", "progress", "status", "finalize", "replay", "all",
             ].contains(action) else {
                 throw CLIError("unsupported remote-truth-seed-v2 action: \(action)")
             }
@@ -8647,7 +8648,7 @@ enum CorpusHelp {
                                       [--policy policies/session-local-remote-speaker-enrollment-hardening-v1.json]
           murmurmark corpus remote-truth-seed-v1 preflight|build|next|grade|status|finalize|replay|all
                                       [--policy policies/remote-speaker-direct-truth-seed-v1.json]
-          murmurmark corpus remote-truth-seed-v2 preflight|prepare|freeze|next|grade|review|progress|status|finalize|replay|all
+          murmurmark corpus remote-truth-seed-v2 preflight|prepare|freeze|refresh-review|next|grade|review|progress|status|finalize|replay|all
                                       [--policy policies/remote-speaker-disjoint-truth-expansion-v2.json]
           murmurmark corpus remote-truth-adjudication-v1 preflight|evaluate|status|replay|finalize|all
                                       [--policy policies/remote-speaker-direct-truth-candidate-adjudication-v1.json]

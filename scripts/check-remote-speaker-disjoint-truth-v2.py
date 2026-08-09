@@ -62,6 +62,18 @@ def main() -> int:
     require(bundle["pack"]["prior_truth_read"] is False, "candidate pack read prior truth")
     require(bundle["pack"]["inherited_production_guards"] == 355, "production guards changed")
     require(bundle["review_pack"]["mixed_exemplars_allowed"] is False, "mixed exemplars enabled")
+    require(bundle["review_pack"]["queue_order"] == "session_blocks_primary_then_blind_repeats_v1", "review queue order changed")
+    kinds = {row["slot_id"]: row["kind"] for row in bundle["slot_map"]}
+    sessions = {row["slot_id"]: row["session_alias"] for row in bundle["slot_map"]}
+    order = [(kinds[row["slot_id"]], sessions[row["slot_id"]]) for row in bundle["queue"]]
+    require(order == sorted(order, key=lambda value: (0 if value[0] == "primary" else 1, value[1])), "review queue is not session-blocked")
+    require(sum(left[1] != right[1] for left, right in zip(order, order[1:])) <= 11, "review queue has excessive session switches")
+    try:
+        module.ensure_review_refresh_allowed([{"outcome": "unknown_speaker"}])
+    except module.DisjointTruthError as error:
+        require(str(error) == "review_refresh_forbidden_after_first_answer", "unexpected refresh refusal")
+    else:
+        raise AssertionError("review refresh accepted an existing answer")
     require(all(row["purity"]["basis"] in {
         "human_reviewed_single_speaker_v1",
         "temporal_single_cluster_and_coverage_mapping",

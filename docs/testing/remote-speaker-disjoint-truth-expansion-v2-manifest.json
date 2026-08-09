@@ -1,0 +1,80 @@
+{
+  "decision": "REFERENCE_INSUFFICIENT",
+  "gates": {
+    "all_primary_answers": false,
+    "all_repeat_answers": false,
+    "minimum_attributed_primary_answers": false,
+    "minimum_attributed_sessions": false,
+    "repeat_consistency": false
+  },
+  "invariants": {
+    "candidate_pack_frozen_before_prior_truth": true,
+    "mixed_exemplars_excluded": true,
+    "model_suggestions_hidden": true,
+    "primary_count_exact": true,
+    "production_guards_verified": true,
+    "repeat_count_exact": true,
+    "sessions_exact": true,
+    "v1_primary_interval_overlap_count": 0
+  },
+  "report": {
+    "bytes": 2584,
+    "path": "sessions/_reports/remote-speaker-disjoint-truth-expansion-v2/remote_speaker_disjoint_truth_report.json",
+    "sha256": "38f803ef4401dea6e2f1424238f8cbcb0694875955f4df63743582768e2412b8"
+  },
+  "review": {
+    "attributed_primary_answers": 0,
+    "attributed_sessions": 0,
+    "mixed_primary_answers": 0,
+    "primary_answers": 0,
+    "remaining_slots": 84,
+    "repeat_answers": 0,
+    "repeat_compared": 0,
+    "repeat_consistency": null,
+    "repeat_matches": 0,
+    "unknown_primary_answers": 0,
+    "unusable_primary_answers": 0
+  },
+  "safety": {
+    "coverage_v3_mutated": false,
+    "echo_guard_mutated": false,
+    "model_selected": false,
+    "primary_asr_mutated": false,
+    "production_promoted": false,
+    "public_absolute_paths": false,
+    "public_human_names": false,
+    "public_speech_text": false,
+    "raw_audio_mutated": false,
+    "selected_transcript_mutated": false,
+    "truth_v1_mutated": false
+  },
+  "schema": "murmurmark.remote_speaker_disjoint_truth_manifest/v2",
+  "scope": {
+    "excluded_v1_primary_intervals": 33,
+    "primary_items": 72,
+    "primary_seconds": 155.440894,
+    "primary_words": 148,
+    "remaining_disjoint_pool_items": 245,
+    "repeat_items": 12,
+    "sessions": 6,
+    "source_items": 278,
+    "strata": {
+      "mixed_or_overlap": 16,
+      "model_disagreement": 5,
+      "short_turn": 2,
+      "temporal_boundary": 12,
+      "utterance_boundary": 37
+    },
+    "tags": {
+      "ecapa_wavlm_disagreement": 2,
+      "five_speaker": 15,
+      "mixed_or_overlap": 25,
+      "session_edge": 29,
+      "short_turn": 66,
+      "temporal_boundary_uncertain": 16,
+      "temporal_shift_instability": 3,
+      "utterance_boundary": 44,
+      "wespeaker_disagreement": 3
+    }
+  }
+}

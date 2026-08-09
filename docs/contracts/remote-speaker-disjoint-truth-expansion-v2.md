@@ -48,6 +48,11 @@ single-remote-speaker session topology. Confirmed mixed v1 answers and ambiguous
 excluded. Profiles without a bounded exemplar are not offered; the reviewer uses
 `unknown_speaker` instead.
 
+The review queue is deterministic and session-blocked. Pure exemplars play once when a session
+block starts; later targets in that block play without repeating the reference set. Repeat slots
+remain unlabeled in the blind queue. `refresh-review` may rebuild only this presentation layer and
+is fail-closed after the first accepted answer; it never changes the frozen candidate pack.
+
 ## Review And Decision
 
 Allowed outcomes are an offered session-local `remote_speaker_XX`, `unknown_speaker`, `mixed` or
