@@ -1,0 +1,233 @@
+{
+  "schema": "murmurmark.stronger_local_remote_speaker_representation_policy/v1",
+  "version": "1.0.0",
+  "state": "frozen_before_direct_truth_evaluation",
+  "scope": {
+    "expected_sessions": 6,
+    "expected_profiles": 14,
+    "expected_windows": 347,
+    "expected_coverage_v3_accepts": 68,
+    "expected_development_items": 33,
+    "expected_confirmed_v1_additive_gains": 3,
+    "expected_production_guards": 355,
+    "expected_transcript_perfection_sources": 28,
+    "sessions": [
+      {
+        "session_id": "2026-06-23_14-04-37",
+        "cluster_count": 1,
+        "dialogue_path": "sessions/2026-06-23_14-04-37/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.order_repair_v1.json",
+        "dialogue_sha256": "53c3423358ff7c84a4564c36f8d93410a0030beb6a0179dd6de0624c077da57a"
+      },
+      {
+        "session_id": "2026-06-24_15-03-52",
+        "cluster_count": 1,
+        "dialogue_path": "sessions/2026-06-24_15-03-52/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.order_repair_v1.json",
+        "dialogue_sha256": "77a3a437b0fc3052a8fb96741bcc9db73a391c929405893ee0fb6a7b369c7455"
+      },
+      {
+        "session_id": "2026-06-26_11-15-50",
+        "cluster_count": 5,
+        "dialogue_path": "sessions/2026-06-26_11-15-50/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.reviewed_v1.json",
+        "dialogue_sha256": "ec63f119a107e0ab9547fadd1aef38789a4174ee5d2541432d10331268286279"
+      },
+      {
+        "session_id": "2026-06-26_12-04-04",
+        "cluster_count": 2,
+        "dialogue_path": "sessions/2026-06-26_12-04-04/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.reviewed_v1.json",
+        "dialogue_sha256": "5b796ea89a3d473ea7204272ecbb29cdde71a5573a24515a220843b352f74b43"
+      },
+      {
+        "session_id": "2026-07-14_15-01-19-live",
+        "cluster_count": 3,
+        "dialogue_path": "sessions/2026-07-14_15-01-19-live/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.reviewed_v1.json",
+        "dialogue_sha256": "8d2703ae3f76d8d52c1bdcd83c58f5269278494e4178c7019488d4c7914e13e0"
+      },
+      {
+        "session_id": "2026-07-20_15-15-26-live",
+        "cluster_count": 2,
+        "dialogue_path": "sessions/2026-07-20_15-15-26-live/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.audit_cleanup_v2.json",
+        "dialogue_sha256": "33f5a12198c91cfbd62174e187877c47de345559b9c42abf32d2128255c5fa81"
+      }
+    ]
+  },
+  "candidate_shortlist": [
+    {
+      "id": "wespeaker_resnet34_lm_onnx",
+      "status": "selected",
+      "reason": "Small reproducible ONNX runtime, convolutional ResNet/TSTP geometry, and VoxCeleb large-margin training are materially different from SpeechBrain ECAPA and WavLM."
+    },
+    {
+      "id": "nvidia_titanet_large",
+      "status": "reserve",
+      "reason": "Materially different ContextNet/t-vector candidate, but NeMo adds a much larger runtime before the cheaper ONNX route is bounded."
+    },
+    {
+      "id": "nvidia_sortformer",
+      "status": "deferred",
+      "reason": "End-to-end diarization changes segmentation and is not a clean representation-only comparison for this goal."
+    }
+  ],
+  "candidate": {
+    "id": "wespeaker_resnet34_lm_onnx",
+    "model_id": "hbredin/wespeaker-voxceleb-resnet34-LM",
+    "model_revision": "0ae88dcaf48cacdf741275d6d1a8101f45eee220",
+    "model_file": "speaker-embedding.onnx",
+    "model_sha256": "7bb2f06e9df17cdf1ef14ee8a15ab08ed28e8d0ef5054ee135741560df2ec068",
+    "model_bytes": 26530309,
+    "default_model_path": "~/.local/share/murmurmark/models/remote-speaker-representation-v1/wespeaker-resnet34-lm/speaker-embedding.onnx",
+    "license": "Apache-2.0",
+    "license_file": "LICENCE.md",
+    "license_sha256": "697ae5802f33c2643c703bb62f0810bea9e9622e53ceb3666151c7343cf097fa",
+    "readme_sha256": "35907e1d15faf7a4d8c7e1ae961b3f2056ec7fca56a81ee98dca1f367826d107",
+    "source_url": "https://huggingface.co/hbredin/wespeaker-voxceleb-resnet34-LM",
+    "architecture": "WeSpeaker ResNet34 with temporal statistics pooling",
+    "training": "VoxCeleb speaker verification with large-margin fine-tuning",
+    "embedding_dimensions": 256,
+    "sample_rate": 16000,
+    "minimum_target_similarity": 0.45,
+    "minimum_target_margin": 0.15
+  },
+  "runtime": {
+    "mode": "offline_cpu_onnx",
+    "worker_path": "scripts/wespeaker-resnet34-embedding-worker.py",
+    "python": "3.12",
+    "onnxruntime": "1.27.0",
+    "torch": "2.12.0",
+    "torchaudio": "2.11.0",
+    "threads": 4,
+    "nice": 20,
+    "network_allowed_during_evaluation": false
+  },
+  "preprocessing": {
+    "source_repository": "https://github.com/wenet-e2e/wespeaker",
+    "source_revision": "dfa741957e5c11f477623b6e583d67d0af25ee88",
+    "source_path": "wespeaker/bin/infer_onnx.py",
+    "audio_slice_source": "frozen_4_second_remote_windows",
+    "mono": true,
+    "sample_rate": 16000,
+    "pcm_scale": 32768,
+    "num_mel_bins": 80,
+    "frame_length_ms": 25,
+    "frame_shift_ms": 10,
+    "window_type": "hamming",
+    "dither": 0.0,
+    "use_energy": false,
+    "normalization": "utterance_cepstral_mean_only"
+  },
+  "independence": {
+    "reference_backends": [
+      "speechbrain/spkrec-ecapa-voxceleb",
+      "microsoft/wavlm-base-plus-sv"
+    ],
+    "candidate_is_not_reference_wrapper": true,
+    "candidate_architecture_differs": true,
+    "candidate_training_pipeline_differs": true,
+    "control_agreement_is_informational": true,
+    "reason": "A stronger representation may disagree with two already-bounded controls; frozen stability and post-freeze direct truth remain the promotion gates."
+  },
+  "sources": {
+    "reclustering_policy": {
+      "path": "policies/session-local-remote-speaker-reclustering-feasibility-v1.json",
+      "sha256": "2934f64e0c9af2f3c509ceb66ff3b82a0d99c8b1ba567dd866f4adb04325aaab",
+      "phase": "prepare"
+    },
+    "reclustering_freeze": {
+      "path": "sessions/_reports/session-local-remote-speaker-reclustering-feasibility-v1/freeze_manifest.json",
+      "sha256": "d57e2d57c239789e22f9f5e8cfa15aadb3c7fde574263a43a059a190792cc902",
+      "phase": "prepare"
+    },
+    "reclustering_pack": {
+      "path": "sessions/_reports/session-local-remote-speaker-reclustering-feasibility-v1/private/reclustering_pack.frozen.json",
+      "sha256": "df2f9bf8fe2df0122f870bc635591862cec39c454da91f7194be8eb2c303b00d",
+      "phase": "prepare"
+    },
+    "unlabeled_windows": {
+      "path": "sessions/_reports/session-local-remote-speaker-reclustering-feasibility-v1/private/unlabeled_windows.jsonl",
+      "sha256": "4aaa314ad012ee4ca634a7d36e003634051ac2d44caf009ff86b533df46e99ac",
+      "phase": "prepare"
+    },
+    "reference_ecapa_embeddings": {
+      "path": "sessions/_reports/session-local-remote-speaker-reclustering-feasibility-v1/private/window_ecapa_embeddings.json",
+      "sha256": "bef5829cb2b5f8eddb8cf92a56d78167b782b14831497ecd9ea8524f29ba79c7",
+      "phase": "prepare"
+    },
+    "reference_wavlm_embeddings": {
+      "path": "sessions/_reports/session-local-remote-speaker-reclustering-feasibility-v1/private/window_wavlm_embeddings.json",
+      "sha256": "95e741ddb89c94158870d1147f8d18494dc7c76676a3f278037b87e8a7a02896",
+      "phase": "prepare"
+    },
+    "transcript_perfection_manifest": {
+      "path": "docs/testing/transcript-perfection-corpus-v1-manifest.json",
+      "sha256": "03ee8329e65a1e9c47a46aa109f41de1778c40202e059cc14cb86701d51e6369",
+      "phase": "prepare"
+    },
+    "transcript_perfection_report": {
+      "path": "sessions/_reports/transcript-perfection-corpus-v1/transcript_perfection_corpus_report.json",
+      "sha256": "537f110ee6b4484ea6e2af32cd7130943a592272f5167d8f9c69eac2c0943da4",
+      "phase": "prepare"
+    },
+    "direct_truth_items": {
+      "path": "sessions/_reports/remote-speaker-direct-truth-seed-v1/private/seed_selection.jsonl",
+      "sha256": "d3b38fd8b0106a53d69aa32a9b86725fc19136bf21684252e2fd8af89862996a",
+      "phase": "evaluate_after_freeze"
+    },
+    "direct_truth_slots": {
+      "path": "sessions/_reports/remote-speaker-direct-truth-seed-v1/private/slot_map.jsonl",
+      "sha256": "74e8b88c3a1322f47f9596bba39be26fcbb052ff9f821fd9f8784974258d9500",
+      "phase": "evaluate_after_freeze"
+    },
+    "direct_truth_answers": {
+      "path": "sessions/_reports/remote-speaker-direct-truth-seed-v1/private/answers.jsonl",
+      "sha256": "e0ee5425e649dc030ed7ecfdeb5e927d9e5f88d4102270d33bd4780a97e64ab2",
+      "phase": "evaluate_after_freeze"
+    },
+    "development_adjudication": {
+      "path": "sessions/_reports/remote-speaker-enrollment-purity-abstention-hardening-v2/private/development_adjudication.jsonl",
+      "sha256": "86a33aa123c8623cabf7081a84c04e82b9320b53320b5a8564e18c2e6eba2122",
+      "phase": "evaluate_after_freeze"
+    }
+  },
+  "clustering": {
+    "algorithm": "agglomerative_average_cosine_fixed_k",
+    "cluster_count_source": "frozen_preexisting_session_topology_count_only",
+    "cluster_count_tuning_allowed": false,
+    "truth_guided_tuning_allowed": false,
+    "renumbering": "earliest_window_start",
+    "stability_folds": 5
+  },
+  "evaluation": {
+    "threshold_grid_search_allowed": false,
+    "post_hoc_tuning_allowed": false,
+    "geometry_aggregation": "minimum_across_multispeaker_sessions",
+    "minimum_multispeaker_sessions": 4,
+    "minimum_candidate_silhouette": 0.20,
+    "minimum_candidate_stability_ari": 0.75,
+    "minimum_window_truth_dominance": 0.80,
+    "minimum_cluster_mapping_purity": 0.80,
+    "minimum_mapping_margin": 0.15,
+    "maximum_ambiguous_clusters": 0,
+    "minimum_preserved_confirmed_v1_additive_gains": 3,
+    "maximum_unsafe_fail_closed_accepts": 8,
+    "require_no_new_false_identity": true,
+    "require_no_lost_correct_control_identity": true
+  },
+  "decision": {
+    "allowed_outcomes": [
+      "STRONGER_REPRESENTATION_READY",
+      "KEEP_EXPLICIT_UNKNOWN",
+      "EVIDENCE_BOUND"
+    ],
+    "production_promotion_allowed": false,
+    "candidate_profile": "stronger_local_remote_speaker_representation_qualification_v1"
+  },
+  "safety": {
+    "raw_caf_mutation": false,
+    "coverage_v3_mutation": false,
+    "selected_transcript_mutation": false,
+    "primary_asr_mutation": false,
+    "echo_guard_mutation": false,
+    "cloud_allowed": false,
+    "private_intervals_in_public_report": false,
+    "fail_open_as_explicit_unknown": true
+  }
+}

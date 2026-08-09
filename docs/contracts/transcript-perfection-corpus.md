@@ -111,6 +111,13 @@ Session-Local Remote Speaker Re-Clustering Feasibility v1 is the twenty-eighth s
 ARI `0.465715`, `0/3` preserved gains and three lost controls. This closes the current
 ECAPA/WavLM re-clustering route without changing Coverage v3.
 
+Stronger Local Remote Speaker Representation Qualification v1 is the twenty-ninth source. It freezes
+the materially independent WeSpeaker ResNet34-LM model, official fbank preprocessing, 347 embeddings
+and fixed-K candidate pack before labels/direct truth. `KEEP_EXPLICIT_UNKNOWN` preserves `3/3`
+confirmed gains but records 12 new false identities, 17 unsafe accepts and six ambiguous clusters.
+Fixed-window embedding routes remain audit-only; the next bounded class is temporal/end-to-end
+remote diarization.
+
 ## Outputs
 
 The command writes only under:

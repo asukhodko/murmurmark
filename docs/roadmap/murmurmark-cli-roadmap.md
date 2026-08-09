@@ -87,7 +87,8 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Enrollment purity / abstention v2 | `done` | `KEEP_COVERAGE_V3`: 7/14 profiles qualified, 0 additions, unsafe 13 -> 8 |
 | Homogeneous enrollment mining | `done` | `KEEP_EXISTING_ENROLLMENT`: 39 windows, 0/3 gains preserved |
 | Label-independent re-clustering | `done` | `EMBEDDING_GEOMETRY_BOUND`: ARI `0.090170`, stability `0.465715` |
-| Stronger local speaker representation | `current` | Qualify a materially independent offline backend on frozen evidence |
+| Stronger local speaker representation | `done` | `KEEP_EXPLICIT_UNKNOWN`: 3/3 gains, but 12 new false identities |
+| Temporal end-to-end remote diarization | `current` | Qualify a local sequence-aware backend with five-speaker support |
 | Производные заметки | `done/optional` | Exact evidence memory и безопасный ID-only selector доступны |
 ## Актуальная Цепочка
 ```mermaid
@@ -116,11 +117,12 @@ flowchart LR
     X["Done: KEEP COVERAGE V3<br/>Enrollment Purity and<br/>Abstention Hardening v2"]
     Y["Done: KEEP EXISTING<br/>Homogeneous Session-Local<br/>Enrollment Mining v1"]
     RC["Done: GEOMETRY BOUND<br/>Label-Independent<br/>Re-Clustering v1"]
-    SR["Current<br/>Stronger Local Speaker<br/>Representation v1"]
+    SR["Done: KEEP EXPLICIT UNKNOWN<br/>Stronger Local Speaker<br/>Representation v1"]
+    TD["Current<br/>Temporal End-to-End Remote<br/>Diarization v1"]
     M["Idea<br/>Local Mic Multi-Speaker<br/>Diarization v1"]
     O["Optional<br/>Notes, retrieval,<br/>work proposals"]
 
-    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> W --> X --> Y --> RC --> SR
+    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> W --> X --> Y --> RC --> SR --> TD
     F --> D
     P -. "real local scenario" .-> M
     L -.-> O
@@ -143,7 +145,7 @@ Word/frame-level diarization работает по authoritative remote audio, �
 ### 3. Transcript Perfection Corpus v1 — `done`
 
 Единый корпус связывает проверку текста, порядка, ролей, speaker turns, overlap, missing `Me`,
-remote leakage и acoustic modes. Baseline `BASELINE_ESTABLISHED`: 28/28 frozen sources verified,
+remote leakage и acoustic modes. Baseline `BASELINE_ESTABLISHED`: 29/29 frozen sources verified,
 восемь явных dimensions, exact lexical subset измерен, real meetings остаются
 reference-insufficient, aggregate score запрещён. Interval и enrollment results включены frozen
 sources; direct adjudication сохраняет Coverage v3 и направляет следующий monotonic candidate.
@@ -248,15 +250,10 @@ identity `0.351382`, segmentation `0.063882`, overlap/open-set `0.036364`.
 topology не перенастраиваются, а следующий эксперимент меняет семейство identity backend.
 
 ### 14. Stronger Remote Speaker Identity Backend Qualification v1 — `done`
-
 WavLM control и независимо обученный SpeechBrain ECAPA были заморожены вместе с model, license,
-runtime и SHA-256 provenance. ECAPA выбрался только на Truth Lab v1, hard-v2 и hard-v3; новый
-disjoint hard-v4 был создан и запечатан до выбора, затем открыт ровно один раз.
-
-Результат `PROMOTE_LAB_IDENTITY_CANDIDATE`: hard-v4 B-cubed F1 `0.948042`, pairwise precision
-`1.0`, known recall `0.947368`, boundaries `13/23`, zero open-set false attribution, mixed `6/6`
-fail-closed и exact 154/154 words. Replay byte-exact. Production, Coverage v3 и selected
-transcripts не изменены; synthetic result разрешает только отдельную real-session shadow проверку.
+runtime и SHA-256 provenance; disjoint hard-v4 запечатан до выбора и открыт один раз. Результат
+`PROMOTE_LAB_IDENTITY_CANDIDATE`: B-cubed F1 `0.948042`, precision `1.0`, recall `0.947368`,
+boundaries `13/23`, zero open-set false attribution и exact 154/154 words. Production не изменён.
 
 ### 15. ECAPA Remote Speaker Shadow Qualification v1 — `done`
 Frozen ECAPA был применён только как fail-open shadow над 278 residual intervals шести реальных сессий. Заморозка охватила 851 unknown words, 28 session-local exemplars, model/runtime, clips, Coverage v3 и selected-transcript guards.
@@ -282,10 +279,14 @@ fail-closed unsafe accepts 8 -> 13. Net gain 1/8 не прошёл material gate
 `KEEP_EXISTING_ENROLLMENT`: 39 окон, 9/14 profiles, 0/3 gains, 4 new false identities.
 ### 23. Session-Local Remote Speaker Re-Clustering Feasibility v1 — `done`
 `EMBEDDING_GEOMETRY_BOUND`: 347 blind windows, ARI `0.090170`, stability `0.465715`, gains `0/3`.
-### 24. Stronger Local Remote Speaker Representation Qualification v1 — `current`
-Квалифицировать independent offline backend; model, runtime и rules заморозить до direct truth.
-### 25. Local Mic Multi-Speaker Diarization v1 — `idea`: при реальном corpus разделять Target-Me, other local speakers и `unknown`.
-### 26. Производные Возможности — `optional`: notes и work proposals остаются отдельными производными после transcript gates.
+### 24. Stronger Local Remote Speaker Representation Qualification v1 — `done`
+`KEEP_EXPLICIT_UNKNOWN`: WeSpeaker ResNet34-LM сохранил 3/3 gains и все correct controls, но дал
+17 unsafe accepts, 12 новых false identities и шесть ambiguous clusters; stability упала до `0.442394`.
+### 25. Temporal End-to-End Remote Diarization Qualification v1 — `current`
+Квалифицировать полностью локальный temporal backend с overlap и минимум пятью remote speakers;
+model, segmentation, speaker-count policy и candidate pack заморозить до labels/direct truth.
+### 26. Local Mic Multi-Speaker Diarization v1 — `idea`: при реальном corpus разделять Target-Me, other local speakers и `unknown`.
+### 27. Производные Возможности — `optional`: notes и work proposals остаются отдельными производными после transcript gates.
 ## Закрытые И Отложенные Треки
 - Human-Reviewed Lexical Seed заблокирован отсутствием реального reference; machine disagreement не заменяет truth.
 - Пред-ASR разделение закрыто; открыть его может новая независимая проверка Target-Me presence.

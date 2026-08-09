@@ -73,6 +73,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-remote-speaker-enrollment-purity-abstention-v2.py
 "$python_bin" scripts/check-session-local-homogeneous-remote-speaker-enrollment-mining-v1.py
 "$python_bin" scripts/check-session-local-remote-speaker-reclustering-feasibility-v1.py
+"$python_bin" scripts/check-stronger-local-remote-speaker-representation-v1.py
 "$python_bin" scripts/check-lexical-accuracy-reference-corpus.py
 "$python_bin" scripts/check-transcript-perfection-corpus.py
 "$python_bin" scripts/check-anonymous-rich-transcript.py

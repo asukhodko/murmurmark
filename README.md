@@ -294,7 +294,7 @@ murmurmark transcript "$SESSION" --rich --reviewed-speakers
 murmurmark notes "$SESSION" --reviewed-speakers
 murmurmark export "$SESSION" --format markdown --include-json --reviewed-speakers
 ```
-Speaker-aware memory and exact-text notes remain optional derivatives. Transcript Perfection Corpus keeps 28/28 frozen sources explicit and never collapses unlike quality dimensions into one score.
+Speaker-aware memory and exact-text notes remain optional derivatives. Transcript Perfection Corpus keeps 29/29 frozen sources explicit and never collapses unlike quality dimensions into one score.
 Lexical Accuracy Reference Corpus v1 measures its exact 67-word digital subset at WER/CER `0` and
 keeps real-meeting lexical correctness blocked by missing human-reviewed evidence:
 ```bash
@@ -308,7 +308,7 @@ murmurmark corpus remote-identity-v1 setup && murmurmark corpus remote-identity-
 murmurmark corpus remote-identity-shadow-v1 status && murmurmark corpus remote-identity-shadow-errors-v1 status && murmurmark corpus remote-identity-interval-v1 status && murmurmark corpus remote-identity-enrollment-v1 status && murmurmark corpus remote-identity-enrollment-v1 replay
 murmurmark corpus remote-truth-seed-v1 status && murmurmark corpus remote-truth-adjudication-v1 status
 murmurmark corpus remote-enrollment-purity-v2 status && murmurmark corpus remote-homogeneous-enrollment-v1 status
-murmurmark corpus remote-reclustering-v1 status && murmurmark corpus remote-reclustering-v1 replay
+murmurmark corpus remote-reclustering-v1 status && murmurmark corpus remote-representation-v1 status && murmurmark corpus remote-representation-v1 replay
 ```
 The dependent critical path is:
 ```text
@@ -327,14 +327,14 @@ Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental 
 -> Remote Speaker Attribution Error Decomposition v1 (done: identity is the dominant bottleneck)
 -> Stronger Remote Speaker Identity Backend Qualification v1 (done: PROMOTE lab-only ECAPA)
 -> ECAPA Remote Speaker Shadow Qualification v1 (done: DO_NOT_PROMOTE on real sessions)
--> Remote Speaker Shadow Error Decomposition v1 (done) -> Bounded Remote Speaker Interval Purification v1 (done: DO_NOT_ADVANCE) -> Session-Local Remote Speaker Enrollment Hardening v1 (done: DO_NOT_ADVANCE) -> Remote Speaker Direct Truth Seed v1 (done: DIRECT_TRUTH_SEED_READY) -> Remote Speaker Direct-Truth Candidate Adjudication v1 (done: KEEP_COVERAGE_V3) -> Enrollment Purity and Abstention Hardening v2 (done: KEEP_COVERAGE_V3) -> Homogeneous Enrollment Mining v1 (done: KEEP_EXISTING_ENROLLMENT) -> Session-Local Remote Speaker Re-Clustering Feasibility v1 (done: EMBEDDING_GEOMETRY_BOUND) -> Stronger Local Remote Speaker Representation Qualification v1 (current)
+-> Remote Speaker Shadow Error Decomposition v1 (done) -> Bounded Remote Speaker Interval Purification v1 (done: DO_NOT_ADVANCE) -> Session-Local Remote Speaker Enrollment Hardening v1 (done: DO_NOT_ADVANCE) -> Remote Speaker Direct Truth Seed v1 (done: DIRECT_TRUTH_SEED_READY) -> Remote Speaker Direct-Truth Candidate Adjudication v1 (done: KEEP_COVERAGE_V3) -> Enrollment Purity and Abstention Hardening v2 (done: KEEP_COVERAGE_V3) -> Homogeneous Enrollment Mining v1 (done: KEEP_EXISTING_ENROLLMENT) -> Session-Local Remote Speaker Re-Clustering Feasibility v1 (done: EMBEDDING_GEOMETRY_BOUND) -> Stronger Local Remote Speaker Representation Qualification v1 (done: KEEP_EXPLICIT_UNKNOWN) -> Temporal End-to-End Remote Diarization Qualification v1 (current)
 ```
 Independent WavLM recovered only `6.2280%` of residual words; its original 53 proposals remain
 ungraded, while the later bounded 33-item seed now has direct truth. Exact synthetic truth qualified the Coverage v3 control (`0.983505` B-cubed F1, zero
 open-set errors). Blind hard-v2 then rejected conservative word-level fusion despite precision `1.0`:
 known recall was `0.551402`, boundary recall `0.321429`. Oracle decomposition over 393 exact words
 measured identity gain `0.351382` versus segmentation `0.063882` and overlap/open-set `0.036364`.
-The independently trained ECAPA candidate passed every fixed one-shot hard-v4 gate: B-cubed F1 `0.948042`, pairwise precision `1.0`, known-speaker recall `0.947368`, zero open-set false attribution and exact 154/154 word conservation. Its real-session shadow failed promotion; decomposition routed 93/214 failures to interval purity. The fixed crop recovered only 2 words / 4.155s. Enrollment hardening then added 11 acceptances but lost five controls and closed `DO_NOT_ADVANCE`. Blind review closed all 33 primary and 8 repeat slots: 8 attributed, 11 unknown, 4 mixed, 10 unusable, consistency `7/8`. Direct adjudication kept Coverage v3: the candidate gained 3 correct identities, lost 2 correct controls and raised unsafe accepts from 8 to 13. Purity v2 restored control safety but produced zero additions from only 7/14 qualified profiles. Homogeneous mining found 39 windows for 9/14 profiles but preserved 0/3 gains. Label-independent re-clustering then froze 347 windows and reached `EMBEDDING_GEOMETRY_BOUND`: minimum ECAPA/WavLM ARI `0.090170`, stability `0.465715`, and `0/3` gains preserved. Production stays Coverage v3; the next goal qualifies a materially different local speaker representation.
+The independently trained ECAPA candidate passed every fixed one-shot hard-v4 gate: B-cubed F1 `0.948042`, pairwise precision `1.0`, known-speaker recall `0.947368`, zero open-set false attribution and exact 154/154 word conservation. Its real-session shadow failed promotion; decomposition routed 93/214 failures to interval purity. The fixed crop recovered only 2 words / 4.155s. Enrollment hardening then added 11 acceptances but lost five controls and closed `DO_NOT_ADVANCE`. Blind review closed all 33 primary and 8 repeat slots: 8 attributed, 11 unknown, 4 mixed, 10 unusable, consistency `7/8`. Direct adjudication kept Coverage v3: the candidate gained 3 correct identities, lost 2 correct controls and raised unsafe accepts from 8 to 13. Purity v2 restored control safety but produced zero additions from only 7/14 qualified profiles. Homogeneous mining found 39 windows for 9/14 profiles but preserved 0/3 gains. Label-independent ECAPA/WavLM re-clustering reached `EMBEDDING_GEOMETRY_BOUND`. A frozen WeSpeaker ResNet34-LM qualification then preserved all `3/3` gains but introduced 12 new false identities and six ambiguous clusters, closing `KEEP_EXPLICIT_UNKNOWN`. Production stays Coverage v3; the next bounded class is temporal/end-to-end remote diarization.
 See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 ## Scope And Limitations
 
@@ -383,7 +383,7 @@ See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](do
 - [Remote Speaker Coverage v3](docs/contracts/remote-speaker-coverage-v3.md) and [Residual Evidence v4](docs/contracts/remote-speaker-residual-evidence-v4.md) contracts
 - [Independent evidence](docs/contracts/independent-remote-speaker-evidence-v1.md) and [residual reference](docs/contracts/remote-speaker-residual-reference-corpus-v1.md)
 - [Controlled Truth Lab v1](docs/contracts/controlled-remote-speaker-truth-lab-v1.md), [Duration-Aware v2](docs/contracts/duration-aware-remote-speaker-attribution-v2.md) and [Segment-Context v1](docs/contracts/segment-context-remote-speaker-attribution-v1.md)
-- [ECAPA qualification](docs/contracts/stronger-remote-speaker-identity-backend-qualification-v1.md), [real-session shadow](docs/contracts/ecapa-remote-speaker-shadow-qualification-v1.md), [error decomposition](docs/contracts/remote-speaker-shadow-error-decomposition-v1.md), [bounded interval result](docs/contracts/bounded-remote-speaker-interval-purification-v1.md), [direct-truth adjudication](docs/contracts/remote-speaker-direct-truth-candidate-adjudication-v1.md), and [Speaker-Resolved Default](docs/contracts/speaker-resolved-transcript-default-v1.md)
+- [ECAPA qualification](docs/contracts/stronger-remote-speaker-identity-backend-qualification-v1.md), [real-session shadow](docs/contracts/ecapa-remote-speaker-shadow-qualification-v1.md), [re-clustering bound](docs/contracts/session-local-remote-speaker-reclustering-feasibility-v1.md), [WeSpeaker bound](docs/contracts/stronger-local-remote-speaker-representation-qualification-v1.md), and [Speaker-Resolved Default](docs/contracts/speaker-resolved-transcript-default-v1.md)
 - [Three-session current-pipeline quality debug](docs/testing/2026-08-08-three-session-current-pipeline-quality-debug-v1.md)
 
 ## Development Checks

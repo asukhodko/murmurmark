@@ -151,7 +151,11 @@ Read in this order:
 147. [Session-Local Remote Speaker Re-Clustering Feasibility v1 runbook](runbooks/session-local-remote-speaker-reclustering-feasibility-v1.md)
 148. [Session-Local Remote Speaker Re-Clustering Feasibility v1 result](testing/2026-08-09-session-local-remote-speaker-reclustering-feasibility-v1.md)
 149. [Session-Local Remote Speaker Re-Clustering Feasibility v1 manifest](testing/session-local-remote-speaker-reclustering-feasibility-v1-manifest.json)
-150. [Planning and development history](history/README.md)
+150. [Stronger Local Remote Speaker Representation Qualification v1 contract](contracts/stronger-local-remote-speaker-representation-qualification-v1.md)
+151. [Stronger Local Remote Speaker Representation Qualification v1 runbook](runbooks/stronger-local-remote-speaker-representation-qualification-v1.md)
+152. [Stronger Local Remote Speaker Representation Qualification v1 result](testing/2026-08-09-stronger-local-remote-speaker-representation-qualification-v1.md)
+153. [Stronger Local Remote Speaker Representation Qualification v1 manifest](testing/stronger-local-remote-speaker-representation-qualification-v1-manifest.json)
+154. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
 
@@ -203,8 +207,11 @@ Homogeneous Remote Speaker Enrollment Mining v1** then qualified 9/14 profiles a
 preserved 0/3 gains, lost three controls and added four false identities, so it also kept Coverage v3.
 **Session-Local Remote Speaker Re-Clustering Feasibility v1** then froze 347 blind windows before
 labels and reached `EMBEDDING_GEOMETRY_BOUND`: minimum ECAPA/WavLM ARI `0.090170`, stability
-`0.465715`, preserved gains `0/3`. The current models are closed; the next bounded goal qualifies a
-materially independent local speaker representation. Notes and retrieval remain parked.
+`0.465715`, preserved gains `0/3`. **Stronger Local Remote Speaker Representation Qualification v1**
+then froze WeSpeaker ResNet34-LM before direct truth. It preserved `3/3` confirmed gains and lost no
+correct controls, but introduced 12 new false identities, left six ambiguous clusters and closed
+`KEEP_EXPLICIT_UNKNOWN`. Lightweight fixed-window embedding routes are closed; the next bounded goal
+qualifies temporal/end-to-end remote diarization. Notes and retrieval remain parked.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

@@ -682,31 +682,31 @@ nodes:
       4 false identities. Candidate pack заморожен до truth, replay и 355 guards проходят;
       production остался Coverage v3.
 
-  quality-session-local-remote-speaker-reclustering-feasibility-v1:
-    title: "Session-Local Remote Speaker Re-Clustering Feasibility v1"
+  quality-lightweight-remote-speaker-representation-frontier-v1:
+    title: "Lightweight Remote Speaker Representation Frontier v1"
     kind: task
     parent: murmurmark-cli
     deps: [quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1]
     status: done
     effort: 12
     notes: |
-      Завершено EMBEDDING_GEOMETRY_BOUND. 347 blind windows заморожены до labels; minimum
-      ECAPA/WavLM ARI 0.090170, NMI 0.231989, stability ARI 0.465715, fragmentation 1.8.
-      Direct truth сохранил 0/3 gains, добавил 4 false identities и потерял 3 controls.
-      Current ECAPA/WavLM route закрыт; production остался Coverage v3.
+      Два freeze-first эксперимента закрыли fixed-window route. ECAPA/WavLM re-clustering завершён
+      EMBEDDING_GEOMETRY_BOUND: agreement ARI 0.090170, stability 0.465715, gains 0/3. WeSpeaker
+      ResNet34-LM завершён KEEP_EXPLICIT_UNKNOWN: gains 3/3 и controls сохранены, но появились
+      12 new false identities, 17 unsafe accepts и 6 ambiguous clusters. Production остался Coverage v3.
 
-  quality-stronger-local-remote-speaker-representation-qualification-v1:
-    title: "Stronger Local Remote Speaker Representation Qualification v1"
+  quality-temporal-end-to-end-remote-diarization-qualification-v1:
+    title: "Temporal End-to-End Remote Diarization Qualification v1"
     kind: task
     parent: murmurmark-cli
-    deps: [quality-session-local-remote-speaker-reclustering-feasibility-v1]
+    deps: [quality-lightweight-remote-speaker-representation-frontier-v1]
     status: current
-    effort: 14
+    effort: 18
     notes: |
-      Выбрать минимум один materially independent local diarization/speaker backend. Заморозить
-      model/license/runtime provenance, audio-only segmentation, embeddings и clustering rule до
-      direct truth. На тех же six sessions и 33 items измерить geometry, open-set safety, mapping
-      ambiguity и 3 confirmed gains. Production promotion и tuning текущих ECAPA/WavLM запрещены.
+      Квалифицировать минимум один fully local temporal/end-to-end diarization backend, который
+      моделирует speaker activity, overlap и sequence context и поддерживает минимум пять remote
+      speakers. До Coverage labels и 33-item direct truth заморозить model/license/runtime,
+      segmentation, speaker-count policy и candidate pack. Production promotion запрещён.
 
 views:
   roadmap-tree:
@@ -725,7 +725,7 @@ views:
         nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-stronger-local-remote-speaker-representation-qualification-v1]
+        nodes: [quality-temporal-end-to-end-remote-diarization-qualification-v1]
       dependent:
         title: "Blind real-session reference blocker"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
@@ -781,8 +781,8 @@ views:
           - quality-remote-speaker-direct-truth-candidate-adjudication-v1
           - quality-remote-speaker-enrollment-purity-abstention-hardening-v2
           - quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1
-          - quality-session-local-remote-speaker-reclustering-feasibility-v1
-          - quality-stronger-local-remote-speaker-representation-qualification-v1
+          - quality-lightweight-remote-speaker-representation-frontier-v1
+          - quality-temporal-end-to-end-remote-diarization-qualification-v1
 
   echo-frontier:
     title: "Пред-ASR отделение Me от remote"
@@ -818,8 +818,8 @@ views:
         title: "Доказанная speaker evidence"
         nodes: [research-remote-diarization, research-rich-transcript, quality-remote-speaker-diarization-v2]
       current:
-        title: "Stronger local speaker representation"
-        nodes: [quality-stronger-local-remote-speaker-representation-qualification-v1]
+        title: "Temporal end-to-end remote diarization"
+        nodes: [quality-temporal-end-to-end-remote-diarization-qualification-v1]
       blocker:
         title: "Blind real-session reference"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
@@ -883,15 +883,15 @@ views:
           - quality-remote-speaker-direct-truth-candidate-adjudication-v1
           - quality-remote-speaker-enrollment-purity-abstention-hardening-v2
           - quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1
-          - quality-session-local-remote-speaker-reclustering-feasibility-v1
-          - quality-stronger-local-remote-speaker-representation-qualification-v1
+          - quality-lightweight-remote-speaker-representation-frontier-v1
+          - quality-temporal-end-to-end-remote-diarization-qualification-v1
 
 x:
   exec:
     program:
       nearest_goal: >-
-        Stronger Local Remote Speaker Representation Qualification v1: сохранить Coverage v3, selected transcripts, raw CAF, primary ASR, Echo Guard и 28 frozen Transcript Perfection sources неизменными; выбрать и зафиксировать минимум один существенно иной локальный diarization или speaker-representation backend, который не сводится к новым порогам ECAPA/WavLM; до чтения direct truth заморозить model provenance, license, offline runtime, audio-only segmentation, embeddings, clustering rule и candidate pack; на том же шестисессионном корпусе и 33 direct-truth items измерить geometry stability, open-set safety, mapping ambiguity и сохранение трёх подтверждённых gains; выпустить STRONGER_REPRESENTATION_READY, KEEP_EXPLICIT_UNKNOWN либо EVIDENCE_BOUND без production promotion; добавить deterministic evaluator, tests и corpus report, обновить документацию и планирование, пройти проверки, закоммитить и отправить изменения.
-      success_by_next_sync: "Новый materially independent local speaker backend квалифицирован либо доступный model frontier закрыт с explicit unknown; Coverage v3 неизменён."
+        Temporal End-to-End Remote Diarization Qualification v1: сохранить Coverage v3, selected transcripts, raw CAF, primary ASR, Echo Guard и 29 frozen Transcript Perfection sources неизменными; выбрать и зафиксировать минимум один полностью локальный temporal/end-to-end diarization backend, который моделирует speaker activity и последовательность разговора, а не только кластеризует независимые ECAPA/WavLM/WeSpeaker windows; до чтения Coverage labels и 33-item direct truth заморозить model/license/runtime provenance, remote-audio hashes, segmentation, overlap policy, speaker-count strategy и candidate diarization pack; на том же шестисессионном корпусе, включая сессию с пятью remote profiles, измерить temporal stability, boundary conservation, overlap safety, cluster-to-profile ambiguity, open-set errors и сохранение трёх подтверждённых gains; выпустить TEMPORAL_DIARIZATION_READY, KEEP_EXPLICIT_UNKNOWN либо EVIDENCE_BOUND без production promotion; добавить deterministic evaluator, replay, tests и corpus report; актуализировать документацию, Transcript Perfection и планирование; пройти проверки, закоммитить изменения и отправить их в origin/main.
+      success_by_next_sync: "Temporal local diarization backend квалифицирован на six-session/five-speaker scope либо доступный backend frontier закрыт с explicit unknown; Coverage v3 неизменён."
     defaults:
       status_progress:
         done: 1.0
@@ -912,13 +912,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle и batch transcript работают; three-session replay подтвердил raw/cache/speaker conservation и закрыл legacy cache preflight."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Stronger Local Speaker Representation v1"
-        scope_nodes: [quality-stronger-local-remote-speaker-representation-qualification-v1]
+        title: "Temporal End-to-End Remote Diarization v1"
+        scope_nodes: [quality-temporal-end-to-end-remote-diarization-qualification-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Label-independent re-clustering закрыл ECAPA/WavLM route: ARI 0.090170, stability 0.465715, preserved gains 0/3."
-          next_sync_goal: "Квалифицировать materially independent local diarization/speaker representation backend."
+          sync_note: "WeSpeaker сохранил gains 3/3, но дал 12 new false identities; fixed-window embedding route закрыт KEEP_EXPLICIT_UNKNOWN."
+          next_sync_goal: "Квалифицировать local temporal/end-to-end diarization backend с five-speaker support."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -945,8 +945,8 @@ x:
           - quality-remote-speaker-direct-truth-candidate-adjudication-v1
           - quality-remote-speaker-enrollment-purity-abstention-hardening-v2
           - quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1
-          - quality-session-local-remote-speaker-reclustering-feasibility-v1
-          - quality-stronger-local-remote-speaker-representation-qualification-v1
+          - quality-lightweight-remote-speaker-representation-frontier-v1
+          - quality-temporal-end-to-end-remote-diarization-qualification-v1
         kind: main
         mgmt:
           health: yellow

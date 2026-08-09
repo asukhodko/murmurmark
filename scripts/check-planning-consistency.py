@@ -80,8 +80,8 @@ CRITICAL_PATH = (
     "quality-remote-speaker-direct-truth-candidate-adjudication-v1",
     "quality-remote-speaker-enrollment-purity-abstention-hardening-v2",
     "quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1",
-    "quality-session-local-remote-speaker-reclustering-feasibility-v1",
-    "quality-stronger-local-remote-speaker-representation-qualification-v1",
+    "quality-lightweight-remote-speaker-representation-frontier-v1",
+    "quality-temporal-end-to-end-remote-diarization-qualification-v1",
 )
 
 EXPECTED_STATUSES = {"done", "current", "next", "later", "idea", "optional", "blocked"}
@@ -468,23 +468,23 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
     )
     require(
         "quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1"
-        in nodes["quality-session-local-remote-speaker-reclustering-feasibility-v1"].get("deps", []),
-        "remote speaker re-clustering feasibility must follow homogeneous enrollment mining",
+        in nodes["quality-lightweight-remote-speaker-representation-frontier-v1"].get("deps", []),
+        "lightweight representation frontier must follow homogeneous enrollment mining",
     )
     require(
-        nodes["quality-session-local-remote-speaker-reclustering-feasibility-v1"].get("status")
+        nodes["quality-lightweight-remote-speaker-representation-frontier-v1"].get("status")
         == "done",
-        "remote speaker re-clustering feasibility must remain completed",
+        "lightweight representation frontier must remain completed",
     )
     require(
-        "quality-session-local-remote-speaker-reclustering-feasibility-v1"
-        in nodes["quality-stronger-local-remote-speaker-representation-qualification-v1"].get("deps", []),
-        "stronger local speaker representation must follow re-clustering feasibility",
+        "quality-lightweight-remote-speaker-representation-frontier-v1"
+        in nodes["quality-temporal-end-to-end-remote-diarization-qualification-v1"].get("deps", []),
+        "temporal diarization qualification must follow the lightweight representation frontier",
     )
     require(
-        nodes["quality-stronger-local-remote-speaker-representation-qualification-v1"].get("status")
+        nodes["quality-temporal-end-to-end-remote-diarization-qualification-v1"].get("status")
         == "current",
-        "stronger local speaker representation must be the current quality goal",
+        "temporal end-to-end remote diarization must be the current quality goal",
     )
     require("parked-ui" not in nodes, "UI must not occupy the active CLI roadmap")
 

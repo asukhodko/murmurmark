@@ -34,10 +34,10 @@ Expected frozen baseline:
 
 ```text
 decision: BASELINE_ESTABLISHED
-sources: 28/28 verified
+sources: 29/29 verified
 release_ready: false
 largest_actionable_residual: unknown_remote_speaker (598.240s)
-next_goal: Stronger Local Remote Speaker Representation Qualification v1
+next_goal: Temporal End-to-End Remote Diarization Qualification v1
 ```
 
 ## Reading The Result
@@ -65,7 +65,10 @@ next_goal: Stronger Local Remote Speaker Representation Qualification v1
   correct controls and introduced four false identities;
 - label-independent re-clustering froze 347 windows, but model ARI fell to `0.090170`, stability to
   `0.465715`, and direct truth preserved `0/3` gains; the current ECAPA/WavLM route is closed;
-- the next bounded experiment must qualify a materially different local speaker representation;
+- WeSpeaker ResNet34-LM preserved `3/3` gains and all correct controls, but added 12 false identities,
+  17 unsafe accepts and six ambiguous clusters, closing `KEEP_EXPLICIT_UNKNOWN`;
+- the next bounded experiment must qualify temporal/end-to-end remote diarization with overlap and
+  five-speaker support;
 - residual seconds belong to different frozen scopes and must not be summed.
 - the first residual row selects the next bounded engineering goal.
 

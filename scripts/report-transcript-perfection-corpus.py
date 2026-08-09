@@ -673,6 +673,32 @@ def semantic_gates(
         {"invariants": reclustering.get("invariants"), "safety": reclustering_safety},
     )
 
+    stronger = payloads.get("stronger_local_remote_speaker_representation_qualification_v1") or {}
+    stronger_safety = stronger.get("safety") or {}
+    add(
+        "stronger_local_remote_speaker_representation_qualification_v1",
+        "terminal_decision",
+        stronger.get("decision")
+        in {"STRONGER_REPRESENTATION_READY", "KEEP_EXPLICIT_UNKNOWN", "EVIDENCE_BOUND"},
+        stronger.get("decision"),
+    )
+    add(
+        "stronger_local_remote_speaker_representation_qualification_v1",
+        "frozen_independent_representation_integrity",
+        stronger.get("replay_verified") is True
+        and all((stronger.get("invariants") or {}).values())
+        and stronger_safety.get("raw_caf_mutation") is False
+        and stronger_safety.get("coverage_v3_mutation") is False
+        and stronger_safety.get("selected_transcript_mutation") is False
+        and stronger_safety.get("primary_asr_mutation") is False
+        and stronger_safety.get("echo_guard_mutation") is False
+        and stronger_safety.get("thresholds_tuned") is False
+        and int(stronger_safety.get("coverage_v3_accepts_preserved", -1)) == 68
+        and int(stronger_safety.get("production_guards_verified", -1)) == 355
+        and int(stronger_safety.get("transcript_perfection_sources_preserved", -1)) == 28,
+        {"invariants": stronger.get("invariants"), "safety": stronger_safety},
+    )
+
     failures = [f"semantic_gate:{row['source']}:{row['gate']}" for row in checks if not row["passed"]]
     return checks, failures
 
@@ -835,6 +861,9 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
         "session_local_homogeneous_remote_speaker_enrollment_mining_v1"
     ]
     reclustering = payloads["session_local_remote_speaker_reclustering_feasibility_v1"]
+    stronger_representation = payloads[
+        "stronger_local_remote_speaker_representation_qualification_v1"
+    ]
 
     return [
         {
@@ -1162,6 +1191,20 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 "reclustering_preserved_confirmed_gains": int(
                     reclustering["direct_truth"]["preserved_confirmed_v1_additive_gains"]
                 ),
+                "stronger_representation_decision": stronger_representation["decision"],
+                "stronger_representation_backend": stronger_representation["candidate"]["id"],
+                "stronger_representation_minimum_stability_ari": float(
+                    stronger_representation["geometry"]["values"]["minimum_candidate_stability_ari"]
+                ),
+                "stronger_representation_ambiguous_clusters": int(
+                    stronger_representation["mapping"]["values"]["ambiguous_clusters"]
+                ),
+                "stronger_representation_preserved_confirmed_gains": int(
+                    stronger_representation["direct_truth"]["preserved_confirmed_v1_additive_gains"]
+                ),
+                "stronger_representation_new_false_identity_items": int(
+                    stronger_representation["direct_truth"]["new_false_identity_items"]
+                ),
             },
             "residual_classes": ["unknown_remote_speaker"],
         },
@@ -1369,9 +1412,14 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
         != "RECLUSTERING_ROUTE_READY"
     ):
         release_blockers.insert(2, "remote_speaker_turns.reclustering_route_not_ready")
+    if (
+        (payloads.get("stronger_local_remote_speaker_representation_qualification_v1") or {}).get("decision")
+        != "STRONGER_REPRESENTATION_READY"
+    ):
+        release_blockers.insert(2, "remote_speaker_turns.stronger_representation_not_ready")
     report = {
         "schema": REPORT_SCHEMA,
-        "generator": {"name": "report-transcript-perfection-corpus", "version": "1.7.0", "mode": "deterministic_offline"},
+        "generator": {"name": "report-transcript-perfection-corpus", "version": "1.8.0", "mode": "deterministic_offline"},
         "decision": decision,
         "manifest": {
             "path": portable_path(Path(str(manifest["_path"]))),
@@ -1427,11 +1475,15 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
                     "unsafe accepts from 8 to 13. Purity hardening then qualified 7/14 profiles "
                     "but preserved 0/3 confirmed gains. A frozen session-local homogeneous miner "
                     "found 39 ECAPA+WavLM-consistent windows for 9/14 profiles, yet again preserved "
-                    "0/3 gains, lost three correct controls and introduced four new false identities"
+                    "0/3 gains, lost three correct controls and introduced four new false identities. "
+                    "Label-independent ECAPA/WavLM re-clustering then reached EMBEDDING_GEOMETRY_BOUND. "
+                    "A frozen WeSpeaker ResNet34-LM candidate preserved 3/3 gains and all correct "
+                    "controls, but produced 17 unsafe accepts, including 12 new false identities, "
+                    "and left six ambiguous clusters"
                 ),
                 "next_evidence": (
-                    "test label-independent session-local re-clustering to separate embedding geometry "
-                    "from contaminated Coverage v3 enrollment labels; do not open disjoint truth or production promotion"
+                    "qualify a fully local temporal/end-to-end remote diarization backend with overlap "
+                    "and five-speaker support; freeze model, segmentation and speaker-count policy before truth"
                 ),
             },
             {
@@ -1456,15 +1508,15 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
             ),
         },
         "next_goal": {
-            "id": "stronger-local-remote-speaker-representation-qualification-v1" if not failures else "restore-input-integrity",
-            "title": "Stronger Local Remote Speaker Representation Qualification v1" if not failures else "Restore Input Integrity",
+            "id": "temporal-end-to-end-remote-diarization-qualification-v1" if not failures else "restore-input-integrity",
+            "title": "Temporal End-to-End Remote Diarization Qualification v1" if not failures else "Restore Input Integrity",
             "selected_residual_class": "unknown_remote_speaker" if not failures else None,
             "rationale": (
-                "Label-independent re-clustering reached EMBEDDING_GEOMETRY_BOUND: minimum ECAPA/WavLM "
-                "agreement ARI was 0.090170, stability fell to 0.465715 and direct truth preserved 0/3 "
-                "confirmed gains. The current ECAPA/WavLM route is closed. The next bounded step must "
-                "qualify a materially different local diarization or speaker representation backend "
-                "against the same frozen evidence before any production integration."
+                "Frozen WeSpeaker qualification preserved all 3/3 confirmed gains and correct controls, "
+                "but stability fell to 0.442394, mapping left six ambiguous clusters and direct truth "
+                "found 12 new false identities. Fixed-window ECAPA/WavLM/WeSpeaker routes are closed. "
+                "The next bounded step must qualify temporal/end-to-end remote diarization with overlap "
+                "and five-speaker support before any production integration."
                 if not failures
                 else "Input integrity must be restored before selecting an engineering goal."
             ),

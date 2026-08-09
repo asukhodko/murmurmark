@@ -1286,6 +1286,9 @@ enum DoctorChecks {
             "scripts/report-authoritative-incremental-asr.py",
             "scripts/report-transcript-perfection-corpus.py",
             "scripts/evaluate-session-local-remote-speaker-reclustering-feasibility-v1.py",
+            "scripts/evaluate-stronger-local-remote-speaker-representation-v1.py",
+            "scripts/setup-stronger-local-remote-speaker-representation-v1.py",
+            "scripts/wespeaker-resnet34-embedding-worker.py",
             "scripts/report-lexical-accuracy-reference-corpus.py",
             "scripts/report-speaker-resolved-transcript-default-corpus.py",
             "scripts/transcribe-simple-whispercpp.py",
@@ -8401,6 +8404,29 @@ enum CorpusCommands {
                 [try script("evaluate-session-local-remote-speaker-reclustering-feasibility-v1.py").path] + forwarded,
                 allowedExitCodes: [0, 2]
             )
+        case "remote-representation-v1", "remote_representation_v1":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(
+                    try PythonRuntime.resolve(),
+                    [try script("evaluate-stronger-local-remote-speaker-representation-v1.py").path, "--help"]
+                )
+                return
+            }
+            guard let action = forwarded.first else {
+                throw CLIError(
+                    "remote-representation-v1 requires preflight, prepare, freeze, evaluate, replay, finalize, status, or all"
+                )
+            }
+            guard [
+                "preflight", "prepare", "freeze", "evaluate", "replay", "finalize", "status", "all",
+            ].contains(action) else {
+                throw CLIError("unsupported remote-representation-v1 action: \(action)")
+            }
+            _ = try Tooling.runPathAllowingExitCodes(
+                try PythonRuntime.resolve(),
+                [try script("evaluate-stronger-local-remote-speaker-representation-v1.py").path] + forwarded,
+                allowedExitCodes: [0, 2]
+            )
         case "lifecycle":
             try Tooling.runPath(
                 try PythonRuntime.resolve(),
@@ -8579,6 +8605,8 @@ enum CorpusHelp {
                                       [--policy policies/session-local-homogeneous-remote-speaker-enrollment-mining-v1.json]
           murmurmark corpus remote-reclustering-v1 preflight|prepare|freeze|evaluate|replay|finalize|status|all
                                       [--policy policies/session-local-remote-speaker-reclustering-feasibility-v1.json]
+          murmurmark corpus remote-representation-v1 preflight|prepare|freeze|evaluate|replay|finalize|status|all
+                                      [--policy policies/stronger-local-remote-speaker-representation-qualification-v1.json]
           murmurmark corpus perfection all [--verify-existing]
                                         [--manifest docs/testing/transcript-perfection-corpus-v1-manifest.json]
           murmurmark corpus lexical import SESSION SOURCE --source-id ID

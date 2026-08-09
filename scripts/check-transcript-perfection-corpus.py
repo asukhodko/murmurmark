@@ -817,6 +817,49 @@ def build_fixture(root: Path) -> Path:
             },
             ["remote_speaker_turns"],
         ),
+        "stronger_local_remote_speaker_representation_qualification_v1": (
+            files / "stronger-local-remote-speaker-representation-qualification-v1.json",
+            {
+                "schema": "murmurmark.stronger_local_remote_speaker_representation_report/v1",
+                "decision": "KEEP_EXPLICIT_UNKNOWN",
+                "replay_verified": True,
+                "candidate": {"id": "wespeaker_resnet34_lm_onnx"},
+                "scope": {"sessions": 6, "profiles": 14, "windows": 347, "development_items": 33},
+                "geometry": {
+                    "values": {"minimum_candidate_stability_ari": 0.442394},
+                    "gates": {"minimum_candidate_stability_ari": False},
+                },
+                "mapping": {
+                    "values": {"ambiguous_clusters": 6},
+                    "gates": {"maximum_ambiguous_clusters": False},
+                },
+                "direct_truth": {
+                    "preserved_confirmed_v1_additive_gains": 3,
+                    "confirmed_v1_additive_gains": 3,
+                    "new_false_identity_items": 12,
+                },
+                "invariants": {
+                    "pack_frozen_before_labels": True,
+                    "pack_frozen_before_direct_truth": True,
+                    "candidate_materially_independent": True,
+                    "cluster_count_not_tuned": True,
+                    "thresholds_not_tuned": True,
+                    "production_promotion_disabled": True,
+                },
+                "safety": {
+                    "raw_caf_mutation": False,
+                    "coverage_v3_mutation": False,
+                    "selected_transcript_mutation": False,
+                    "primary_asr_mutation": False,
+                    "echo_guard_mutation": False,
+                    "thresholds_tuned": False,
+                    "coverage_v3_accepts_preserved": 68,
+                    "production_guards_verified": 355,
+                    "transcript_perfection_sources_preserved": 28,
+                },
+            },
+            ["remote_speaker_turns"],
+        ),
     }
     sources: list[dict[str, object]] = []
     for source_id, (path, payload, dimensions) in payloads.items():
@@ -868,7 +911,7 @@ def run(manifest: Path, out: Path) -> subprocess.CompletedProcess[str]:
 
 def main() -> int:
     runbook = (ROOT / "docs/runbooks/transcript-perfection-corpus.md").read_text(encoding="utf-8")
-    assert "next_goal: Stronger Local Remote Speaker Representation Qualification v1" in runbook
+    assert "next_goal: Temporal End-to-End Remote Diarization Qualification v1" in runbook
     assert "next_goal: Remote Speaker Direct Truth Seed v1" not in runbook
     with tempfile.TemporaryDirectory(prefix=".transcript-perfection-fixture-", dir=ROOT) as temporary:
         root = Path(temporary)
@@ -878,14 +921,14 @@ def main() -> int:
         assert result.returncode == 0, result.stdout + result.stderr
         report = json.loads((out / "transcript_perfection_corpus_report.json").read_text())
         assert report["decision"] == "BASELINE_ESTABLISHED"
-        assert report["summary"]["verified_sources"] == 28
+        assert report["summary"]["verified_sources"] == 29
         assert report["summary"]["aggregate_quality_score"] is None
         assert report["summary"]["aggregate_residual_seconds"] is None
         words = next(row for row in report["dimensions"] if row["id"] == "recognized_words")
         assert words["correctness_status"] == "bounded_exact_subset_only"
         assert words["metrics"]["exact_subset_wer"] == 0.0
         assert report["residuals"][0]["class"] == "unknown_remote_speaker"
-        assert report["next_goal"]["id"] == "stronger-local-remote-speaker-representation-qualification-v1"
+        assert report["next_goal"]["id"] == "temporal-end-to-end-remote-diarization-qualification-v1"
         assert report["next_goal"]["selected_residual_class"] == "unknown_remote_speaker"
         assert report["lexical_prerequisite"]["id"] == "human-reviewed-lexical-seed-v1"
         assert report["lexical_prerequisite"]["status"] == "external_evidence_required"

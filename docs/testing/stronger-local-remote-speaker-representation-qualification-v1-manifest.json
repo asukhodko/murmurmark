@@ -1,0 +1,40 @@
+{
+  "schema": "murmurmark.stronger_local_remote_speaker_representation_tracked_manifest/v1",
+  "decision": "KEEP_EXPLICIT_UNKNOWN",
+  "artifacts": {
+    "policy": {
+      "path": "policies/stronger-local-remote-speaker-representation-qualification-v1.json",
+      "bytes": 10337,
+      "sha256": "8d293f7fe70cf8cc968494cdbeda7c6b1219c50102cb9f1452b08564da25b402"
+    },
+    "report": {
+      "path": "sessions/_reports/stronger-local-remote-speaker-representation-qualification-v1/stronger_local_remote_speaker_representation_report.json",
+      "bytes": 8838,
+      "sha256": "6c14e8e315927deba912c205565ce33b74494e57d23eed5986c83ed249bd413d"
+    },
+    "freeze": {
+      "path": "sessions/_reports/stronger-local-remote-speaker-representation-qualification-v1/freeze_manifest.json",
+      "bytes": 2671,
+      "sha256": "37e5fde688832172617fb895bd35e6a0f547fbe0ab8b12689d2f3ca21c17c0d4"
+    },
+    "public_pack": {
+      "path": "sessions/_reports/stronger-local-remote-speaker-representation-qualification-v1/candidate_pack.public.json",
+      "bytes": 4283,
+      "sha256": "90ce12c1c2b30e90591e89fc95cd59d6423cdf624349751306348ce705bae376"
+    },
+    "replay": {
+      "path": "sessions/_reports/stronger-local-remote-speaker-representation-qualification-v1/replay_report.json",
+      "bytes": 307,
+      "sha256": "e7be2b6002ad2d6bee7960f5aaf594c9802ad81fa29b0e5d941dc758da618dc4"
+    }
+  },
+  "external_model": {
+    "model_id": "hbredin/wespeaker-voxceleb-resnet34-LM",
+    "revision": "0ae88dcaf48cacdf741275d6d1a8101f45eee220",
+    "license": "Apache-2.0",
+    "file": "speaker-embedding.onnx",
+    "bytes": 26530309,
+    "sha256": "7bb2f06e9df17cdf1ef14ee8a15ab08ed28e8d0ef5054ee135741560df2ec068"
+  },
+  "production_promotion_allowed": false
+}
