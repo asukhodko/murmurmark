@@ -8354,6 +8354,29 @@ enum CorpusCommands {
                 [try script("evaluate-remote-speaker-enrollment-purity-abstention-v2.py").path] + forwarded,
                 allowedExitCodes: [0, 2]
             )
+        case "remote-homogeneous-enrollment-v1", "remote_homogeneous_enrollment_v1":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(
+                    try PythonRuntime.resolve(),
+                    [try script("mine-session-local-homogeneous-remote-speaker-enrollment-v1.py").path, "--help"]
+                )
+                return
+            }
+            guard let action = forwarded.first else {
+                throw CLIError(
+                    "remote-homogeneous-enrollment-v1 requires preflight, prepare, freeze, evaluate, replay, finalize, status, or all"
+                )
+            }
+            guard [
+                "preflight", "prepare", "freeze", "evaluate", "replay", "finalize", "status", "all",
+            ].contains(action) else {
+                throw CLIError("unsupported remote-homogeneous-enrollment-v1 action: \(action)")
+            }
+            _ = try Tooling.runPathAllowingExitCodes(
+                try PythonRuntime.resolve(),
+                [try script("mine-session-local-homogeneous-remote-speaker-enrollment-v1.py").path] + forwarded,
+                allowedExitCodes: [0, 2]
+            )
         case "lifecycle":
             try Tooling.runPath(
                 try PythonRuntime.resolve(),
@@ -8528,6 +8551,8 @@ enum CorpusHelp {
                                       [--policy policies/remote-speaker-direct-truth-candidate-adjudication-v1.json]
           murmurmark corpus remote-enrollment-purity-v2 preflight|prepare|freeze|evaluate|replay|finalize|status|all
                                       [--policy policies/remote-speaker-enrollment-purity-abstention-hardening-v2.json]
+          murmurmark corpus remote-homogeneous-enrollment-v1 preflight|prepare|freeze|evaluate|replay|finalize|status|all
+                                      [--policy policies/session-local-homogeneous-remote-speaker-enrollment-mining-v1.json]
           murmurmark corpus perfection all [--verify-existing]
                                         [--manifest docs/testing/transcript-perfection-corpus-v1-manifest.json]
           murmurmark corpus lexical import SESSION SOURCE --source-id ID

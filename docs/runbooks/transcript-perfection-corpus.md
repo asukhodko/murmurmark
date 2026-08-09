@@ -34,10 +34,10 @@ Expected frozen baseline:
 
 ```text
 decision: BASELINE_ESTABLISHED
-sources: 26/26 verified
+sources: 27/27 verified
 release_ready: false
 largest_actionable_residual: unknown_remote_speaker (598.240s)
-next_goal: Session-Local Homogeneous Remote Speaker Enrollment Mining v1
+next_goal: Session-Local Remote Speaker Re-Clustering Feasibility v1
 ```
 
 ## Reading The Result
@@ -61,7 +61,9 @@ next_goal: Session-Local Homogeneous Remote Speaker Enrollment Mining v1
   controls and raised fail-closed unsafe accepts from 8 to 13;
 - enrollment purity kept Coverage v3 and reduced unsafe accepts to control, but its seven qualified
   profiles produced zero additions and preserved none of the three confirmed gains;
-- the next experiment mines longer homogeneous session-local enrollment before another candidate;
+- homogeneous mining found 39 windows for 9/14 profiles but preserved 0/3 gains, lost three
+  correct controls and introduced four false identities;
+- the next experiment clusters remote windows without Coverage speaker labels, then measures mapping;
 - residual seconds belong to different frozen scopes and must not be summed.
 - the first residual row selects the next bounded engineering goal.
 

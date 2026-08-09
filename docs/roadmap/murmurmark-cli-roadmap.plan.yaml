@@ -69,21 +69,6 @@ nodes:
       Production Requalification v2.17 прошёл hard 3/3 и corpus 12/12 под текущим incremental ASR:
       те же 5/12 candidates, 41.940s, 90 tokens, retention 1.0; runtime mismatch виден в outcome.
 
-  capability-authoritative-transcript:
-    title: "Authoritative batch transcript"
-    kind: task
-    parent: working-capabilities
-    status: done
-    effort: 9
-    notes: |
-      Resumable whisper.cpp processing, timeline repair, fast authoritative handoff и isolated
-      profiles. `local_speech_completion_v2` выбран для frozen promotion scope;
-      `residual_local_recall_v1` остаётся fallback для остальных сессий. Three-session replay
-      подтвердил raw/session immutability, zero capture gaps и exact v2 ASR byte replay. Explicit
-      cache reuse теперь preflight-проверяется и legacy/corrupt cache перестраивается заранее.
-      Fingerprint-bound timeline/micro-ASR cache остаётся измеренным later debt: validated raw reuse
-      оставляет около 4 минут на 31-минутном 1x1 и 10 минут на 98-минутной group session.
-
   product-one-command-meeting-lifecycle-v1:
     title: "One-Command Meeting Lifecycle v1"
     kind: task
@@ -702,13 +687,26 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-remote-speaker-enrollment-purity-abstention-hardening-v2]
+    status: done
+    effort: 12
+    notes: |
+      Завершено KEEP_EXISTING_ENROLLMENT. Добыты 39 ECAPA/WavLM-consistent windows для 9/14
+      profiles, но candidate сохранил 0/3 confirmed gains, потерял 3 correct controls и добавил
+      4 false identities. Candidate pack заморожен до truth, replay и 355 guards проходят;
+      production остался Coverage v3.
+
+  quality-session-local-remote-speaker-reclustering-feasibility-v1:
+    title: "Session-Local Remote Speaker Re-Clustering Feasibility v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1]
     status: current
     effort: 12
     notes: |
-      Добыть несколько неперекрывающихся speaker-homogeneous remote windows на каждый существующий
-      анонимный profile только внутри сессии. Требовать speech/turn boundaries, within-profile
-      consistency, impostor separation и согласие ECAPA/WavLM; заморозить candidate pack до
-      development truth. Production promotion, target text, names и cross-session linking запрещены.
+      Построить label-independent session-local clustering remote speech windows отдельно в ECAPA
+      и WavLM, заморозить windows, embeddings, cluster count и consensus до чтения Coverage labels
+      и direct truth. После freeze измерить geometry stability, model agreement и mapping ambiguity;
+      production promotion, target text, names и cross-session linking запрещены.
 
 views:
   roadmap-tree:
@@ -727,7 +725,7 @@ views:
         nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1]
+        nodes: [quality-session-local-remote-speaker-reclustering-feasibility-v1]
       dependent:
         title: "Blind real-session reference blocker"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
@@ -783,6 +781,7 @@ views:
           - quality-remote-speaker-direct-truth-candidate-adjudication-v1
           - quality-remote-speaker-enrollment-purity-abstention-hardening-v2
           - quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1
+          - quality-session-local-remote-speaker-reclustering-feasibility-v1
 
   echo-frontier:
     title: "Пред-ASR отделение Me от remote"
@@ -818,8 +817,8 @@ views:
         title: "Доказанная speaker evidence"
         nodes: [research-remote-diarization, research-rich-transcript, quality-remote-speaker-diarization-v2]
       current:
-        title: "Homogeneous enrollment mining"
-        nodes: [quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1]
+        title: "Label-independent re-clustering"
+        nodes: [quality-session-local-remote-speaker-reclustering-feasibility-v1]
       blocker:
         title: "Blind real-session reference"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
@@ -883,13 +882,14 @@ views:
           - quality-remote-speaker-direct-truth-candidate-adjudication-v1
           - quality-remote-speaker-enrollment-purity-abstention-hardening-v2
           - quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1
+          - quality-session-local-remote-speaker-reclustering-feasibility-v1
 
 x:
   exec:
     program:
       nearest_goal: >-
-        Session-Local Homogeneous Remote Speaker Enrollment Mining v1: сохранить Coverage v3, selected transcripts, raw CAF, primary ASR, Echo Guard и все frozen reports неизменными; заменить два часто смешанных шестисекундных enrollment exemplar на воспроизводимо добытые speaker-homogeneous интервалы только внутри той же сессии; использовать remote speech activity, устойчивые turn boundaries, несколько неперекрывающихся окон и согласие ECAPA с независимым WavLM evidence, не читая target text, human names и cross-session voices; заморозить mining policy и candidate pack до проверки на существующем development truth; выпустить HOMOGENEOUS_ENROLLMENT_READY, KEEP_EXISTING_ENROLLMENT либо EVIDENCE_BOUND без production promotion; добавить deterministic evaluator, tests и corpus report, обновить документацию и планирование, пройти проверки, закоммитить и отправить изменения.
-      success_by_next_sync: "Чистый session-local enrollment pack либо честный evidence ceiling воспроизводим; Coverage v3 и production неизменны."
+        Session-Local Remote Speaker Re-Clustering Feasibility v1: сохранить Coverage v3, selected transcripts, raw CAF, primary ASR, Echo Guard и все frozen reports неизменными; построить внутри каждой сессии label-independent clustering remote speech windows отдельно в ECAPA и WavLM; заморозить unlabeled windows, embeddings, cluster count и consensus до чтения Coverage labels и direct truth; после freeze измерить cluster stability, model agreement, mapping ambiguity и direct-truth outcomes; выпустить RECLUSTERING_ROUTE_READY, LABEL_MAPPING_BOUND, EMBEDDING_GEOMETRY_BOUND либо EVIDENCE_BOUND без production promotion; добавить deterministic evaluator, tests и corpus report, обновить документацию и планирование, пройти проверки, закоммитить и отправить изменения.
+      success_by_next_sync: "Предел remote identity локализован между embedding geometry и profile mapping; Coverage v3 и production неизменны."
     defaults:
       status_progress:
         done: 1.0
@@ -910,13 +910,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle и batch transcript работают; three-session replay подтвердил raw/cache/speaker conservation и закрыл legacy cache preflight."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Homogeneous Remote Speaker Enrollment Mining v1"
-        scope_nodes: [quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1]
+        title: "Remote Speaker Re-Clustering Feasibility v1"
+        scope_nodes: [quality-session-local-remote-speaker-reclustering-feasibility-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Purity v2 сохранил control safety, но 7/14 profiles rejected и safe additions равны нулю."
-          next_sync_goal: "Добыть homogeneous session-local enrollment и заморозить его до development evaluation."
+          sync_note: "Homogeneous mining квалифицировал 9/14 profiles, но сохранил 0/3 gains и добавил 4 false identities."
+          next_sync_goal: "Отделить label-independent cluster geometry от ошибок cluster-to-profile mapping."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -943,6 +943,7 @@ x:
           - quality-remote-speaker-direct-truth-candidate-adjudication-v1
           - quality-remote-speaker-enrollment-purity-abstention-hardening-v2
           - quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1
+          - quality-session-local-remote-speaker-reclustering-feasibility-v1
         kind: main
         mgmt:
           health: yellow
@@ -963,7 +964,7 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: purity v2 сохранил Coverage v3 без gains; текущий фокус — homogeneous session-local enrollment."
+        caption: "Короткая карта: homogeneous enrollment не прошёл; текущий фокус — label-independent session-local re-clustering."
         blocks:
           - working-now
           - current-quality

@@ -614,6 +614,34 @@ def semantic_gates(
         {"gates": purity.get("gates"), "safety": purity_safety},
     )
 
+    homogeneous = payloads.get("session_local_homogeneous_remote_speaker_enrollment_mining_v1") or {}
+    homogeneous_safety = homogeneous.get("safety") or {}
+    add(
+        "session_local_homogeneous_remote_speaker_enrollment_mining_v1",
+        "terminal_decision",
+        homogeneous.get("decision")
+        in {"HOMOGENEOUS_ENROLLMENT_READY", "KEEP_EXISTING_ENROLLMENT", "EVIDENCE_BOUND"},
+        homogeneous.get("decision"),
+    )
+    add(
+        "session_local_homogeneous_remote_speaker_enrollment_mining_v1",
+        "frozen_evidence_integrity",
+        homogeneous.get("replay_verified") is True
+        and homogeneous.get("gates", {}).get("candidate_pack_frozen_before_truth") is True
+        and homogeneous.get("gates", {}).get("production_promotion_disabled") is True
+        and homogeneous.get("mining", {}).get("session_local_only") is True
+        and homogeneous.get("mining", {}).get("target_text_read") is False
+        and homogeneous.get("mining", {}).get("human_names_read") is False
+        and homogeneous_safety.get("raw_caf_mutation") is False
+        and homogeneous_safety.get("coverage_v3_mutation") is False
+        and homogeneous_safety.get("selected_transcript_mutation") is False
+        and homogeneous_safety.get("primary_asr_mutation") is False
+        and homogeneous_safety.get("echo_guard_mutation") is False
+        and int(homogeneous_safety.get("coverage_v3_accepts_preserved", -1)) == 68
+        and int(homogeneous_safety.get("production_guards_verified", -1)) == 355,
+        {"gates": homogeneous.get("gates"), "safety": homogeneous_safety},
+    )
+
     failures = [f"semantic_gate:{row['source']}:{row['gate']}" for row in checks if not row["passed"]]
     return checks, failures
 
@@ -772,6 +800,9 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
     adjudication_aggregate = direct_truth_adjudication["portable_aggregate"]
     purity_hardening = payloads["remote_speaker_enrollment_purity_abstention_hardening_v2"]
     purity_aggregate = purity_hardening["portable_aggregate"]
+    homogeneous_enrollment = payloads[
+        "session_local_homogeneous_remote_speaker_enrollment_mining_v1"
+    ]
 
     return [
         {
@@ -856,6 +887,7 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 "remote_speaker_direct_truth_seed_v1",
                 "remote_speaker_direct_truth_candidate_adjudication_v1",
                 "remote_speaker_enrollment_purity_abstention_hardening_v2",
+                "session_local_homogeneous_remote_speaker_enrollment_mining_v1",
             ],
             "metrics": {
                 "attributable_speech_ratio": float(remote_summary["attributable_remote_speech_ratio"]),
@@ -1068,6 +1100,22 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 "enrollment_purity_fail_closed_unsafe_accepts": int(
                     purity_aggregate["candidate_fail_closed_unsafe_accepts"]
                 ),
+                "homogeneous_enrollment_decision": homogeneous_enrollment["decision"],
+                "homogeneous_enrollment_qualified_profiles": int(
+                    homogeneous_enrollment["mining"]["qualified_profiles"]
+                ),
+                "homogeneous_enrollment_selected_windows": int(
+                    homogeneous_enrollment["mining"]["selected_windows"]
+                ),
+                "homogeneous_enrollment_preserved_confirmed_gains": int(
+                    homogeneous_enrollment["development"]["preserved_confirmed_v1_additive_gains"]
+                ),
+                "homogeneous_enrollment_unsafe_accepts": int(
+                    homogeneous_enrollment["development"]["unsafe_fail_closed_accepts"]
+                ),
+                "homogeneous_enrollment_new_false_identity_items": int(
+                    homogeneous_enrollment["development"]["new_false_identity_items"]
+                ),
             },
             "residual_classes": ["unknown_remote_speaker"],
         },
@@ -1265,9 +1313,14 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
         != "CANDIDATE_READY_FOR_DISJOINT_TRUTH_V2"
     ):
         release_blockers.insert(2, "remote_speaker_turns.enrollment_purity_candidate_not_ready")
+    if (
+        (payloads.get("session_local_homogeneous_remote_speaker_enrollment_mining_v1") or {}).get("decision")
+        != "HOMOGENEOUS_ENROLLMENT_READY"
+    ):
+        release_blockers.insert(2, "remote_speaker_turns.homogeneous_enrollment_not_ready")
     report = {
         "schema": REPORT_SCHEMA,
-        "generator": {"name": "report-transcript-perfection-corpus", "version": "1.5.0", "mode": "deterministic_offline"},
+        "generator": {"name": "report-transcript-perfection-corpus", "version": "1.6.0", "mode": "deterministic_offline"},
         "decision": decision,
         "manifest": {
             "path": portable_path(Path(str(manifest["_path"]))),
@@ -1320,11 +1373,14 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
                     "attributed, 11 unknown, 4 mixed and 10 unusable primary answers, with 7/8 "
                     "repeat consistency. One-shot adjudication kept Coverage v3: the candidate gained "
                     "three direct identities but lost two correct controls and increased fail-closed "
-                    "unsafe accepts from 8 to 13"
+                    "unsafe accepts from 8 to 13. Purity hardening then qualified 7/14 profiles "
+                    "but preserved 0/3 confirmed gains. A frozen session-local homogeneous miner "
+                    "found 39 ECAPA+WavLM-consistent windows for 9/14 profiles, yet again preserved "
+                    "0/3 gains, lost three correct controls and introduced four new false identities"
                 ),
                 "next_evidence": (
-                    "build a monotonic enrollment-purity and abstention-hardened v2 candidate using "
-                    "this seed only as development evidence; require disjoint held-out truth before promotion"
+                    "test label-independent session-local re-clustering to separate embedding geometry "
+                    "from contaminated Coverage v3 enrollment labels; do not open disjoint truth or production promotion"
                 ),
             },
             {
@@ -1349,14 +1405,15 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
             ),
         },
         "next_goal": {
-            "id": "session-local-homogeneous-remote-speaker-enrollment-mining-v1" if not failures else "restore-input-integrity",
-            "title": "Session-Local Homogeneous Remote Speaker Enrollment Mining v1" if not failures else "Restore Input Integrity",
+            "id": "session-local-remote-speaker-reclustering-feasibility-v1" if not failures else "restore-input-integrity",
+            "title": "Session-Local Remote Speaker Re-Clustering Feasibility v1" if not failures else "Restore Input Integrity",
             "selected_residual_class": "unknown_remote_speaker" if not failures else None,
             "rationale": (
-                "Purity hardening kept Coverage v3: seven of fourteen existing enrollment profiles "
-                "failed strict subwindow purity and the seven qualified profiles produced zero safe "
-                "additions. The next experiment must mine longer speaker-homogeneous session-local "
-                "enrollment intervals before another additive identity candidate is evaluated."
+                "Label-conditioned enrollment mining also kept Coverage v3: 39 homogeneous windows "
+                "qualified 9/14 profiles but preserved 0/3 confirmed gains and added four false "
+                "identities. The next bounded experiment must cluster remote windows independently "
+                "of Coverage labels and measure whether label contamination, not embedding capacity, "
+                "is the binding limit."
                 if not failures
                 else "Input integrity must be restored before selecting an engineering goal."
             ),

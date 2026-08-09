@@ -85,7 +85,7 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Blind remote-speaker review | `done` | 8 attributed, 11 unknown, 4 mixed, 10 unusable; production unchanged |
 | Direct-truth candidate adjudication | `done` | `KEEP_COVERAGE_V3`: +3 correct, -2 correct controls, unsafe accepts 8 -> 13 |
 | Enrollment purity / abstention v2 | `done` | `KEEP_COVERAGE_V3`: 7/14 profiles qualified, 0 additions, unsafe 13 -> 8 |
-| Homogeneous enrollment mining v1 | `current` | Mine several clean session-local windows before another candidate |
+| Homogeneous mining / re-clustering | `current` | Mining kept Coverage v3; test label-independent cluster geometry next |
 | Производные заметки | `done/optional` | Exact evidence memory и безопасный ID-only selector доступны |
 ## Актуальная Цепочка
 ```mermaid
@@ -274,12 +274,12 @@ replay byte-exact, production и thresholds неизменны.
 `KEEP_COVERAGE_V3`: candidate приобрёл 3 correct identities, потерял 2 correct controls и увеличил
 fail-closed unsafe accepts 8 -> 13. Net gain 1/8 не прошёл material gates; replay byte-exact.
 ### 21. Enrollment Purity and Abstention v2 — `done`: `KEEP_COVERAGE_V3`, 68 accepts сохранены, unsafe 13 -> 8, 7/14 profiles rejected, 0 additions.
-### 22. Session-Local Homogeneous Remote Speaker Enrollment Mining v1 — `current`
-Добыть несколько неперекрывающихся ECAPA/WavLM-consistent remote windows на профиль внутри сессии.
-### 23. Local Mic Multi-Speaker Diarization v1 — `idea`: при реальном corpus разделять Target-Me, other local speakers и `unknown`.
-### 24. Производные Возможности — `optional`
-Notes, reviewed speaker memory, поиск и work proposals развиваются отдельно после transcript gates
-и не могут менять источник транскрибации.
+### 22. Session-Local Homogeneous Remote Speaker Enrollment Mining v1 — `done`
+`KEEP_EXISTING_ENROLLMENT`: 39 окон, 9/14 profiles, 0/3 gains, 4 new false identities.
+### 23. Session-Local Remote Speaker Re-Clustering Feasibility v1 — `current`
+Заморозить label-independent ECAPA/WavLM clusters и отделить geometry от profile mapping errors.
+### 24. Local Mic Multi-Speaker Diarization v1 — `idea`: при реальном corpus разделять Target-Me, other local speakers и `unknown`.
+### 25. Производные Возможности — `optional`: notes и work proposals остаются отдельными производными после transcript gates.
 ## Закрытые И Отложенные Треки
 - Human-Reviewed Lexical Seed заблокирован отсутствием проверенного реального reference; machine
   disagreement не является заменой.

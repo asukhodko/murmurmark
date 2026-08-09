@@ -1,0 +1,52 @@
+{
+  "schema": "murmurmark.session_local_homogeneous_remote_speaker_enrollment_manifest/v1",
+  "decision": "KEEP_EXISTING_ENROLLMENT",
+  "scope": {
+    "sessions": 6,
+    "profiles": 14,
+    "qualified_profiles": 9,
+    "selected_windows": 39,
+    "development_items": 33
+  },
+  "development": {
+    "confirmed_v1_additive_gains": 3,
+    "preserved_confirmed_v1_additive_gains": 0,
+    "unsafe_fail_closed_accepts": 5,
+    "new_false_identity_items": 4,
+    "lost_correct_control_identity_items": 3
+  },
+  "candidate_pack_sha256": "840fbb24fd001fc341208566dae525beaef5b711a383404a87d5958b910fc0ec",
+  "replay_verified": true,
+  "safety": {
+    "production_mutated": false,
+    "coverage_v3_mutated": false,
+    "selected_transcript_mutated": false,
+    "raw_audio_mutated": false,
+    "target_text_read": false,
+    "human_names_read": false,
+    "cross_session_voice_linking": false,
+    "thresholds_tuned": false
+  },
+  "artifacts": {
+    "policy": {
+      "path": "policies/session-local-homogeneous-remote-speaker-enrollment-mining-v1.json",
+      "bytes": 4666,
+      "sha256": "69e020deb882e320581691304c04915d39c0dd5d439ed61ee5f3624e3ee5a620"
+    },
+    "candidate_pack_public": {
+      "path": "sessions/_reports/session-local-homogeneous-remote-speaker-enrollment-mining-v1/candidate_pack.public.json",
+      "bytes": 3486,
+      "sha256": "be5998c7dfd4a3d7ff6e001c819e89dee628f4f0ca30550a59d280697defe4bb"
+    },
+    "report": {
+      "path": "sessions/_reports/session-local-homogeneous-remote-speaker-enrollment-mining-v1/session_local_homogeneous_remote_speaker_enrollment_report.json",
+      "bytes": 2461,
+      "sha256": "529caeb3f6f08f67d707528d4fc3cfc2c54f76d0ed5c6d7648ac97bcf9fc697d"
+    },
+    "replay": {
+      "path": "sessions/_reports/session-local-homogeneous-remote-speaker-enrollment-mining-v1/replay_report.json",
+      "bytes": 491,
+      "sha256": "22c32eea093d20d0e2145da0ba9a45a13c7e5bcb10504c8c7eb377f57b3d820c"
+    }
+  }
+}

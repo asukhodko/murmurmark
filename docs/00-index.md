@@ -143,6 +143,10 @@ Read in this order:
 139. [Remote Speaker Enrollment Purity and Abstention Hardening v2 runbook](runbooks/remote-speaker-enrollment-purity-abstention-hardening-v2.md)
 140. [Remote Speaker Enrollment Purity and Abstention Hardening v2 result](testing/2026-08-09-remote-speaker-enrollment-purity-abstention-hardening-v2.md)
 141. [Remote Speaker Enrollment Purity and Abstention Hardening v2 manifest](testing/remote-speaker-enrollment-purity-abstention-hardening-v2-manifest.json)
+142. [Session-Local Homogeneous Remote Speaker Enrollment Mining v1 contract](contracts/session-local-homogeneous-remote-speaker-enrollment-mining-v1.md)
+143. [Session-Local Homogeneous Remote Speaker Enrollment Mining v1 runbook](runbooks/session-local-homogeneous-remote-speaker-enrollment-mining-v1.md)
+144. [Session-Local Homogeneous Remote Speaker Enrollment Mining v1 result](testing/2026-08-09-session-local-homogeneous-remote-speaker-enrollment-mining-v1.md)
+145. [Session-Local Homogeneous Remote Speaker Enrollment Mining v1 manifest](testing/session-local-homogeneous-remote-speaker-enrollment-mining-v1-manifest.json)
 142. [Planning and development history](history/README.md)
 
 ## Current Planning Entry Points
@@ -191,7 +195,10 @@ new acceptances / `44.694004s`, five removed controls and only 4/83 target failu
 `KEEP_COVERAGE_V3`: 3 correct gains, 2 lost correct controls and 13 versus 8 fail-closed unsafe
 accepts. **Remote Speaker Enrollment Purity and Abstention Hardening v2** also kept Coverage v3:
 7/14 profiles qualified, unsafe accepts returned to 8, but no identity was added. **Session-Local
-Homogeneous Remote Speaker Enrollment Mining v1** is current. Notes and retrieval remain parked.
+Homogeneous Remote Speaker Enrollment Mining v1** then qualified 9/14 profiles and 39 windows, but
+preserved 0/3 gains, lost three controls and added four false identities, so it also kept Coverage v3.
+The next bounded experiment is label-independent session-local re-clustering. Notes and retrieval
+remain parked.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

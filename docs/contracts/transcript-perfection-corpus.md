@@ -97,6 +97,14 @@ Remote Speaker Direct-Truth Candidate Adjudication v1 is the twenty-fifth source
 unsafe acceptance growth from 8 to 13. It keeps the failed candidate and future development work
 separate from the production speaker profile.
 
+Enrollment Purity and Abstention Hardening v2 is the twenty-sixth source. It restores control-level
+fail-closed safety but qualifies only 7/14 profiles and preserves 0/3 confirmed gains.
+
+Session-Local Homogeneous Remote Speaker Enrollment Mining v1 is the twenty-seventh source. Its
+frozen dual-model pack selects 39 windows for 9/14 profiles, but preserves 0/3 gains, loses three
+correct controls and introduces four false identities. `KEEP_EXISTING_ENROLLMENT` is a complete
+negative result; the next experiment must remove Coverage labels from clustering itself.
+
 ## Outputs
 
 The command writes only under:
