@@ -115,6 +115,9 @@ Conditional actions are chosen from structured JSON:
 - a later `reviewed_v1` read surface does not invalidate the frozen authoritative transcript for
   deferred resume: `enrich` verifies the handoff transcript path, size and SHA-256, then the final
   refresh returns to that authoritative profile before review decisions are reapplied;
+- both outcome refreshes rebuild session-local remote-speaker evidence for the selected transcript
+  profile before writing `outcome`; profile changes therefore cannot leave a stale aggregate
+  fallback on the ordinary read surface;
 - suggested preview is used only for a review gate;
 - suggested apply is used only when `suggested_closure_auto_rows > 0`;
 - `finish` is used only when the outcome explicitly allows export.

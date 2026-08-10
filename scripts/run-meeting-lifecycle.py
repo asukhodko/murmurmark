@@ -442,10 +442,14 @@ class MeetingLifecycle:
             "inspect": "run the existing capture/session inspection gate",
             "process": "produce the authoritative batch transcript with the ordinary process path",
             "enrich": "run optional local evidence enrichment after authoritative handoff",
-            "refresh_after_enrich": "refresh structured readiness and outcome after enrichment",
+            "refresh_after_enrich": (
+                "refresh readiness, current-profile speaker evidence and outcome after enrichment"
+            ),
             "review_suggested_preview": "compute the conservative suggested-review remainder",
             "review_suggested_apply": "apply only rows accepted by existing safe suggestion gates",
-            "refresh_after_review": "refresh structured readiness and outcome after suggested review",
+            "refresh_after_review": (
+                "refresh readiness, current-profile speaker evidence and outcome after suggested review"
+            ),
             "finish": "create a guarded export and retention plan because export is allowed",
         }
         return reasons[action]

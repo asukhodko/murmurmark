@@ -1950,6 +1950,7 @@ enum PipelineCommands {
             "--out-dir", session.appendingPathComponent("derived/readiness/session-quality").path,
             "--write-session-readiness",
         ])
+        try refreshSpeakerSelection(session)
         try refreshOutcome(session)
         try ReadinessPrinter.printSession(session)
         try ReadinessPrinter.printFinalNext(session)
@@ -1967,7 +1968,21 @@ enum PipelineCommands {
             "--out-dir", session.appendingPathComponent("derived/readiness/session-quality").path,
             "--write-session-readiness",
         ])
+        try refreshSpeakerSelection(session)
         try refreshOutcome(session)
+    }
+
+    private static func refreshSpeakerSelection(_ session: URL) throws {
+        let python = try PythonRuntime.resolve()
+        let script = PathURLs.fileURL("scripts/select-speaker-resolved-transcript.py")
+        guard FileManager.default.fileExists(atPath: script.path) else {
+            throw CLIError("speaker-resolved transcript selector not found: \(script.path)")
+        }
+        _ = try Tooling.runPathQuietAllowingExitCodes(
+            python,
+            [script.path, session.path, "--refresh-evidence"],
+            allowedExitCodes: [0, 2]
+        )
     }
 
     private static func refreshOutcome(_ session: URL) throws {
@@ -2233,7 +2248,8 @@ enum PipelineHelp {
         usage: murmurmark outcome [./session|latest] [--refresh] [--sessions-root ./sessions]
 
         Prints the stable user-facing outcome contract for a processed session.
-        Use --refresh to recompute session readiness and outcome without rerunning ASR or audio processing.
+        Use --refresh to recompute session readiness, refresh speaker evidence for the selected
+        transcript profile and rebuild outcome without rerunning primary ASR or Echo Guard.
 
         Common:
           murmurmark outcome latest

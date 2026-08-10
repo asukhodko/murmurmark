@@ -53,6 +53,11 @@ bytes and records `session_local_anonymous` or `aggregate_colleagues` in `export
 `status`, `outcome` and the meeting final report expose the selected speaker profile, state and
 fallback reason.
 
+The meeting lifecycle refreshes this selector after readiness changes and automatic review. The
+refresh uses the final selected transcript profile; it runs before `outcome` is rebuilt. If the
+profile changed from `audit_cleanup_v2` to `reviewed_v1`, stale evidence from the earlier profile is
+never reused. Missing or insufficient evidence still fails open to exact aggregate `Colleagues`.
+
 `--rich` remains a compatible diagnostic path. Human names remain opt-in and require a complete,
 fingerprint-bound review decision for the current session. The default path never derives a human
 identity from voice and never links speakers across sessions.

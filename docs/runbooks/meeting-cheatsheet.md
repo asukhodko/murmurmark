@@ -1,6 +1,6 @@
 # Meeting Cheat Sheet
 
-Updated: 2026-08-06
+Updated: 2026-08-10
 
 ## Update A Packaged Release
 
@@ -39,6 +39,10 @@ murmurmark meeting --target-bundle system
 
 Stop recording with `Ctrl-C`. Keep the terminal open while processing continues. The final block
 prints the selected transcript and whether manual review remains.
+
+The ordinary transcript is speaker-resolved automatically when current session-local evidence
+passes the promoted gates. Anonymous headings such as `remote_speaker_01` are expected; unsupported
+speech remains `Colleagues`. No extra `--rich` command is required.
 
 The first authoritative result does not wait for optional Neural Echo enrichment. If its budget is
 exhausted, the summary records `deferred_work` and still returns the baseline result. A terminal

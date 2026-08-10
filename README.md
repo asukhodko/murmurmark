@@ -77,7 +77,7 @@ status are included when those derivative stages are present.
 The first authoritative handoff no longer waits for optional Neural Echo evaluation. Deferred
 enrichment has an explicit time budget; Neural Echo is skipped when its frozen worst-case estimate
 cannot fit after the review-evidence reserve. `status` finishes with `complete`, an executable recovery
-command, or `human_decision_required` with a bounded item count and duration.
+command, or `human_decision_required` with a bounded item count and duration. Final readiness refresh rebuilds speaker evidence for the selected profile; insufficient evidence stays `Colleagues`.
 
 Capture runs in a short-lived child process. It exits and releases ScreenCaptureKit/ReplayKit before
 batch processing begins. A new meeting may therefore start while an earlier meeting is still being
@@ -277,8 +277,9 @@ murmurmark audit speaker-default "$SESSION" --verify-only
 murmurmark transcript "$SESSION"
 ```
 
-The normal pipeline runs this selector automatically. `status` and `outcome` show the selected
-speaker profile and fallback reason. `--rich` remains a compatible diagnostic view; use
+The normal pipeline and every lifecycle readiness refresh run this selector against the current
+selected transcript profile. `status` and `outcome` show the selected speaker profile and fallback
+reason. `--rich` remains a compatible diagnostic view; use
 `audit remote-residual` only for the v4 measured ceiling.
 
 Anonymous Rich Transcript Handoff v1 passed all `1235` references on 6/6 sessions. Reviewed Remote

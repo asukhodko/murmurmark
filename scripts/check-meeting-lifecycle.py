@@ -17,6 +17,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SUPERVISOR = ROOT / "scripts" / "run-meeting-lifecycle.py"
+SWIFT_CLI = ROOT / "Sources" / "MurmurMarkCLI" / "MurmurMarkCLI.swift"
 
 
 FAKE_CLI = r'''#!/usr/bin/env python3
@@ -458,6 +459,14 @@ def wait_for_path(path: Path, process: subprocess.Popen[str]) -> None:
 
 
 def main() -> None:
+    swift_source = SWIFT_CLI.read_text(encoding="utf-8")
+    refresh_start = swift_source.index("private static func refreshReadiness")
+    refresh_end = swift_source.index("private static func refreshOutcome", refresh_start)
+    refresh_body = swift_source[refresh_start:refresh_end]
+    assert refresh_body.index("refreshSpeakerSelection(session)") < refresh_body.index(
+        "refreshOutcome(session)"
+    )
+
     with tempfile.TemporaryDirectory(prefix="murmurmark-meeting-lifecycle-") as temporary:
         root = Path(temporary)
         fake = root / "fake-murmurmark"
