@@ -265,10 +265,19 @@ def main() -> int:
         auto_pinned_manifest = manifest(pinned)
         assert "pinned_corpus_session" in auto_pinned_manifest["eligibility"]["blockers"]
         assert str(baseline_manifest.resolve()) in auto_pinned_manifest["pin_sources"]
+        retired_manifest = root / "sessions/_reports/private-archive/retired_sessions.json"
+        write_json(
+            retired_manifest,
+            {"schema": "murmurmark.retired_sessions/v1", "sessions": [pinned.name]},
+        )
+        retired_plan = run(root, "plan", str(pinned))
+        assert retired_plan.returncode == 0
+        assert manifest(pinned)["pinned"] is False
         pin_file = root / "pins.json"
         write_json(pin_file, {"sessions": [pinned.name]})
         pinned_plan = run(root, "plan", str(pinned), "--pin-file", str(pin_file))
         assert pinned_plan.returncode == 2
+        assert manifest(pinned)["pinned"] is True
         assert "pinned_corpus_session" in manifest(pinned)["eligibility"]["blockers"]
         pinned_verify = run(root, "verify", str(pinned), "--pin-file", str(pin_file))
         assert pinned_verify.returncode == 2

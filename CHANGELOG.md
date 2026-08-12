@@ -5,6 +5,8 @@ public release tag exists; development builds also carry the source commit in th
 
 ## Unreleased
 
+- Added private `retired_sessions/v1` overlays so superseded frozen experiments can release stale
+  automatic pins while explicit current-development pins continue to protect active corpora.
 - Completed the frozen disjoint remote-speaker truth v2 review: 72 primary and 12 repeat decisions,
   perfect repeat consistency and byte-exact replay now unlock one-shot qualification of a new local
   speaker model without changing production attribution.

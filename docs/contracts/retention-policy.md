@@ -263,6 +263,13 @@ pin files, provide the pinned session set. A private archive manifest uses schem
 experiments without exposing private IDs in tracked files. Pinned sessions require
 `--include-pinned` before manual compaction.
 
+Completed experiments may leave immutable historical policies that still name their source
+sessions. A private `sessions/_reports/**/retired_sessions.json` overlay with schema
+`murmurmark.retired_sessions/v1` removes those automatic historical pins without editing the frozen
+policy. An explicit `pinned_sessions.json` or `--pin-file` always wins over retirement. Retirement
+only makes a session eligible for the normal transcript and lifecycle checks; it never bypasses
+them.
+
 After successful guarded export, `murmurmark finish` applies `transcript_only` compaction
 automatically. `murmurmark meeting` inherits that behavior because it calls `finish` only when
 structured quality gates permit export. Both commands accept:

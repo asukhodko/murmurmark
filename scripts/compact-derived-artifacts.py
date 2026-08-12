@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 
-SCRIPT_VERSION = "0.2.0"
+SCRIPT_VERSION = "0.3.0"
 MANIFEST_SCHEMA = "murmurmark.derived_compaction/v1"
 REPORT_SCHEMA = "murmurmark.derived_compaction_report/v1"
 AUDIT_SCHEMA = "murmurmark.derived_compaction_audit_event/v1"
@@ -203,33 +203,47 @@ def all_strings(value: Any) -> Iterator[str]:
 
 def discover_pins(sessions_root: Path, explicit_files: list[Path]) -> tuple[set[str], list[str]]:
     root = sessions_root.expanduser().resolve()
-    sources: list[Path] = []
+    automatic_sources: list[Path] = []
+    explicit_pin_sources: list[Path] = []
+    retired_sources: list[Path] = []
     reports = root / "_reports"
     if reports.is_dir():
-        sources.extend(sorted(reports.glob("**/frozen_corpus.json")))
-        sources.extend(sorted(reports.glob("**/pinned_sessions.json")))
-        sources.extend(sorted(reports.glob("**/split_manifest.json")))
-        sources.extend(sorted(reports.glob("**/*baseline*.json")))
-        sources.extend(sorted(reports.glob("**/*hard_test*.json")))
+        automatic_sources.extend(sorted(reports.glob("**/frozen_corpus.json")))
+        automatic_sources.extend(sorted(reports.glob("**/split_manifest.json")))
+        automatic_sources.extend(sorted(reports.glob("**/*baseline*.json")))
+        automatic_sources.extend(sorted(reports.glob("**/*hard_test*.json")))
+        explicit_pin_sources.extend(sorted(reports.glob("**/pinned_sessions.json")))
+        retired_sources.extend(sorted(reports.glob("**/retired_sessions.json")))
     policies = Path.cwd() / "policies"
     if policies.is_dir():
-        sources.extend(sorted(policies.glob("*.json")))
-    sources.extend(path.expanduser() for path in explicit_files)
+        automatic_sources.extend(sorted(policies.glob("*.json")))
+    explicit_pin_sources.extend(path.expanduser() for path in explicit_files)
 
-    pins: set[str] = set()
+    def session_ids(sources: list[Path]) -> tuple[set[str], list[str]]:
+        found_ids: set[str] = set()
+        used: list[str] = []
+        for source in dict.fromkeys(path.resolve() for path in sources if path.is_file()):
+            payload = read_json(source)
+            if payload is None:
+                continue
+            found = {
+                Path(value).name
+                for value in all_strings(payload)
+                if SESSION_NAME_RE.fullmatch(Path(value).name)
+            }
+            if found:
+                found_ids.update(found)
+                used.append(str(source))
+        return found_ids, used
+
+    automatic_pins, automatic_used = session_ids(automatic_sources)
+    explicit_pins, explicit_used = session_ids(explicit_pin_sources)
+    retired, retired_used = session_ids(retired_sources)
+    pins = (automatic_pins - retired) | explicit_pins
     used_sources: list[str] = []
-    for source in dict.fromkeys(path.resolve() for path in sources if path.is_file()):
-        payload = read_json(source)
-        if payload is None:
-            continue
-        found = {
-            Path(value).name
-            for value in all_strings(payload)
-            if SESSION_NAME_RE.fullmatch(Path(value).name)
-        }
-        if found:
-            pins.update(found)
-            used_sources.append(str(source))
+    used_sources.extend(automatic_used)
+    used_sources.extend(explicit_used)
+    used_sources.extend(retired_used)
     return pins, used_sources
 
 

@@ -711,6 +711,11 @@ murmurmark retention compact verify all --older-than 7d --exclude-pinned
 This archive mode is irreversible. It preserves the selected transcript and structured evidence,
 but the session can no longer be retranscribed or used for audio research.
 
+Historical frozen policies can keep completed research sessions pinned after a newer corpus has
+superseded them. Put reviewed retirements in a private
+`sessions/_reports/<name>/retired_sessions.json` manifest. Keep currently useful exceptions in
+`pinned_sessions.json`; explicit pins take precedence. Always run `plan` before `apply`.
+
 For the normal path, expected `session.json` values are:
 
 ```json
