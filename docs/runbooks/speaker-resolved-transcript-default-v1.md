@@ -24,6 +24,35 @@ speaker_resolution_state: selected
 The Markdown uses anonymous session-local labels such as `remote_speaker_01`. Intervals without
 enough evidence remain `Colleagues`.
 
+## Known Participant Count
+
+If a group call safely falls back because one voice was split into multiple acoustic clusters or a
+real participant spoke too briefly for the global publication floor, record the known remote roster
+and read the transcript again:
+
+```bash
+murmurmark speakers roster "$SESSION" \
+  --expected-remote-speakers 4 \
+  --participant "Participant A" \
+  --participant "Participant B" \
+  --participant "Participant C" \
+  --participant "Participant D"
+
+murmurmark transcript "$SESSION"
+```
+
+The roster constrains count only. Output remains anonymous until names are explicitly reviewed.
+The selector automatically invalidates stale speaker evidence and runs the bounded two-backend
+check. A short participant still needs at least 6 usable utterances, 24 seconds of speech, broad
+session span, high cohesion and stable independent separation. If the models or temporal evidence
+disagree, the command keeps aggregate `Colleagues`.
+
+Inspect the configured roster without changing it:
+
+```bash
+murmurmark speakers roster "$SESSION" --status
+```
+
 ## Refresh Or Verify
 
 For an older processed session or after review changed the selected transcript profile:
@@ -72,6 +101,9 @@ murmurmark transcript "$SESSION" --rich --reviewed-speakers
 ```
 
 Names are never inferred from voice and never reused across sessions automatically.
+
+The roster command does not replace this naming review. It can establish that four remote voices
+should exist, but cannot establish which voice belongs to which participant.
 
 ## Frozen Corpus
 

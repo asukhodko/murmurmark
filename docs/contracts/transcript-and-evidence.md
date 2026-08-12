@@ -6191,6 +6191,13 @@ the source dialogue, remote audio, model, parameter and implementation-script fi
 using a map. The frozen corpus manifest also fingerprints its reporter. Stale or missing evidence
 fails open to aggregate `Colleagues`.
 
+An optional `murmurmark.remote_speaker_roster/v1` artifact can constrain the expected number of
+remote speakers without assigning participant names to voices. When one extra stable cluster
+remains, v1 may merge one pair only after independent Resemblyzer and WeSpeaker agreement plus a
+non-conflicting temporal handoff. The report preserves all threshold candidates and pair evidence.
+Any missing dependency, ambiguity or count mismatch fails open. The selector fingerprints this
+roster, both speaker implementations and the local consensus model in its cache key.
+
 ## Anonymous Rich Transcript Handoff v1
 
 The promoted optional handoff is stored separately from the authoritative transcript:

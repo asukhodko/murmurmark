@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.4.6"
+SCRIPT_VERSION = "0.4.7"
 SCHEMA = "murmurmark.operational_readiness_report/v1"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
@@ -2042,6 +2042,8 @@ def compact_transcript_text_utterance(
             "unsupported_micro_asr_fallback": allow_drop,
             "micro_asr_status": micro.get("status"),
             "micro_asr_reason": micro.get("reason"),
+            "source_needs_review": quality.get("needs_review") is True,
+            "renumbered_from": quality.get("renumbered_from"),
         },
         "commands": {
             "mic_raw": (
@@ -2262,7 +2264,7 @@ def build_review_queue_details(sessions: list[dict[str, Any]], max_items: int) -
         use_gate = str(session.get("use_gate") or "")
         export_blockers = session.get("export_blockers") if isinstance(session.get("export_blockers"), list) else []
         transcript_review_burden = safe_float(session.get("transcript_review_burden_sec"))
-        if use_gate == "ready_for_notes" and (not export_blockers or transcript_review_burden <= 0.0):
+        if use_gate == "ready_for_notes" and not export_blockers and transcript_review_burden <= 0.0:
             continue
         session_path = Path(str(session.get("session") or ""))
         profile = str(session.get("selected_profile") or "")
@@ -2288,15 +2290,6 @@ def build_review_queue_details(sessions: list[dict[str, Any]], max_items: int) -
         completion_open_local_ids: set[str] = set()
         completion_text_utterance_ids: set[str] = set()
         transcript_text_candidates: list[dict[str, Any]] = []
-        reviewed_transcript_text_ids = {
-            str(utterance_id)
-            for decision in pending_review_decision_rows(session_path, profile)
-            if str(decision.get("source") or "") == "transcript_text"
-            and str(decision.get("status") or "") == "reviewed"
-            and str(decision.get("decision") or "") in {"drop_me", "keep_me", "skip"}
-            for utterance_id in decision.get("utterance_ids") or []
-            if utterance_id
-        }
         selected_dialogue = read_json(
             session_path
             / "derived/transcript-simple/whisper-cpp/resolved"
@@ -2306,7 +2299,7 @@ def build_review_queue_details(sessions: list[dict[str, Any]], max_items: int) -
             if not isinstance(utterance, dict) or not unsupported_micro_asr_fallback(utterance):
                 continue
             utterance_id = str(utterance.get("id") or "")
-            if not utterance_id or utterance_id in confirmed_me_ids or utterance_id in reviewed_transcript_text_ids:
+            if not utterance_id or utterance_id in confirmed_me_ids:
                 continue
             transcript_text_candidates.append(
                 compact_transcript_text_utterance(
@@ -2329,17 +2322,6 @@ def build_review_queue_details(sessions: list[dict[str, Any]], max_items: int) -
                     str(value) for value in completion_row.get("utterance_ids") or [] if value
                 )
                 rows.append(compact_local_speech_completion_item(session, completion_row))
-            for utterance in selected_dialogue.get("utterances") or []:
-                if not isinstance(utterance, dict):
-                    continue
-                quality = utterance.get("quality") if isinstance(utterance.get("quality"), dict) else {}
-                utterance_id = str(utterance.get("id") or "")
-                if (
-                    quality.get("needs_review") is True
-                    and str(utterance.get("role") or utterance.get("speaker_label") or "").lower() in {"me", "mic"}
-                    and utterance_id not in completion_text_utterance_ids
-                ):
-                    rows.append(compact_transcript_text_utterance(session, utterance))
         audit_path = session_path / "derived/audit/audio-review-pack/audio_review_audit.jsonl"
         audit_rows = read_jsonl(audit_path)
         reliable_by_me_id = reliable_audio_review_rows_by_me_id(audit_rows, selected_ids)
@@ -2402,6 +2384,30 @@ def build_review_queue_details(sessions: list[dict[str, Any]], max_items: int) -
             if str(row.get("item_id") or row.get("id") or "") in transcript_order_resolved_ids:
                 continue
             rows.append(compact_transcript_order_item(session, row))
+        candidate_ids = {
+            str(value)
+            for candidate in transcript_text_candidates
+            for value in candidate.get("utterance_ids") or []
+            if value
+        }
+        for utterance in selected_dialogue.get("utterances") or []:
+            if not isinstance(utterance, dict):
+                continue
+            quality = utterance.get("quality") if isinstance(utterance.get("quality"), dict) else {}
+            role = str(utterance.get("role") or utterance.get("speaker_label") or "").lower()
+            utterance_id = str(utterance.get("id") or "")
+            if (
+                quality.get("needs_review") is not True
+                or role not in {"me", "mic"}
+                or not utterance_id
+                or utterance_id in candidate_ids
+                or utterance_id in completion_text_utterance_ids
+            ):
+                continue
+            transcript_text_candidates.append(
+                compact_transcript_text_utterance(session, utterance, input_profile=profile)
+            )
+            candidate_ids.add(utterance_id)
         covered_utterance_ids = {
             str(utterance_id)
             for item in rows

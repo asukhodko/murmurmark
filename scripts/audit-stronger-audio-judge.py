@@ -18,7 +18,7 @@ from typing import Any
 
 SCHEMA_ROW = "murmurmark.faster_whisper_judge/v1"
 SCHEMA_SUMMARY = "murmurmark.faster_whisper_judge_summary/v1"
-SCRIPT_VERSION = "0.1.6"
+SCRIPT_VERSION = "0.1.8"
 DEFAULT_MODEL = Path.home() / ".local/share/murmurmark/models/faster-whisper/large-v3"
 DEFAULT_MAX_ITEMS = 80
 DEFAULT_SOURCES = ("mic_role_masked", "mic_clean", "mic_raw", "remote")
@@ -651,6 +651,22 @@ def text_similarity(left: Any, right: Any) -> dict[str, float]:
     }
 
 
+def phrase_window_similarity(needle: Any, haystack: Any) -> float:
+    needle_tokens = normalize_text(needle).split()
+    haystack_tokens = normalize_text(haystack).split()
+    if not needle_tokens or not haystack_tokens or len(needle_tokens) > 5:
+        return 0.0
+    best = 0.0
+    for size in range(max(1, len(needle_tokens) - 1), min(len(haystack_tokens), len(needle_tokens) + 1) + 1):
+        for start in range(0, len(haystack_tokens) - size + 1):
+            window = haystack_tokens[start : start + size]
+            best = max(
+                best,
+                SequenceMatcher(None, " ".join(needle_tokens), " ".join(window)).ratio(),
+            )
+    return round(best, 6)
+
+
 def safe_float(value: Any, default: float = 0.0) -> float:
     try:
         number = float(value)
@@ -1063,6 +1079,10 @@ def classify_item(
         mic_sources,
         "to_decoded_remote",
     )
+    best_me_source_no_speech = safe_float(
+        metrics.get(best_me_any_source or best_me_source, {}).get("no_speech_prob"),
+        0.0,
+    )
     remote_source_to_remote = safe_float(metrics.get("remote", {}).get("to_remote", {}).get("similarity"), 0.0)
     remote_source_to_me = safe_float(metrics.get("remote", {}).get("to_me", {}).get("similarity"), 0.0)
     remote_source_to_me_containment = safe_float(metrics.get("remote", {}).get("to_me", {}).get("containment"), 0.0)
@@ -1137,7 +1157,27 @@ def classify_item(
         and group_local_evidence < 50
         and best_remote_in_mic >= 0.70
     )
+    remote_dominant_mic_decode_keep_veto = (
+        me_confirmed
+        and remote_source_tokens >= 4
+        and mic_content_tokens >= 4
+        and best_decoded_remote_in_mic >= 0.82
+        and best_decoded_remote_in_mic - best_me_any >= 0.18
+        and remote_source_to_remote >= 0.65
+        and state_local_active <= 0.10
+        and (
+            group_audio_leak >= 70
+            or (
+                state_coverage >= 0.80
+                and local_support <= 10
+                and best_remote_in_mic >= 0.90
+            )
+        )
+    )
     decoded_remote_to_me = text_similarity(str(transcripts.get("remote", {}).get("text") or ""), me_text)
+    decoded_remote_phrase_match = phrase_window_similarity(
+        me_text, str(transcripts.get("remote", {}).get("text") or "")
+    )
     remote_contains_me_veto = (
         audit_verdict != "probable_transcript_error"
         and len(me_tokens) >= 3
@@ -1157,6 +1197,42 @@ def classify_item(
         and group_local_evidence <= 35
         and group_remote_evidence >= 40
         and group_audio_leak >= 40
+    )
+    short_decoded_remote_duplicate = (
+        short_content_me
+        and 2 <= len(me_tokens) <= 3
+        and best_me_any < 0.40
+        and local_support <= 40
+        and state_coverage >= 0.80
+        and state_local_active <= 0.05
+        and remote_source_to_remote >= 0.80
+        and remote_source_tokens >= 4
+        and decoded_remote_phrase_match >= 0.88
+    )
+    remote_only_decoded_duplicate = (
+        short_content_me
+        and 2 <= len(me_tokens) <= 3
+        and state_coverage >= 0.80
+        and state_remote_only >= 0.90
+        and state_local_active <= 0.05
+        and remote_source_to_remote >= 0.80
+        and remote_source_tokens >= 4
+        and decoded_remote_phrase_match >= 0.88
+        and remote_similarity >= 70
+        and best_me_source_no_speech >= 0.55
+    )
+    single_token_remote_only_duplicate = (
+        len(me_tokens) == 1
+        and len(me_tokens[0]) >= 5
+        and state_coverage >= 0.80
+        and state_remote_only >= 0.90
+        and state_local_active <= 0.05
+        and remote_source_to_remote >= 0.80
+        and remote_source_tokens >= 4
+        and decoded_remote_phrase_match >= 0.95
+        and local_support <= 10
+        and best_remote_in_mic >= 0.60
+        and best_me_source_no_speech >= 0.50
     )
     mic_rejects_noise_fragment = (
         noise_fragment_me
@@ -1243,6 +1319,29 @@ def classify_item(
             f"decoded mic matches decoded remote directly via {decoded_remote_in_mic_source}; "
             "group evidence is remote/leak dominant"
         )
+    elif short_decoded_remote_duplicate:
+        label = "confirm_remote_duplicate"
+        suggested = "drop_me"
+        confidence = 0.90
+        reasons.append(
+            "short Me fragment is absent from local state and fuzzy-contained in decoded remote"
+        )
+    elif remote_only_decoded_duplicate:
+        label = "confirm_remote_duplicate"
+        suggested = "drop_me"
+        confidence = 0.91
+        reasons.append(
+            "short Me fragment is fuzzy-contained in decoded remote while speaker_state is remote-only "
+            "and the matching mic decode has high no-speech probability"
+        )
+    elif single_token_remote_only_duplicate:
+        label = "confirm_remote_duplicate"
+        suggested = "drop_me"
+        confidence = 0.90
+        reasons.append(
+            "single content-word Me fragment is contained in decoded remote while speaker_state is "
+            "remote-only and the matching mic decode has high no-speech probability"
+        )
     elif group_timing_context and best_remote_in_mic < 0.58 and remote_duplicate is False:
         label = "confirm_timing_or_doubletalk"
         suggested = "keep_me"
@@ -1268,6 +1367,14 @@ def classify_item(
         reasons.append(
             "speaker_state is remote-only across the interval and mic follows remote; "
             "decoded mic text cannot independently confirm Me"
+        )
+    elif remote_dominant_mic_decode_keep_veto:
+        label = "uncertain"
+        suggested = "needs_review"
+        confidence = min(0.88, max(0.72, best_decoded_remote_in_mic))
+        reasons.append(
+            "mic decode follows decoded remote substantially more closely than the proposed Me text; "
+            "strong leak evidence vetoes automatic keep"
         )
     elif me_confirmed and remote_confirmed and best_remote_in_mic < 0.68:
         label = "confirm_timing_or_doubletalk" if remote_text else "confirm_me"
@@ -1358,6 +1465,7 @@ def classify_item(
             "me_content_tokens": len(me_tokens),
             "remote_content_tokens": len(remote_tokens),
             "decoded_remote_to_me_similarity": round(safe_float(decoded_remote_to_me.get("similarity"), 0.0), 6),
+            "decoded_remote_phrase_match": decoded_remote_phrase_match,
             "group_local_evidence": round(group_local_evidence, 3),
             "group_remote_evidence": round(group_remote_evidence, 3),
             "group_audio_leak": round(group_audio_leak, 3),
@@ -1369,6 +1477,10 @@ def classify_item(
             "speaker_state_double_talk_ratio": round(state_double_talk, 6),
             "speaker_state_silence_ratio": round(state_silence, 6),
             "speaker_state_remote_only_keep_veto": remote_only_keep_veto,
+            "remote_dominant_mic_decode_keep_veto": remote_dominant_mic_decode_keep_veto,
+            "best_me_source_no_speech_probability": round(best_me_source_no_speech, 6),
+            "remote_only_decoded_duplicate": remote_only_decoded_duplicate,
+            "single_token_remote_only_duplicate": single_token_remote_only_duplicate,
             "unsupported_micro_asr_fallback": unsupported_micro_fallback,
             "mic_sources_empty_or_hallucinated": mic_sources_empty_or_hallucinated,
         },

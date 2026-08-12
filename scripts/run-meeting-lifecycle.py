@@ -83,6 +83,31 @@ def read_json(path: Path) -> dict[str, Any] | None:
     return payload if isinstance(payload, dict) else None
 
 
+def read_jsonl(path: Path) -> list[dict[str, Any]]:
+    if not path.is_file():
+        return []
+    rows: list[dict[str, Any]] = []
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            value = json.loads(line)
+            if isinstance(value, dict):
+                rows.append(value)
+    except (OSError, json.JSONDecodeError):
+        return []
+    return rows
+
+
+def review_row_key(row: dict[str, Any]) -> str:
+    stable_id = str(row.get("source") or row.get("cluster_id") or "").strip()
+    utterance_ids = row.get("utterance_ids")
+    utterance_key = ",".join(str(value) for value in utterance_ids) if isinstance(utterance_ids, list) else ""
+    interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+    return (
+        f"review:{row.get('session_id') or ''}:{stable_id}:{utterance_key}:"
+        f"{interval.get('start')}:{interval.get('end')}:{row.get('label')}"
+    )
+
+
 def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
@@ -352,7 +377,7 @@ class MeetingLifecycle:
                     report = read_json(self.report_path)
                     if report:
                         raw_preserved, _ = self.verify_raw_preserved(emit_event=False)
-                        if not raw_preserved:
+                        if not raw_preserved and not self.raw_intentionally_archived():
                             return self.finish_failed("raw_capture_changed_after_completion")
                         refreshed = self.build_report(emit_raw_event=False)
                         if report_freshness_key(refreshed) != report_freshness_key(report):
@@ -1029,6 +1054,12 @@ class MeetingLifecycle:
     def review_progress_path(self) -> Path:
         return self.session / "derived" / "readiness" / "review-plan" / "review_decisions_progress.json"
 
+    def review_decisions_path(self) -> Path:
+        return self.session / "derived" / "readiness" / "review-plan" / "review_decisions.jsonl"
+
+    def review_decisions_template_path(self) -> Path:
+        return self.session / "derived" / "readiness" / "review-plan" / "review_decisions.template.jsonl"
+
     def review_decisions_report_path(self, profile: str) -> Path:
         return (
             self.session
@@ -1148,6 +1179,8 @@ class MeetingLifecycle:
             if isinstance(compaction_manifest.get("verification"), dict)
             else {}
         )
+        raw_archived = self.raw_intentionally_archived(compaction_manifest)
+        raw_acceptable = raw_preserved or raw_archived
         actions = self.state.get("actions") if isinstance(self.state.get("actions"), dict) else {}
         finish_state = actions.get("finish") if isinstance(actions.get("finish"), dict) else {}
         current_profile = str(outcome.get("selected_profile") or readiness.get("selected_profile") or "")
@@ -1163,12 +1196,19 @@ class MeetingLifecycle:
 
         result = forced_result
         if result is None:
-            if not raw_preserved or transcript is None or not transcript.is_file():
+            if not raw_acceptable or transcript is None or not transcript.is_file():
                 result = "failed"
-                reason = reason or ("raw_capture_changed" if not raw_preserved else "authoritative_transcript_missing")
-            elif outcome.get("outcome") in {"blocked", "failed"}:
+                reason = reason or (
+                    "raw_capture_changed"
+                    if not raw_acceptable
+                    else "authoritative_transcript_missing"
+                )
+            elif outcome.get("outcome") == "failed":
                 result = "failed"
                 reason = reason or f"outcome:{outcome.get('outcome')}"
+            elif outcome.get("outcome") == "blocked":
+                result = "ready_with_review"
+                reason = reason or "structured_review_gate_remains"
             elif export_succeeded:
                 result = "ready"
             else:
@@ -1188,20 +1228,27 @@ class MeetingLifecycle:
             )
 
         manual_decisions = self.manual_decision_items(outcome)
-        unresolved_count = max_number(
-            metrics,
-            "review_scope_remaining_rows",
-            "suggested_closure_manual_remaining_rows",
-            "needs_review_count",
-        )
-        unresolved_seconds = max_number(
-            metrics,
-            "transcript_review_burden_sec",
-            "review_scope_remaining_seconds",
-            "suggested_closure_manual_remaining_seconds",
-            "review_burden_sec",
-        )
-        unresolved_count = max(int(unresolved_count or 0), int(manual_decisions["total"]))
+        if (
+            manual_decisions.get("source") == display_path(self.review_progress_path())
+            and manual_decisions.get("status") == "required"
+        ):
+            unresolved_count = int(manual_decisions["total"])
+            unresolved_seconds = float(manual_decisions.get("remaining_seconds") or 0.0)
+        else:
+            unresolved_count = max_number(
+                metrics,
+                "review_scope_remaining_rows",
+                "suggested_closure_manual_remaining_rows",
+                "needs_review_count",
+            )
+            unresolved_seconds = max_number(
+                metrics,
+                "transcript_review_burden_sec",
+                "review_scope_remaining_seconds",
+                "suggested_closure_manual_remaining_seconds",
+                "review_burden_sec",
+            )
+            unresolved_count = max(int(unresolved_count or 0), int(manual_decisions["total"]))
         action_times = {
             action: rounded(float(value.get("duration_sec") or 0.0))
             for action, value in actions.items()
@@ -1221,7 +1268,7 @@ class MeetingLifecycle:
             for action, value in actions.items()
         )
         warnings = list(dict.fromkeys(str(item) for item in self.state.get("warnings", []) if str(item)))
-        if not raw_preserved:
+        if not raw_acceptable:
             warnings.append("raw capture SHA-256 identities changed")
 
         next_step = self.final_next_step(
@@ -1296,6 +1343,8 @@ class MeetingLifecycle:
             },
             "raw": {
                 "preserved": raw_preserved,
+                "archived": raw_archived,
+                "acceptable": raw_acceptable,
                 "before": self.state.get("raw_inputs", []),
                 "after": raw_after,
             },
@@ -1361,6 +1410,83 @@ class MeetingLifecycle:
                 "items": [],
                 "residual_quality_flag_count": len(rows),
                 "completion": completed_review,
+            }
+        progress = read_json(self.review_progress_path())
+        progress_summary = (
+            progress.get("summary")
+            if isinstance(progress, dict) and isinstance(progress.get("summary"), dict)
+            else {}
+        )
+        pending_rows: list[dict[str, Any]] = []
+        decisions_path = self.review_decisions_path()
+        template_path = self.review_decisions_template_path()
+        if (
+            progress.get("schema") == "murmurmark.review_decisions_progress/v1"
+            if isinstance(progress, dict)
+            else False
+        ) and template_path.is_file() and int(progress_summary.get("invalid_rows") or 0) == 0:
+            try:
+                templates = read_jsonl(template_path)
+                reviewed_by_key = {
+                    review_row_key(decision): decision
+                    for decision in read_jsonl(decisions_path)
+                    if str(decision.get("decision") or "todo") != "todo"
+                }
+                for template in templates:
+                    decision = dict(template)
+                    reviewed = reviewed_by_key.get(review_row_key(template))
+                    if reviewed:
+                        decision.update({
+                            key: reviewed[key]
+                            for key in ("decision", "status", "reviewer", "notes")
+                            if key in reviewed
+                        })
+                    if str(decision.get("decision") or decision.get("status") or "todo") != "todo":
+                        continue
+                    interval = decision.get("interval") if isinstance(decision.get("interval"), dict) else {}
+                    utterance_ids = decision.get("utterance_ids")
+                    pending_rows.append(
+                        {
+                            "review_id": str(
+                                decision.get("source_audit_id")
+                                or decision.get("cluster_id")
+                                or "unknown"
+                            ),
+                            "review_lane": str(decision.get("review_lane") or "unknown"),
+                            "start": rounded(float(interval.get("start") or 0.0)),
+                            "end": rounded(float(interval.get("end") or interval.get("start") or 0.0)),
+                            "reason": str(
+                                decision.get("suggested_decision_reason")
+                                or decision.get("label")
+                                or "needs_review"
+                            ),
+                            "allowed_decisions": [
+                                str(value)
+                                for value in decision.get("allowed_decisions", [])
+                                if isinstance(value, str)
+                            ],
+                            "utterance_ids": [
+                                str(value)
+                                for value in utterance_ids
+                                if isinstance(value, str)
+                            ] if isinstance(utterance_ids, list) else [],
+                        }
+                    )
+            except (OSError, json.JSONDecodeError, TypeError, ValueError):
+                pending_rows = []
+        expected_pending = int(progress_summary.get("remaining") or 0)
+        if pending_rows and len(pending_rows) == expected_pending:
+            pending_rows.sort(key=lambda row: (row["start"], row["end"], row["review_id"]))
+            return {
+                "schema": "murmurmark.meeting_manual_decisions/v1",
+                "source": display_path(self.review_progress_path()),
+                "status": "required",
+                "total": len(pending_rows),
+                "listed": min(len(pending_rows), MAX_MANUAL_DECISION_ITEMS),
+                "truncated": len(pending_rows) > MAX_MANUAL_DECISION_ITEMS,
+                "items": pending_rows[:MAX_MANUAL_DECISION_ITEMS],
+                "remaining_seconds": rounded(float(progress_summary.get("remaining_seconds") or 0.0)),
+                "residual_quality_flag_count": len(rows),
             }
         total = len(rows)
         return {
@@ -1522,6 +1648,29 @@ class MeetingLifecycle:
             self.event("raw_inputs_verified", preserved=preserved, files=len(after))
         return preserved, after
 
+    def raw_intentionally_archived(
+        self,
+        payload: dict[str, Any] | None = None,
+    ) -> bool:
+        compaction = payload or read_json(
+            self.session / "derived/retention/derived_compaction.json"
+        )
+        if not isinstance(compaction, dict):
+            return False
+        verification = (
+            compaction.get("verification")
+            if isinstance(compaction.get("verification"), dict)
+            else {}
+        )
+        return bool(
+            compaction.get("schema") == "murmurmark.derived_compaction/v1"
+            and compaction.get("mode") == "transcript_only"
+            and compaction.get("status") in {"applied", "verified"}
+            and verification.get("passed") is True
+            and verification.get("raw_deleted") is True
+            and verification.get("retained_outputs_preserved") is True
+        )
+
     def write_report(self, report: dict[str, Any]) -> None:
         write_json(self.report_path, report)
         unresolved = report["unresolved_review"]
@@ -1547,7 +1696,7 @@ class MeetingLifecycle:
             f"- Next: `{next_step.get('status') or 'unknown'}`",
             f"- Export: `{report['export']['status']}`",
             f"- Derived compaction: `{compaction['status']}` / `{compaction['deleted_bytes']}` bytes",
-            f"- Raw preserved: `{str(report['raw']['preserved']).lower()}`",
+            f"- Raw state: `{'preserved' if report['raw']['preserved'] else ('archived' if report['raw'].get('archived') else 'changed')}`",
             f"- Capture: `{elapsed['capture']:.3f}s`",
             f"- Capture finalization: `{elapsed['capture_finalize']:.3f}s`",
             f"- Authoritative process: `{elapsed['authoritative_process']:.3f}s`",
@@ -1569,8 +1718,10 @@ class MeetingLifecycle:
         elif int(manual.get("total") or 0) > 0:
             lines += ["", "## Manual Decisions", ""]
             for item in manual.get("items", []):
+                item_id = str(item.get("review_id") or item.get("utterance_id") or "unknown")
+                item_scope = str(item.get("review_lane") or item.get("role") or "unknown")
                 lines.append(
-                    f"- `{item['utterance_id']}` `{item['role']}` "
+                    f"- `{item_id}` `{item_scope}` "
                     f"`{item['start']:.3f}..{item['end']:.3f}s`: `{item['reason']}`"
                 )
             if manual.get("truncated"):
@@ -1639,6 +1790,7 @@ def report_freshness_key(report: dict[str, Any]) -> dict[str, Any]:
         "export": report.get("export"),
         "derived_compaction": report.get("derived_compaction"),
         "raw_preserved": raw.get("preserved"),
+        "raw_archived": raw.get("archived"),
     }
 
 
@@ -1683,7 +1835,12 @@ def print_summary(report: dict[str, Any]) -> None:
         f"{compaction.get('status') or 'not_attempted'} "
         f"({int(compaction.get('deleted_bytes') or 0)} bytes)"
     )
-    print(f"  raw_capture: {'preserved' if raw.get('preserved') is True else 'changed'}")
+    raw_state = (
+        "preserved"
+        if raw.get("preserved") is True
+        else ("archived" if raw.get("archived") is True else "changed")
+    )
+    print(f"  raw_capture: {raw_state}")
     print(
         "  elapsed: "
         f"capture={float(elapsed.get('capture') or 0.0):.1f}s "

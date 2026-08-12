@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.4.0"
+SCRIPT_VERSION = "0.4.1"
 OUTPUT_PROFILE_DEFAULT = "reviewed_v1"
 VALID_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip", "todo", ""}
 OPEN_DECISIONS = {"", "todo"}
@@ -193,7 +193,7 @@ def review_input_profile(
     all_decisions: list[dict[str, Any]],
 ) -> str:
     scoped = selected_profile_from_decisions(in_scope_decisions)
-    if scoped and scoped != output_profile and profile_artifacts_exist(session, scoped):
+    if scoped and profile_artifacts_exist(session, scoped):
         return scoped
 
     review_report = (

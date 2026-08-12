@@ -15,11 +15,13 @@ from pathlib import Path
 from typing import Any, Iterator
 
 
-SCRIPT_VERSION = "0.1.1"
+SCRIPT_VERSION = "0.2.0"
 MANIFEST_SCHEMA = "murmurmark.derived_compaction/v1"
 REPORT_SCHEMA = "murmurmark.derived_compaction_report/v1"
 AUDIT_SCHEMA = "murmurmark.derived_compaction_audit_event/v1"
-MODE = "keep_raw"
+KEEP_RAW_MODE = "keep_raw"
+TRANSCRIPT_ONLY_MODE = "transcript_only"
+MODES = (KEEP_RAW_MODE, TRANSCRIPT_ONLY_MODE)
 MEDIA_SUFFIXES = {
     ".aac",
     ".aif",
@@ -40,18 +42,22 @@ AGE_RE = re.compile(r"^(?P<value>\d+)(?P<unit>[smhdw])$")
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Plan, apply or verify removal of rebuildable media below SESSION/derived."
+        description=(
+            "Plan, apply or verify session compaction. The default keeps raw audio; "
+            "transcript_only also removes declared raw mic/remote files."
+        )
     )
     parser.add_argument("action", choices=("plan", "apply", "verify"))
     parser.add_argument("target", help="Session path, session id, latest, or all.")
     parser.add_argument("--sessions-root", type=Path, default=Path("sessions"))
-    parser.add_argument("--mode", choices=(MODE,), default=MODE)
+    parser.add_argument("--mode", choices=MODES, default=KEEP_RAW_MODE)
     parser.add_argument("--older-than", help="Bulk age threshold such as 7d, 24h or 30m.")
     pin_group = parser.add_mutually_exclusive_group()
     pin_group.add_argument("--exclude-pinned", action="store_true")
     pin_group.add_argument("--include-pinned", action="store_true")
     parser.add_argument("--pin-file", type=Path, action="append", default=[])
     parser.add_argument("--confirm-delete-derived-media", action="store_true")
+    parser.add_argument("--confirm-delete-raw", action="store_true")
     parser.add_argument("--require-successful-export", action="store_true")
     parser.add_argument("--export-manifest", type=Path)
     parser.add_argument(
@@ -392,6 +398,23 @@ def aggregate(items: list[dict[str, Any]], key: str) -> dict[str, dict[str, int]
     return dict(sorted(values.items(), key=lambda pair: (-pair[1]["bytes"], pair[0])))
 
 
+def raw_inventory(items: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "candidate_files": len(items),
+        "candidate_bytes": sum(int(item["bytes"]) for item in items),
+        "by_source": aggregate(items, "source"),
+    }
+
+
+def absent_identity_failures(session: Path, identities: list[dict[str, Any]]) -> list[str]:
+    failures: list[str] = []
+    for identity in identities:
+        relative = Path(str(identity["path"]))
+        if (session / relative).exists():
+            failures.append(f"raw_still_present:{relative}")
+    return failures
+
+
 def export_gate(
     session: Path,
     required: bool,
@@ -514,6 +537,7 @@ def build_manifest(
         "eligibility": {"passed": not blockers, "blockers": sorted(set(blockers)), "warnings": warnings},
         "export_gate": export,
         "raw_audio": raw,
+        "raw_inventory": raw_inventory(raw),
         "retained_outputs": critical,
         "inventory": {
             "media_suffixes": sorted(MEDIA_SUFFIXES),
@@ -525,9 +549,15 @@ def build_manifest(
         },
         "application": {
             "requested": args.action == "apply",
-            "confirmed": args.confirm_delete_derived_media,
+            "derived_media_confirmed": args.confirm_delete_derived_media,
+            "raw_delete_requested": args.mode == TRANSCRIPT_ONLY_MODE,
+            "raw_delete_confirmed": args.confirm_delete_raw,
             "deleted_files": 0,
             "deleted_bytes": 0,
+            "deleted_derived_files": 0,
+            "deleted_derived_bytes": 0,
+            "deleted_raw_files": 0,
+            "deleted_raw_bytes": 0,
             "failures": [],
         },
         "verification": None,
@@ -559,7 +589,20 @@ def apply_manifest(session: Path, manifest: dict[str, Any], args: argparse.Names
         manifest["status"] = "blocked"
         manifest["eligibility"]["blockers"].append("confirmation_required")
         return
+    if args.mode == TRANSCRIPT_ONLY_MODE and not args.confirm_delete_raw:
+        manifest["status"] = "blocked"
+        manifest["eligibility"]["blockers"].append("raw_delete_confirmation_required")
+        return
     if not manifest["eligibility"]["passed"]:
+        return
+
+    output_preflight_failures = compare_identities(session, manifest["retained_outputs"])
+    if output_preflight_failures:
+        manifest["status"] = "blocked"
+        manifest["eligibility"]["blockers"].extend(output_preflight_failures)
+        manifest["eligibility"]["blockers"] = sorted(
+            set(manifest["eligibility"]["blockers"])
+        )
         return
 
     inventory, warnings = media_inventory(session)
@@ -583,13 +626,38 @@ def apply_manifest(session: Path, manifest: dict[str, Any], args: argparse.Names
         deleted_files += 1
         deleted_bytes += int(item["bytes"])
 
-    raw_failures = compare_identities(session, manifest["raw_audio"])
+    deleted_raw_files = 0
+    deleted_raw_bytes = 0
+    if args.mode == TRANSCRIPT_ONLY_MODE:
+        audio_root = (session / "audio").resolve()
+        for item in manifest["raw_audio"]:
+            path = session / str(item["path"])
+            try:
+                resolved = path.resolve(strict=True)
+                if path.is_symlink() or not is_within(resolved, audio_root):
+                    raise OSError("raw candidate no longer resolves inside audio")
+                path.unlink()
+            except OSError as error:
+                failures.append({"path": item["path"], "reason": str(error)})
+                continue
+            deleted_raw_files += 1
+            deleted_raw_bytes += int(item["bytes"])
+
+    raw_failures = (
+        absent_identity_failures(session, manifest["raw_audio"])
+        if args.mode == TRANSCRIPT_ONLY_MODE
+        else compare_identities(session, manifest["raw_audio"])
+    )
     output_failures = compare_identities(session, manifest["retained_outputs"])
     remaining, _ = media_inventory(session)
     application.update(
         {
-            "deleted_files": deleted_files,
-            "deleted_bytes": deleted_bytes,
+            "deleted_files": deleted_files + deleted_raw_files,
+            "deleted_bytes": deleted_bytes + deleted_raw_bytes,
+            "deleted_derived_files": deleted_files,
+            "deleted_derived_bytes": deleted_bytes,
+            "deleted_raw_files": deleted_raw_files,
+            "deleted_raw_bytes": deleted_raw_bytes,
             "failures": failures[:50],
             "failure_count": len(failures),
             "completed_at": now(),
@@ -601,7 +669,8 @@ def apply_manifest(session: Path, manifest: dict[str, Any], args: argparse.Names
     manifest["verification"] = {
         "passed": not verification_failures,
         "checked_at": now(),
-        "raw_preserved": not raw_failures,
+        "raw_preserved": args.mode == KEEP_RAW_MODE and not raw_failures,
+        "raw_deleted": args.mode == TRANSCRIPT_ONLY_MODE and not raw_failures,
         "retained_outputs_preserved": not output_failures,
         "remaining_media_files": len(remaining),
         "remaining_media_bytes": sum(int(item["bytes"]) for item in remaining),
@@ -615,14 +684,23 @@ def apply_manifest(session: Path, manifest: dict[str, Any], args: argparse.Names
             "schema": AUDIT_SCHEMA,
             "created_at": now(),
             "session_id": manifest["session_id"],
-            "action": "delete_derived_media",
+            "action": (
+                "delete_derived_media_and_raw"
+                if args.mode == TRANSCRIPT_ONLY_MODE
+                else "delete_derived_media"
+            ),
             "mode": manifest["mode"],
             "status": manifest["status"],
             "inventory_fingerprint": manifest["inventory"]["fingerprint"],
-            "deleted_files": deleted_files,
-            "deleted_bytes": deleted_bytes,
+            "deleted_files": deleted_files + deleted_raw_files,
+            "deleted_bytes": deleted_bytes + deleted_raw_bytes,
+            "deleted_derived_files": deleted_files,
+            "deleted_derived_bytes": deleted_bytes,
+            "deleted_raw_files": deleted_raw_files,
+            "deleted_raw_bytes": deleted_raw_bytes,
             "failure_count": len(failures),
-            "raw_preserved": not raw_failures,
+            "raw_preserved": args.mode == KEEP_RAW_MODE and not raw_failures,
+            "raw_deleted": args.mode == TRANSCRIPT_ONLY_MODE and not raw_failures,
             "retained_outputs_preserved": not output_failures,
         },
     )
@@ -637,7 +715,7 @@ def verify_manifest(session: Path, existing: dict[str, Any] | None) -> dict[str,
             "updated_at": now(),
             "session": str(session),
             "session_id": session.name,
-            "mode": MODE,
+            "mode": KEEP_RAW_MODE,
             "action": "verify",
             "status": "not_compacted",
             "eligibility": {
@@ -668,7 +746,12 @@ def verify_manifest(session: Path, existing: dict[str, Any] | None) -> dict[str,
         }
         return existing
 
-    raw_failures = compare_identities(session, list(existing.get("raw_audio") or []))
+    mode = str(existing.get("mode") or KEEP_RAW_MODE)
+    raw_failures = (
+        absent_identity_failures(session, list(existing.get("raw_audio") or []))
+        if mode == TRANSCRIPT_ONLY_MODE
+        else compare_identities(session, list(existing.get("raw_audio") or []))
+    )
     output_failures = compare_identities(session, list(existing.get("retained_outputs") or []))
     remaining, warnings = media_inventory(session)
     failures = raw_failures + output_failures
@@ -684,7 +767,8 @@ def verify_manifest(session: Path, existing: dict[str, Any] | None) -> dict[str,
     existing["verification"] = {
         "passed": not failures,
         "checked_at": now(),
-        "raw_preserved": not raw_failures,
+        "raw_preserved": mode == KEEP_RAW_MODE and not raw_failures,
+        "raw_deleted": mode == TRANSCRIPT_ONLY_MODE and not raw_failures,
         "retained_outputs_preserved": not output_failures,
         "remaining_media_files": len(remaining),
         "remaining_media_bytes": sum(int(item["bytes"]) for item in remaining),
@@ -697,11 +781,12 @@ def verify_manifest(session: Path, existing: dict[str, Any] | None) -> dict[str,
             "created_at": now(),
             "session_id": existing.get("session_id") or session.name,
             "action": "verify_derived_compaction",
-            "mode": existing.get("mode") or MODE,
+            "mode": mode,
             "status": existing["status"],
             "remaining_media_files": len(remaining),
             "remaining_media_bytes": sum(int(item["bytes"]) for item in remaining),
-            "raw_preserved": not raw_failures,
+            "raw_preserved": mode == KEEP_RAW_MODE and not raw_failures,
+            "raw_deleted": mode == TRANSCRIPT_ONLY_MODE and not raw_failures,
             "retained_outputs_preserved": not output_failures,
         },
     )
@@ -710,6 +795,7 @@ def verify_manifest(session: Path, existing: dict[str, Any] | None) -> dict[str,
 
 def manifest_markdown(manifest: dict[str, Any]) -> str:
     inventory = manifest.get("inventory") if isinstance(manifest.get("inventory"), dict) else {}
+    raw = manifest.get("raw_inventory") if isinstance(manifest.get("raw_inventory"), dict) else {}
     application = manifest.get("application") if isinstance(manifest.get("application"), dict) else {}
     verification = manifest.get("verification") if isinstance(manifest.get("verification"), dict) else {}
     eligibility = manifest.get("eligibility") if isinstance(manifest.get("eligibility"), dict) else {}
@@ -724,8 +810,12 @@ def manifest_markdown(manifest: dict[str, Any]) -> str:
         f"- Pinned: `{str(bool(manifest.get('pinned'))).lower()}`",
         f"- Candidate files: `{int(inventory.get('candidate_files') or 0)}`",
         f"- Candidate bytes: `{int(inventory.get('candidate_bytes') or 0)}`",
+        f"- Raw candidate files: `{int(raw.get('candidate_files') or 0)}`",
+        f"- Raw candidate bytes: `{int(raw.get('candidate_bytes') or 0)}`",
         f"- Deleted files: `{int(application.get('deleted_files') or 0)}`",
         f"- Deleted bytes: `{int(application.get('deleted_bytes') or 0)}`",
+        f"- Deleted raw files: `{int(application.get('deleted_raw_files') or 0)}`",
+        f"- Deleted raw bytes: `{int(application.get('deleted_raw_bytes') or 0)}`",
         f"- Verification passed: `{str(bool(verification.get('passed'))).lower()}`",
         "",
     ]
@@ -733,10 +823,15 @@ def manifest_markdown(manifest: dict[str, Any]) -> str:
         lines += ["## Blockers", ""] + [f"- `{item}`" for item in blockers] + [""]
     if warnings:
         lines += ["## Warnings", ""] + [f"- `{item}`" for item in warnings] + [""]
+    raw_line = (
+        "- Raw `audio/` files are intentionally absent; their former identities remain in this manifest."
+        if manifest.get("mode") == TRANSCRIPT_ONLY_MODE
+        else "- Raw `audio/` files."
+    )
     lines += [
         "## Preserved",
         "",
-        "- Raw `audio/` files.",
+        raw_line,
         "- Selected transcript, notes and verdict.",
         "- JSON, JSONL and Markdown provenance.",
         "",
@@ -760,8 +855,31 @@ def process_session(
     output = manifest_path(session, args)
     markdown = output.with_suffix(".md")
     with compaction_lock(session):
-        if args.action == "verify":
-            manifest = verify_manifest(session, read_json(output))
+        existing = read_json(output)
+        existing_applied = bool(
+            existing
+            and existing.get("status") in {"applied", "verified"}
+            and isinstance(existing.get("verification"), dict)
+            and existing["verification"].get("passed") is True
+        )
+        existing_archive = bool(
+            existing_applied
+            and existing.get("mode") == TRANSCRIPT_ONLY_MODE
+            and existing.get("raw_audio")
+            and not absent_identity_failures(session, list(existing.get("raw_audio") or []))
+        )
+        preserve_existing = bool(
+            existing_applied
+            and (
+                args.action == "verify"
+                or existing_archive
+                or args.mode == KEEP_RAW_MODE
+                or (session.name in pins and not args.include_pinned)
+            )
+        )
+        if args.action == "verify" or preserve_existing:
+            manifest = verify_manifest(session, existing)
+            manifest["action"] = args.action
         else:
             manifest = build_manifest(
                 session,
@@ -795,15 +913,18 @@ def report_markdown(report: dict[str, Any]) -> str:
         f"- Sessions skipped: `{summary['sessions_skipped']}`",
         f"- Candidate bytes: `{summary['candidate_bytes']}`",
         f"- Eligible candidate bytes: `{summary['eligible_candidate_bytes']}`",
+        f"- Raw candidate bytes: `{summary['raw_candidate_bytes']}`",
         f"- Deleted bytes: `{summary['deleted_bytes']}`",
+        f"- Deleted raw bytes: `{summary['deleted_raw_bytes']}`",
         "",
-        "| Session | Status | Pinned | Candidate bytes | Deleted bytes |",
-        "|---|---:|---:|---:|---:|",
+        "| Session | Status | Pinned | Derived bytes | Raw bytes | Deleted bytes |",
+        "|---|---:|---:|---:|---:|---:|",
     ]
     for row in report["sessions"]:
         lines.append(
             f"| `{row['session_id']}` | `{row['status']}` | "
-            f"`{str(row['pinned']).lower()}` | `{row['candidate_bytes']}` | `{row['deleted_bytes']}` |"
+            f"`{str(row['pinned']).lower()}` | `{row['derived_candidate_bytes']}` | "
+            f"`{row['raw_candidate_bytes']}` | `{row['deleted_bytes']}` |"
         )
     lines.append("")
     return "\n".join(lines)
@@ -826,17 +947,38 @@ def run_bulk(args: argparse.Namespace, pins: set[str], pin_sources: list[str]) -
             pin_sources=pin_sources,
         )
         inventory = manifest.get("inventory") if isinstance(manifest.get("inventory"), dict) else {}
+        raw = manifest.get("raw_inventory") if isinstance(manifest.get("raw_inventory"), dict) else {}
         application = manifest.get("application") if isinstance(manifest.get("application"), dict) else {}
+        verification = manifest.get("verification") if isinstance(manifest.get("verification"), dict) else {}
+        derived_candidate_files = int(inventory.get("candidate_files") or 0)
+        derived_candidate_bytes = int(inventory.get("candidate_bytes") or 0)
+        raw_already_deleted = verification.get("raw_deleted") is True
+        raw_candidate_files = 0 if raw_already_deleted else int(raw.get("candidate_files") or 0)
+        raw_candidate_bytes = 0 if raw_already_deleted else int(raw.get("candidate_bytes") or 0)
+        include_raw = args.mode == TRANSCRIPT_ONLY_MODE
         rows.append(
             {
                 "session": str(session),
                 "session_id": session.name,
                 "status": manifest.get("status"),
+                "mode": manifest.get("mode"),
                 "pinned": bool(manifest.get("pinned")),
-                "candidate_files": int(inventory.get("candidate_files") or 0),
-                "candidate_bytes": int(inventory.get("candidate_bytes") or 0),
+                "derived_candidate_files": derived_candidate_files,
+                "derived_candidate_bytes": derived_candidate_bytes,
+                "raw_candidate_files": raw_candidate_files,
+                "raw_candidate_bytes": raw_candidate_bytes,
+                "archived_raw_files": (
+                    int(raw.get("candidate_files") or 0) if raw_already_deleted else 0
+                ),
+                "archived_raw_bytes": (
+                    int(raw.get("candidate_bytes") or 0) if raw_already_deleted else 0
+                ),
+                "candidate_files": derived_candidate_files + (raw_candidate_files if include_raw else 0),
+                "candidate_bytes": derived_candidate_bytes + (raw_candidate_bytes if include_raw else 0),
                 "deleted_files": int(application.get("deleted_files") or 0),
                 "deleted_bytes": int(application.get("deleted_bytes") or 0),
+                "deleted_raw_files": int(application.get("deleted_raw_files") or 0),
+                "deleted_raw_bytes": int(application.get("deleted_raw_bytes") or 0),
                 "blockers": list((manifest.get("eligibility") or {}).get("blockers") or []),
             }
         )
@@ -850,6 +992,12 @@ def run_bulk(args: argparse.Namespace, pins: set[str], pin_sources: list[str]) -
         "sessions_skipped": sum(row["status"] in {"blocked", "not_compacted"} for row in rows),
         "candidate_files": sum(row["candidate_files"] for row in rows),
         "candidate_bytes": sum(row["candidate_bytes"] for row in rows),
+        "derived_candidate_files": sum(row["derived_candidate_files"] for row in rows),
+        "derived_candidate_bytes": sum(row["derived_candidate_bytes"] for row in rows),
+        "raw_candidate_files": sum(row["raw_candidate_files"] for row in rows),
+        "raw_candidate_bytes": sum(row["raw_candidate_bytes"] for row in rows),
+        "archived_raw_files": sum(row["archived_raw_files"] for row in rows),
+        "archived_raw_bytes": sum(row["archived_raw_bytes"] for row in rows),
         "eligible_candidate_files": sum(
             row["candidate_files"]
             for row in rows
@@ -862,13 +1010,15 @@ def run_bulk(args: argparse.Namespace, pins: set[str], pin_sources: list[str]) -
         ),
         "deleted_files": sum(row["deleted_files"] for row in rows),
         "deleted_bytes": sum(row["deleted_bytes"] for row in rows),
+        "deleted_raw_files": sum(row["deleted_raw_files"] for row in rows),
+        "deleted_raw_bytes": sum(row["deleted_raw_bytes"] for row in rows),
     }
     report = {
         "schema": REPORT_SCHEMA,
         "generator": {"name": "compact-derived-artifacts", "version": SCRIPT_VERSION},
         "created_at": now(),
         "action": args.action,
-        "mode": args.mode,
+        "mode": "from_manifest" if args.action == "verify" else args.mode,
         "sessions_root": str(root),
         "older_than": args.older_than,
         "exclude_pinned": not args.include_pinned,
@@ -898,6 +1048,13 @@ def main() -> int:
     if args.action == "apply" and not args.confirm_delete_derived_media:
         print("apply requires --confirm-delete-derived-media", file=sys.stderr)
         return 2
+    if (
+        args.action == "apply"
+        and args.mode == TRANSCRIPT_ONLY_MODE
+        and not args.confirm_delete_raw
+    ):
+        print("transcript_only apply requires --confirm-delete-raw", file=sys.stderr)
+        return 2
     sessions_root = args.sessions_root.expanduser().resolve()
     pins, pin_sources = discover_pins(sessions_root, args.pin_file)
     if args.target == "all":
@@ -910,13 +1067,18 @@ def main() -> int:
         pin_sources=pin_sources,
     )
     inventory = manifest.get("inventory") if isinstance(manifest.get("inventory"), dict) else {}
+    raw = manifest.get("raw_inventory") if isinstance(manifest.get("raw_inventory"), dict) else {}
     application = manifest.get("application") if isinstance(manifest.get("application"), dict) else {}
     print(f"derived_compaction: {manifest_path(session, args)}")
     print(f"status: {manifest.get('status')}")
     print(f"candidate_files: {int(inventory.get('candidate_files') or 0)}")
     print(f"candidate_bytes: {int(inventory.get('candidate_bytes') or 0)}")
+    print(f"raw_candidate_files: {int(raw.get('candidate_files') or 0)}")
+    print(f"raw_candidate_bytes: {int(raw.get('candidate_bytes') or 0)}")
     print(f"deleted_files: {int(application.get('deleted_files') or 0)}")
     print(f"deleted_bytes: {int(application.get('deleted_bytes') or 0)}")
+    print(f"deleted_raw_files: {int(application.get('deleted_raw_files') or 0)}")
+    print(f"deleted_raw_bytes: {int(application.get('deleted_raw_bytes') or 0)}")
     blockers = list((manifest.get("eligibility") or {}).get("blockers") or [])
     if blockers:
         print("blockers: " + ", ".join(blockers))

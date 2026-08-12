@@ -96,6 +96,13 @@
       ],
       "migration": "regenerate derived selection; incompatible evidence falls back to the exact aggregate transcript"
     },
+    "remote_speaker_roster": {
+      "current": "murmurmark.remote_speaker_roster/v1",
+      "accepted": [
+        "murmurmark.remote_speaker_roster/v1"
+      ],
+      "migration": "optional; changing or removing a roster invalidates speaker evidence and selection"
+    },
     "anonymous_rich_handoff": {
       "current": "murmurmark.anonymous_rich_handoff/v1",
       "accepted": [

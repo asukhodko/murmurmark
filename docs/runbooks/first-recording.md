@@ -686,9 +686,10 @@ murmurmark finish "$SESSION"
 
 `--mic-backend voice-processing` and `--remote-backend audio-input` are experimental comparison modes. They are not the main product path and should not be used to judge the algorithmic subtraction problem unless the test explicitly says so.
 
-After a successful guarded export, `meeting`/`finish` keep raw CAF and compact rebuildable audio
-under `derived/`. Add `--keep-debug-artifacts` to the original `meeting` command when the full
-preprocessing, audit, Live Shadow or candidate audio must remain available for investigation.
+After a successful guarded export, `meeting`/`finish` compact the session to selected text and
+structured provenance. Raw CAF and rebuildable audio are deleted. Add `--keep-debug-artifacts` to
+the original `meeting` command when raw capture, retranscription, preprocessing, audit, Live Shadow
+or candidate audio may still be needed.
 
 Older completed sessions can be compacted manually:
 
@@ -697,6 +698,18 @@ murmurmark retention compact plan "$SESSION"
 murmurmark retention compact apply "$SESSION" --confirm-delete-derived-media
 murmurmark retention compact verify "$SESSION"
 ```
+
+To remove raw capture as well from old, unpinned sessions:
+
+```bash
+murmurmark retention compact plan all --mode transcript_only --older-than 7d --exclude-pinned
+murmurmark retention compact apply all --mode transcript_only --older-than 7d --exclude-pinned \
+  --confirm-delete-derived-media --confirm-delete-raw
+murmurmark retention compact verify all --older-than 7d --exclude-pinned
+```
+
+This archive mode is irreversible. It preserves the selected transcript and structured evidence,
+but the session can no longer be retranscribed or used for audio research.
 
 For the normal path, expected `session.json` values are:
 

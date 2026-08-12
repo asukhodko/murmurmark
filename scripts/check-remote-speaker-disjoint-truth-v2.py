@@ -4,8 +4,11 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
 import sys
+from contextlib import redirect_stderr, redirect_stdout
+from unittest.mock import patch
 from pathlib import Path
 
 
@@ -36,6 +39,24 @@ def main() -> int:
     require(policy["selection"]["expected_primary_items"] == 72, "policy primary count changed")
     require(policy["repeats"]["expected_items"] == 12, "policy repeat count changed")
     require(policy["decision"]["production_promotion_allowed"] is False, "promotion enabled")
+    synthetic_slot = {
+        "slot_id": "interactive_stdin_probe",
+        "session_alias": "session_probe",
+        "audio": {"path": "unused.wav"},
+        "exemplars": [],
+        "speaker_choices": ["remote_speaker_01", "unknown_speaker", "mixed", "unusable"],
+    }
+    captured_stdout = io.StringIO()
+    captured_stderr = io.StringIO()
+    with redirect_stdout(captured_stdout), redirect_stderr(captured_stderr):
+        with (
+            patch.object(module, "load_bundle", return_value={"queue": [synthetic_slot]}),
+            patch.object(module, "accepted_answers", return_value={}),
+            patch.object(module, "play_session_reference"),
+            patch("builtins.input", side_effect=EOFError),
+        ):
+            require(module.interactive_review(policy, OUT, None) == 2, "interactive EOF must fail visibly")
+    require("interactive review input is unavailable" in captured_stderr.getvalue(), "interactive EOF message missing")
     if not (OUT / "private/candidate_pack.frozen.json").is_file():
         print("remote speaker disjoint truth v2 static checks passed; private pack unavailable")
         return 0

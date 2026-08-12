@@ -163,6 +163,7 @@ Read in this order:
 159. [Remote Speaker Disjoint Truth Expansion v2 runbook](runbooks/remote-speaker-disjoint-truth-expansion-v2.md)
 160. [Remote Speaker Disjoint Truth Expansion v2 frozen pack](testing/2026-08-10-remote-speaker-disjoint-truth-expansion-v2.md)
 161. [Planning and development history](history/README.md)
+162. [Roster-Constrained Remote Speaker Evidence v1 contract](contracts/roster-constrained-remote-speaker-evidence-v1.md)
 
 ## Current Planning Entry Points
 

@@ -52,6 +52,9 @@ assert compatibility["schemas"]["evidence_handoff"]["current"] == "murmurmark.ev
 assert compatibility["schemas"]["speaker_resolved_transcript_selection"]["current"] == (
     "murmurmark.speaker_resolved_transcript_selection/v1"
 )
+assert compatibility["schemas"]["remote_speaker_roster"]["current"] == (
+    "murmurmark.remote_speaker_roster/v1"
+)
 assert compatibility["schemas"]["reviewed_speaker_handoff"]["current"] == (
     "murmurmark.reviewed_speaker_handoff/v1"
 )
@@ -65,6 +68,7 @@ for relative in [
     "scripts/release-bundle.py",
     "scripts/materialize-anonymous-rich-transcript.py",
     "scripts/review-remote-speaker-labels.py",
+    "scripts/configure-remote-speaker-roster.py",
 ]:
     path = ROOT / relative
     assert path.is_file(), f"missing release file: {relative}"
@@ -97,6 +101,7 @@ with tempfile.TemporaryDirectory(prefix="murmurmark-release-unit-") as temporary
         "scripts/install-release.sh",
         "scripts/materialize-anonymous-rich-transcript.py",
         "scripts/review-remote-speaker-labels.py",
+        "scripts/configure-remote-speaker-roster.py",
     ]:
         destination = bundle / relative
         destination.parent.mkdir(parents=True, exist_ok=True)

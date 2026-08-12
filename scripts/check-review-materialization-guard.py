@@ -390,6 +390,15 @@ def main() -> int:
                 "text": "Это моя реплика.",
                 "quality": {"needs_review": True},
             },
+            {
+                "id": "utt_pending_me",
+                "start": 5.0,
+                "end": 6.5,
+                "role": "me",
+                "source_track": "mic",
+                "text": "Это содержательная локальная реплика.",
+                "quality": {"needs_review": True, "renumbered_from": "utt_pending_me_old"},
+            },
         ]
         (resolved / "clean_dialogue.audit_cleanup_v2.json").write_text(
             json.dumps({"schema": "murmurmark.clean_dialogue/v1", "utterances": utterances}, ensure_ascii=False),
@@ -483,6 +492,7 @@ def main() -> int:
         reviewed_by_id = {row["id"]: row for row in reviewed["utterances"]}
         assert reviewed_by_id["utt_order_me"]["quality"]["needs_review"] is False, reviewed_by_id["utt_order_me"]
         assert reviewed_by_id["utt_audio_me"]["quality"]["needs_review"] is False, reviewed_by_id["utt_audio_me"]
+        assert reviewed_by_id["utt_pending_me"]["quality"]["needs_review"] is True, reviewed_by_id["utt_pending_me"]
         report = json.loads(
             (
                 session
@@ -496,6 +506,77 @@ def main() -> int:
         assert report["summary"]["ignored_out_of_scope_decision_rows"] == 1, report
         assert "compatible_out_of_scope_review_decisions_applied" in report["gates"]["warnings"], report
         assert "out_of_scope_review_decisions_ignored" in report["gates"]["warnings"], report
+
+        mandatory, _ = readiness.build_review_queue_details(
+            [
+                {
+                    "session_id": session.name,
+                    "session": str(session),
+                    "selected_profile": "reviewed_v1",
+                    "use_gate": "ready_for_notes",
+                    "export_blockers": ["full_transcript_needs_review_required"],
+                    "transcript_review_burden_sec": 0.0,
+                }
+            ],
+            40,
+        )
+        pending_rows = [
+            row
+            for row in mandatory
+            if row.get("source") == "transcript_text"
+            and row.get("utterance_ids") == ["utt_pending_me"]
+        ]
+        assert len(pending_rows) == 1, mandatory
+        pending_row = pending_rows[0]
+        assert pending_row["input_profile"] == "reviewed_v1", pending_row
+        assert pending_row["review_features"]["renumbered_from"] == "utt_pending_me_old", pending_row
+
+        pending_decision = {
+            **pending_row,
+            "schema": "murmurmark.review_decision/v1",
+            "decision": "keep_me",
+            "status": "reviewed",
+        }
+        pending_template_row = {**pending_decision, "decision": "todo", "status": "todo"}
+        pending_decisions = Path(temp_dir) / "pending_review_decisions.jsonl"
+        pending_template = Path(temp_dir) / "pending_review_decisions.template.jsonl"
+        pending_decisions.write_text(
+            json.dumps(pending_decision, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+        pending_template.write_text(
+            json.dumps(pending_template_row, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+        reapplied = subprocess.run(
+            [
+                sys.executable,
+                str(Path(apply.__file__)),
+                str(session),
+                "--decisions",
+                str(pending_decisions),
+                "--review-template",
+                str(pending_template),
+                "--input-profile",
+                "auto",
+                "--output-profile",
+                "reviewed_v1",
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert reapplied.returncode == 0, (reapplied.stdout, reapplied.stderr)
+        reapplied_dialogue = json.loads(
+            (resolved / "clean_dialogue.reviewed_v1.json").read_text(encoding="utf-8")
+        )
+        reapplied_by_id = {row["id"]: row for row in reapplied_dialogue["utterances"]}
+        assert reapplied_by_id["utt_pending_me"]["quality"]["needs_review"] is False, reapplied_by_id["utt_pending_me"]
+        reapplied_report = json.loads(
+            (
+                session
+                / "derived/transcript-simple/whisper-cpp/review-decisions/review_decisions_report.reviewed_v1.json"
+            ).read_text(encoding="utf-8")
+        )
+        assert reapplied_report["input_profile"] == "reviewed_v1", reapplied_report
 
     quality = load_module("report-session-quality.py", "murmurmark_report_materialization")
     with tempfile.TemporaryDirectory(prefix="murmurmark-review-materialization-") as temp_dir:

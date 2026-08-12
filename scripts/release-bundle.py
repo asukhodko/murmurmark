@@ -135,6 +135,7 @@ def required_layout(root: Path) -> None:
         "scripts/install-release.sh",
         "scripts/materialize-anonymous-rich-transcript.py",
         "scripts/review-remote-speaker-labels.py",
+        "scripts/configure-remote-speaker-roster.py",
         "release/compatibility-v1.json",
         "release/licenses-v1.json",
         "README.md",

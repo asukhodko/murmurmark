@@ -5,6 +5,14 @@ public release tag exists; development builds also carry the source commit in th
 
 ## Unreleased
 
+- Completed the frozen disjoint remote-speaker truth v2 review: 72 primary and 12 repeat decisions,
+  perfect repeat consistency and byte-exact replay now unlock one-shot qualification of a new local
+  speaker model without changing production attribution.
+- Added guarded `transcript_only` session compaction. Successful `meeting`/`finish` handoff now
+  removes raw and rebuildable audio unless `--keep-debug-artifacts` is set; pinned corpus sessions
+  remain protected.
+- Added an optional session roster and fail-open two-backend consensus for repairing one
+  acoustically split remote speaker without inferring human names.
 - Added a fingerprint-bound v2.17 compatibility qualification for the personalized pre-ASR echo
   selector after authoritative incremental ASR changes. Incompatible policies now expose their
   exact FIR fallback in readiness, status and outcome instead of degrading silently.

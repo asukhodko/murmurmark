@@ -77,7 +77,7 @@ status are included when those derivative stages are present.
 The first authoritative handoff no longer waits for optional Neural Echo evaluation. Deferred
 enrichment has an explicit time budget; Neural Echo is skipped when its frozen worst-case estimate
 cannot fit after the review-evidence reserve. `status` finishes with `complete`, an executable recovery
-command, or `human_decision_required` with a bounded item count and duration. Final readiness refresh rebuilds speaker evidence for the selected profile; insufficient evidence stays `Colleagues`.
+command, or `human_decision_required` with a bounded item count and duration. Final readiness refresh rebuilds speaker evidence for the selected profile; insufficient evidence stays `Colleagues`. A known group roster can repair one acoustically split anonymous voice; see the speaker-resolved runbook. It never maps names to voices.
 
 Capture runs in a short-lived child process. It exits and releases ScreenCaptureKit/ReplayKit before
 batch processing begins. A new meeting may therefore start while an earlier meeting is still being
@@ -202,33 +202,32 @@ murmurmark finish "$SESSION"
 Suggested review closes only rows supported by current local evidence. `review suggested apply`
 rebuilds the session-local queue for bounded passes, closing newly exposed safe rows in one command.
 It stops at a stable manual remainder; unresolved rows remain explicit. `finish` attempts guarded
-local export, writes retention recommendations and never deletes raw audio. After a successful
-guarded export, `finish` removes rebuildable audio copies under `SESSION/derived/` by default. Raw
-CAF, selected transcript, notes, verdict, review decisions
-and JSON/Markdown provenance remain available. Use `--keep-debug-artifacts` when the session is
-needed for pipeline or audio-algorithm debugging.
-```bash
-murmurmark finish "$SESSION" --format markdown
-murmurmark finish "$SESSION" --format obsidian
-murmurmark finish "$SESSION" --keep-debug-artifacts
-murmurmark retention plan "$SESSION"
-```
-
-Raw deletion requires a compatible policy, successful export and an explicit confirmation command.
+local export and writes retention recommendations. After a successful guarded export, `finish`
+compacts the session to the selected transcript, notes, verdict, review decisions and
+JSON/Markdown provenance. Raw CAF and rebuildable media are deleted. Use
+`--keep-debug-artifacts` when the recording may be needed for retranscription, corpus work or
+audio-algorithm debugging. Low-level export and retention commands are documented in the
+[Retention Policy](docs/contracts/retention-policy.md).
 
 ### Compact Old Sessions
-
-Remove rebuildable media while keeping raw CAF, final text and structured evidence:
-
+Keep raw CAF but remove rebuildable media:
 ```bash
 murmurmark retention compact plan "$SESSION"
 murmurmark retention compact apply "$SESSION" --confirm-delete-derived-media
 murmurmark retention compact verify "$SESSION"
 ```
+Archive completed unpinned sessions as text and structured evidence only:
 
-Frozen corpus sessions are skipped unless `--include-pinned` is explicit. Pin discovery includes
-frozen-corpus, split, baseline, hard-test and private `pinned_sessions.json` manifests. Bulk
-`all --older-than 7d --exclude-pinned` examples live in the [Retention Policy](docs/contracts/retention-policy.md).
+```bash
+murmurmark retention compact plan all --mode transcript_only --older-than 7d --exclude-pinned
+murmurmark retention compact apply all --mode transcript_only --older-than 7d --exclude-pinned --confirm-delete-derived-media --confirm-delete-raw
+murmurmark retention compact verify all --older-than 7d --exclude-pinned
+```
+
+`transcript_only` is irreversible: later ASR or audio analysis is impossible without an external
+backup. It deletes only raw mic/remote paths declared by `session.json`, after verifying the
+selected transcript. Frozen corpus and explicitly pinned sessions stay untouched. Details and pin
+sources are in the [Retention Policy](docs/contracts/retention-policy.md).
 
 ## Important Artifacts
 
@@ -293,7 +292,7 @@ murmurmark transcript "$SESSION" --rich --reviewed-speakers
 murmurmark notes "$SESSION" --reviewed-speakers
 murmurmark export "$SESSION" --format markdown --include-json --reviewed-speakers
 ```
-Speaker-aware memory and exact-text notes remain optional derivatives. Transcript Perfection Corpus keeps 30/30 frozen sources explicit and never collapses unlike quality dimensions into one score.
+Speaker-aware memory and exact-text notes remain optional derivatives. Transcript Perfection Corpus keeps 31/31 frozen sources explicit and never collapses unlike quality dimensions into one score.
 Lexical Accuracy Reference Corpus v1 measures its exact 67-word digital subset at WER/CER `0` and keeps real-meeting lexical correctness blocked by missing human-reviewed evidence:
 ```bash
 murmurmark corpus lexical status
@@ -309,7 +308,8 @@ murmurmark corpus remote-enrollment-purity-v2 status && murmurmark corpus remote
 murmurmark corpus remote-reclustering-v1 status && murmurmark corpus remote-representation-v1 status && murmurmark corpus remote-temporal-diarization-v1 status && murmurmark corpus remote-temporal-diarization-v1 replay
 murmurmark corpus remote-truth-seed-v2 status && murmurmark corpus remote-truth-seed-v2 replay
 ```
-Current private review: frozen 72-primary + 12-repeat disjoint v2 pack; resume with `murmurmark corpus remote-truth-seed-v2 review`. It never runs during meetings or changes production.
+Disjoint truth v2 is complete: 72 primary + 12 repeat decisions, repeat consistency `1.0`,
+`DIRECT_TRUTH_V2_READY` and byte-exact replay. It never runs during meetings or changes production.
 The dependent critical path is:
 ```text
 Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental ASR
@@ -327,14 +327,14 @@ Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental 
 -> Remote Speaker Attribution Error Decomposition v1 (done: identity is the dominant bottleneck)
 -> Stronger Remote Speaker Identity Backend Qualification v1 (done: PROMOTE lab-only ECAPA)
 -> ECAPA Remote Speaker Shadow Qualification v1 (done: DO_NOT_PROMOTE on real sessions)
--> Remote Speaker Shadow Error Decomposition v1 (done) -> Bounded Remote Speaker Interval Purification v1 (done: DO_NOT_ADVANCE) -> Session-Local Remote Speaker Enrollment Hardening v1 (done: DO_NOT_ADVANCE) -> Remote Speaker Direct Truth Seed v1 (done: DIRECT_TRUTH_SEED_READY) -> Remote Speaker Direct-Truth Candidate Adjudication v1 (done: KEEP_COVERAGE_V3) -> Enrollment Purity and Abstention Hardening v2 (done: KEEP_COVERAGE_V3) -> Homogeneous Enrollment Mining v1 (done: KEEP_EXISTING_ENROLLMENT) -> Session-Local Remote Speaker Re-Clustering Feasibility v1 (done: EMBEDDING_GEOMETRY_BOUND) -> Stronger Local Remote Speaker Representation Qualification v1 (done: KEEP_EXPLICIT_UNKNOWN) -> Temporal End-to-End Remote Diarization Qualification v1 (done: KEEP_EXPLICIT_UNKNOWN) -> Remote Speaker Disjoint Truth Expansion v2 (current)
+-> Remote Speaker Shadow Error Decomposition v1 (done) -> Bounded Remote Speaker Interval Purification v1 (done: DO_NOT_ADVANCE) -> Session-Local Remote Speaker Enrollment Hardening v1 (done: DO_NOT_ADVANCE) -> Remote Speaker Direct Truth Seed v1 (done: DIRECT_TRUTH_SEED_READY) -> Remote Speaker Direct-Truth Candidate Adjudication v1 (done: KEEP_COVERAGE_V3) -> Enrollment Purity and Abstention Hardening v2 (done: KEEP_COVERAGE_V3) -> Homogeneous Enrollment Mining v1 (done: KEEP_EXISTING_ENROLLMENT) -> Session-Local Remote Speaker Re-Clustering Feasibility v1 (done: EMBEDDING_GEOMETRY_BOUND) -> Stronger Local Remote Speaker Representation Qualification v1 (done: KEEP_EXPLICIT_UNKNOWN) -> Temporal End-to-End Remote Diarization Qualification v1 (done: KEEP_EXPLICIT_UNKNOWN) -> Remote Speaker Disjoint Truth Expansion v2 (done: DIRECT_TRUTH_V2_READY) -> Disjoint Remote Speaker Model Qualification v1 (current)
 ```
 Independent WavLM recovered only `6.2280%` of residual words; its original 53 proposals remain
 ungraded, while the later bounded 33-item seed now has direct truth. Exact synthetic truth qualified the Coverage v3 control (`0.983505` B-cubed F1, zero
 open-set errors). Blind hard-v2 then rejected conservative word-level fusion despite precision `1.0`:
 known recall was `0.551402`, boundary recall `0.321429`. Oracle decomposition over 393 exact words
 measured identity gain `0.351382` versus segmentation `0.063882` and overlap/open-set `0.036364`.
-The independently trained ECAPA candidate passed every fixed one-shot hard-v4 gate: B-cubed F1 `0.948042`, pairwise precision `1.0`, known-speaker recall `0.947368`, zero open-set false attribution and exact 154/154 word conservation. Its real-session shadow failed promotion; decomposition routed 93/214 failures to interval purity. The fixed crop recovered only 2 words / 4.155s. Enrollment hardening then added 11 acceptances but lost five controls and closed `DO_NOT_ADVANCE`. Blind review closed all 33 primary and 8 repeat slots: 8 attributed, 11 unknown, 4 mixed, 10 unusable, consistency `7/8`. Direct adjudication kept Coverage v3: the candidate gained 3 correct identities, lost 2 correct controls and raised unsafe accepts from 8 to 13. Purity v2 restored control safety but produced zero additions from only 7/14 qualified profiles. Homogeneous mining found 39 windows for 9/14 profiles but preserved 0/3 gains. ECAPA/WavLM and WeSpeaker fixed-window routes closed on geometry or false identities. Temporal AHC/VBx then passed shift stability but matched speaker count in `0/6` sessions, preserved `2/3` gains and introduced seven false identities. Production stays Coverage v3; disjoint real-session truth must expand before another speaker model is selected or tuned.
+The independently trained ECAPA candidate passed every fixed one-shot hard-v4 gate: B-cubed F1 `0.948042`, pairwise precision `1.0`, known-speaker recall `0.947368`, zero open-set false attribution and exact 154/154 word conservation. Its real-session shadow failed promotion; decomposition routed 93/214 failures to interval purity. The fixed crop recovered only 2 words / 4.155s. Enrollment hardening then added 11 acceptances but lost five controls and closed `DO_NOT_ADVANCE`. Blind review closed all 33 primary and 8 repeat slots: 8 attributed, 11 unknown, 4 mixed, 10 unusable, consistency `7/8`. Direct adjudication kept Coverage v3: the candidate gained 3 correct identities, lost 2 correct controls and raised unsafe accepts from 8 to 13. Purity v2 restored control safety but produced zero additions from only 7/14 qualified profiles. Homogeneous mining found 39 windows for 9/14 profiles but preserved 0/3 gains. ECAPA/WavLM and WeSpeaker fixed-window routes closed on geometry or false identities. Temporal AHC/VBx then passed shift stability but matched speaker count in `0/6` sessions, preserved `2/3` gains and introduced seven false identities. Disjoint truth v2 then closed 72 primary and 12 repeat decisions with consistency `1.0`. Production stays Coverage v3; one materially new local backend can now be frozen and evaluated once without truth-v2 tuning.
 See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 ## Scope And Limitations
 
@@ -383,7 +383,7 @@ See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](do
 - [Remote Speaker Coverage v3](docs/contracts/remote-speaker-coverage-v3.md) and [Residual Evidence v4](docs/contracts/remote-speaker-residual-evidence-v4.md) contracts
 - [Independent evidence](docs/contracts/independent-remote-speaker-evidence-v1.md) and [residual reference](docs/contracts/remote-speaker-residual-reference-corpus-v1.md)
 - [Controlled Truth Lab v1](docs/contracts/controlled-remote-speaker-truth-lab-v1.md), [Duration-Aware v2](docs/contracts/duration-aware-remote-speaker-attribution-v2.md) and [Segment-Context v1](docs/contracts/segment-context-remote-speaker-attribution-v1.md)
-- [ECAPA qualification](docs/contracts/stronger-remote-speaker-identity-backend-qualification-v1.md), [real-session shadow](docs/contracts/ecapa-remote-speaker-shadow-qualification-v1.md), [re-clustering bound](docs/contracts/session-local-remote-speaker-reclustering-feasibility-v1.md), [WeSpeaker bound](docs/contracts/stronger-local-remote-speaker-representation-qualification-v1.md), [temporal bound](docs/contracts/temporal-end-to-end-remote-diarization-qualification-v1.md), and [Speaker-Resolved Default](docs/contracts/speaker-resolved-transcript-default-v1.md)
+- [ECAPA qualification](docs/contracts/stronger-remote-speaker-identity-backend-qualification-v1.md), [real-session shadow](docs/contracts/ecapa-remote-speaker-shadow-qualification-v1.md), [re-clustering bound](docs/contracts/session-local-remote-speaker-reclustering-feasibility-v1.md), [WeSpeaker bound](docs/contracts/stronger-local-remote-speaker-representation-qualification-v1.md), [temporal bound](docs/contracts/temporal-end-to-end-remote-diarization-qualification-v1.md), [Speaker-Resolved Default](docs/contracts/speaker-resolved-transcript-default-v1.md), and [roster-constrained evidence](docs/contracts/roster-constrained-remote-speaker-evidence-v1.md)
 - [Three-session current-pipeline quality debug](docs/testing/2026-08-08-three-session-current-pipeline-quality-debug-v1.md)
 
 ## Development Checks

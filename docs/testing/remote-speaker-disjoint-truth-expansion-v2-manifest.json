@@ -1,11 +1,11 @@
 {
-  "decision": "REFERENCE_INSUFFICIENT",
+  "decision": "DIRECT_TRUTH_V2_READY",
   "gates": {
-    "all_primary_answers": false,
-    "all_repeat_answers": false,
-    "minimum_attributed_primary_answers": false,
-    "minimum_attributed_sessions": false,
-    "repeat_consistency": false
+    "all_primary_answers": true,
+    "all_repeat_answers": true,
+    "minimum_attributed_primary_answers": true,
+    "minimum_attributed_sessions": true,
+    "repeat_consistency": true
   },
   "invariants": {
     "candidate_pack_frozen_before_prior_truth": true,
@@ -18,22 +18,22 @@
     "v1_primary_interval_overlap_count": 0
   },
   "report": {
-    "bytes": 2584,
+    "bytes": 2593,
     "path": "sessions/_reports/remote-speaker-disjoint-truth-expansion-v2/remote_speaker_disjoint_truth_report.json",
-    "sha256": "38f803ef4401dea6e2f1424238f8cbcb0694875955f4df63743582768e2412b8"
+    "sha256": "7404b905b09f4e7e738e9e9e0182eba4d989a01d7af6ddbbe2713b6b552694f1"
   },
   "review": {
-    "attributed_primary_answers": 0,
-    "attributed_sessions": 0,
-    "mixed_primary_answers": 0,
-    "primary_answers": 0,
-    "remaining_slots": 84,
-    "repeat_answers": 0,
-    "repeat_compared": 0,
-    "repeat_consistency": null,
-    "repeat_matches": 0,
-    "unknown_primary_answers": 0,
-    "unusable_primary_answers": 0
+    "attributed_primary_answers": 21,
+    "attributed_sessions": 4,
+    "mixed_primary_answers": 4,
+    "primary_answers": 72,
+    "remaining_slots": 0,
+    "repeat_answers": 12,
+    "repeat_compared": 12,
+    "repeat_consistency": 1.0,
+    "repeat_matches": 12,
+    "unknown_primary_answers": 28,
+    "unusable_primary_answers": 19
   },
   "safety": {
     "coverage_v3_mutated": false,

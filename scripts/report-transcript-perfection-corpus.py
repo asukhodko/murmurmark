@@ -722,6 +722,43 @@ def semantic_gates(
         {"invariants": temporal.get("invariants"), "safety": temporal_safety},
     )
 
+    disjoint_truth = payloads.get("remote_speaker_disjoint_truth_expansion_v2") or {}
+    disjoint_truth_safety = disjoint_truth.get("safety") or {}
+    disjoint_truth_invariants = disjoint_truth.get("invariants") or {}
+    add(
+        "remote_speaker_disjoint_truth_expansion_v2",
+        "terminal_decision",
+        disjoint_truth.get("decision") == "DIRECT_TRUTH_V2_READY",
+        disjoint_truth.get("decision"),
+    )
+    add(
+        "remote_speaker_disjoint_truth_expansion_v2",
+        "frozen_disjoint_truth_integrity",
+        all((disjoint_truth.get("gates") or {}).values())
+        and all(
+            value is True
+            for key, value in disjoint_truth_invariants.items()
+            if key != "v1_primary_interval_overlap_count"
+        )
+        and int(disjoint_truth_invariants.get("v1_primary_interval_overlap_count", -1)) == 0
+        and disjoint_truth_safety.get("raw_audio_mutated") is False
+        and disjoint_truth_safety.get("selected_transcript_mutated") is False
+        and disjoint_truth_safety.get("coverage_v3_mutated") is False
+        and disjoint_truth_safety.get("primary_asr_mutated") is False
+        and disjoint_truth_safety.get("echo_guard_mutated") is False
+        and disjoint_truth_safety.get("truth_v1_mutated") is False
+        and disjoint_truth_safety.get("model_selected") is False
+        and disjoint_truth_safety.get("production_promoted") is False
+        and disjoint_truth_safety.get("public_speech_text") is False
+        and disjoint_truth_safety.get("public_human_names") is False
+        and disjoint_truth_safety.get("public_absolute_paths") is False,
+        {
+            "gates": disjoint_truth.get("gates"),
+            "invariants": disjoint_truth_invariants,
+            "safety": disjoint_truth_safety,
+        },
+    )
+
     failures = [f"semantic_gate:{row['source']}:{row['gate']}" for row in checks if not row["passed"]]
     return checks, failures
 
@@ -890,6 +927,7 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
     temporal_diarization = payloads[
         "temporal_end_to_end_remote_diarization_qualification_v1"
     ]
+    disjoint_truth_v2 = payloads["remote_speaker_disjoint_truth_expansion_v2"]
 
     return [
         {
@@ -975,6 +1013,7 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 "remote_speaker_direct_truth_candidate_adjudication_v1",
                 "remote_speaker_enrollment_purity_abstention_hardening_v2",
                 "session_local_homogeneous_remote_speaker_enrollment_mining_v1",
+                "remote_speaker_disjoint_truth_expansion_v2",
             ],
             "metrics": {
                 "attributable_speech_ratio": float(remote_summary["attributable_remote_speech_ratio"]),
@@ -1148,6 +1187,11 @@ def build_dimensions(payloads: dict[str, Any], residuals: list[dict[str, Any]]) 
                 "direct_truth_seed_primary_answers": int(direct_truth_seed["review"]["primary_answers"]),
                 "direct_truth_seed_repeat_answers": int(direct_truth_seed["review"]["repeat_answers"]),
                 "direct_truth_seed_repeat_consistency": direct_truth_seed["review"]["repeat_consistency"],
+                "disjoint_truth_v2_decision": disjoint_truth_v2["decision"],
+                "disjoint_truth_v2_primary_answers": int(disjoint_truth_v2["review"]["primary_answers"]),
+                "disjoint_truth_v2_repeat_answers": int(disjoint_truth_v2["review"]["repeat_answers"]),
+                "disjoint_truth_v2_repeat_consistency": disjoint_truth_v2["review"]["repeat_consistency"],
+                "disjoint_truth_v2_attributed_answers": int(disjoint_truth_v2["review"]["attributed_primary_answers"]),
                 "direct_truth_seed_attributed_answers": int(direct_truth_seed["review"]["attributed_primary_answers"]),
                 "direct_truth_seed_unknown_answers": int(direct_truth_seed["review"]["unknown_primary_answers"]),
                 "direct_truth_seed_mixed_answers": int(direct_truth_seed["review"]["mixed_primary_answers"]),
@@ -1461,9 +1505,14 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
         != "TEMPORAL_DIARIZATION_READY"
     ):
         release_blockers.insert(2, "remote_speaker_turns.temporal_diarization_not_ready")
+    if (
+        (payloads.get("remote_speaker_disjoint_truth_expansion_v2") or {}).get("decision")
+        != "DIRECT_TRUTH_V2_READY"
+    ):
+        release_blockers.insert(2, "remote_speaker_turns.disjoint_truth_v2_not_ready")
     report = {
         "schema": REPORT_SCHEMA,
-        "generator": {"name": "report-transcript-perfection-corpus", "version": "1.8.0", "mode": "deterministic_offline"},
+        "generator": {"name": "report-transcript-perfection-corpus", "version": "1.9.0", "mode": "deterministic_offline"},
         "decision": decision,
         "manifest": {
             "path": portable_path(Path(str(manifest["_path"]))),
@@ -1552,15 +1601,14 @@ def build_report(manifest: dict[str, Any], verified: list[dict[str, Any]], paylo
             ),
         },
         "next_goal": {
-            "id": "remote-speaker-disjoint-truth-expansion-v2" if not failures else "restore-input-integrity",
-            "title": "Remote Speaker Disjoint Truth Expansion v2" if not failures else "Restore Input Integrity",
+            "id": "disjoint-remote-speaker-model-qualification-v1" if not failures else "restore-input-integrity",
+            "title": "Disjoint Remote Speaker Model Qualification v1" if not failures else "Restore Input Integrity",
             "selected_residual_class": "unknown_remote_speaker" if not failures else None,
             "rationale": (
-                "The frozen temporal backend was stable under input shift but matched the expected "
-                "speaker count in 0/6 sessions, preserved only 2/3 confirmed gains, lost one correct "
-                "control and introduced seven false identities. Fixed-window and temporal local routes "
-                "are now bounded on the same 33 items. A new disjoint real-session truth set is required "
-                "before selecting or tuning another speaker model."
+                "Disjoint Truth v2 is complete with 72 primary answers, 12 hidden repeats and repeat "
+                "consistency 1.0. Fixed-window and temporal local routes remain bounded. Freeze exactly "
+                "one materially new local speaker backend before opening item-level truth, then perform "
+                "one terminal qualification without post-unseal tuning."
                 if not failures
                 else "Input integrity must be restored before selecting an engineering goal."
             ),

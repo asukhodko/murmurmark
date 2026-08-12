@@ -15,6 +15,7 @@ The selector reads:
 - promoted Coverage v3 policy, implementation and frozen corpus manifest;
 - a Coverage v3 report, rich transcript and artifact manifest over the same selected dialogue;
 - every input and output SHA-256 verified by Coverage v3.
+- optional `speaker-roster-v1.json`, whose identity is bound into selection and refresh keys.
 
 The policy pins the selector, corpus runner and six-session default manifest. Missing Python/model
 runtime, stale policy or implementation, a changed selected profile, missing artifacts or a failed
@@ -57,6 +58,11 @@ The meeting lifecycle refreshes this selector after readiness changes and automa
 refresh uses the final selected transcript profile; it runs before `outcome` is rebuilt. If the
 profile changed from `audit_cleanup_v2` to `reviewed_v1`, stale evidence from the earlier profile is
 never reused. Missing or insufficient evidence still fails open to exact aggregate `Colleagues`.
+
+When a user provides a current roster count, v1 may repair exactly one acoustically split major
+cluster through the separately documented two-backend consensus rule. The roster does not map
+human names to voices. Changing or removing it invalidates the previous selection. See
+[`Roster-Constrained Remote Speaker Evidence v1`](roster-constrained-remote-speaker-evidence-v1.md).
 
 `--rich` remains a compatible diagnostic path. Human names remain opt-in and require a complete,
 fingerprint-bound review decision for the current session. The default path never derives a human

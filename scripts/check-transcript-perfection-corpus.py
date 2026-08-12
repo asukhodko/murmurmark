@@ -901,6 +901,50 @@ def build_fixture(root: Path) -> Path:
             },
             ["remote_speaker_turns"],
         ),
+        "remote_speaker_disjoint_truth_expansion_v2": (
+            files / "remote-speaker-disjoint-truth-expansion-v2.json",
+            {
+                "schema": "murmurmark.remote_speaker_disjoint_truth_manifest/v2",
+                "decision": "DIRECT_TRUTH_V2_READY",
+                "review": {
+                    "primary_answers": 72,
+                    "repeat_answers": 12,
+                    "repeat_consistency": 1.0,
+                    "attributed_primary_answers": 21,
+                },
+                "gates": {
+                    "all_primary_answers": True,
+                    "all_repeat_answers": True,
+                    "minimum_attributed_primary_answers": True,
+                    "minimum_attributed_sessions": True,
+                    "repeat_consistency": True,
+                },
+                "invariants": {
+                    "candidate_pack_frozen_before_prior_truth": True,
+                    "mixed_exemplars_excluded": True,
+                    "model_suggestions_hidden": True,
+                    "primary_count_exact": True,
+                    "production_guards_verified": True,
+                    "repeat_count_exact": True,
+                    "sessions_exact": True,
+                    "v1_primary_interval_overlap_count": 0,
+                },
+                "safety": {
+                    "raw_audio_mutated": False,
+                    "selected_transcript_mutated": False,
+                    "coverage_v3_mutated": False,
+                    "primary_asr_mutated": False,
+                    "echo_guard_mutated": False,
+                    "truth_v1_mutated": False,
+                    "model_selected": False,
+                    "production_promoted": False,
+                    "public_speech_text": False,
+                    "public_human_names": False,
+                    "public_absolute_paths": False,
+                },
+            },
+            ["remote_speaker_turns"],
+        ),
     }
     sources: list[dict[str, object]] = []
     for source_id, (path, payload, dimensions) in payloads.items():
@@ -952,7 +996,7 @@ def run(manifest: Path, out: Path) -> subprocess.CompletedProcess[str]:
 
 def main() -> int:
     runbook = (ROOT / "docs/runbooks/transcript-perfection-corpus.md").read_text(encoding="utf-8")
-    assert "next_goal: Remote Speaker Disjoint Truth Expansion v2" in runbook
+    assert "next_goal: Disjoint Remote Speaker Model Qualification v1" in runbook
     assert "next_goal: Remote Speaker Direct Truth Seed v1" not in runbook
     with tempfile.TemporaryDirectory(prefix=".transcript-perfection-fixture-", dir=ROOT) as temporary:
         root = Path(temporary)
@@ -962,14 +1006,14 @@ def main() -> int:
         assert result.returncode == 0, result.stdout + result.stderr
         report = json.loads((out / "transcript_perfection_corpus_report.json").read_text())
         assert report["decision"] == "BASELINE_ESTABLISHED"
-        assert report["summary"]["verified_sources"] == 30
+        assert report["summary"]["verified_sources"] == 31
         assert report["summary"]["aggregate_quality_score"] is None
         assert report["summary"]["aggregate_residual_seconds"] is None
         words = next(row for row in report["dimensions"] if row["id"] == "recognized_words")
         assert words["correctness_status"] == "bounded_exact_subset_only"
         assert words["metrics"]["exact_subset_wer"] == 0.0
         assert report["residuals"][0]["class"] == "unknown_remote_speaker"
-        assert report["next_goal"]["id"] == "remote-speaker-disjoint-truth-expansion-v2"
+        assert report["next_goal"]["id"] == "disjoint-remote-speaker-model-qualification-v1"
         assert report["next_goal"]["selected_residual_class"] == "unknown_remote_speaker"
         assert report["lexical_prerequisite"]["id"] == "human-reviewed-lexical-seed-v1"
         assert report["lexical_prerequisite"]["status"] == "external_evidence_required"

@@ -610,19 +610,26 @@ def matches_frozen_artifact(path: Path, expected: dict[str, Any], out: Path) -> 
             return False
         if relative != "docs/testing/transcript-perfection-corpus-v1-manifest.json":
             return True
-    if relative != "docs/testing/transcript-perfection-corpus-v1-manifest.json" or not path.is_file():
+    if (
+        relative != "docs/testing/transcript-perfection-corpus-v1-manifest.json"
+        or not path.is_file()
+        or snapshot is None
+        or not snapshot.is_file()
+    ):
         return False
+
+    # Transcript Perfection is append-only. Older qualifications freeze the
+    # source rows they consumed, while later completed goals may add new rows.
+    frozen = read_json(snapshot)
     current = read_json(path)
-    sources = current.get("sources")
-    if not isinstance(sources, list):
+    frozen_sources = frozen.pop("sources", None)
+    current_sources = current.pop("sources", None)
+    if frozen != current or not isinstance(frozen_sources, list) or not isinstance(current_sources, list):
         return False
-    current["sources"] = [
-        row
-        for row in sources
-        if row.get("id") != "temporal_end_to_end_remote_diarization_qualification_v1"
-    ]
-    reconstructed = pretty(current)
-    return len(reconstructed) == expected["bytes"] and hashlib.sha256(reconstructed).hexdigest() == expected["sha256"]
+    current_by_id = {str(row.get("id")): row for row in current_sources if isinstance(row, dict)}
+    if len(current_by_id) != len(current_sources):
+        return False
+    return all(current_by_id.get(str(row.get("id"))) == row for row in frozen_sources if isinstance(row, dict))
 
 
 def verify_frozen(out: Path) -> tuple[dict[str, Any], dict[str, Any]]:

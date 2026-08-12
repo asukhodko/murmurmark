@@ -15,6 +15,7 @@ import importlib.metadata
 import json
 import math
 import os
+import subprocess
 import sys
 import warnings
 from collections import Counter, defaultdict
@@ -30,14 +31,23 @@ import authoritative_asr_cache as cache
 from murmurmark_resource_policy import apply_resource_policy, resolve_resource_policy
 
 
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.3.0"
 REPORT_SCHEMA = "murmurmark.remote_speaker_evidence_report/v1"
 INTERVAL_SCHEMA = "murmurmark.remote_speaker_interval/v1"
 MAP_SCHEMA = "murmurmark.remote_speaker_map/v1"
 ATTRIBUTION_SCHEMA = "murmurmark.remote_utterance_attribution/v1"
 RICH_SCHEMA = "murmurmark.transcript_rich_shadow/v1"
 FIXTURE_SCHEMA = "murmurmark.remote_speaker_embedding_fixture/v1"
+ROSTER_SCHEMA = "murmurmark.remote_speaker_roster/v1"
+CONSENSUS_RESULT_SCHEMA = "murmurmark.speaker_embedding_result/v1"
 DEFAULT_OUT_DIR = "derived/audit/remote-speaker-evidence-v1"
+DEFAULT_ROSTER = "derived/transcript-rich/speaker-roster-v1.json"
+DEFAULT_WESPEAKER_MODEL = (
+    Path.home()
+    / ".local/share/murmurmark/models/remote-speaker-representation-v1"
+    / "wespeaker-resnet34-lm/speaker-embedding.onnx"
+)
+WESPEAKER_WORKER = Path(__file__).resolve().with_name("wespeaker-resnet34-embedding-worker.py")
 AUTO_PROFILES = (
     "reviewed_v1",
     "order_repair_v1",
@@ -65,10 +75,29 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--out-dir", type=Path)
     parser.add_argument("--model-path", type=Path)
     parser.add_argument("--embedding-fixture", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--roster", type=Path)
+    parser.add_argument("--expected-remote-speakers", type=int)
+    parser.add_argument("--consensus-model-path", type=Path)
+    parser.add_argument("--consensus-embedding-fixture", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--min-unit-sec", type=float, default=1.0)
     parser.add_argument("--max-unit-sec", type=float, default=12.0)
     parser.add_argument("--max-units", type=int, default=400)
     parser.add_argument("--cluster-distance", type=float, default=0.20)
+    parser.add_argument("--roster-max-cluster-distance", type=float, default=0.30)
+    parser.add_argument("--roster-min-stable-ari", type=float, default=0.90)
+    parser.add_argument("--roster-min-stable-coverage", type=float, default=0.90)
+    parser.add_argument("--roster-min-primary-merge-similarity", type=float, default=0.86)
+    parser.add_argument("--roster-min-consensus-merge-similarity", type=float, default=0.78)
+    parser.add_argument("--roster-min-merge-margin", type=float, default=0.12)
+    parser.add_argument("--roster-min-cluster-units", type=int, default=6)
+    parser.add_argument("--roster-min-cluster-sec", type=float, default=24.0)
+    parser.add_argument("--roster-min-cluster-span-sec", type=float, default=60.0)
+    parser.add_argument("--roster-min-cluster-cohesion", type=float, default=0.90)
+    parser.add_argument("--roster-max-primary-distinct-similarity", type=float, default=0.86)
+    parser.add_argument("--roster-max-consensus-distinct-similarity", type=float, default=0.78)
+    parser.add_argument("--roster-max-transition-gap-sec", type=float, default=5.0)
+    parser.add_argument("--roster-max-cross-cluster-overlap-sec", type=float, default=0.50)
+    parser.add_argument("--roster-consensus-units-per-cluster", type=int, default=12)
     parser.add_argument("--min-cluster-units", type=int, default=10)
     parser.add_argument("--min-cluster-sec", type=float, default=60.0)
     parser.add_argument("--min-cluster-span-sec", type=float, default=60.0)
@@ -96,6 +125,30 @@ def parse_args() -> argparse.Namespace:
         parser.error("cluster duration limits must be positive")
     if not 0 < args.cluster_distance < 1:
         parser.error("cluster distance must be between 0 and 1")
+    if not args.cluster_distance <= args.roster_max_cluster_distance < 1:
+        parser.error("roster max cluster distance must be >= cluster distance and < 1")
+    if args.expected_remote_speakers is not None and args.expected_remote_speakers <= 0:
+        parser.error("expected remote speakers must be positive")
+    for name in (
+        "roster_min_stable_ari",
+        "roster_min_stable_coverage",
+        "roster_min_primary_merge_similarity",
+        "roster_min_consensus_merge_similarity",
+        "roster_min_merge_margin",
+        "roster_min_cluster_cohesion",
+        "roster_max_primary_distinct_similarity",
+        "roster_max_consensus_distinct_similarity",
+    ):
+        if not 0 <= float(getattr(args, name)) <= 1:
+            parser.error(f"{name.replace('_', '-')} must be between 0 and 1")
+    if args.roster_max_transition_gap_sec < 0 or args.roster_max_cross_cluster_overlap_sec < 0:
+        parser.error("roster temporal limits must be non-negative")
+    if args.roster_consensus_units_per_cluster <= 0:
+        parser.error("roster consensus units per cluster must be positive")
+    if args.roster_min_cluster_units < 2:
+        parser.error("roster minimum cluster units must be at least two")
+    if args.roster_min_cluster_sec <= 0 or args.roster_min_cluster_span_sec <= 0:
+        parser.error("roster cluster duration limits must be positive")
     if not 0 <= args.min_cluster_cohesion <= 1:
         parser.error("min-cluster-cohesion must be between 0 and 1")
     if not 0 <= args.min_assignment_similarity <= 1:
@@ -126,6 +179,35 @@ def suffix(profile: str) -> str:
 
 def read_json(path: Path) -> dict[str, Any]:
     return cache.read_json(path) or {}
+
+
+def resolve_roster(
+    session: Path, args: argparse.Namespace
+) -> tuple[Path, dict[str, Any] | None, int | None, str | None]:
+    raw_path = args.roster or Path(DEFAULT_ROSTER)
+    path = raw_path.expanduser()
+    if not path.is_absolute():
+        path = session / path
+    path = path.resolve()
+    if not path.is_file():
+        return path, None, args.expected_remote_speakers, None
+    try:
+        payload = read_json(path)
+        if payload.get("schema") != ROSTER_SCHEMA:
+            raise ValueError("unsupported_roster_schema")
+        expected = int(payload.get("expected_remote_speakers") or 0)
+        if expected <= 0:
+            raise ValueError("invalid_expected_remote_speakers")
+        participants = payload.get("remote_participants") or []
+        if not isinstance(participants, list):
+            raise ValueError("invalid_remote_participants")
+        if participants and len(participants) != expected:
+            raise ValueError("roster_participant_count_mismatch")
+        if args.expected_remote_speakers is not None and args.expected_remote_speakers != expected:
+            raise ValueError("roster_expected_count_conflict")
+        return path, payload, expected, None
+    except (OSError, TypeError, ValueError, json.JSONDecodeError) as error:
+        return path, None, None, f"speaker_roster_invalid:{error}"
 
 
 def resolve_profile(session: Path, requested: str) -> tuple[str, Path]:
@@ -450,6 +532,71 @@ def is_major(row: dict[str, Any], args: argparse.Namespace) -> bool:
     )
 
 
+def is_roster_supported_cluster(row: dict[str, Any], args: argparse.Namespace) -> bool:
+    return bool(
+        row["unit_count"] >= args.roster_min_cluster_units
+        and row["speech_sec"] >= args.roster_min_cluster_sec
+        and row["span_sec"] >= args.roster_min_cluster_span_sec
+        and row["cohesion_median"] >= args.roster_min_cluster_cohesion
+    )
+
+
+def selected_cluster_chunk_consistency(
+    embeddings: np.ndarray,
+    units: list[dict[str, Any]],
+    labels: np.ndarray,
+    selected: list[dict[str, Any]],
+    args: argparse.Namespace,
+) -> dict[str, Any]:
+    replay = chunk_replay_labels(
+        embeddings,
+        units,
+        args.cluster_distance,
+        args.chunk_merge_distance,
+        args.chunk_sec,
+    )
+    selected_labels = {int(row["cluster"]) for row in selected}
+    selected_indices = [
+        index for index, value in enumerate(labels) if int(value) in selected_labels
+    ]
+    cluster_rows: list[dict[str, Any]] = []
+    dominant_replay_labels: list[int] = []
+    matched = 0
+    for row in selected:
+        cluster_label = int(row["cluster"])
+        indices = [index for index in selected_indices if int(labels[index]) == cluster_label]
+        counts = Counter(int(replay[index]) for index in indices)
+        dominant, count = counts.most_common(1)[0]
+        purity = count / len(indices)
+        dominant_replay_labels.append(dominant)
+        matched += count
+        cluster_rows.append(
+            {
+                "cluster": cluster_label,
+                "replay_cluster": dominant,
+                "unit_count": len(indices),
+                "replay_purity": round(purity, 6),
+            }
+        )
+    ari = (
+        1.0
+        if len(selected_indices) < 2
+        else float(
+            adjusted_rand_score(
+                [int(labels[index]) for index in selected_indices],
+                [int(replay[index]) for index in selected_indices],
+            )
+        )
+    )
+    coverage = matched / len(selected_indices) if selected_indices else 0.0
+    return {
+        "ari": round(ari, 6),
+        "coverage": round(coverage, 6),
+        "distinct_replay_clusters": len(set(dominant_replay_labels)) == len(selected),
+        "clusters": cluster_rows,
+    }
+
+
 def canonical_partition(labels: np.ndarray, units: list[dict[str, Any]]) -> list[int]:
     first: dict[int, float] = {}
     for index, label in enumerate(labels):
@@ -542,6 +689,407 @@ def chunk_consistency(
     }
 
 
+def stable_partition_candidate(
+    embeddings: np.ndarray,
+    units: list[dict[str, Any]],
+    distance: float,
+    args: argparse.Namespace,
+) -> dict[str, Any]:
+    candidate_args = argparse.Namespace(**vars(args))
+    candidate_args.cluster_distance = distance
+    labels = cluster(embeddings, distance)
+    stats = cluster_stats(labels, embeddings, units)
+    major = [row for row in stats if is_major(row, args)]
+    chunk = chunk_consistency(embeddings, units, labels, candidate_args)
+    evidence_speech = sum(float(row["duration_sec"]) for row in units)
+    major_speech = sum(float(row["speech_sec"]) for row in major)
+    return {
+        "distance": round(distance, 4),
+        "labels": labels,
+        "stats": stats,
+        "major": major,
+        "reverse_order_ari": reverse_order_ari(embeddings, labels, distance),
+        "chunk": chunk,
+        "major_speech_ratio": major_speech / evidence_speech if evidence_speech else 0.0,
+    }
+
+
+def select_roster_partition(
+    embeddings: np.ndarray,
+    units: list[dict[str, Any]],
+    expected: int | None,
+    args: argparse.Namespace,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    default = stable_partition_candidate(embeddings, units, args.cluster_distance, args)
+    if expected is None:
+        return default, []
+    maximum_step = int(round((args.roster_max_cluster_distance - args.cluster_distance) * 100))
+    candidates = [
+        stable_partition_candidate(
+            embeddings,
+            units,
+            round(args.cluster_distance + step / 100.0, 4),
+            args,
+        )
+        for step in range(maximum_step + 1)
+    ]
+    viable = [
+        row
+        for row in candidates
+        if len(row["major"]) >= expected
+        and row["major_speech_ratio"] >= args.min_published_speech_ratio
+        and row["reverse_order_ari"] >= 0.99
+        and row["chunk"]["major_cluster_ari"] >= args.roster_min_stable_ari
+        and row["chunk"]["major_unit_coverage"] >= args.roster_min_stable_coverage
+        and row["chunk"]["major_cluster_count_match"]
+    ]
+    if not viable:
+        return default, candidates
+    chosen = min(
+        viable,
+        key=lambda row: (
+            len(row["major"]) - expected,
+            abs(float(row["distance"]) - args.cluster_distance),
+            -float(row["chunk"]["major_cluster_ari"]),
+        ),
+    )
+    return chosen, candidates
+
+
+def consensus_fixture_embeddings(
+    fixture_path: Path, units: list[dict[str, Any]]
+) -> tuple[np.ndarray | None, dict[str, Any], str | None]:
+    fixture = read_json(fixture_path)
+    values = fixture.get("embeddings")
+    if fixture.get("schema") != FIXTURE_SCHEMA or not isinstance(values, dict):
+        return None, {}, "invalid_consensus_embedding_fixture"
+    try:
+        embeddings = np.stack(
+            [normalize(np.asarray(values[row["utterance_id"]], dtype=np.float32)) for row in units]
+        )
+    except (KeyError, TypeError, ValueError) as error:
+        return None, {}, f"consensus_embedding_fixture_failed:{type(error).__name__}"
+    return embeddings, {
+        "method": "deterministic_fixture",
+        "fixture": fingerprint_without_path(fixture_path),
+    }, None
+
+
+def consensus_audio_embeddings(
+    audio_path: Path,
+    units: list[dict[str, Any]],
+    labels: np.ndarray,
+    major: list[dict[str, Any]],
+    primary_embeddings: np.ndarray,
+    out_dir: Path,
+    args: argparse.Namespace,
+) -> tuple[np.ndarray | None, dict[str, Any], str | None]:
+    if args.consensus_embedding_fixture is not None:
+        return consensus_fixture_embeddings(
+            args.consensus_embedding_fixture.expanduser().resolve(), units
+        )
+    configured = os.environ.get("MURMURMARK_REMOTE_SPEAKER_WESPEAKER_MODEL")
+    model = (args.consensus_model_path or (Path(configured) if configured else DEFAULT_WESPEAKER_MODEL))
+    model = model.expanduser().resolve()
+    provenance = {
+        "method": "wespeaker_resnet34_lm_onnx",
+        "model": fingerprint_without_path(model),
+        "worker": fingerprint_without_path(WESPEAKER_WORKER),
+    }
+    if not model.is_file():
+        return None, provenance, "consensus_speaker_model_missing"
+    if not WESPEAKER_WORKER.is_file():
+        return None, provenance, "consensus_embedding_worker_missing"
+    selected_indices: list[int] = []
+    for row in sorted(major, key=lambda value: int(value["cluster"])):
+        indices = np.flatnonzero(labels == int(row["cluster"]))
+        sample_count = min(len(indices), int(args.roster_consensus_units_per_cluster))
+        center = centroid(primary_embeddings, indices)
+        ranked = sorted(
+            (int(index) for index in indices),
+            key=lambda index: (-float(primary_embeddings[index] @ center), index),
+        )
+        selected_indices.extend(ranked[:sample_count])
+    selected_indices = sorted(set(selected_indices))
+    provenance["sampled_units"] = len(selected_indices)
+    provenance["units_per_cluster_limit"] = int(args.roster_consensus_units_per_cluster)
+    request_path = out_dir / "roster_consensus_embedding_request.json"
+    result_path = out_dir / "roster_consensus_embedding_result.json"
+    request = {
+        "schema": "murmurmark.speaker_embedding_request/v1",
+        "model_id": "wespeaker-resnet34-lm",
+        "model_revision": "3d21561",
+        "allow_errors": False,
+        "requests": [
+            {
+                "key": row["utterance_id"],
+                "path": str(audio_path),
+                "start": row["start"],
+                "end": row["end"],
+                "minimum_sec": 1.0,
+            }
+            for row in (units[index] for index in selected_indices)
+        ],
+    }
+    write_json(request_path, request)
+    command = [
+        sys.executable,
+        str(WESPEAKER_WORKER),
+        "--request",
+        str(request_path),
+        "--output",
+        str(result_path),
+        "--model",
+        str(model),
+        "--threads",
+        str(max(1, int(args.max_compute_threads))),
+    ]
+    completed = subprocess.run(
+        command,
+        cwd=Path(__file__).resolve().parents[1],
+        env={**os.environ, "HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "1"},
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if completed.returncode != 0 or not result_path.is_file():
+        detail = (completed.stderr or completed.stdout).strip().splitlines()
+        suffix_value = detail[-1][:160] if detail else f"exit_{completed.returncode}"
+        return None, provenance, f"consensus_embedding_failed:{suffix_value}"
+    result = read_json(result_path)
+    if result.get("schema") != CONSENSUS_RESULT_SCHEMA:
+        return None, provenance, "consensus_embedding_result_schema_invalid"
+    rows = {str(row.get("key")): row.get("embedding") for row in result.get("rows") or []}
+    try:
+        sampled = {
+            index: normalize(np.asarray(rows[units[index]["utterance_id"]], dtype=np.float32))
+            for index in selected_indices
+        }
+        dimensions = len(next(iter(sampled.values())))
+        embeddings = np.zeros((len(units), dimensions), dtype=np.float32)
+        for cluster_row in major:
+            cluster_label = int(cluster_row["cluster"])
+            cluster_samples = [
+                sampled[index]
+                for index in selected_indices
+                if int(labels[index]) == cluster_label
+            ]
+            center = normalize(np.stack(cluster_samples).mean(axis=0))
+            embeddings[np.flatnonzero(labels == cluster_label)] = center
+    except (KeyError, TypeError, ValueError) as error:
+        return None, provenance, f"consensus_embedding_result_incomplete:{type(error).__name__}"
+    provenance["result"] = fingerprint_without_path(result_path)
+    return embeddings, provenance, None
+
+
+def pair_temporal_evidence(
+    left: int,
+    right: int,
+    labels: np.ndarray,
+    units: list[dict[str, Any]],
+) -> tuple[float, float]:
+    selected = sorted(
+        (
+            (float(unit["start"]), float(unit["end"]), int(labels[index]))
+            for index, unit in enumerate(units)
+            if int(labels[index]) in {left, right}
+        ),
+        key=lambda row: (row[0], row[1], row[2]),
+    )
+    transition_gaps: list[float] = []
+    maximum_overlap = 0.0
+    for index, current in enumerate(selected):
+        for following in selected[index + 1 :]:
+            if following[0] >= current[1]:
+                break
+            if following[2] != current[2]:
+                maximum_overlap = max(maximum_overlap, min(current[1], following[1]) - following[0])
+        if index + 1 < len(selected) and selected[index + 1][2] != current[2]:
+            transition_gaps.append(max(0.0, selected[index + 1][0] - current[1]))
+    return (
+        round(min(transition_gaps), 6) if transition_gaps else float("inf"),
+        round(maximum_overlap, 6),
+    )
+
+
+def apply_roster_consensus_merge(
+    labels: np.ndarray,
+    embeddings: np.ndarray,
+    consensus_embeddings: np.ndarray | None,
+    units: list[dict[str, Any]],
+    expected: int,
+    args: argparse.Namespace,
+) -> tuple[np.ndarray, dict[str, Any]]:
+    stats = cluster_stats(labels, embeddings, units)
+    major = [row for row in stats if is_major(row, args)]
+    result: dict[str, Any] = {
+        "expected_remote_speakers": expected,
+        "base_major_clusters": len(major),
+        "status": "not_needed" if len(major) == expected else "not_applied",
+        "candidate_pairs": [],
+        "merged_clusters": [],
+    }
+    if len(major) == expected:
+        result["final_major_clusters"] = expected
+        return labels, result
+    if len(major) < expected:
+        supported = [row for row in stats if is_roster_supported_cluster(row, args)]
+        result["roster_supported_clusters"] = [int(row["cluster"]) for row in supported]
+        if len(supported) != expected:
+            result["reason"] = "roster_supported_cluster_count_mismatch"
+            result["final_major_clusters"] = len(major)
+            return labels, result
+        if consensus_embeddings is None or len(consensus_embeddings) != len(embeddings):
+            result["reason"] = "independent_consensus_embeddings_unavailable"
+            result["final_major_clusters"] = len(major)
+            return labels, result
+
+        stability = selected_cluster_chunk_consistency(
+            embeddings, units, labels, supported, args
+        )
+        pair_rows: list[dict[str, Any]] = []
+        for left_index, left_row in enumerate(supported):
+            left = int(left_row["cluster"])
+            left_members = np.flatnonzero(labels == left)
+            for right_row in supported[left_index + 1 :]:
+                right = int(right_row["cluster"])
+                right_members = np.flatnonzero(labels == right)
+                pair_rows.append(
+                    {
+                        "clusters": [left, right],
+                        "primary_similarity": round(
+                            float(
+                                centroid(embeddings, left_members)
+                                @ centroid(embeddings, right_members)
+                            ),
+                            6,
+                        ),
+                        "consensus_similarity": round(
+                            float(
+                                centroid(consensus_embeddings, left_members)
+                                @ centroid(consensus_embeddings, right_members)
+                            ),
+                            6,
+                        ),
+                    }
+                )
+        maximum_primary = max(float(row["primary_similarity"]) for row in pair_rows)
+        maximum_consensus = max(float(row["consensus_similarity"]) for row in pair_rows)
+        gates = {
+            "reverse_order_stable": reverse_order_ari(
+                embeddings, labels, args.cluster_distance
+            )
+            >= 0.99,
+            "chunk_replay_ari": float(stability["ari"]) >= args.roster_min_stable_ari,
+            "chunk_replay_coverage": float(stability["coverage"])
+            >= args.roster_min_stable_coverage,
+            "chunk_replay_distinct": bool(stability["distinct_replay_clusters"]),
+            "primary_clusters_distinct": maximum_primary
+            < args.roster_max_primary_distinct_similarity,
+            "consensus_clusters_distinct": maximum_consensus
+            < args.roster_max_consensus_distinct_similarity,
+        }
+        result.update(
+            {
+                "candidate_pairs": pair_rows,
+                "minor_cluster_stability": stability,
+                "gates": gates,
+                "maximum_primary_similarity": round(maximum_primary, 6),
+                "maximum_consensus_similarity": round(maximum_consensus, 6),
+            }
+        )
+        if not all(gates.values()):
+            result["reason"] = "roster_minor_promotion_gates_failed"
+            result["final_major_clusters"] = len(major)
+            return labels, result
+        result.update(
+            {
+                "status": "applied_minor_promotion",
+                "reason": "roster_count_and_independent_backends_confirm_short_speaker",
+                "promoted_minor_clusters": [
+                    int(row["cluster"]) for row in supported if not is_major(row, args)
+                ],
+                "final_major_clusters": expected,
+            }
+        )
+        return labels, result
+    if len(major) != expected + 1:
+        result["reason"] = "roster_cluster_delta_not_one"
+        result["final_major_clusters"] = len(major)
+        return labels, result
+    if consensus_embeddings is None or len(consensus_embeddings) != len(embeddings):
+        result["reason"] = "independent_consensus_embeddings_unavailable"
+        result["final_major_clusters"] = len(major)
+        return labels, result
+
+    pairs: list[dict[str, Any]] = []
+    for left_index, left_row in enumerate(major):
+        left = int(left_row["cluster"])
+        left_members = np.flatnonzero(labels == left)
+        for right_row in major[left_index + 1 :]:
+            right = int(right_row["cluster"])
+            right_members = np.flatnonzero(labels == right)
+            primary = float(
+                centroid(embeddings, left_members) @ centroid(embeddings, right_members)
+            )
+            secondary = float(
+                centroid(consensus_embeddings, left_members)
+                @ centroid(consensus_embeddings, right_members)
+            )
+            transition_gap, overlap = pair_temporal_evidence(left, right, labels, units)
+            pairs.append(
+                {
+                    "clusters": [left, right],
+                    "primary_similarity": round(primary, 6),
+                    "consensus_similarity": round(secondary, 6),
+                    "joint_similarity": round(min(primary, secondary), 6),
+                    "transition_gap_sec": transition_gap,
+                    "cross_cluster_overlap_sec": overlap,
+                }
+            )
+    pairs.sort(key=lambda row: (-row["joint_similarity"], row["clusters"]))
+    result["candidate_pairs"] = pairs
+    winner = pairs[0]
+    runner_score = pairs[1]["joint_similarity"] if len(pairs) > 1 else 0.0
+    margin = float(winner["joint_similarity"]) - float(runner_score)
+    result["winner_margin"] = round(margin, 6)
+    gates = {
+        "primary_similarity": winner["primary_similarity"]
+        >= args.roster_min_primary_merge_similarity,
+        "consensus_similarity": winner["consensus_similarity"]
+        >= args.roster_min_consensus_merge_similarity,
+        "unique_winner": margin >= args.roster_min_merge_margin,
+        "temporal_handoff": winner["transition_gap_sec"]
+        <= args.roster_max_transition_gap_sec,
+        "no_cross_cluster_overlap": winner["cross_cluster_overlap_sec"]
+        <= args.roster_max_cross_cluster_overlap_sec,
+    }
+    result["gates"] = gates
+    if not all(gates.values()):
+        result["reason"] = "roster_consensus_merge_gates_failed"
+        result["final_major_clusters"] = len(major)
+        return labels, result
+
+    left, right = map(int, winner["clusters"])
+    left_start = next(row["first_start"] for row in major if int(row["cluster"]) == left)
+    right_start = next(row["first_start"] for row in major if int(row["cluster"]) == right)
+    keep, replace = (left, right) if left_start <= right_start else (right, left)
+    merged = labels.copy()
+    merged[merged == replace] = keep
+    result.update(
+        {
+            "status": "applied",
+            "reason": "independent_backends_and_temporal_handoff_agree",
+            "merged_clusters": [left, right],
+            "canonical_cluster": keep,
+            "final_major_clusters": len(
+                [row for row in cluster_stats(merged, embeddings, units) if is_major(row, args)]
+            ),
+        }
+    )
+    return merged, result
+
+
 def overlap_flags(utterances: list[dict[str, Any]], threshold: float) -> dict[str, list[str]]:
     remote = [row for row in utterances if row.get("role") == "remote" and row.get("id")]
     remote.sort(key=lambda row: (float(row.get("start", 0)), float(row.get("end", 0)), str(row["id"])))
@@ -583,8 +1131,15 @@ def build_assignments(
     overlaps: dict[str, list[str]],
     publish: bool,
     args: argparse.Namespace,
+    attributed_reason: str = "stable_anonymous_cluster",
+    published_cluster_ids: set[int] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-    major = [row for row in stats if is_major(row, args)]
+    major = [
+        row
+        for row in stats
+        if is_major(row, args)
+        or (published_cluster_ids is not None and int(row["cluster"]) in published_cluster_ids)
+    ]
     major.sort(key=lambda row: (row["first_start"], row["cluster"]))
     speaker_for_cluster = {
         int(row["cluster"]): f"remote_speaker_{index:02d}" for index, row in enumerate(major, start=1)
@@ -625,7 +1180,7 @@ def build_assignments(
                 provisional[utterance_id] = {
                     "speaker_id": speaker_id,
                     "status": "attributed",
-                    "reason": "stable_anonymous_cluster",
+                    "reason": attributed_reason,
                     "similarity": round(similarity, 6),
                     "margin": round(margin, 6),
                     "cluster": label,
@@ -895,6 +1450,7 @@ def main() -> int:
     raw_path = session / "audio/remote/000001.caf"
     raw_before = fingerprint(raw_path, session)
     backend = EmbeddingBackend(args)
+    roster_path, roster, expected_remote_speakers, roster_error = resolve_roster(session, args)
 
     if not dialogue_path.is_file() or not isinstance(dialogue.get("utterances"), list):
         report = fallback_outputs(
@@ -917,6 +1473,13 @@ def main() -> int:
         )
         print(f"remote_speakers: {report['status']} ({report['reasons'][0]})")
         return 0
+    if roster_error is not None:
+        report = fallback_outputs(
+            session, out_dir, profile, dialogue_path, dialogue, audio_path, backend, resource,
+            roster_error, raw_before,
+        )
+        print(f"remote_speakers: {report['status']} ({report['reasons'][0]})")
+        return 0
 
     source_before = dialogue_path.read_bytes()
     utterances = dialogue["utterances"]
@@ -932,11 +1495,64 @@ def main() -> int:
         print(f"remote_speakers: {report['status']} ({report['reasons'][0]})")
         return 0
 
-    labels = cluster(embeddings, args.cluster_distance)
+    partition, partition_candidates = select_roster_partition(
+        embeddings, units, expected_remote_speakers, args
+    )
+    base_labels = partition["labels"]
+    base_major = partition["major"]
+    base_stats = partition["stats"]
+    roster_supported = [
+        row for row in base_stats if is_roster_supported_cluster(row, args)
+    ]
+    consensus_embeddings: np.ndarray | None = None
+    consensus_provenance: dict[str, Any] = {}
+    consensus_error: str | None = None
+    if (
+        expected_remote_speakers is not None
+        and (
+            len(base_major) == expected_remote_speakers + 1
+            or (
+                len(base_major) < expected_remote_speakers
+                and len(roster_supported) == expected_remote_speakers
+            )
+        )
+    ):
+        consensus_clusters = (
+            base_major
+            if len(base_major) == expected_remote_speakers + 1
+            else roster_supported
+        )
+        progress(args, "checking roster partition with independent WeSpeaker embeddings")
+        consensus_embeddings, consensus_provenance, consensus_error = consensus_audio_embeddings(
+            audio_path, units, base_labels, consensus_clusters, embeddings, out_dir, args
+        )
+    labels = base_labels
+    roster_consensus: dict[str, Any] = {
+        "expected_remote_speakers": expected_remote_speakers,
+        "status": "disabled",
+        "reason": "speaker_roster_not_configured",
+    }
+    if expected_remote_speakers is not None:
+        labels, roster_consensus = apply_roster_consensus_merge(
+            base_labels,
+            embeddings,
+            consensus_embeddings,
+            units,
+            expected_remote_speakers,
+            args,
+        )
+        roster_consensus["consensus_backend_error"] = consensus_error
     stats = cluster_stats(labels, embeddings, units)
-    major = [row for row in stats if is_major(row, args)]
-    reverse_ari = reverse_order_ari(embeddings, labels, args.cluster_distance)
-    chunk = chunk_consistency(embeddings, units, labels, args)
+    promoted_minor_clusters = {
+        int(value) for value in roster_consensus.get("promoted_minor_clusters") or []
+    }
+    major = [
+        row
+        for row in stats
+        if is_major(row, args) or int(row["cluster"]) in promoted_minor_clusters
+    ]
+    reverse_ari = float(partition["reverse_order_ari"])
+    chunk = partition["chunk"]
     evidence_speech = sum(row["duration_sec"] for row in units)
     major_speech = sum(row["speech_sec"] for row in major)
     major_ratio = major_speech / evidence_speech if evidence_speech else 0.0
@@ -950,11 +1566,31 @@ def main() -> int:
             and chunk["major_unit_coverage"] >= 0.70
             and chunk["major_cluster_count_match"]
         ),
+        "roster_expected_speaker_count": bool(
+            expected_remote_speakers is None or len(major) == expected_remote_speakers
+        ),
+        "roster_consensus_safe": bool(
+            expected_remote_speakers is None
+            or roster_consensus.get("status")
+            in {"not_needed", "applied", "applied_minor_promotion"}
+        ),
     }
     publish = all(gates.values())
     overlaps = overlap_flags(utterances, args.overlap_ambiguity_sec)
     attributions, intervals, speaker_rows = build_assignments(
-        utterances, units, embeddings, labels, stats, rejected, overlaps, publish, args
+        utterances,
+        units,
+        embeddings,
+        labels,
+        stats,
+        rejected,
+        overlaps,
+        publish,
+        args,
+        "stable_roster_consensus_cluster"
+        if str(roster_consensus.get("status") or "").startswith("applied")
+        else "stable_anonymous_cluster",
+        {int(row["cluster"]) for row in major},
     )
 
     raw_after = fingerprint(raw_path, session)
@@ -989,13 +1625,18 @@ def main() -> int:
             "remote_audio": fingerprint(audio_path, session),
             "raw_remote_before": raw_before,
             "raw_remote_after": raw_after,
+            "speaker_roster": fingerprint(roster_path, session),
         },
-        "model": backend.provenance,
+        "model": {
+            **backend.provenance,
+            "consensus": consensus_provenance,
+        },
         "parameters": {
             "min_unit_sec": args.min_unit_sec,
             "max_unit_sec": args.max_unit_sec,
             "max_units": args.max_units,
-            "cluster_distance": args.cluster_distance,
+            "cluster_distance": partition["distance"],
+            "requested_cluster_distance": args.cluster_distance,
             "min_cluster_units": args.min_cluster_units,
             "min_cluster_sec": args.min_cluster_sec,
             "min_cluster_span_sec": args.min_cluster_span_sec,
@@ -1007,6 +1648,18 @@ def main() -> int:
             "chunk_sec": args.chunk_sec,
             "chunk_merge_distance": args.chunk_merge_distance,
             "overlap_ambiguity_sec": args.overlap_ambiguity_sec,
+            "expected_remote_speakers": expected_remote_speakers,
+            "roster_consensus_units_per_cluster": args.roster_consensus_units_per_cluster,
+            "roster_min_cluster_units": args.roster_min_cluster_units,
+            "roster_min_cluster_sec": args.roster_min_cluster_sec,
+            "roster_min_cluster_span_sec": args.roster_min_cluster_span_sec,
+            "roster_min_cluster_cohesion": args.roster_min_cluster_cohesion,
+            "roster_max_primary_distinct_similarity": (
+                args.roster_max_primary_distinct_similarity
+            ),
+            "roster_max_consensus_distinct_similarity": (
+                args.roster_max_consensus_distinct_similarity
+            ),
         },
         "resource_policy": stable_resource_policy(resource),
         "stability": {
@@ -1019,6 +1672,27 @@ def main() -> int:
             "chunk_replay_all_cluster_ari": chunk["all_cluster_ari"],
             "boundary_source": "selected_remote_utterance",
             "boundary_shift_sec": 0.0,
+            "roster_partition_candidates": [
+                {
+                    "distance": row["distance"],
+                    "major_clusters": len(row["major"]),
+                    "major_speech_ratio": round(float(row["major_speech_ratio"]), 6),
+                    "reverse_order_ari": row["reverse_order_ari"],
+                    "chunk_replay_ari": row["chunk"]["major_cluster_ari"],
+                    "chunk_replay_major_unit_coverage": row["chunk"]["major_unit_coverage"],
+                    "chunk_replay_major_cluster_count_match": row["chunk"][
+                        "major_cluster_count_match"
+                    ],
+                }
+                for row in partition_candidates
+            ],
+        },
+        "speaker_roster": {
+            "configured": expected_remote_speakers is not None,
+            "expected_remote_speakers": expected_remote_speakers,
+            "participants": (roster or {}).get("remote_participants") or [],
+            "identity_mapping_applied": False,
+            "consensus": roster_consensus,
         },
         "clusters": [
             public_cluster_row(

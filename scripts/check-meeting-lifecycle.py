@@ -42,7 +42,7 @@ def session_from(args):
     raise SystemExit("session argument missing")
 
 
-def artifacts(session, ready, auto_rows):
+def artifacts(session, ready, auto_rows, blocked=False):
     transcript = session / "derived/transcript-simple/whisper-cpp/resolved/transcript.fixture.md"
     dialogue = session / "derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.fixture.json"
     notes = session / "derived/synthesis-simple/extractive/notes.fixture.md"
@@ -84,7 +84,7 @@ def artifacts(session, ready, auto_rows):
     readiness = {
         "schema": "murmurmark.session_readiness/v1",
         "generated_at": str(time.time_ns()),
-        "use_gate": "ready_for_notes" if ready else "review_first",
+        "use_gate": "ready_for_notes" if ready else ("do_not_use_without_manual_review" if blocked else "review_first"),
         "selected_profile": "fixture",
         "verdict": "good" if ready else "usable_with_review",
         "review_blockers": [] if ready else ["fixture_review"],
@@ -95,7 +95,7 @@ def artifacts(session, ready, auto_rows):
     outcome = {
         "schema": "murmurmark.outcome/v1",
         "generated_at": str(time.time_ns()),
-        "outcome": "ready_for_notes" if ready else "review_first",
+        "outcome": "ready_for_notes" if ready else ("blocked" if blocked else "review_first"),
         "selected_profile": "fixture",
         "verdict": "good" if ready else "usable_with_review",
         "export_status": "not_exported" if ready else "blocked_until_review",
@@ -110,6 +110,41 @@ def artifacts(session, ready, auto_rows):
     }
     write(session / "derived/readiness/session_readiness.json", readiness)
     write(session / "derived/outcome/outcome.json", outcome)
+    review_root = session / "derived/readiness/review-plan"
+    review_root.mkdir(parents=True, exist_ok=True)
+    pending = [] if ready else [
+        {
+            "schema": "murmurmark.review_decision/v1",
+            "decision": "todo",
+            "status": "todo",
+            "source_audit_id": f"fixture_{index}",
+            "review_lane": "check_transcript_text",
+            "interval": {"start": float(index), "end": float(index) + 1.0},
+            "allowed_decisions": ["keep_me", "needs_review"],
+            "utterance_ids": [f"utt_fixture_{index}"],
+            "suggested_decision_reason": "fixture_review",
+        }
+        for index in (1, 2)
+    ]
+    (review_root / "review_decisions.jsonl").write_text(
+        "".join(json.dumps(row) + "\n" for row in pending),
+        encoding="utf-8",
+    )
+    (review_root / "review_decisions.template.jsonl").write_text(
+        "".join(json.dumps(row) + "\n" for row in pending),
+        encoding="utf-8",
+    )
+    write(review_root / "review_decisions_progress.json", {
+        "schema": "murmurmark.review_decisions_progress/v1",
+        "summary": {
+            "total": 0 if ready else 2,
+            "reviewed": 0,
+            "remaining": 0 if ready else 2,
+            "remaining_seconds": 0.0 if ready else 2.0,
+            "invalid_rows": 0,
+            "ready_for_batch_apply": ready,
+        },
+    })
 
 
 args = sys.argv[1:]
@@ -147,7 +182,7 @@ if command == "process":
         with runs.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps({"mode": "checkpoint_reuse", "at": time.time_ns()}) + "\n")
         raise SystemExit(0)
-    artifacts(session, ready=False, auto_rows=0)
+    artifacts(session, ready=False, auto_rows=0, blocked=scenario == "blocked")
     write(
         session / "derived/pipeline-run/pipeline_run_report.json",
         {
@@ -213,12 +248,12 @@ if command == "outcome":
     if scenario == "stale_refresh":
         raise SystemExit(0)
     applied = (session / "fixture-applied").exists()
-    auto_rows = 1 if scenario in {"ready", "stale_finish"} and not applied else 0
-    artifacts(session, ready=applied, auto_rows=auto_rows)
+    auto_rows = 1 if scenario in {"ready", "stale_finish", "archived_finish"} and not applied else 0
+    artifacts(session, ready=applied, auto_rows=auto_rows, blocked=scenario == "blocked")
     raise SystemExit(0)
 if command == "review" and "preview" in args:
-    auto_rows = 1 if scenario in {"ready", "stale_finish"} else 0
-    artifacts(session, ready=False, auto_rows=auto_rows)
+    auto_rows = 1 if scenario in {"ready", "stale_finish", "archived_finish"} else 0
+    artifacts(session, ready=False, auto_rows=auto_rows, blocked=scenario == "blocked")
     write(
         session / "derived/readiness/review-plan/review_workspace_apply_report.json",
         {
@@ -261,6 +296,35 @@ if command == "finish":
         "blockers": [],
         "created_at": str(time.time()),
     })
+    if scenario == "archived_finish":
+        raw_audio = []
+        for source in ("mic", "remote"):
+            for entry in session_payload.get("files", {}).get(source, []):
+                path = session / entry["path"]
+                raw_audio.append({
+                    "path": entry["path"],
+                    "bytes": path.stat().st_size,
+                    "source": source,
+                })
+                path.unlink()
+        write(session / "derived/retention/derived_compaction.json", {
+            "schema": "murmurmark.derived_compaction/v1",
+            "mode": "transcript_only",
+            "status": "applied",
+            "raw_audio": raw_audio,
+            "application": {
+                "deleted_files": len(raw_audio),
+                "deleted_bytes": sum(item["bytes"] for item in raw_audio),
+                "deleted_raw_files": len(raw_audio),
+                "deleted_raw_bytes": sum(item["bytes"] for item in raw_audio),
+            },
+            "verification": {
+                "passed": True,
+                "raw_deleted": True,
+                "retained_outputs_preserved": True,
+                "remaining_media_files": 0,
+            },
+        })
     raise SystemExit(0)
 raise SystemExit(0)
 '''
@@ -489,6 +553,28 @@ def main() -> None:
         assert ready_report["actions"]["finish"]["status"] == "passed"
         assert ready_report["derived_compaction"]["status"] == "not_attempted"
         assert not (root / "SHOULD_NOT_RUN").exists()
+
+        archived_session = write_session(root, "archived")
+        archived_run = run_supervisor(root, archived_session, fake, "archived_finish")
+        assert archived_run.returncode == 0, (archived_run.stdout, archived_run.stderr)
+        archived_report = report(archived_session)
+        assert archived_report["result"] == "ready", archived_report
+        assert archived_report["raw"]["preserved"] is False
+        assert archived_report["raw"]["archived"] is True
+        assert archived_report["raw"]["acceptable"] is True
+        assert archived_report["derived_compaction"]["status"] == "applied"
+        assert not (archived_session / "audio/mic/000001.caf").exists()
+        archived_resume = run_supervisor(
+            root,
+            archived_session,
+            fake,
+            "archived_finish",
+            "--resume",
+        )
+        assert archived_resume.returncode == 0, (
+            archived_resume.stdout,
+            archived_resume.stderr,
+        )
         ready_state = json.loads(
             (ready_session / "derived/meeting-lifecycle/state.json").read_text(encoding="utf-8")
         )
@@ -595,7 +681,7 @@ def main() -> None:
         review_report = report(review_session)
         assert review_report["result"] == "ready_with_review"
         assert review_report["unresolved_review"]["count"] == 2
-        assert review_report["unresolved_review"]["seconds"] == 4.5
+        assert review_report["unresolved_review"]["seconds"] == 2.0
         assert review_report["unresolved_review"]["blockers"] == ["fixture_review"]
         assert review_report["export"]["blockers"] == ["fixture_review"]
         assert review_report["reason"] == "structured_review_gate_remains"
@@ -608,6 +694,24 @@ def main() -> None:
         )
         assert review_next["decision"] == "human" and review_next["command"] is None
         assert all("text" not in item for item in review_report["manual_decisions"]["items"])
+
+        blocked_session = write_session(root, "blocked-review")
+        blocked_run = run_supervisor(
+            root,
+            blocked_session,
+            fake,
+            "blocked",
+            "--max-transitions",
+            "9",
+        )
+        assert blocked_run.returncode == 0, (blocked_run.stdout, blocked_run.stderr)
+        blocked_report = report(blocked_session)
+        assert blocked_report["result"] == "ready_with_review"
+        assert blocked_report["reason"] == "structured_review_gate_remains"
+        assert blocked_report["export"]["status"] == "blocked_until_review"
+        assert blocked_report["manual_decisions"]["total"] == 2
+        assert blocked_report["next"]["status"] == "human_decision_required"
+
         if cli_value:
             cli_bin = Path(cli_value).resolve()
             cli_env = os.environ.copy()
@@ -624,7 +728,7 @@ def main() -> None:
             )
             assert cli_status.returncode == 0, (cli_status.stdout, cli_status.stderr)
             assert "status: human_decision_required" in cli_status.stdout
-            assert "manual_decisions: 2 items / 4.50s" in cli_status.stdout
+            assert "manual_decisions: 2 items / 2.00s" in cli_status.stdout
             assert "next: human_decision_required" in cli_status.stdout
             assert f"next: murmurmark status {review_session}" not in cli_status.stdout
             cli_next = subprocess.run(
@@ -639,7 +743,7 @@ def main() -> None:
             assert cli_next.returncode == 0, (cli_next.stdout, cli_next.stderr)
             assert "status: human_decision_required" in cli_next.stdout
             assert "source: meeting_lifecycle" in cli_next.stdout
-            assert "manual_decisions: 2 items / 4.50s" in cli_next.stdout
+            assert "manual_decisions: 2 items / 2.00s" in cli_next.stdout
             assert "non_actionable_review_blocker" not in cli_next.stdout
 
         review_progress_path = (

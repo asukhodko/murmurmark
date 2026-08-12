@@ -182,6 +182,70 @@ def main() -> int:
         assert manifest(session)["status"] == "reexpanded_or_invalid"
         regenerated.unlink()
 
+        archived = write_session(root, "2026-01-01_11-00-00")
+        archived_mic = archived / "audio/mic/000001.caf"
+        archived_remote = archived / "audio/remote/000001.caf"
+        archived_transcript = (
+            archived
+            / "derived/transcript-simple/whisper-cpp/resolved/transcript.reviewed_v1.md"
+        )
+        archived_transcript_hash = sha256(archived_transcript)
+        archive_plan = run(root, "plan", str(archived), "--mode", "transcript_only")
+        assert archive_plan.returncode == 0, (archive_plan.stdout, archive_plan.stderr)
+        archive_plan_manifest = manifest(archived)
+        assert archive_plan_manifest["raw_inventory"]["candidate_files"] == 2
+        assert archive_plan_manifest["raw_inventory"]["candidate_bytes"] > 0
+        assert archived_mic.is_file() and archived_remote.is_file()
+
+        archive_unconfirmed = run(
+            root,
+            "apply",
+            str(archived),
+            "--mode",
+            "transcript_only",
+            "--confirm-delete-derived-media",
+        )
+        assert archive_unconfirmed.returncode == 2
+        assert archived_mic.is_file() and archived_remote.is_file()
+
+        archive_applied = run(
+            root,
+            "apply",
+            str(archived),
+            "--mode",
+            "transcript_only",
+            "--confirm-delete-derived-media",
+            "--confirm-delete-raw",
+        )
+        assert archive_applied.returncode == 0, (
+            archive_applied.stdout,
+            archive_applied.stderr,
+        )
+        archive_manifest = manifest(archived)
+        assert archive_manifest["status"] == "applied"
+        assert archive_manifest["application"]["deleted_raw_files"] == 2
+        assert archive_manifest["verification"]["raw_deleted"] is True
+        assert not archived_mic.exists() and not archived_remote.exists()
+        assert sha256(archived_transcript) == archived_transcript_hash
+
+        archive_verified = run(root, "verify", str(archived))
+        assert archive_verified.returncode == 0, (
+            archive_verified.stdout,
+            archive_verified.stderr,
+        )
+        assert manifest(archived)["status"] == "verified"
+        archive_reapplied = run(
+            root,
+            "apply",
+            str(archived),
+            "--mode",
+            "transcript_only",
+            "--confirm-delete-derived-media",
+            "--confirm-delete-raw",
+        )
+        assert archive_reapplied.returncode == 0
+        assert manifest(archived)["verification"]["passed"] is True
+
         active = write_session(root, "2026-01-02_10-00-00")
         (active / "session.lock").write_text("active\n", encoding="utf-8")
         blocked = run(root, "plan", str(active))
@@ -272,7 +336,7 @@ def main() -> int:
             ).read_text(encoding="utf-8")
         )
         assert report["schema"] == "murmurmark.derived_compaction_report/v1"
-        assert report["summary"]["sessions_considered"] == 5
+        assert report["summary"]["sessions_considered"] == 6
         assert report["summary"]["eligible_candidate_bytes"] < report["summary"]["candidate_bytes"]
         assert any(
             row["session_id"] == pinned.name and row["status"] == "blocked"

@@ -395,6 +395,18 @@
       "path": "sessions/_reports/temporal-end-to-end-remote-diarization-qualification-v1/temporal_remote_diarization_report.json",
       "required": true,
       "sha256": "3cb0f386e6299ac8f4981dee9cc20f2a7b9a3412fcd98d1b51f995b1e26e4788"
+    },
+    {
+      "bytes": 2353,
+      "dimensions": [
+        "remote_speaker_turns"
+      ],
+      "evidence_level": "frozen_disjoint_blind_real_session_direct_truth_v2",
+      "expected_schema": "murmurmark.remote_speaker_disjoint_truth_manifest/v2",
+      "id": "remote_speaker_disjoint_truth_expansion_v2",
+      "path": "docs/testing/remote-speaker-disjoint-truth-expansion-v2-manifest.json",
+      "required": true,
+      "sha256": "bb6dff566ed7b2a18024b4077e777293dbd498b0c7147926ba04d083c61211e9"
     }
   ]
 }

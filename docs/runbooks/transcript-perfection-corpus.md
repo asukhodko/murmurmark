@@ -34,10 +34,10 @@ Expected frozen baseline:
 
 ```text
 decision: BASELINE_ESTABLISHED
-sources: 30/30 verified
+sources: 31/31 verified
 release_ready: false
 largest_actionable_residual: unknown_remote_speaker (598.240s)
-next_goal: Remote Speaker Disjoint Truth Expansion v2
+next_goal: Disjoint Remote Speaker Model Qualification v1
 ```
 
 ## Reading The Result

@@ -282,6 +282,27 @@ def check_auditor(root: Path) -> None:
     assert selection["selected_speaker_profile"] == "remote_speaker_coverage_v3"
     assert selection["selected_transcript"]["sha256"] == sha256(out / "transcript.rich.shadow.md")
     assert selection["policy"]["path"] == "policies/speaker-resolved-transcript-default-v1.json"
+    write_json(
+        session / "derived/transcript-rich/speaker-roster-v1.json",
+        {
+            "schema": "murmurmark.remote_speaker_roster/v1",
+            "session_id": session.name,
+            "source": "synthetic_test",
+            "expected_remote_speakers": 2,
+            "remote_participants": [],
+            "voice_identity_mapping": "not_asserted",
+        },
+    )
+    run([str(SELECTOR), str(session)])
+    roster_selection = read_json(selection_path)
+    assert roster_selection["speaker_roster"]["exists"] is True, roster_selection
+    assert roster_selection["semantic_fingerprint"] != selection["semantic_fingerprint"]
+    assert roster_selection["state"] == "fallback", roster_selection
+    assert str(roster_selection["fallback_reason"]).startswith(
+        ("evidence_refresh_stage_", "refreshed_v3_invalid:")
+    ), roster_selection
+    (session / "derived/transcript-rich/speaker-roster-v1.json").unlink()
+    run([str(SELECTOR), str(session), "--require-speaker-resolved"])
 
     policy = read_json(ROOT / "policies/speaker-resolved-transcript-default-v1.json")
     policy["state"] = "development"
@@ -366,6 +387,22 @@ def check_auditor(root: Path) -> None:
     fallback = session / "derived/audit/remote-speaker-coverage-v3-fallback"
     run([str(AUDIT), str(session), "--out-dir", str(fallback)])
     assert read_json(fallback / "report.json")["decision"] == "FALLBACK_V2"
+    fallback_selection_dir = session / "derived/transcript-rich/selector-evidence-fallback"
+    run(
+        [
+            str(SELECTOR),
+            str(session),
+            "--coverage-dir",
+            str(fallback),
+            "--out-dir",
+            str(fallback_selection_dir),
+        ]
+    )
+    evidence_fallback = read_json(fallback_selection_dir / "selection.json")
+    assert evidence_fallback["state"] == "fallback"
+    reason = str(evidence_fallback["fallback_reason"])
+    assert reason.startswith("coverage_not_publishable:"), reason
+    assert "coverage_artifact_missing" not in reason, reason
     run([str(SELECTOR), str(session)])
     stale_selection = read_json(selection_path)
     assert stale_selection["state"] == "fallback"

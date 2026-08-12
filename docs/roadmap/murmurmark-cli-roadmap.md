@@ -1,6 +1,6 @@
 # MurmurMark CLI Roadmap
 
-Updated: 2026-08-10
+Updated: 2026-08-12
 Это читаемое представление активного плана OpsKarta v3:
 
 - `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`
@@ -89,7 +89,8 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Label-independent re-clustering | `done` | `EMBEDDING_GEOMETRY_BOUND`: ARI `0.090170`, stability `0.465715` |
 | Stronger local speaker representation | `done` | `KEEP_EXPLICIT_UNKNOWN`: 3/3 gains, but 12 new false identities |
 | Temporal end-to-end remote diarization | `done` | `KEEP_EXPLICIT_UNKNOWN`: stable timing, but speaker count `0/6`, seven false identities |
-| Disjoint remote-speaker truth v2 | `current` | Expand real direct truth before another model selection or tuning |
+| Disjoint remote-speaker truth v2 | `done` | 72 primary + 12 repeats; `DIRECT_TRUTH_V2_READY`, consistency `1.0` |
+| Disjoint model qualification v1 | `current` | Freeze one new local backend and evaluate it once on independent truth v2 |
 ## Актуальная Цепочка
 ```mermaid
 flowchart LR
@@ -119,10 +120,11 @@ flowchart LR
     RC["Done: GEOMETRY BOUND<br/>Label-Independent<br/>Re-Clustering v1"]
     SR["Done: KEEP EXPLICIT UNKNOWN<br/>Stronger Local Speaker<br/>Representation v1"]
     TD["Done: KEEP EXPLICIT UNKNOWN<br/>Temporal End-to-End Remote<br/>Diarization v1"]
-    M["Current<br/>Remote Speaker Disjoint<br/>Truth Expansion v2"]
+    M["Done: DIRECT TRUTH V2 READY<br/>Remote Speaker Disjoint<br/>Truth Expansion v2"]
+    MQ["Current<br/>Disjoint Remote Speaker<br/>Model Qualification v1"]
     O["Optional<br/>Notes, retrieval,<br/>work proposals"]
 
-    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> W --> X --> Y --> RC --> SR --> TD --> M
+    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> W --> X --> Y --> RC --> SR --> TD --> M --> MQ
     F --> D
     L -.-> O
 ```
@@ -179,8 +181,8 @@ V4 проверил speech-aware bounded окна и независимые по
 `Colleagues`; неподдержанные v3 words остаются aggregate внутри speaker-resolved результата.
 Voice-only имена и cross-session identity запрещены.
 
-Результат: `PROMOTE` на 6/6 sessions, две 1x1, четыре group, 14 expected speakers и 5/5 boundary
-cases. Words, roles, `Me`, timestamps, raw и deterministic replay сохранены.
+Результат: `PROMOTE` на 6/6 sessions, 14 expected speakers и 5/5 boundaries; words, roles, `Me`, timestamps и raw сохранены.
+Roster-constrained Resemblyzer/WeSpeaker extension исправляет один split voice; five-participant проверка выбрала 4 remote speakers при Coverage v3 `94.4038%` и exact fallback.
 
 ### 7. Lexical Accuracy Reference Corpus v1 — `done`
 
@@ -274,21 +276,19 @@ replay byte-exact, production и thresholds неизменны.
 `KEEP_COVERAGE_V3`: candidate приобрёл 3 correct identities, потерял 2 correct controls и увеличил
 fail-closed unsafe accepts 8 -> 13. Net gain 1/8 не прошёл material gates; replay byte-exact.
 ### 21. Enrollment Purity and Abstention v2 — `done`: `KEEP_COVERAGE_V3`, 68 accepts сохранены, unsafe 13 -> 8, 7/14 profiles rejected, 0 additions.
-### 22. Session-Local Homogeneous Remote Speaker Enrollment Mining v1 — `done`
-`KEEP_EXISTING_ENROLLMENT`: 39 окон, 9/14 profiles, 0/3 gains, 4 new false identities.
-### 23. Session-Local Remote Speaker Re-Clustering Feasibility v1 — `done`
-`EMBEDDING_GEOMETRY_BOUND`: 347 blind windows, ARI `0.090170`, stability `0.465715`, gains `0/3`.
+### 22. Session-Local Homogeneous Enrollment Mining v1 — `done`: `KEEP_EXISTING_ENROLLMENT`, 39 окон, gains 0/3.
+### 23. Session-Local Re-Clustering v1 — `done`: `EMBEDDING_GEOMETRY_BOUND`, ARI `0.090170`, gains 0/3.
 ### 24. Stronger Local Remote Speaker Representation Qualification v1 — `done`
-`KEEP_EXPLICIT_UNKNOWN`: WeSpeaker ResNet34-LM сохранил 3/3 gains и все correct controls, но дал
-17 unsafe accepts, 12 новых false identities и шесть ambiguous clusters; stability упала до `0.442394`.
+`KEEP_EXPLICIT_UNKNOWN`: gains 3/3, но 17 unsafe accepts, 12 false identities, stability `0.442394`.
 ### 25. Temporal End-to-End Remote Diarization Qualification v1 — `done`
-`KEEP_EXPLICIT_UNKNOWN`: shift stability `0.814301` прошла, но expected speaker count совпал в `0/6`
-sessions, boundary duration recall упал до `0.598626`, сохранились `2/3` gains и появились семь false identities.
-### 26. Remote Speaker Disjoint Truth Expansion v2 — `current`
-Pack заморожен: 72 primary / 148 words / `155.440894s`, 12 repeats, 6/6 sessions, zero v1 overlap и 19 bounded exemplars. Осталось закрыть blind review до выбора следующего model class.
-### 27. Производные Возможности — `optional`: notes и work proposals остаются отдельными производными после transcript gates.
+`KEEP_EXPLICIT_UNKNOWN`: stability `0.814301`, speaker count `0/6`, gains `2/3`, семь false identities.
+### 26. Remote Speaker Disjoint Truth Expansion v2 — `done`
+`DIRECT_TRUTH_V2_READY`: 72 primary, 12 repeats, 21 attributed, consistency `1.0`, replay byte-exact.
+### 27. Disjoint Remote Speaker Model Qualification v1 — `current`
+Заморозить один новый local backend и один раз оценить на truth v2; после unseal tuning запрещён.
+### 28. Производные Возможности — `optional`: notes и work proposals остаются отдельными производными после transcript gates.
 ## Закрытые И Отложенные Треки
-- Human-Reviewed Lexical Seed заблокирован отсутствием реального reference; machine disagreement не заменяет truth.
+- Human-Reviewed Lexical Seed заблокирован отсутствием real reference; disagreement не заменяет truth.
 - Пред-ASR разделение закрыто; открыть его может новая независимая проверка Target-Me presence.
 - Free-text local synthesis закрыт `DO_NOT_PROMOTE`; ID-only selector остаётся opt-in.
 - Cross-session voice identity запрещена без отдельного privacy contract. Имена только из review.

@@ -908,7 +908,10 @@ def interactive_review(policy: dict[str, Any], out: Path, manifest_path: Path | 
                     grade(policy, out, slot["slot_id"], outcome, None, manifest_path)
                     break
                 print("invalid outcome")
-    except (EOFError, KeyboardInterrupt):
+    except EOFError:
+        print("\nerror: interactive review input is unavailable; run the command directly in a terminal", file=sys.stderr)
+        return 2
+    except KeyboardInterrupt:
         print("\nreview: stopped; progress saved")
         return 0
 

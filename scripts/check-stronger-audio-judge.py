@@ -43,17 +43,22 @@ def classify(
     speaker_state: dict[str, Any] | None = None,
     item_remote_text: str = "Скинул мерч-квест.",
     mic_raw_text: str | None = None,
+    mic_no_speech_prob: float = 0.1,
+    audit_local_support: float | None = None,
+    audit_remote_similarity: float | None = None,
+    group_remote: float = 45,
+    group_leak: float = 40,
 ) -> dict[str, Any]:
     item = {
         "utterances": [
             {"id": "me", "role": "me", "source_track": "mic", "text": me_text},
             {"id": "remote", "role": "remote", "source_track": "remote", "text": item_remote_text},
         ],
-        "source_contexts": [group_context(local, 45, 40)],
+        "source_contexts": [group_context(local, group_remote, group_leak)],
     }
     transcripts = {
-        "mic_clean": {"text": mic_text, "avg_logprob": -0.4, "no_speech_prob": 0.1},
-        "mic_raw": {"text": mic_raw_text or mic_text, "avg_logprob": -0.4, "no_speech_prob": 0.1},
+        "mic_clean": {"text": mic_text, "avg_logprob": -0.4, "no_speech_prob": mic_no_speech_prob},
+        "mic_raw": {"text": mic_raw_text or mic_text, "avg_logprob": -0.4, "no_speech_prob": mic_no_speech_prob},
         "remote": {"text": remote_text, "avg_logprob": -0.3, "no_speech_prob": 0.05},
     }
     metrics = module.source_metrics(transcripts, me_text, item_remote_text)
@@ -67,6 +72,17 @@ def classify(
             "scores": {
                 "local_support": 25,
                 "remote_similarity": 90,
+            },
+        }
+    elif audit_local_support is not None or audit_remote_similarity is not None:
+        audit_row = {
+            "classification": {
+                "label": "likely_reliable",
+                "verdict": "likely_reliable",
+            },
+            "scores": {
+                "local_support": audit_local_support or 0,
+                "remote_similarity": audit_remote_similarity or 0,
             },
         }
     return module.classify_item(item, audit_row, transcripts, metrics, speaker_state)
@@ -93,6 +109,26 @@ def main() -> int:
         local=35,
     )
     assert uncorroborated["suggested_decision"] != "drop_me", uncorroborated
+
+    short_adjacent_duplicate = classify(
+        module,
+        "Да, посмотрим, что там может быть.",
+        "Почему разблокировали? Твоя задача там написана, в ней прямо что-то.",
+        "воя задача там",
+        local=20,
+        speaker_state={
+            "available": True,
+            "coverage_ratio": 1.0,
+            "remote_only_ratio": 0.4,
+            "local_active_ratio": 0.0,
+            "double_talk_ratio": 0.0,
+            "silence_ratio": 0.6,
+        },
+        item_remote_text="",
+    )
+    assert short_adjacent_duplicate["label"] == "confirm_remote_duplicate", short_adjacent_duplicate
+    assert short_adjacent_duplicate["suggested_decision"] == "drop_me", short_adjacent_duplicate
+    assert short_adjacent_duplicate["scores"]["decoded_remote_phrase_match"] >= 0.88
 
     double_talk = classify(
         module,
@@ -123,6 +159,99 @@ def main() -> int:
     assert remote_only_false_keep["label"] == "uncertain", remote_only_false_keep
     assert remote_only_false_keep["suggested_decision"] == "needs_review", remote_only_false_keep
     assert remote_only_false_keep["scores"]["speaker_state_remote_only_keep_veto"] is True
+
+    remote_only_short_duplicate = classify(
+        module,
+        "короче у меня отсюда",
+        "Вау. Ну, короче, у меня особо здесь нечего добавить.",
+        "короче у меня",
+        local=0,
+        speaker_state={
+            "available": True,
+            "coverage_ratio": 1.0,
+            "remote_only_ratio": 1.0,
+            "local_active_ratio": 0.0,
+            "double_talk_ratio": 0.0,
+        },
+        item_remote_text="",
+        mic_no_speech_prob=0.69,
+        audit_local_support=70,
+        audit_remote_similarity=85,
+    )
+    assert remote_only_short_duplicate["label"] == "confirm_remote_duplicate", remote_only_short_duplicate
+    assert remote_only_short_duplicate["suggested_decision"] == "drop_me", remote_only_short_duplicate
+    assert remote_only_short_duplicate["scores"]["remote_only_decoded_duplicate"] is True
+
+    remote_only_single_token_duplicate = classify(
+        module,
+        "Все нормально. Все, и дальше он двигается, делает. Вот эти, эти.",
+        "Все, и дальше он двигается, делает. Ну, кстати, идея отличная.",
+        "кстати",
+        local=0,
+        speaker_state={
+            "available": True,
+            "coverage_ratio": 1.0,
+            "remote_only_ratio": 1.0,
+            "local_active_ratio": 0.0,
+            "double_talk_ratio": 0.0,
+        },
+        item_remote_text="",
+        mic_no_speech_prob=0.55,
+        audit_local_support=0,
+        audit_remote_similarity=45,
+    )
+    assert remote_only_single_token_duplicate["label"] == "confirm_remote_duplicate", remote_only_single_token_duplicate
+    assert remote_only_single_token_duplicate["suggested_decision"] == "drop_me", remote_only_single_token_duplicate
+    assert remote_only_single_token_duplicate["scores"]["single_token_remote_only_duplicate"] is True
+
+    remote_dominant_false_keep = classify(
+        module,
+        "Это уже будет деталь имплементации, которая особо корректор знать не будет.",
+        "это уже будет как бы детали имплементации которые особо коллектор знать не будет",
+        "которая как бы особо коллекторзной будет",
+        local=55,
+        group_remote=65,
+        group_leak=85,
+        speaker_state={
+            "available": True,
+            "coverage_ratio": 1.0,
+            "remote_only_ratio": 0.0,
+            "local_active_ratio": 0.0,
+            "double_talk_ratio": 0.0,
+        },
+        item_remote_text=(
+            "То, что это сырье берется из DLH, это уже будет деталь имплементации, "
+            "про которую особо коллектор знать не будет."
+        ),
+        audit_local_support=0,
+        audit_remote_similarity=45,
+    )
+    assert remote_dominant_false_keep["label"] == "uncertain", remote_dominant_false_keep
+    assert remote_dominant_false_keep["suggested_decision"] == "needs_review", remote_dominant_false_keep
+    assert remote_dominant_false_keep["scores"]["remote_dominant_mic_decode_keep_veto"] is True
+
+    remote_dominant_without_group_row = classify(
+        module,
+        "Это уже будет деталь имплементации, которая особо корректор знать не будет.",
+        "это уже будет как бы детали имплементации которые особо коллектор знать не будет",
+        "которая как бы особо коллекторзной будет",
+        local=0,
+        group_remote=0,
+        group_leak=0,
+        speaker_state={
+            "available": True,
+            "coverage_ratio": 1.0,
+            "remote_only_ratio": 0.0,
+            "local_active_ratio": 0.0,
+            "double_talk_ratio": 0.0,
+        },
+        item_remote_text="",
+        mic_raw_text="это уже будет как бы детали имплементации которые особо коллектор знать не будет",
+        audit_local_support=0,
+        audit_remote_similarity=45,
+    )
+    assert remote_dominant_without_group_row["label"] == "uncertain", remote_dominant_without_group_row
+    assert remote_dominant_without_group_row["suggested_decision"] == "needs_review", remote_dominant_without_group_row
 
     state = module.interval_speaker_state_evidence(
         [

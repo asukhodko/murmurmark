@@ -304,6 +304,7 @@ struct MurmurMark {
           murmurmark transcript ./session|latest [--profile auto] [--rich [--reviewed-speakers]] [--path-only|--cat]
                                 [--sessions-root ./sessions]
           murmurmark speakers template|apply|status ./session|latest [--decisions PATH]
+          murmurmark speakers roster ./session|latest [--expected-remote-speakers N] [--participant NAME ...]
                                 [--sessions-root ./sessions]
           murmurmark echo-lab prepare [--sessions-root ./sessions]
           murmurmark echo-lab capture --out ./session --scenario SCENARIO [--sessions-root ./sessions]
@@ -1338,6 +1339,7 @@ enum DoctorChecks {
             "scripts/evaluate-remote-speaker-enrollment-purity-abstention-v2.py",
             "scripts/materialize-anonymous-rich-transcript.py",
             "scripts/review-remote-speaker-labels.py",
+            "scripts/configure-remote-speaker-roster.py",
             "scripts/materialize-reviewed-speaker-memory.py",
             "scripts/authoritative-boundary.py",
             "scripts/mixed-utterance-span-separation.py",
@@ -6699,7 +6701,7 @@ enum SpeakerCommands {
 
         var remaining = args
         let command = remaining.removeFirst()
-        guard ["template", "apply", "status"].contains(command) else {
+        guard ["template", "apply", "status", "roster"].contains(command) else {
             throw CLIError("unknown speakers command: \(command)")
         }
         guard let target = remaining.first else {
@@ -6710,17 +6712,26 @@ enum SpeakerCommands {
             ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions"
         )
         let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
-        let script = PathURLs.fileURL("scripts/review-remote-speaker-labels.py")
+        let script = PathURLs.fileURL(
+            command == "roster"
+                ? "scripts/configure-remote-speaker-roster.py"
+                : "scripts/review-remote-speaker-labels.py"
+        )
         guard FileManager.default.fileExists(atPath: script.path) else {
-            throw CLIError("reviewed speaker naming helper not found: \(script.path)")
+            throw CLIError("speaker helper not found: \(script.path)")
         }
 
         print("SESSION=\"\(PathDisplay.display(session))\"")
         fflush(stdout)
+        let scriptArgs = command == "roster"
+            ? [script.path, session.path] + remaining
+            : [script.path, command, session.path] + remaining
         let status = try Tooling.runPathAllowingExitCodes(
             try PythonRuntime.resolve(),
-            [script.path, command, session.path] + remaining,
-            allowedExitCodes: command == "status" ? [0, 2] : [0]
+            scriptArgs,
+            allowedExitCodes: command == "status" || (command == "roster" && remaining.contains("--status"))
+                ? [0, 2]
+                : [0]
         )
         if command == "status", status == 2 {
             FinalNextPrinter.print("murmurmark speakers template \(PathDisplay.display(session))")
@@ -6747,9 +6758,15 @@ enum SpeakerCommands {
                                    [--sessions-root ./sessions]
           murmurmark speakers status ./session|latest [--decisions PATH]
                                     [--sessions-root ./sessions]
+          murmurmark speakers roster ./session|latest
+                                    [--expected-remote-speakers N]
+                                    [--participant NAME ...] [--status]
+                                    [--sessions-root ./sessions]
 
         Creates and applies explicit session-local display labels over current anonymous speaker IDs.
         No name is inferred from voice, transcript, contacts, calendar or another session.
+        `roster` records the expected remote participant count and optional names. Names constrain the
+        meeting roster only; assigning them to anonymous voices still requires explicit review.
         """)
     }
 }
@@ -8351,11 +8368,17 @@ enum CorpusCommands {
             ].contains(action) else {
                 throw CLIError("unsupported remote-truth-seed-v2 action: \(action)")
             }
-            _ = try Tooling.runPathAllowingExitCodes(
-                try PythonRuntime.resolve(),
-                [try script("build-remote-speaker-disjoint-truth-v2.py").path] + forwarded,
-                allowedExitCodes: [0, 2]
-            )
+            let python = try PythonRuntime.resolve()
+            let arguments = [try script("build-remote-speaker-disjoint-truth-v2.py").path] + forwarded
+            if action == "review" {
+                try Tooling.replaceCurrentProcess(python, arguments)
+            } else {
+                _ = try Tooling.runPathAllowingExitCodes(
+                    python,
+                    arguments,
+                    allowedExitCodes: [0, 2]
+                )
+            }
         case "remote-truth-adjudication-v1", "remote_truth_adjudication_v1":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 try Tooling.runPath(
@@ -9565,8 +9588,8 @@ enum FinishCommands {
 
         Refreshes readiness, attempts a normal guarded export with JSON evidence included by default,
         then writes a retention plan and provider payload manifest. When the export succeeds it also
-        removes rebuildable media under derived/. Raw audio is never deleted by compaction. Use
-        --keep-debug-artifacts to preserve the complete diagnostic workspace.
+        compacts the session to selected text and structured provenance. Use --keep-debug-artifacts
+        to preserve raw capture and the complete diagnostic workspace.
         """)
     }
 }
@@ -9627,16 +9650,20 @@ enum RetentionCommands {
           murmurmark retention plan ./session|latest [--policy ./policy.json] [--export-manifest ./export_manifest.json]
           murmurmark retention apply ./session|latest --confirm-delete-raw [--policy ./policy.json] [--export-manifest ./export_manifest.json]
           murmurmark retention payload ./session|latest [--policy ./policy.json] [--export-manifest ./export_manifest.json] [--provider name]
-          murmurmark retention compact plan ./session|latest|all [--older-than 7d] [--exclude-pinned]
-          murmurmark retention compact apply ./session|latest|all --confirm-delete-derived-media [--older-than 7d] [--exclude-pinned]
+          murmurmark retention compact plan ./session|latest|all [--mode keep_raw|transcript_only] [--older-than 7d] [--exclude-pinned]
+          murmurmark retention compact apply ./session|latest|all --confirm-delete-derived-media
+              [--mode keep_raw] [--older-than 7d] [--exclude-pinned]
+          murmurmark retention compact apply ./session|latest|all --mode transcript_only
+              --confirm-delete-derived-media --confirm-delete-raw [--older-than 7d] [--exclude-pinned]
           murmurmark retention compact verify ./session|latest|all [--older-than 7d] [--exclude-pinned]
 
         Plan mode writes SESSION/derived/retention/retention_plan.json and does not delete files.
         Apply mode can delete raw CAF only when the policy requests it, export manifest is successful,
         and --confirm-delete-raw is present.
         Payload mode writes SESSION/derived/retention/provider_payload_manifest.json and sends nothing.
-        Compact mode removes only rebuildable media below SESSION/derived and preserves raw audio,
-        selected transcript/notes/verdict, JSON provenance and frozen corpus sessions by default.
+        Compact mode keeps selected transcript/notes/verdict, JSON provenance and frozen corpus
+        sessions. The default keep_raw mode preserves raw audio. transcript_only also deletes only
+        the raw mic/remote files declared by session.json and requires a second confirmation.
         """)
     }
 }
@@ -9672,7 +9699,9 @@ enum DerivedCompactionCommands {
         let command = [
             "apply",
             session.path,
+            "--mode", "transcript_only",
             "--confirm-delete-derived-media",
+            "--confirm-delete-raw",
             "--require-successful-export",
             "--export-manifest", manifestURL.path,
             "--allow-active-lifecycle",
@@ -9753,13 +9782,16 @@ enum DerivedCompactionCommands {
     private static func printHelp() {
         print("""
         usage:
-          murmurmark retention compact plan SESSION|latest|all [--older-than 7d] [--exclude-pinned]
-          murmurmark retention compact apply SESSION|latest|all --confirm-delete-derived-media [--older-than 7d] [--exclude-pinned]
+          murmurmark retention compact plan SESSION|latest|all [--mode keep_raw|transcript_only] [--older-than 7d] [--exclude-pinned]
+          murmurmark retention compact apply SESSION|latest|all --confirm-delete-derived-media
+              [--mode keep_raw] [--older-than 7d] [--exclude-pinned]
+          murmurmark retention compact apply SESSION|latest|all --mode transcript_only
+              --confirm-delete-derived-media --confirm-delete-raw [--older-than 7d] [--exclude-pinned]
           murmurmark retention compact verify SESSION|latest|all [--older-than 7d] [--exclude-pinned]
 
-        Removes only rebuildable media below SESSION/derived. Raw capture and selected text/JSON
-        outputs are preserved and verified. Frozen corpus sessions are excluded unless
-        --include-pinned is provided.
+        keep_raw removes rebuildable media below SESSION/derived and preserves raw capture.
+        transcript_only also removes declared raw mic/remote files after verifying selected
+        text/JSON outputs. Frozen corpus sessions are excluded unless --include-pinned is provided.
         """)
     }
 }
@@ -16358,7 +16390,10 @@ enum ReadinessPrinter {
             if let lifecycle = try? JSONFiles.object(lifecycleURL),
                string(lifecycle["schema"]) == "murmurmark.meeting_lifecycle_report/v1",
                ["ready", "ready_with_review"].contains(string(lifecycle["result"]) ?? ""),
-               bool((lifecycle["raw"] as? [String: Any])?["preserved"]) == true,
+               {
+                   let raw = lifecycle["raw"] as? [String: Any]
+                   return bool(raw?["preserved"]) == true || bool(raw?["archived"]) == true
+               }(),
                bool((lifecycle["deferred_work"] as? [String: Any])?["blocking"]) == false,
                let stateDate = modificationDate(stateURL),
                let lifecycleDate = modificationDate(lifecycleURL),
@@ -17115,7 +17150,7 @@ enum ReadinessPrinter {
               let payload = try? JSONFiles.object(reportURL),
               string(payload["schema"]) == "murmurmark.meeting_lifecycle_report/v1",
               let raw = payload["raw"] as? [String: Any],
-              bool(raw["preserved"]) == true
+              bool(raw["preserved"]) == true || bool(raw["archived"]) == true
         else {
             return nil
         }
@@ -19699,6 +19734,23 @@ enum Tooling {
             throw CLIError("\(executable.lastPathComponent) exited with \(process.terminationStatus)")
         }
         return process.terminationStatus
+    }
+
+    static func replaceCurrentProcess(_ executable: URL, _ arguments: [String]) throws -> Never {
+        guard FileManager.default.isExecutableFile(atPath: executable.path) else {
+            throw CLIError("executable not found: \(executable.path)")
+        }
+        var argv = ([executable.path] + arguments).map { strdup($0) }
+        defer {
+            for argument in argv {
+                free(argument)
+            }
+        }
+        argv.append(nil)
+        _ = executable.path.withCString { path in
+            execv(path, &argv)
+        }
+        throw CLIError("failed to execute \(executable.lastPathComponent): \(String(cString: strerror(errno)))")
     }
 
     static func runPathQuietAllowingExitCodes(

@@ -33,7 +33,7 @@ nodes:
     title: "MurmurMark CLI"
     kind: summary
     status: current
-    effort: 332
+    effort: 346
     notes: |
       Активная CLI-first, local-first и evidence-backed программа. Batch transcript остаётся
       authoritative. Текущий North Star: одной командой получить максимально надёжный transcript,
@@ -469,6 +469,10 @@ nodes:
       Coverage v3; слабая или stale evidence возвращает exact aggregate Markdown. Six-session
       corpus: 6/6, две 1x1, четыре group, 14 expected anonymous speakers, 5/5 boundaries, exact
       words/roles/timestamps/Me/raw и deterministic replay. Имена остаются explicit review only.
+      Roster-constrained extension ограничивает только число anonymous speakers: Resemblyzer +
+      WeSpeaker и temporal handoff могут объединить одну акустически расщеплённую пару, иначе
+      сохраняется aggregate fallback. Five-participant проверка выбрала 4 remote speakers при
+      Coverage v3 94.4038% без изменения Me, слов, порядка, timestamps или raw CAF.
 
   quality-lexical-accuracy-reference-corpus-v1:
     title: "Lexical Accuracy Reference Corpus v1"
@@ -702,16 +706,31 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-lightweight-remote-speaker-representation-frontier-v1]
-    status: current
+    status: done
     effort: 14
     notes: |
       Pack заморожен до prior truth: 72 primary / 148 words / 155.440894s, 12 hidden repeats,
       6/6 sessions, zero overlap with 33 v1 intervals. Все доступные model disagreements, short
       turns, boundaries, overlap и five-speaker topology покрыты; 19 exemplars имеют bounded purity
-      basis, confirmed mixed clips исключены. Resumable review CLI готов. Осталось закрыть 84 blind
-      slots; queue сгруппирована в session blocks и требует 11 переключений вместо 67, exemplars
-      звучат один раз на блок. Затем нужно выпустить DIRECT_TRUTH_V2_READY либо точный
-      REFERENCE_INSUFFICIENT; никакой model selection или production promotion в этой цели.
+      basis, confirmed mixed clips исключены. Review закрыл все 72 primary и 12 hidden repeat slots:
+      21 attributed, 28 unknown, 4 mixed и 19 unusable primary outcomes на шести сессиях; repeat
+      consistency 1.0. DIRECT_TRUTH_V2_READY и byte-exact replay разблокировали one-shot
+      qualification нового model class; production остался Coverage v3.
+
+  quality-disjoint-remote-speaker-model-qualification-v1:
+    title: "Disjoint Remote Speaker Model Qualification v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-remote-speaker-disjoint-truth-expansion-v2]
+    status: current
+    effort: 14
+    notes: |
+      Выбрать ровно один materially new local speaker model после license, availability и Apple
+      Silicon preflight. До item-level truth заморозить weights, hashes, preprocessing,
+      segmentation, clustering, thresholds и candidate outputs. Один раз оценить candidate на
+      независимых 72 primary + 12 repeat truth v2 slots, прежних direct controls и controlled
+      truth. Tuning после unseal и production mutation запрещены. Terminal outcomes:
+      PROMOTE_SHADOW, KEEP_COVERAGE_V3 или MODEL_UNAVAILABLE.
 
 views:
   roadmap-tree:
@@ -730,7 +749,7 @@ views:
         nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-remote-speaker-disjoint-truth-expansion-v2]
+        nodes: [quality-disjoint-remote-speaker-model-qualification-v1]
       dependent:
         title: "Blind real-session reference blocker"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
@@ -788,6 +807,7 @@ views:
           - quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1
           - quality-lightweight-remote-speaker-representation-frontier-v1
           - quality-remote-speaker-disjoint-truth-expansion-v2
+          - quality-disjoint-remote-speaker-model-qualification-v1
 
   echo-frontier:
     title: "Пред-ASR отделение Me от remote"
@@ -895,8 +915,8 @@ x:
   exec:
     program:
       nearest_goal: >-
-        Remote Speaker Disjoint Truth Expansion v2: сохранить Coverage v3, selected transcripts, raw CAF, primary ASR, Echo Guard, 30 frozen Transcript Perfection sources и прежние 33 primary + 8 repeat truth decisions неизменными; из остатка 851 unknown remote words / 598.240s и disagreement evidence ECAPA, WavLM, WeSpeaker и temporal AHC/VBx до чтения прежних labels детерминированно отобрать новый непересекающийся стратифицированный pack минимум из 72 primary и 12 hidden repeat slots на шести real sessions, включая short turns, boundaries, overlap, mixed и five-speaker session; исключить прежние интервалы и mixed exemplars, давать для сравнения только speaker-pure bounded exemplars и явные unknown/mixed/unusable outcomes; добавить короткую resumable CLI review-петлю, SHA-256 provenance, privacy-safe public aggregates, repeat-consistency и coverage отчёт; выпустить DIRECT_TRUTH_V2_READY либо REFERENCE_INSUFFICIENT без выбора модели и production promotion; обновить Transcript Perfection, документацию и планирование, пройти проверки, закоммитить изменения и отправить их в origin/main.
-      success_by_next_sync: "Новый disjoint truth pack заморожен и размечен либо exact evidence ceiling зафиксирован без изменения Coverage v3."
+        Disjoint Remote Speaker Model Qualification v1: сохранив Coverage v3 и все frozen inputs неизменными, выбрать ровно один существенно новый локальный класс speaker-модели по лицензии, доступности и совместимости с Apple Silicon; до открытия item-level truth v2 заморозить веса, SHA-256, preprocessing, segmentation, clustering, thresholds и candidate outputs; один раз оценить candidate на независимых 72 primary + 12 repeat Disjoint Truth v2 slots, прежних direct-truth controls и controlled corpus; измерить attributed precision/recall, B-cubed, abstention на unknown/mixed/unusable, speaker-count, boundaries, repeat determinism и conservation; запретить tuning после unseal и выпустить PROMOTE_SHADOW, KEEP_COVERAGE_V3 либо MODEL_UNAVAILABLE с byte-exact replay, privacy-safe отчётом, тестами, актуальными документами, коммитом и push.
+      success_by_next_sync: "Один новый локальный speaker backend заморожен и однократно квалифицирован на disjoint truth v2 либо выпущен точный MODEL_UNAVAILABLE."
     defaults:
       status_progress:
         done: 1.0
@@ -917,13 +937,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle и batch transcript работают; three-session replay подтвердил raw/cache/speaker conservation и закрыл legacy cache preflight."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Remote Speaker Disjoint Truth Expansion v2"
-        scope_nodes: [quality-remote-speaker-disjoint-truth-expansion-v2]
+        title: "Disjoint Remote Speaker Model Qualification v1"
+        scope_nodes: [quality-disjoint-remote-speaker-model-qualification-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Temporal AHC/VBx стабилен по времени, но speaker count 0/6, gains 2/3 и семь new false identities; local model frontier закрыт."
-          next_sync_goal: "Собрать disjoint real-session truth до выбора следующего model class."
+          sync_note: "Disjoint Truth v2 завершён DIRECT_TRUTH_V2_READY: 72 primary, 12 repeats, consistency 1.0 и byte-exact replay."
+          next_sync_goal: "Заморозить один materially new local backend и выполнить one-shot qualification без tuning на truth v2."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -952,6 +972,7 @@ x:
           - quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1
           - quality-lightweight-remote-speaker-representation-frontier-v1
           - quality-remote-speaker-disjoint-truth-expansion-v2
+          - quality-disjoint-remote-speaker-model-qualification-v1
         kind: main
         mgmt:
           health: yellow
@@ -972,7 +993,7 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: ECAPA/WavLM geometry закрыта; текущий фокус — materially independent local speaker backend."
+        caption: "Короткая карта: disjoint truth готов; текущий фокус — one-shot qualification materially new local speaker backend."
         blocks:
           - working-now
           - current-quality

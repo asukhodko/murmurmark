@@ -16,7 +16,7 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 SCHEMA = "murmurmark.speaker_resolved_transcript_selection/v1"
 POLICY_SCHEMA = "murmurmark.speaker_resolved_transcript_default_policy/v1"
 READINESS_SCHEMA = "murmurmark.session_readiness/v1"
@@ -25,6 +25,12 @@ V3_RICH_SCHEMA = "murmurmark.remote_speaker_rich_transcript/v3"
 DEFAULT_POLICY = ROOT / "policies/speaker-resolved-transcript-default-v1.json"
 DEFAULT_OUTPUT_DIR = Path("derived/transcript-rich/speaker-resolved-default-v1")
 DEFAULT_V3_DIR = Path("derived/audit/remote-speaker-coverage-v3")
+DEFAULT_ROSTER = Path("derived/transcript-rich/speaker-roster-v1.json")
+DEFAULT_WESPEAKER_MODEL = (
+    Path.home()
+    / ".local/share/murmurmark/models/remote-speaker-representation-v1"
+    / "wespeaker-resnet34-lm/speaker-embedding.onnx"
+)
 
 
 class SelectionError(RuntimeError):
@@ -191,13 +197,26 @@ def run_checked(command: list[str]) -> tuple[bool, str]:
     return completed.returncode == 0, output[-2000:]
 
 
-def refresh_key(profile: str, dialogue: Path) -> str:
+def refresh_key(session: Path, profile: str, dialogue: Path) -> str:
+    roster = session / DEFAULT_ROSTER
+    configured_model = os.environ.get("MURMURMARK_REMOTE_SPEAKER_WESPEAKER_MODEL")
+    consensus_model = Path(configured_model).expanduser() if configured_model else DEFAULT_WESPEAKER_MODEL
     basis = {
         "profile": profile,
         "dialogue_sha256": sha256_file(dialogue),
+        "speaker_roster_sha256": sha256_file(roster) if roster.is_file() else None,
+        "remote_speaker_evidence_implementation_sha256": sha256_file(
+            ROOT / "scripts/audit-remote-speaker-evidence.py"
+        ),
+        "remote_speaker_diarization_implementation_sha256": sha256_file(
+            ROOT / "scripts/audit-remote-speaker-diarization.py"
+        ),
         "coverage_implementation_sha256": sha256_file(
             ROOT / "scripts/audit-remote-speaker-coverage-v3.py"
         ),
+        "consensus_model_sha256": sha256_file(consensus_model)
+        if consensus_model.is_file()
+        else None,
         "version": VERSION,
     }
     return sha256_bytes(compact_json_bytes(basis))
@@ -206,7 +225,7 @@ def refresh_key(profile: str, dialogue: Path) -> str:
 def refresh_evidence(
     session: Path, profile: str, dialogue: Path, output_dir: Path, policy: Path
 ) -> tuple[Path | None, str | None]:
-    evidence_root = output_dir / "evidence" / refresh_key(profile, dialogue)
+    evidence_root = output_dir / "evidence" / refresh_key(session, profile, dialogue)
     v1_dir = evidence_root / "remote-speaker-evidence-v1"
     v2_dir = evidence_root / "remote-speaker-diarization-v2"
     v3_dir = evidence_root / "remote-speaker-coverage-v3"
@@ -259,6 +278,38 @@ def refresh_evidence(
     return v3_dir, None
 
 
+def coverage_failure_reason(session: Path, report: dict[str, Any]) -> str:
+    """Return the deepest reproducible reason from the v3 -> v2 -> v1 report chain."""
+
+    current = report
+    deepest_reason = "coverage_not_publishable"
+    visited: set[Path] = set()
+    for _ in range(3):
+        reasons = current.get("reasons") if isinstance(current.get("reasons"), list) else []
+        specific = [
+            str(reason)
+            for reason in reasons
+            if reason and str(reason) not in {"v1_speaker_evidence_not_publishable"}
+        ]
+        if specific:
+            deepest_reason = specific[0]
+
+        source = current.get("source") if isinstance(current.get("source"), dict) else {}
+        v2_artifacts = source.get("v2_artifacts") if isinstance(source.get("v2_artifacts"), dict) else {}
+        upstream = v2_artifacts.get("report") if isinstance(v2_artifacts.get("report"), dict) else None
+        if upstream is None and isinstance(source.get("v1_report"), dict):
+            upstream = source.get("v1_report")
+        upstream_path = resolve_session_path(session, upstream.get("path") if upstream else None)
+        if upstream_path is None or upstream_path in visited or not upstream_path.is_file():
+            break
+        visited.add(upstream_path)
+        try:
+            current = read_json(upstream_path)
+        except (OSError, ValueError, json.JSONDecodeError, SelectionError):
+            break
+    return f"coverage_not_publishable:{deepest_reason}"
+
+
 def verify_v3(
     session: Path, profile: str, coverage_dir: Path, policy_path: Path
 ) -> tuple[bool, str]:
@@ -268,7 +319,17 @@ def verify_v3(
     report_path = coverage_dir / "report.json"
     rich_json = coverage_dir / "transcript.rich.shadow.json"
     rich_md = coverage_dir / "transcript.rich.shadow.md"
-    if not all(path.is_file() for path in (report_path, rich_json, rich_md)):
+    if not report_path.is_file():
+        return False, "coverage_artifact_missing"
+    try:
+        report = read_json(report_path)
+    except (OSError, ValueError, json.JSONDecodeError, SelectionError):
+        return False, "coverage_json_invalid"
+    if report.get("schema") != V3_REPORT_SCHEMA:
+        return False, "coverage_schema_invalid"
+    if report.get("decision") != "PUBLISH_EVIDENCE":
+        return False, coverage_failure_reason(session, report)
+    if not all(path.is_file() for path in (rich_json, rich_md)):
         return False, "coverage_artifact_missing"
     ok, detail = run_checked(
         [
@@ -284,12 +345,9 @@ def verify_v3(
     if not ok:
         return False, "coverage_verification_failed"
     try:
-        report = read_json(report_path)
         rich = read_json(rich_json)
     except (OSError, ValueError, json.JSONDecodeError, SelectionError):
         return False, "coverage_json_invalid"
-    if report.get("schema") != V3_REPORT_SCHEMA or report.get("decision") != "PUBLISH_EVIDENCE":
-        return False, "coverage_not_publishable"
     if rich.get("schema") != V3_RICH_SCHEMA or rich.get("decision") != "PUBLISH_EVIDENCE":
         return False, "coverage_rich_not_publishable"
     source = report.get("source") if isinstance(report.get("source"), dict) else {}
@@ -336,6 +394,7 @@ def selection_payload(
         "selected_transcript": identity(selected, session),
         "rich_transcript": rich_identity,
         "coverage_report": coverage_report,
+        "speaker_roster": identity(session / DEFAULT_ROSTER, session),
         "policy": identity(policy_path),
     }
     return {
@@ -402,6 +461,17 @@ def verify_selection(
         reasons.append("selection_dialogue_stale")
     if not same_identity(payload.get("policy"), policy_path):
         reasons.append("selection_policy_stale")
+    roster_path = session / DEFAULT_ROSTER
+    roster_row = payload.get("speaker_roster")
+    if roster_path.is_file():
+        if not same_identity(roster_row, roster_path):
+            reasons.append("selection_speaker_roster_stale")
+    elif not (
+        isinstance(roster_row, dict)
+        and roster_row.get("exists") is False
+        and roster_row.get("path") == str(DEFAULT_ROSTER)
+    ):
+        reasons.append("selection_speaker_roster_stale")
     selected = resolve_session_path(session, (payload.get("selected_transcript") or {}).get("path"))
     if selected is None or not same_identity(payload.get("selected_transcript"), selected):
         reasons.append("selection_output_stale")
@@ -437,6 +507,7 @@ def verify_selection(
             "selected_transcript",
             "rich_transcript",
             "coverage_report",
+            "speaker_roster",
             "policy",
         )
     }
@@ -461,11 +532,16 @@ def materialize(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             return existing, 0
     fallback_reason: str | None = None
     selected_coverage: Path | None = None
+    roster_configured = (session / DEFAULT_ROSTER).is_file()
     _, policy_reasons = validate_policy(policy_path)
     if policy_reasons:
         fallback_reason = policy_reasons[0]
     elif args.refresh_evidence:
-        valid, reason = verify_v3(session, profile, coverage_dir, policy_path)
+        valid, reason = (
+            (False, "roster_requires_fingerprint_bound_refresh")
+            if roster_configured
+            else verify_v3(session, profile, coverage_dir, policy_path)
+        )
         if valid:
             selected_coverage = coverage_dir
         else:
@@ -473,14 +549,18 @@ def materialize(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                 session, profile, dialogue, output_dir, policy_path
             )
     else:
-        valid, reason = verify_v3(session, profile, coverage_dir, policy_path)
+        valid, reason = (
+            (False, "roster_requires_fingerprint_bound_cache")
+            if roster_configured
+            else verify_v3(session, profile, coverage_dir, policy_path)
+        )
         if valid:
             selected_coverage = coverage_dir
         else:
             cached_coverage = (
                 output_dir
                 / "evidence"
-                / refresh_key(profile, dialogue)
+                / refresh_key(session, profile, dialogue)
                 / "remote-speaker-coverage-v3"
             )
             cached_valid, cached_reason = verify_v3(
@@ -488,6 +568,10 @@ def materialize(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             )
             if cached_valid:
                 selected_coverage = cached_coverage
+            elif roster_configured:
+                selected_coverage, fallback_reason = refresh_evidence(
+                    session, profile, dialogue, output_dir, policy_path
+                )
             else:
                 fallback_reason = (
                     f"cached_coverage_invalid:{cached_reason}"

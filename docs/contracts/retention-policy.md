@@ -206,11 +206,18 @@ It never deletes derived transcript, notes, review or export files in v1.
 
 ## Derived Media Compaction
 
-Derived-media compaction is independent from raw-audio deletion:
+Session compaction has two explicit modes:
 
 ```bash
 murmurmark retention compact plan SESSION
 murmurmark retention compact apply SESSION --confirm-delete-derived-media
+murmurmark retention compact verify SESSION
+```
+
+```bash
+murmurmark retention compact plan SESSION --mode transcript_only
+murmurmark retention compact apply SESSION --mode transcript_only \
+  --confirm-delete-derived-media --confirm-delete-raw
 murmurmark retention compact verify SESSION
 ```
 
@@ -232,6 +239,13 @@ Mode `keep_raw` removes regular media files with an allowlisted audio suffix bel
 - review decisions, readiness, outcome and retention artifacts;
 - every JSON, JSONL and Markdown provenance artifact.
 
+Mode `transcript_only` performs the same derived-media cleanup and additionally deletes only the
+raw mic/remote paths declared by `session.json`. It preserves their path, size and capture metadata
+in `session.json` and their pre-deletion identities in `derived_compaction.json`. Apply requires the
+two independent confirmations `--confirm-delete-derived-media` and `--confirm-delete-raw`.
+Verification requires those raw paths to remain absent while retained outputs still match their
+recorded hashes.
+
 Compaction is allowed only when capture is finalized, no recording or lifecycle lock is active,
 pipeline state is not `running`, raw files declared by `session.json` still exist with their
 expected sizes, and a selected transcript exists. The implementation does not follow symlinks and
@@ -249,15 +263,16 @@ pin files, provide the pinned session set. A private archive manifest uses schem
 experiments without exposing private IDs in tracked files. Pinned sessions require
 `--include-pinned` before manual compaction.
 
-After successful guarded export, `murmurmark finish` applies `keep_raw` compaction automatically.
-`murmurmark meeting` inherits that behavior because it calls `finish` only when structured quality
-gates permit export. Both commands accept:
+After successful guarded export, `murmurmark finish` applies `transcript_only` compaction
+automatically. `murmurmark meeting` inherits that behavior because it calls `finish` only when
+structured quality gates permit export. Both commands accept:
 
 ```bash
 --keep-debug-artifacts
 ```
 
-This flag skips automatic compaction for sessions retained for audio or pipeline investigation.
+This flag skips automatic compaction for sessions retained for retranscription, corpus work, audio
+or pipeline investigation.
 Blocked export, review-first and failed sessions remain unmodified. Compaction failure is fail-open:
 the final export remains valid and existing files are kept or reported as a partial cleanup.
 

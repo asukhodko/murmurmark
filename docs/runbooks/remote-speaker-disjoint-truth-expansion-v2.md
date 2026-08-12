@@ -46,6 +46,10 @@ murmurmark corpus remote-truth-seed-v2 review
 Скрытые повторы выглядят как обычные слоты. Не пытайся вспомнить предыдущий ответ по имени файла.
 При следующем запуске `review` очередь продолжится с первого неразмеченного слота.
 
+Команда должна оставаться подключённой к stdin текущего терминала. Если сразу после приглашения
+появилось `interactive review input is unavailable`, обнови и переустанови MurmurMark через
+`scripts/install-local.sh`; сохранённые ответы при этом не теряются.
+
 До первого ответа review-pack можно технически перестроить без смены frozen candidates:
 
 ```bash
@@ -76,3 +80,8 @@ murmurmark corpus remote-truth-seed-v2 status
 `DIRECT_TRUTH_V2_READY` разрешает отдельную one-shot qualification следующего класса моделей.
 `REFERENCE_INSUFFICIENT` фиксирует предел имеющихся записей и требует новых встреч с известными
 remote speakers или отдельного controlled corpus. Ни один outcome не меняет текущую транскрибацию.
+
+Фактический результат 2026-08-12: `DIRECT_TRUTH_V2_READY`. Закрыты `72/72` primary и `12/12`
+hidden repeat slots; repeat consistency `1.0`. Primary outcomes: 21 attributed, 28 unknown,
+4 mixed и 19 unusable на шести сессиях. Replay побайтно точен. Повторная разметка или перестройка
+pack не требуется; следующий этап использует этот reference только для one-shot qualification.

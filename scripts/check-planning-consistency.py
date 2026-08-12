@@ -82,6 +82,7 @@ CRITICAL_PATH = (
     "quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1",
     "quality-lightweight-remote-speaker-representation-frontier-v1",
     "quality-remote-speaker-disjoint-truth-expansion-v2",
+    "quality-disjoint-remote-speaker-model-qualification-v1",
 )
 
 EXPECTED_STATUSES = {"done", "current", "next", "later", "idea", "optional", "blocked"}
@@ -158,7 +159,7 @@ def validate_statuses_and_goal(plan: dict) -> tuple[dict, str]:
     require(isinstance(statuses, dict), "plan.statuses must be a mapping")
     require(set(statuses) == EXPECTED_STATUSES, "plan status set does not match the planning contract")
     require(isinstance(nodes, dict) and nodes, "plan.nodes must be a non-empty mapping")
-    require(len(nodes) <= 50, f"active plan is too large: {len(nodes)} nodes, expected at most 50")
+    require(len(nodes) <= 52, f"active plan is too large: {len(nodes)} nodes, expected at most 52")
 
     current = [(node_id, node) for node_id, node in nodes.items() if node.get("status") == "current"]
     current_tasks = [(node_id, node) for node_id, node in current if node.get("kind") == "task"]
@@ -483,8 +484,18 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
     )
     require(
         nodes["quality-remote-speaker-disjoint-truth-expansion-v2"].get("status")
+        == "done",
+        "disjoint remote-speaker truth expansion must remain completed",
+    )
+    require(
+        "quality-remote-speaker-disjoint-truth-expansion-v2"
+        in nodes["quality-disjoint-remote-speaker-model-qualification-v1"].get("deps", []),
+        "disjoint model qualification must follow completed truth expansion",
+    )
+    require(
+        nodes["quality-disjoint-remote-speaker-model-qualification-v1"].get("status")
         == "current",
-        "disjoint remote-speaker truth expansion must be the current quality goal",
+        "disjoint remote-speaker model qualification must be the current quality goal",
     )
     require("parked-ui" not in nodes, "UI must not occupy the active CLI roadmap")
 

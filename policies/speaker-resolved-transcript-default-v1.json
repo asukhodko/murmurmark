@@ -18,7 +18,7 @@
     },
     "default_selector_implementation": {
       "path": "scripts/select-speaker-resolved-transcript.py",
-      "sha256": "d073d641b8813052e23d14b3bb6fc3b50cf5905e1dce89eacf089d8f3d8dd5b7"
+      "sha256": "423a36b93a764ce239eb55d63ef00a6bb4a34a78de55bc9bdeac29152d4a9d21"
     },
     "default_corpus_implementation": {
       "path": "scripts/report-speaker-resolved-transcript-default-corpus.py",

@@ -1,88 +1,74 @@
 # Current Goal
 
-Updated: 2026-08-10
+Updated: 2026-08-12
 
 This document expands the single executable goal from
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`.
 `scripts/check-planning-consistency.py` keeps the README, roadmap and OpsKarta wording aligned.
 
-## Remote Speaker Disjoint Truth Expansion v2
+## Disjoint Remote Speaker Model Qualification v1
 
-OpsKarta nearest goal: Remote Speaker Disjoint Truth Expansion v2: сохранить Coverage v3, selected transcripts, raw CAF, primary ASR, Echo Guard, 30 frozen Transcript Perfection sources и прежние 33 primary + 8 repeat truth decisions неизменными; из остатка 851 unknown remote words / 598.240s и disagreement evidence ECAPA, WavLM, WeSpeaker и temporal AHC/VBx до чтения прежних labels детерминированно отобрать новый непересекающийся стратифицированный pack минимум из 72 primary и 12 hidden repeat slots на шести real sessions, включая short turns, boundaries, overlap, mixed и five-speaker session; исключить прежние интервалы и mixed exemplars, давать для сравнения только speaker-pure bounded exemplars и явные unknown/mixed/unusable outcomes; добавить короткую resumable CLI review-петлю, SHA-256 provenance, privacy-safe public aggregates, repeat-consistency и coverage отчёт; выпустить DIRECT_TRUTH_V2_READY либо REFERENCE_INSUFFICIENT без выбора модели и production promotion; обновить Transcript Perfection, документацию и планирование, пройти проверки, закоммитить изменения и отправить их в origin/main.
+OpsKarta nearest goal: Disjoint Remote Speaker Model Qualification v1: сохранив Coverage v3 и все frozen inputs неизменными, выбрать ровно один существенно новый локальный класс speaker-модели по лицензии, доступности и совместимости с Apple Silicon; до открытия item-level truth v2 заморозить веса, SHA-256, preprocessing, segmentation, clustering, thresholds и candidate outputs; один раз оценить candidate на независимых 72 primary + 12 repeat Disjoint Truth v2 slots, прежних direct-truth controls и controlled corpus; измерить attributed precision/recall, B-cubed, abstention на unknown/mixed/unusable, speaker-count, boundaries, repeat determinism и conservation; запретить tuning после unseal и выпустить PROMOTE_SHADOW, KEEP_COVERAGE_V3 либо MODEL_UNAVAILABLE с byte-exact replay, privacy-safe отчётом, тестами, актуальными документами, коммитом и push.
 
 ## Why Now
 
-Fixed-window ECAPA/WavLM/WeSpeaker и temporal AHC/VBx проверены на одних 33 direct-truth items.
-Последний backend прошёл temporal stability, но совпал по числу speakers в `0/6` сессий, сохранил
-`2/3` gains, потерял control и добавил семь false identities. Настраивать следующий алгоритм на той
-же маленькой truth выборке больше нельзя.
+Disjoint Truth v2 завершён `DIRECT_TRUTH_V2_READY`: размечены 72 primary и 12 hidden repeat slots,
+repeat consistency равна `1.0`, а candidate/review pack воспроизводится побайтно. Теперь можно
+проверить новый класс модели без повторной подгонки к прежним 33 direct-truth items.
 
 ## Objective
 
-Создать достаточный disjoint real-session reference, на котором следующий materially new speaker
-model можно будет выбрать один раз без переиспользования development truth. Эта цель улучшает
-доказательную базу и review UX, но не меняет production speaker attribution.
+Провести одну честную квалификацию нового локального speaker backend на независимой real-session
+truth. Candidate либо докажет право на отдельный shadow-профиль, либо закроет ещё одну ветвь без
+изменения production.
 
 ## Current State
 
-Sampling и tooling готовы. Pack из `72` primary items / `148` words / `155.440894s` и `12` hidden
-repeats заморожен на шести сессиях. Он не пересекается с 33 v1 primary intervals, содержит все
-доступные model disagreements и использует 19 bounded exemplar clips без confirmed mixed
-exemplars. Candidate-pack replay побайтно точен, все 355 guards проходят.
+Truth v2 содержит 21 attributed, 28 unknown, 4 mixed и 19 unusable primary outcomes на шести
+сессиях; attributed evidence представлено в четырёх сессиях. Все 12 скрытых повторов совпали.
+Public report не содержит речь, имена, абсолютные пути или private labels. Coverage v3, selected
+transcripts, raw CAF, ASR, Echo Guard и truth v1 не изменились.
 
-Review-pack сгруппирован в сессионные блоки: 11 переключений вместо 67, а чистые exemplars
-проигрываются один раз на блок. Candidate pack при этом не изменился; после первого ответа
-перестройка review-представления запрещена.
-
-Остались blind review, terminal report, append в Transcript Perfection, переход планирования,
-финальные проверки, commit и push. Разметка прерывается и продолжается одной командой:
-
-```bash
-murmurmark corpus remote-truth-seed-v2 review
-```
+Следующий candidate ещё не выбран. ECAPA, WavLM, WeSpeaker fixed-window и Community-1-equivalent
+temporal AHC/VBx уже исчерпаны; повторная настройка этих же ветвей не считается новым классом.
 
 ## Required Work
 
-1. Проверить 30 frozen Transcript Perfection sources, 355 production guards и прежний truth seed.
-2. Запретить пересечение новых primary/repeat slots со всеми 33 прежними primary intervals.
-3. До прежних labels заморозить sampling policy, source hashes, strata, interval bounds и pack.
-4. Покрыть все шесть сессий, temporal/model disagreements, короткие turns, boundaries, overlap и
-   five-speaker topology.
-5. Не использовать mixed clips как speaker exemplars; каждый exemplar должен быть speaker-pure и
-   bounded либо отсутствовать.
-6. Дать outcomes `remote_speaker_N`, `unknown_speaker`, `mixed`, `unusable` без human names.
-7. Сделать `next --play`, `grade`, `progress`, `finalize` и resume детерминированными и короткими.
-8. Проверить hidden repeats, provenance, privacy и отсутствие production mutations.
-9. Добавить corpus report, replay, fixtures, CLI, docs and planning; commit and push.
+1. Сделать короткий feasibility preflight доступных materially new local backends и выбрать один.
+2. Записать лицензию, источник, версию, model SHA-256, runtime и hardware/resource contract.
+3. Заморозить preprocessing, segmentation, embeddings, clustering, thresholds и candidate outputs
+   до чтения item-level truth v2 evaluator-ом.
+4. Выполнить ровно один unseal/evaluation на truth v2; после него не менять candidate.
+5. Сопоставить результат с Coverage v3, v1 controls и controlled truth без потери слов/таймкодов.
+6. Проверить unknown/mixed/unusable abstention, boundaries, speaker count и hidden repeats.
+7. Выпустить privacy-safe aggregate report и byte-exact replay без речи, имён и private labels.
+8. Добавить CLI, fixtures, guards, docs and planning; commit and push.
 
 ## Acceptance Gates
 
-- минимум 72 disjoint primary и 12 hidden repeat slots либо точный `REFERENCE_INSUFFICIENT`;
-- все шесть sessions и все заявленные strata представлены;
-- нулевое пересечение с v1 primary intervals;
-- ни один exemplar не содержит подтверждённую mixed speech;
-- repeat consistency не ниже `0.85` для `DIRECT_TRUTH_V2_READY`;
-- public artifacts не содержат speech, human names, absolute paths или private labels;
-- Coverage v3, selected transcripts, raw CAF, ASR, Echo Guard и 355 guards неизменны;
-- никакой candidate model не выбирается и не продвигается в этой цели.
+- candidate и evaluator fingerprints заморожены до unseal;
+- truth v2 используется только для one-shot terminal evaluation, а не для tuning;
+- attributed precision не хуже Coverage v3 control и нет новых unsafe accepts;
+- unknown/mixed/unusable не получают принудительную identity;
+- words, timestamps, roles, `Me`, boundaries и aggregate fallback сохраняются;
+- replay byte-exact, public artifacts privacy-safe, все production guards проходят;
+- production не меняется в этой цели: положительный исход разрешает только отдельный shadow.
 
 ## Terminal Outcomes
 
-- `DIRECT_TRUTH_V2_READY`: новый disjoint reference достаточен для one-shot qualification следующего
-  model class.
-- `REFERENCE_INSUFFICIENT`: доступный residual не даёт достаточных чистых и проверяемых slots;
-  отчёт фиксирует точный предел без ослабления требований.
+- `PROMOTE_SHADOW`: candidate проходит material и safety gates и допускается к отдельному shadow.
+- `KEEP_COVERAGE_V3`: candidate доступен, но не даёт безопасного материального улучшения.
+- `MODEL_UNAVAILABLE`: materially new candidate нельзя локально и воспроизводимо запустить; отчёт
+  фиксирует точный blocker без ослабления ворот.
 
 ## Previous Goal Result
 
-Temporal End-to-End Remote Diarization Qualification v1 завершён `KEEP_EXPLICIT_UNKNOWN`.
-Community-1-equivalent temporal backend дал stability ARI `0.814301` и activity Jaccard `0.972946`,
-но speaker count совпал в `0/6` sessions, minimum duration recall составил `0.598626`, сохранились
-`2/3` gains, потерян один control и добавлены семь false identities. Production остался Coverage v3.
+Remote Speaker Disjoint Truth Expansion v2 завершён `DIRECT_TRUTH_V2_READY`: 72 primary / 12 repeat,
+21 attributed primary на четырёх сессиях, repeat consistency `1.0`, zero v1 overlap и byte-exact
+replay. Production остался Coverage v3.
 
 ## After This Goal
 
-1. `DIRECT_TRUTH_V2_READY` разрешает выбрать один materially new speaker model и открыть disjoint
-   one-shot qualification.
-2. `REFERENCE_INSUFFICIENT` фиксирует evidence ceiling; дальнейшее улучшение потребует новых
-   записей с известными remote speakers или отдельного controlled corpus.
+1. `PROMOTE_SHADOW` откроет отдельную corpus-wide shadow qualification без автоматического выбора.
+2. `KEEP_COVERAGE_V3` или `MODEL_UNAVAILABLE` зафиксирует текущий локальный предел и направит работу
+   к новым controlled recordings либо принципиально другому representation class.

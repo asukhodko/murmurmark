@@ -16,6 +16,7 @@ import soundfile as sf
 ROOT = Path(__file__).resolve().parents[1]
 AUDIT = ROOT / "scripts/audit-remote-speaker-evidence.py"
 CORPUS = ROOT / "scripts/report-remote-speaker-evidence-corpus.py"
+ROSTER = ROOT / "scripts/configure-remote-speaker-roster.py"
 FIXTURE_SCHEMA = "murmurmark.remote_speaker_embedding_fixture/v1"
 
 
@@ -97,6 +98,143 @@ def build_session(root: Path, session_id: str, speakers: int, units_per_speaker:
     return session, reference
 
 
+def build_roster_merge_session(root: Path, session_id: str, *, ambiguous: bool) -> Path:
+    session = root / session_id
+    rate = 16_000
+    units_per_cluster = 20
+    primary_centers = np.eye(8, dtype=np.float32)[:5]
+    primary_centers[4] = 0.90 * primary_centers[0] + np.sqrt(1.0 - 0.90**2) * primary_centers[4]
+    consensus_centers = np.eye(8, dtype=np.float32)[:5]
+    consensus_centers[4] = 0.85 * consensus_centers[0] + np.sqrt(1.0 - 0.85**2) * consensus_centers[4]
+    if ambiguous:
+        primary_centers[2] = 0.89 * primary_centers[1] + np.sqrt(1.0 - 0.89**2) * primary_centers[2]
+        consensus_centers[2] = 0.84 * consensus_centers[1] + np.sqrt(1.0 - 0.84**2) * consensus_centers[2]
+
+    utterances: list[dict[str, Any]] = []
+    primary: dict[str, list[float]] = {}
+    consensus: dict[str, list[float]] = {}
+    samples: list[np.ndarray] = []
+    current = 0.0
+    # The two acoustic regimes of the same true speaker are adjacent and do not overlap.
+    order = [0, 4, 1, 2, 3]
+    for cluster_id in order:
+        for unit_index in range(units_per_cluster):
+            utterance_id = f"utt_{len(utterances) + 1:06d}"
+            utterances.append(
+                {
+                    "id": utterance_id,
+                    "role": "remote",
+                    "speaker_label": "Colleagues",
+                    "start": current,
+                    "end": current + 3.5,
+                    "source_start": current,
+                    "source_end": current + 3.5,
+                    "source_track": "remote",
+                    "text": f"Содержательная проверочная фраза {cluster_id} {unit_index}",
+                    "quality": {"needs_review": False},
+                }
+            )
+            primary[utterance_id] = primary_centers[cluster_id].tolist()
+            consensus[utterance_id] = consensus_centers[cluster_id].tolist()
+            tone = 0.02 * np.sin(
+                2 * np.pi * (170 + cluster_id * 60) * np.arange(int(3.5 * rate)) / rate
+            )
+            samples.extend([tone.astype(np.float32), np.zeros(int(0.5 * rate), dtype=np.float32)])
+            current += 4.0
+
+    raw = session / "audio/remote/000001.caf"
+    raw.parent.mkdir(parents=True, exist_ok=True)
+    sf.write(str(raw), np.concatenate(samples), rate, format="CAF", subtype="FLOAT")
+    write_json(session / "session.json", {"schema": "murmurmark.session/v1", "session_id": session_id})
+    write_json(
+        session / "derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.json",
+        {"schema": "murmurmark.clean_dialogue/v1", "session": session_id, "utterances": utterances},
+    )
+    write_json(session / "embedding_fixture.json", {"schema": FIXTURE_SCHEMA, "embeddings": primary})
+    write_json(
+        session / "consensus_embedding_fixture.json",
+        {"schema": FIXTURE_SCHEMA, "embeddings": consensus},
+    )
+    write_json(
+        session / "derived/transcript-rich/speaker-roster-v1.json",
+        {
+            "schema": "murmurmark.remote_speaker_roster/v1",
+            "session_id": session_id,
+            "source": "synthetic_test",
+            "expected_remote_speakers": 4,
+            "remote_participants": [],
+            "voice_identity_mapping": "not_asserted",
+        },
+    )
+    return session
+
+
+def build_roster_short_speaker_session(root: Path, session_id: str) -> Path:
+    session = root / session_id
+    rate = 16_000
+    counts = [12, 12, 8]
+    centers = np.eye(4, dtype=np.float32)[:3]
+    utterances: list[dict[str, Any]] = []
+    primary: dict[str, list[float]] = {}
+    consensus: dict[str, list[float]] = {}
+    samples: list[np.ndarray] = []
+    current = 0.0
+    emitted = [0, 0, 0]
+    while emitted != counts:
+        for speaker in range(3):
+            if emitted[speaker] >= counts[speaker]:
+                continue
+            utterance_id = f"utt_{len(utterances) + 1:06d}"
+            utterances.append(
+                {
+                    "id": utterance_id,
+                    "role": "remote",
+                    "speaker_label": "Colleagues",
+                    "start": current,
+                    "end": current + 6.0,
+                    "source_start": current,
+                    "source_end": current + 6.0,
+                    "source_track": "remote",
+                    "text": f"Содержательная проверочная фраза {speaker} {emitted[speaker]}",
+                    "quality": {"needs_review": False},
+                }
+            )
+            primary[utterance_id] = centers[speaker].tolist()
+            consensus[utterance_id] = centers[speaker].tolist()
+            tone = 0.02 * np.sin(
+                2 * np.pi * (180 + speaker * 80) * np.arange(6 * rate) / rate
+            )
+            samples.extend([tone.astype(np.float32), np.zeros(int(0.5 * rate), dtype=np.float32)])
+            current += 6.5
+            emitted[speaker] += 1
+
+    raw = session / "audio/remote/000001.caf"
+    raw.parent.mkdir(parents=True, exist_ok=True)
+    sf.write(str(raw), np.concatenate(samples), rate, format="CAF", subtype="FLOAT")
+    write_json(session / "session.json", {"schema": "murmurmark.session/v1", "session_id": session_id})
+    write_json(
+        session / "derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.json",
+        {"schema": "murmurmark.clean_dialogue/v1", "session": session_id, "utterances": utterances},
+    )
+    write_json(session / "embedding_fixture.json", {"schema": FIXTURE_SCHEMA, "embeddings": primary})
+    write_json(
+        session / "consensus_embedding_fixture.json",
+        {"schema": FIXTURE_SCHEMA, "embeddings": consensus},
+    )
+    write_json(
+        session / "derived/transcript-rich/speaker-roster-v1.json",
+        {
+            "schema": "murmurmark.remote_speaker_roster/v1",
+            "session_id": session_id,
+            "source": "synthetic_test",
+            "expected_remote_speakers": 3,
+            "remote_participants": [],
+            "voice_identity_mapping": "not_asserted",
+        },
+    )
+    return session
+
+
 def run_audit(
     session: Path,
     *,
@@ -116,6 +254,26 @@ def run_audit(
 def main() -> int:
     with tempfile.TemporaryDirectory(prefix="murmurmark-remote-speakers-") as temporary:
         root = Path(temporary)
+        configured = root / "configured-roster"
+        invoke(
+            [
+                sys.executable,
+                str(ROSTER),
+                str(configured),
+                "--expected-remote-speakers",
+                "2",
+                "--participant",
+                "Participant A",
+                "--participant",
+                "Participant B",
+            ]
+        )
+        invoke([sys.executable, str(ROSTER), str(configured), "--status"])
+        configured_payload = json.loads(
+            (configured / "derived/transcript-rich/speaker-roster-v1.json").read_text()
+        )
+        assert configured_payload["expected_remote_speakers"] == 2, configured_payload
+        assert configured_payload["voice_identity_mapping"] == "not_asserted", configured_payload
         specifications = [
             ("one-a", 1, 20),
             ("one-b", 1, 20),
@@ -192,6 +350,58 @@ def main() -> int:
             (failed_gate / "derived/audit/remote-speaker-evidence-v1/speaker_map.json").read_text()
         )
         assert failed_map["speakers"] == [], failed_map
+
+        roster_merge = build_roster_merge_session(root, "roster-merge", ambiguous=False)
+        roster_report = run_audit(
+            roster_merge,
+            extra_args=[
+                "--consensus-embedding-fixture",
+                str(roster_merge / "consensus_embedding_fixture.json"),
+                "--cluster-distance",
+                "0.05",
+                "--roster-max-cluster-distance",
+                "0.05",
+            ],
+        )
+        assert roster_report["decision"] == "PUBLISH_AUDIT_EVIDENCE", roster_report
+        assert roster_report["summary"]["published_speakers"] == 4, roster_report
+        assert roster_report["speaker_roster"]["consensus"]["status"] == "applied", roster_report
+        assert roster_report["speaker_roster"]["identity_mapping_applied"] is False, roster_report
+
+        roster_short = build_roster_short_speaker_session(root, "roster-short-speaker")
+        short_report = run_audit(
+            roster_short,
+            extra_args=[
+                "--consensus-embedding-fixture",
+                str(roster_short / "consensus_embedding_fixture.json"),
+            ],
+        )
+        assert short_report["decision"] == "PUBLISH_AUDIT_EVIDENCE", short_report
+        assert short_report["summary"]["published_speakers"] == 3, short_report
+        assert (
+            short_report["speaker_roster"]["consensus"]["status"]
+            == "applied_minor_promotion"
+        ), short_report
+        assert short_report["speaker_roster"]["identity_mapping_applied"] is False, short_report
+
+        roster_ambiguous = build_roster_merge_session(root, "roster-ambiguous", ambiguous=True)
+        ambiguous_report = run_audit(
+            roster_ambiguous,
+            extra_args=[
+                "--consensus-embedding-fixture",
+                str(roster_ambiguous / "consensus_embedding_fixture.json"),
+                "--cluster-distance",
+                "0.05",
+                "--roster-max-cluster-distance",
+                "0.05",
+            ],
+        )
+        assert ambiguous_report["decision"] == "DO_NOT_PUBLISH", ambiguous_report
+        assert ambiguous_report["summary"]["published_speakers"] == 0, ambiguous_report
+        assert (
+            ambiguous_report["speaker_roster"]["consensus"]["reason"]
+            == "roster_consensus_merge_gates_failed"
+        ), ambiguous_report
 
         reference_session = next(path for path in sessions if path.name == "group-reference")
         dialogue = json.loads(
