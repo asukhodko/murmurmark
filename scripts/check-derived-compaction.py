@@ -297,7 +297,10 @@ def main() -> int:
         archive_pin_file = root / "sessions/_reports/private-archive/pinned_sessions.json"
         write_json(
             archive_pin_file,
-            {"schema": "murmurmark.pinned_sessions/v1", "sessions": [archive_pinned.name]},
+            {
+                "schema": "murmurmark.pinned_sessions/v1",
+                "sessions": [archive_pinned.name, archived.name],
+            },
         )
         archive_pinned_plan = run(root, "plan", str(archive_pinned))
         assert archive_pinned_plan.returncode == 2
@@ -349,6 +352,12 @@ def main() -> int:
         assert report["summary"]["eligible_candidate_bytes"] < report["summary"]["candidate_bytes"]
         assert any(
             row["session_id"] == pinned.name and row["status"] == "blocked"
+            for row in report["sessions"]
+        )
+        assert any(
+            row["session_id"] == archived.name
+            and row["status"] == "verified"
+            and row["pinned"] is True
             for row in report["sessions"]
         )
 

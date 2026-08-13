@@ -271,8 +271,26 @@ def check_generated_corpus(module, root: Path) -> None:
             )
             current_working = current_artifacts.get("working_audio") or {}
             expected_working = expected_artifacts.get("working_audio") or {}
-            archived_working_audio = bool(
+            verified_transcript_archive = bool(
                 compaction
+                and compaction.get("schema") == "murmurmark.derived_compaction/v1"
+                and compaction.get("mode") == "transcript_only"
+                and compaction.get("status") == "verified"
+                and verification.get("passed") is True
+                and verification.get("raw_deleted") is True
+                and verification.get("retained_outputs_preserved") is True
+            )
+            if verified_transcript_archive:
+                normalized = dict(current_artifacts)
+                normalized["raw_capture"] = expected_artifacts.get("raw_capture") or []
+                normalized["working_audio"] = expected_working
+                artifacts_match = (
+                    module.fingerprint(normalized)
+                    == module.fingerprint(expected_artifacts)
+                )
+            archived_working_audio = bool(
+                not artifacts_match
+                and compaction
                 and compaction.get("schema") == "murmurmark.derived_compaction/v1"
                 and compaction.get("status") in {"applied", "verified"}
                 and verification.get("passed") is True

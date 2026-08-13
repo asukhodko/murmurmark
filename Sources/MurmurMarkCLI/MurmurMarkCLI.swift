@@ -1353,6 +1353,10 @@ enum DoctorChecks {
             "scripts/controlled_echo_supervision_corpus.py",
             "scripts/probe-review-lane-pack-audio.py",
             "scripts/report-session-quality.py",
+            "scripts/report-operational-readiness.py",
+            "scripts/micro_asr_evidence.py",
+            "scripts/build-review-lane-pack.py",
+            "scripts/apply-review-decisions.py",
             "scripts/apply-retention-policy.py",
             "scripts/build-provider-payload-manifest.py",
             "scripts/compact-derived-artifacts.py",
@@ -5159,6 +5163,7 @@ enum AuditPrinter {
         print("audit:")
         print("  kind: stronger_audio_judge")
         print("  report: \(PathDisplay.display(outDir.appendingPathComponent("faster_whisper_judge_report.md")))")
+        print("  status: \(string(payload["status"]) ?? "legacy_unknown")")
         print("  items: \(int(payload["items"]))")
         print(String(format: "  suggested_keep_me: %.2fs", keepSeconds))
         print(String(format: "  suggested_drop_me: %.2fs", dropSeconds))
@@ -10910,6 +10915,11 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             }
             try eventLog.write(type: "capture.stopped", fields: stoppedFields)
             try finish()
+            recordingLock.release()
+            try? eventLog.write(
+                type: "capture.recording_lock_released",
+                fields: ["batch_authoritative": true]
+            )
             if let worker = liveWorker {
                 let workerWaitSeconds = livePipelineWorkerFinalizationWaitSeconds(
                     capturedDuration: max(
@@ -11253,7 +11263,8 @@ extension SessionRecorder {
                     remoteWriter = try AudioFileWriter(
                         url: outputDirectory.appendingPathComponent("audio/remote/000001.caf"),
                         source: "remote",
-                        timelineStartDate: startDate
+                        timelineStartDate: startDate,
+                        trackLevel: true
                     )
                 }
                 let committedWrite = try remoteWriter?.writeReturningCommittedPCM(sampleBuffer, format: format)
@@ -11272,7 +11283,8 @@ extension SessionRecorder {
                     micWriter = try AudioFileWriter(
                         url: outputDirectory.appendingPathComponent("audio/mic/000001.caf"),
                         source: "mic",
-                        timelineStartDate: startDate
+                        timelineStartDate: startDate,
+                        trackLevel: true
                     )
                 }
                 let committedWrite = try micWriter?.writeReturningCommittedPCM(sampleBuffer, format: format)
@@ -11643,11 +11655,13 @@ extension SessionRecorder {
         let micSilent = addSilenceWarning(
             source: "mic",
             file: outputDirectory.appendingPathComponent(micInfo.path),
+            capturedRmsDb: microphoneBackend == .screenCaptureKit ? micWriter?.capturedRmsDb : nil,
             to: &finalWarnings
         )
         let remoteSilent = addSilenceWarning(
             source: "remote",
             file: outputDirectory.appendingPathComponent(remoteInfo.path),
+            capturedRmsDb: remoteBackend == .screenCaptureKit ? remoteWriter?.capturedRmsDb : nil,
             to: &finalWarnings
         )
 
@@ -12090,13 +12104,17 @@ extension SessionRecorder {
         )
     }
 
-    private func addSilenceWarning(source: String, file: URL, to warnings: inout [String]) -> Bool {
-        guard FileManager.default.fileExists(atPath: file.path),
-              let rmsDb = try? AudioLevelProbe.rmsDb(url: file),
-              rmsDb < -65
-        else {
+    private func addSilenceWarning(
+        source: String,
+        file: URL,
+        capturedRmsDb: Double?,
+        to warnings: inout [String]
+    ) -> Bool {
+        guard FileManager.default.fileExists(atPath: file.path) else {
             return false
         }
+        let rmsDb = capturedRmsDb ?? (try? AudioLevelProbe.rmsDb(url: file))
+        guard let rmsDb, rmsDb < -65 else { return false }
 
         warnings.append("\(source) track appears silent or almost silent (RMS \(AudioLevelProbe.formatDb(rmsDb)))")
         return true
@@ -12145,15 +12163,25 @@ final class AudioFileWriter {
     private var firstWallDate: Date?
     private var timelineResetCount = 0
     private(set) var insertedSilenceFrames: AVAudioFramePosition = 0
+    private let trackLevel: Bool
+    private var levelSumSquares = 0.0
+    private var levelSampleCount = Int64(0)
 
     var sampleRate: Double? {
         currentFormat?.sampleRate
     }
 
-    init(url: URL, source: String, timelineStartDate: Date? = nil) throws {
+    var capturedRmsDb: Double? {
+        guard trackLevel, levelSampleCount > 0 else { return nil }
+        let rms = sqrt(levelSumSquares / Double(levelSampleCount))
+        return rms > 1e-12 ? 20 * log10(rms) : -.infinity
+    }
+
+    init(url: URL, source: String, timelineStartDate: Date? = nil, trackLevel: Bool = false) throws {
         self.url = url
         self.source = source
         self.firstWallDate = timelineStartDate
+        self.trackLevel = trackLevel
     }
 
     static func audioFormat(from sampleBuffer: CMSampleBuffer) -> AVAudioFormat? {
@@ -12248,8 +12276,68 @@ final class AudioFileWriter {
     private func writePCMBuffer(_ buffer: AVAudioPCMBuffer) throws {
         do {
             try file?.write(from: buffer)
+            accumulateLevel(buffer)
         } catch {
             throw CLIError("cannot write audio buffer for \(source): \(error.localizedDescription)")
+        }
+    }
+
+    private func accumulateLevel(_ buffer: AVAudioPCMBuffer) {
+        guard trackLevel else { return }
+        let audioBuffers = UnsafeMutableAudioBufferListPointer(buffer.mutableAudioBufferList)
+        switch buffer.format.commonFormat {
+        case .pcmFormatFloat32:
+            for audioBuffer in audioBuffers {
+                guard let data = audioBuffer.mData else { continue }
+                let count = Int(audioBuffer.mDataByteSize) / MemoryLayout<Float>.size
+                let samples = data.bindMemory(to: Float.self, capacity: count)
+                for index in 0 ..< count {
+                    let value = Double(samples[index])
+                    guard value.isFinite else { continue }
+                    levelSumSquares += value * value
+                    levelSampleCount += 1
+                }
+            }
+        case .pcmFormatFloat64:
+            for audioBuffer in audioBuffers {
+                guard let data = audioBuffer.mData else { continue }
+                let count = Int(audioBuffer.mDataByteSize) / MemoryLayout<Double>.size
+                let samples = data.bindMemory(to: Double.self, capacity: count)
+                for index in 0 ..< count {
+                    let value = samples[index]
+                    guard value.isFinite else { continue }
+                    levelSumSquares += value * value
+                    levelSampleCount += 1
+                }
+            }
+        case .pcmFormatInt16:
+            let scale = 1.0 / (Double(Int16.max) + 1.0)
+            for audioBuffer in audioBuffers {
+                guard let data = audioBuffer.mData else { continue }
+                let count = Int(audioBuffer.mDataByteSize) / MemoryLayout<Int16>.size
+                let samples = data.bindMemory(to: Int16.self, capacity: count)
+                for index in 0 ..< count {
+                    let value = Double(samples[index]) * scale
+                    levelSumSquares += value * value
+                }
+                levelSampleCount += Int64(count)
+            }
+        case .pcmFormatInt32:
+            let scale = 1.0 / (Double(Int32.max) + 1.0)
+            for audioBuffer in audioBuffers {
+                guard let data = audioBuffer.mData else { continue }
+                let count = Int(audioBuffer.mDataByteSize) / MemoryLayout<Int32>.size
+                let samples = data.bindMemory(to: Int32.self, capacity: count)
+                for index in 0 ..< count {
+                    let value = Double(samples[index]) * scale
+                    levelSumSquares += value * value
+                }
+                levelSampleCount += Int64(count)
+            }
+        case .otherFormat:
+            break
+        @unknown default:
+            break
         }
     }
 
@@ -16817,6 +16905,7 @@ enum ReadinessPrinter {
         let keepSeconds = double(payload["suggested_keep_me_seconds"]) ?? 0.0
         let dropSeconds = double(payload["suggested_drop_me_seconds"]) ?? 0.0
         print("  stronger_audio_judge:")
+        print("    status: \(string(payload["status"]) ?? "legacy_unknown")")
         print("    items: \(items)")
         print(String(format: "    suggested_keep_me: %.2f min", keepSeconds / 60.0))
         print(String(format: "    suggested_drop_me: %.2f min", dropSeconds / 60.0))

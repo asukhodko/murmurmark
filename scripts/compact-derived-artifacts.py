@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 
-SCRIPT_VERSION = "0.3.0"
+SCRIPT_VERSION = "0.3.1"
 MANIFEST_SCHEMA = "murmurmark.derived_compaction/v1"
 REPORT_SCHEMA = "murmurmark.derived_compaction_report/v1"
 AUDIT_SCHEMA = "murmurmark.derived_compaction_audit_event/v1"
@@ -894,6 +894,8 @@ def process_session(
         if args.action == "verify" or preserve_existing:
             manifest = verify_manifest(session, existing)
             manifest["action"] = args.action
+            manifest["pinned"] = session.name in pins
+            manifest["pin_sources"] = pin_sources if manifest["pinned"] else []
         else:
             manifest = build_manifest(
                 session,

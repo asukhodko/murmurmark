@@ -52,6 +52,9 @@ Implemented now:
 - `mic` as candidate `Me`;
 - timeline repair for long mic segments crossing remote intervals;
 - micro-ASR on short local islands;
+- a fail-open post-ASR stability check for short micro-ASR islands: implausible speech rate, a
+  baseline result unsupported by canonical mic inputs, or disagreement between raw and filtered mic
+  evidence makes the utterance mandatory review instead of silently trusting a successful decode;
 - `shadow_v2` no-regression profile with audit artifacts;
 - start-of-call repair for short opening turns such as `Привет`, `Меня слышно?`, `Привет, да`;
 - corpus-gated `authoritative_boundary_v1`, which freezes selected batch inputs and closes only

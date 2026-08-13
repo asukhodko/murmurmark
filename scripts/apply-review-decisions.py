@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.4.1"
+SCRIPT_VERSION = "0.4.2"
 OUTPUT_PROFILE_DEFAULT = "reviewed_v1"
 VALID_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip", "todo", ""}
 OPEN_DECISIONS = {"", "todo"}
@@ -665,7 +665,11 @@ def main() -> int:
         and not row.get("_invalid")
         and row.get("decision") not in OPEN_DECISIONS
         and str(row.get("input_profile") or "") in compatible_profiles
-        and decision_matches_dialogue(row, by_id)
+        and (
+            is_local_recall_decision(row)
+            or is_transcript_order_decision(row)
+            or decision_matches_dialogue(row, by_id)
+        )
     ]
     out_of_scope_decisions = [
         row

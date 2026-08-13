@@ -79,12 +79,12 @@ enrichment has an explicit time budget; Neural Echo is skipped when its frozen w
 cannot fit after the review-evidence reserve. `status` finishes with `complete`, an executable recovery
 command, or `human_decision_required` with a bounded item count and duration. Final readiness refresh rebuilds speaker evidence for the selected profile; insufficient evidence stays `Colleagues`. A known group roster can repair one acoustically split anonymous voice; see the speaker-resolved runbook. It never maps names to voices.
 
-Capture runs in a short-lived child process. It exits and releases ScreenCaptureKit/ReplayKit before
-batch processing begins. A new meeting may therefore start while an earlier meeting is still being
-processed in another terminal. Run only one active capture at a time; the recording lock rejects a
-second one. If ScreenCaptureKit startup does not complete, MurmurMark fails within a bounded timeout,
-releases the lock and does not start post-processing. If capture is partial, sparse or silent,
-processing blocks; `status` also reports restart-correlated PCM gaps measured without changing raw CAF.
+Capture runs in a short-lived child process and releases ScreenCaptureKit/ReplayKit before batch
+processing. A new meeting may start while an earlier one is processed in another terminal. Only one
+capture may run at a time. Its lock is released after raw writers close and `session.json` is written;
+optional Live Shadow finalization cannot reserve it. ScreenCaptureKit startup has a bounded timeout
+and releases the lock on failure. Partial, sparse or silent capture blocks processing; `status` also
+reports restart-correlated PCM gaps without changing raw CAF.
 
 `meeting` already owns status, notes and transcript production. Do not paste unconditional
 `status/outcome/transcript` commands after it: when capture startup fails, no finalized session

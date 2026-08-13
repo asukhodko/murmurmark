@@ -17,7 +17,7 @@ from typing import Any
 SCHEMA_MANIFEST = "murmurmark.audio_review_pack/v1"
 SCHEMA_ITEM = "murmurmark.audio_review_pack_item/v1"
 SCHEMA_SUMMARY = "murmurmark.audio_review_pack_summary/v1"
-SCRIPT_VERSION = "0.1.4"
+SCRIPT_VERSION = "0.1.5"
 SAMPLE_RATE = 16000
 PROFILE_CHOICES = [
     "auto",
@@ -302,10 +302,20 @@ def add_item(
         existing["source_reasons"] = sorted(set(existing["source_reasons"]) | set(reasons))
         existing["priority_score"] = max(float(existing["priority_score"]), float(priority))
         existing["source_contexts"].append(source_context)
+        source_row = source_context.get("row") if isinstance(source_context.get("row"), dict) else {}
+        source_features = (
+            source_row.get("review_features") if isinstance(source_row.get("review_features"), dict) else {}
+        )
+        if source_features:
+            existing.setdefault("review_features", {}).update(source_features)
         existing["interval"]["start"] = min(float(existing["interval"]["start"]), start)
         existing["interval"]["end"] = max(float(existing["interval"]["end"]), end)
         existing["interval"]["duration_sec"] = round(existing["interval"]["end"] - existing["interval"]["start"], 3)
         return
+    source_row = source_context.get("row") if isinstance(source_context.get("row"), dict) else {}
+    source_features = (
+        source_row.get("review_features") if isinstance(source_row.get("review_features"), dict) else {}
+    )
     items[key] = {
         "schema": SCHEMA_ITEM,
         "id": "",
@@ -321,6 +331,7 @@ def add_item(
         "utterances": summaries,
         "utterance_ids": [row["id"] for row in summaries if row.get("id")],
         "source_contexts": [source_context],
+        "review_features": dict(source_features),
         "clips": {},
         "commands": {},
     }
@@ -489,6 +500,7 @@ def add_review_plan_items(
 ) -> None:
     lane_priority = {
         "check_local_recall": 118,
+        "check_transcript_text": 112,
         "classify_audio": 108,
         "check_unique_me_content": 102,
         "check_transcript_order": 92,

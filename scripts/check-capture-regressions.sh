@@ -217,6 +217,26 @@ assert_static_capture_contract() {
   grep -q 'final class RecordingProcessLock' "$source_file" \
     || fail "recording lock must keep concurrent record processes rejected"
 
+  grep -q 'trackLevel: true' "$source_file" \
+    || fail "raw ScreenCaptureKit writers must collect level evidence while recording"
+
+  grep -q 'capturedRmsDb: microphoneBackend == .screenCaptureKit ? micWriter?.capturedRmsDb : nil' "$source_file" \
+    || fail "capture finalization must reuse streaming mic level evidence instead of rescanning raw CAF"
+
+  grep -q 'capturedRmsDb: remoteBackend == .screenCaptureKit ? remoteWriter?.capturedRmsDb : nil' "$source_file" \
+    || fail "capture finalization must reuse streaming remote level evidence instead of rescanning raw CAF"
+
+  local finish_line
+  local explicit_release_line
+  local live_wait_line
+  finish_line="$(grep -n '^[[:space:]]*try finish()' "$source_file" | head -1 | cut -d: -f1)"
+  explicit_release_line="$(grep -n '^[[:space:]]*recordingLock.release()' "$source_file" | tail -1 | cut -d: -f1)"
+  live_wait_line="$(grep -n '^[[:space:]]*if let worker = liveWorker' "$source_file" | head -1 | cut -d: -f1)"
+  [[ -n "$finish_line" && -n "$explicit_release_line" && -n "$live_wait_line" ]] \
+    || fail "capture lock release ordering markers are missing"
+  (( finish_line < explicit_release_line && explicit_release_line < live_wait_line )) \
+    || fail "recording lock must be released after session finalization and before optional live-worker waits"
+
   grep -q 'final class CaptureFinalizationSignalGuard' "$source_file" \
     || fail "capture finalization must protect raw writers from repeated termination signals"
 

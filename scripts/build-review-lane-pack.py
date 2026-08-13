@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.8.7"
+SCRIPT_VERSION = "0.8.8"
 REVIEW_STATE_FIELDS = {
     "decision",
     "status",
@@ -794,6 +794,18 @@ def stronger_suggested_decision(
             reason = "stronger_audio_judge: " + ", ".join(sorted(labels))
             return "drop_me", round(confidence, 3), reason, summary
     if (
+        labels
+        and labels <= drop_labels
+        and "skip" in allowed
+        and "drop_me" not in allowed
+        and all(str(row.get("source") or "") == "local_recall" for row in rows)
+        and all(str(row.get("review_lane") or "") == "check_local_recall" for row in rows)
+    ):
+        confidence = max(float((match.get("classification") or {}).get("confidence") or 0.0) for match in high)
+        if confidence >= 0.86:
+            reason = "stronger_audio_judge: false local-recall candidate; " + ", ".join(sorted(labels))
+            return "skip", round(confidence, 3), reason, summary
+    if (
         len(rows) > 1
         and "keep_me" in allowed
         and any(str(row.get("review_lane") or "") == "check_unique_me_content" for row in rows)
@@ -1066,7 +1078,9 @@ def suggested_decision_for_group(
         summary,
     )
     materialization_required = requires_materialized_local_recall(rows)
-    if materialization_required and (stronger_decision or target_decision):
+    if materialization_required and (
+        stronger_decision in {"keep_me", "drop_me"} or target_decision in {"keep_me", "drop_me"}
+    ):
         return (
             "needs_review",
             "medium",
@@ -1094,6 +1108,14 @@ def suggested_decision_for_group(
         return stronger_decision, confidence, reason or "", summary, target_summary
     if target_decision:
         return target_decision, target_confidence, target_reason or "", summary, target_summary
+    if any(feature_bool(row, "unstable_micro_asr_success") for row in rows):
+        return (
+            "needs_review",
+            "low",
+            "micro_asr_stability: automatic edit requires an independent audio-judge decision",
+            summary,
+            target_summary,
+        )
     text_guard_decision, text_guard_confidence, text_guard_reason = text_guard_keep_decision(rows, summary)
     if text_guard_decision:
         return text_guard_decision, text_guard_confidence, text_guard_reason or "", summary, target_summary
@@ -1181,6 +1203,10 @@ def row_feature_snapshot(row: dict[str, Any]) -> dict[str, Any]:
         "sequence_ratio",
         "likely_partial_me_utterance",
         "unsupported_micro_asr_fallback",
+        "unstable_micro_asr_success",
+        "micro_asr_selection_review_reasons",
+        "micro_asr_chars_per_sec",
+        "micro_asr_independent_support",
         "micro_asr_status",
         "micro_asr_reason",
     )
@@ -1671,7 +1697,20 @@ def answer_for_item(item: dict[str, Any], suggested: bool) -> str:
     if not suggested:
         return "."
     decision = str(item.get("suggested_decision") or "todo")
-    if decision in {"todo", "needs_review", "skip"}:
+    if decision == "skip":
+        confidence = item.get("suggested_decision_confidence")
+        safe_false_local_recall = (
+            str(item.get("review_lane") or "") == "check_local_recall"
+            and str(item.get("source") or "") == "local_recall"
+            and str(item.get("suggested_decision_reason") or "").startswith(
+                "stronger_audio_judge: false local-recall candidate;"
+            )
+            and isinstance(confidence, (int, float))
+            and float(confidence) >= 0.86
+            and "skip" in allowed_decisions_for_item(item)
+        )
+        return DECISION_SHORTCUTS["skip"] if safe_false_local_recall else "."
+    if decision in {"todo", "needs_review"}:
         return "."
     if decision not in allowed_decisions_for_item(item):
         return "."
@@ -1687,7 +1726,7 @@ def write_answer_sheet(path: Path, manifest: dict[str, Any], *, suggested: bool 
         "# Listen to the lane WAV before applying decisions to medium-risk transcripts.",
         "# d=drop_me, c=drop_remote, k=keep_me, r/?=needs_review, s=skip, ./n/t=todo",
         "# Keep dots for items you have not reviewed or cannot confidently classify.",
-        "# Suggested sheets keep uncertain/needs_review items as dots; they contain only actionable keep/drop suggestions.",
+        "# Suggested sheets keep uncertain/needs_review items as dots; they contain only evidence-backed actions.",
         f"answers={answers}",
         "",
         "# Items",

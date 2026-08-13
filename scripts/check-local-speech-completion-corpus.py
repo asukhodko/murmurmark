@@ -97,6 +97,22 @@ def verdict_rank(value: str) -> int:
     return {"failed": 0, "risky": 1, "usable_with_review": 2, "good": 3}.get(value, -1)
 
 
+def verified_transcript_archive(session: Path) -> bool:
+    path = session / "derived/retention/derived_compaction.json"
+    if not path.is_file():
+        return False
+    manifest = read_json(path)
+    verification = manifest.get("verification") if isinstance(manifest.get("verification"), dict) else {}
+    return (
+        manifest.get("schema") == "murmurmark.derived_compaction/v1"
+        and manifest.get("mode") == "transcript_only"
+        and manifest.get("status") == "verified"
+        and verification.get("passed") is True
+        and verification.get("raw_deleted") is True
+        and verification.get("retained_outputs_preserved") is True
+    )
+
+
 def main() -> int:
     report_path = REPORT_DIR / "local_speech_completion_corpus_report.json"
     if not report_path.exists():
@@ -140,13 +156,16 @@ def main() -> int:
         session = SESSIONS / session_id
         frozen = baseline_by_session[session_id]
         input_profile = str(frozen["input_profile"])
-        assert synthesis_module.frozen_artifact_tree_matches(
-            frozen["artifacts"]
-        ), f"frozen artifacts changed: {session_id}"
+        frozen_inputs_available = synthesis_module.frozen_artifact_tree_matches(frozen["artifacts"])
+        archived = verified_transcript_archive(session)
+        assert frozen_inputs_available or archived, f"frozen artifacts changed: {session_id}"
 
         resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
         auto_profile, _paths, _comparison, _risks = synthesis_module.choose_profile(resolved, "auto")
-        assert auto_profile == PROFILE, (session_id, auto_profile)
+        if frozen_inputs_available:
+            assert auto_profile == PROFILE, (session_id, auto_profile)
+        else:
+            assert auto_profile != PROFILE, (session_id, auto_profile)
         profile_dir = session / "derived/transcript-simple/whisper-cpp/local-speech-completion-v2"
         input_dialogue = read_json(resolved / f"clean_dialogue{suffix(input_profile)}.json")
         output_dialogue = read_json(resolved / f"clean_dialogue.{PROFILE}.json")
@@ -218,7 +237,7 @@ def main() -> int:
     assert not any("дает сп" in text.lower() for text in short_me), short_me
     assert sum("не ожидают" in text.lower() for text in short_me) == 1, short_me
 
-    print("local speech completion corpus checks ok")
+    print("local speech completion corpus checks ok (verified transcript archives allowed)")
     return 0
 
 

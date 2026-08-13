@@ -134,6 +134,27 @@ def main() -> int:
         by_id,
     )
     assert len(review_items) == 1
+    MODULE.add_review_plan_items(
+        review_items,
+        [
+            {
+                "status": "todo",
+                "decision": "todo",
+                "source": "transcript_text",
+                "source_audit_id": "transcript_text:utt_reused",
+                "review_lane": "check_transcript_text",
+                "interval": {"start": 20.0, "end": 22.0},
+                "utterance_ids": ["utt_reused"],
+                "review_features": {"unstable_micro_asr_success": True},
+            }
+        ],
+        by_id,
+    )
+    assert len(review_items) == 2
+    assert any(
+        item.get("review_features", {}).get("unstable_micro_asr_success") is True
+        for item in review_items.values()
+    )
 
     with tempfile.TemporaryDirectory(prefix="murmurmark-review-clips-") as raw_root:
         root = Path(raw_root)

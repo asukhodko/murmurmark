@@ -18,7 +18,7 @@ from typing import Any
 
 SCHEMA_ROW = "murmurmark.faster_whisper_judge/v1"
 SCHEMA_SUMMARY = "murmurmark.faster_whisper_judge_summary/v1"
-SCRIPT_VERSION = "0.1.8"
+SCRIPT_VERSION = "0.1.11"
 DEFAULT_MODEL = Path.home() / ".local/share/murmurmark/models/faster-whisper/large-v3"
 DEFAULT_MAX_ITEMS = 80
 DEFAULT_SOURCES = ("mic_role_masked", "mic_clean", "mic_raw", "remote")
@@ -589,16 +589,23 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
-def write_json(path: Path, payload: dict[str, Any]) -> None:
+def write_text_atomic(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        temporary.write_text(text, encoding="utf-8")
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def write_json(path: Path, payload: dict[str, Any]) -> None:
+    write_text_atomic(path, json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
 
 
 def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as file:
-        for row in rows:
-            file.write(json.dumps(row, ensure_ascii=False) + "\n")
+    text = "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows)
+    write_text_atomic(path, text)
 
 
 def normalize_text(value: Any) -> str:
@@ -1135,6 +1142,10 @@ def classify_item(
     state_silence = safe_float(speaker_state.get("silence_ratio"), 0.0)
     review_features = item.get("review_features") if isinstance(item.get("review_features"), dict) else {}
     unsupported_micro_fallback = review_features.get("unsupported_micro_asr_fallback") is True
+    unstable_micro_success = review_features.get("unstable_micro_asr_success") is True
+    micro_selection_reasons = {
+        str(value) for value in review_features.get("micro_asr_selection_review_reasons") or [] if value
+    }
     canonical_mic_sources = {"mic_role_masked", "mic_clean", "mic_raw"}
     decoded_mic_sources = canonical_mic_sources & set(transcripts)
     mic_sources_empty_or_hallucinated = decoded_mic_sources == canonical_mic_sources and all(
@@ -1149,6 +1160,38 @@ def classify_item(
         and state_silence >= 0.90
         and state_local_active <= 0.05
         and mic_sources_empty_or_hallucinated
+    )
+    unstable_micro_remote_artifact = (
+        unstable_micro_success
+        and bool(
+            micro_selection_reasons
+            & {
+                "implausible_short_island_speech_rate",
+                "baseline_only_selection_without_canonical_support",
+                "short_island_source_disagreement",
+            }
+        )
+        and state_coverage >= 0.80
+        and state_remote_only >= 0.90
+        and state_local_active <= 0.05
+        and remote_source_to_remote >= 0.65
+        and best_decoded_remote_in_mic >= 0.80
+        and best_me_any < 0.58
+    )
+    unstable_micro_rejected_text = (
+        unstable_micro_success
+        and "baseline_only_selection_without_canonical_support" in micro_selection_reasons
+        and state_coverage >= 0.80
+        and state_remote_only >= 0.90
+        and state_local_active <= 0.05
+        and remote_source_tokens >= 3
+        and best_me_any < 0.45
+    )
+    unstable_micro_remote_only_veto = (
+        unstable_micro_success
+        and state_coverage >= 0.80
+        and state_remote_only >= 0.90
+        and state_local_active <= 0.05
     )
     remote_only_keep_veto = (
         state_coverage >= 0.80
@@ -1311,6 +1354,22 @@ def classify_item(
             "three-source micro-ASR fallback and full-source stronger judge reject the short Me text; "
             "speaker_state confirms silence"
         )
+    elif unstable_micro_remote_artifact:
+        label = "confirm_remote_duplicate"
+        suggested = "drop_me"
+        confidence = min(0.92, max(0.88, best_decoded_remote_in_mic + 0.04))
+        reasons.append(
+            "short micro-ASR selection is unstable, speaker_state is remote-only, and decoded mic "
+            "is explained by decoded remote rather than the proposed Me text"
+        )
+    elif unstable_micro_rejected_text:
+        label = "confirm_asr_noise"
+        suggested = "drop_me"
+        confidence = 0.88
+        reasons.append(
+            "baseline-only micro-ASR text is rejected by canonical mic decodes while speaker_state "
+            "is remote-only"
+        )
     elif direct_decoded_remote_duplicate:
         label = "confirm_remote_duplicate"
         suggested = "drop_me"
@@ -1375,6 +1434,14 @@ def classify_item(
         reasons.append(
             "mic decode follows decoded remote substantially more closely than the proposed Me text; "
             "strong leak evidence vetoes automatic keep"
+        )
+    elif unstable_micro_remote_only_veto:
+        label = "uncertain"
+        suggested = "needs_review"
+        confidence = min(0.69, max(0.55, best_decoded_remote_in_mic))
+        reasons.append(
+            "unstable micro-ASR text occurs in a remote-only interval; leaked mic speech cannot "
+            "independently confirm Me"
         )
     elif me_confirmed and remote_confirmed and best_remote_in_mic < 0.68:
         label = "confirm_timing_or_doubletalk" if remote_text else "confirm_me"
@@ -1482,6 +1549,11 @@ def classify_item(
             "remote_only_decoded_duplicate": remote_only_decoded_duplicate,
             "single_token_remote_only_duplicate": single_token_remote_only_duplicate,
             "unsupported_micro_asr_fallback": unsupported_micro_fallback,
+            "unstable_micro_asr_success": unstable_micro_success,
+            "micro_asr_selection_review_reasons": sorted(micro_selection_reasons),
+            "unstable_micro_remote_artifact": unstable_micro_remote_artifact,
+            "unstable_micro_rejected_text": unstable_micro_rejected_text,
+            "unstable_micro_remote_only_veto": unstable_micro_remote_only_veto,
             "mic_sources_empty_or_hallucinated": mic_sources_empty_or_hallucinated,
         },
         "best_sources": {
@@ -1551,6 +1623,31 @@ def refresh_cached_classification(
     refreshed["review_features"] = item.get("review_features") or {}
     refreshed["classification"] = classify_item(item, audit_row, transcripts, metrics, speaker_state)
     refreshed["classification_policy_version"] = SCRIPT_VERSION
+    return refreshed
+
+
+def refreshed_valid_existing_rows_by_pack_id(
+    out_dir: Path,
+    items: list[dict[str, Any]],
+    sources: tuple[str, ...],
+    audio_review_rows: dict[str, dict[str, Any]],
+    speaker_state_rows: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    items_by_id = {str(item.get("id") or ""): item for item in items if item.get("id")}
+    refreshed: dict[str, dict[str, Any]] = {}
+    for pack_id, row in valid_existing_rows_by_pack_id(out_dir, items, sources).items():
+        item = items_by_id.get(pack_id)
+        if item is None:
+            continue
+        audit_row = audio_review_rows.get(pack_id)
+        if not audit_row_matches_item(audit_row, item):
+            audit_row = None
+        refreshed[pack_id] = refresh_cached_classification(
+            row,
+            item,
+            audit_row,
+            speaker_state_rows,
+        )
     return refreshed
 
 
@@ -1649,6 +1746,55 @@ def existing_rows_by_pack_id(out_dir: Path) -> dict[str, dict[str, Any]]:
     return rows
 
 
+def ordered_rows_for_items(
+    items: list[dict[str, Any]],
+    rows_by_pack_id: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    item_ids = [str(item.get("id") or "") for item in items if item.get("id")]
+    item_id_set = set(item_ids)
+    ordered_ids = item_ids + sorted(pack_id for pack_id in rows_by_pack_id if pack_id not in item_id_set)
+    return [rows_by_pack_id[pack_id] for pack_id in ordered_ids if pack_id in rows_by_pack_id]
+
+
+def write_incremental_checkpoint(
+    out_dir: Path,
+    items: list[dict[str, Any]],
+    rows_by_pack_id: dict[str, dict[str, Any]],
+    *,
+    model_path: Path,
+    pack_summary: dict[str, Any] | None,
+    selected_items: int,
+    cached_items: int,
+    computed_items: int,
+    pending_items: int,
+    sources: tuple[str, ...],
+) -> None:
+    rows = ordered_rows_for_items(items, rows_by_pack_id)
+    write_jsonl(out_dir / "faster_whisper_judge.jsonl", rows)
+    summary = summarize(rows, model_path=model_path, pack_summary=pack_summary)
+    summary.update(
+        {
+            "status": "in_progress",
+            "cached_items": max(0, cached_items),
+            "computed_items": max(0, computed_items),
+            "selected_items": selected_items,
+            "pending_selected_items_after_cap": max(0, pending_items),
+            "sources": list(sources),
+        }
+    )
+    write_json(out_dir / "faster_whisper_judge_summary.json", summary)
+
+
+def final_run_status(
+    pending_items: int,
+    missing_target_ids: list[str],
+    missing_lane_pack_files: list[str],
+) -> str:
+    if pending_items > 0 or missing_target_ids or missing_lane_pack_files:
+        return "completed_partial"
+    return "completed"
+
+
 def write_report(path: Path, summary: dict[str, Any], rows: list[dict[str, Any]]) -> None:
     lines = [
         "# Faster Whisper Judge",
@@ -1657,6 +1803,7 @@ def write_report(path: Path, summary: dict[str, Any], rows: list[dict[str, Any]]
         "",
         "## Summary",
         "",
+        f"- Status: `{summary.get('status', 'unknown')}`",
         f"- Items: `{summary['items']}`",
         f"- Selected items: `{summary.get('selected_items', 0)}`",
         f"- Computed items: `{summary.get('computed_items', 0)}`",
@@ -1698,7 +1845,7 @@ def write_report(path: Path, summary: dict[str, Any], rows: list[dict[str, Any]]
             if isinstance(result, dict):
                 lines.append(f"- {source}: `{str(result.get('text') or '').strip()}`")
         lines.append("")
-    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    write_text_atomic(path, "\n".join(lines).rstrip() + "\n")
 
 
 def main() -> int:
@@ -1719,16 +1866,30 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     if not ready:
-        summary = summarize([], model_path=model_path, pack_summary=pack_summary, skipped_reason=ready_reason)
-        write_jsonl(out_dir / "faster_whisper_judge.jsonl", [])
+        sources = selected_sources(args)
+        rows = ordered_rows_for_items(
+            items,
+            refreshed_valid_existing_rows_by_pack_id(
+                out_dir,
+                items,
+                sources,
+                audio_review_rows,
+                speaker_state_rows,
+            ),
+        )
+        summary = summarize(rows, model_path=model_path, pack_summary=pack_summary, skipped_reason=ready_reason)
+        summary["status"] = "skipped"
+        summary["sources"] = list(sources)
+        write_jsonl(out_dir / "faster_whisper_judge.jsonl", rows)
         write_json(out_dir / "faster_whisper_judge_summary.json", summary)
-        write_report(out_dir / "faster_whisper_judge_report.md", summary, [])
+        write_report(out_dir / "faster_whisper_judge_report.md", summary, rows)
         print(f"stronger_audio_judge: skipped ({ready_reason})")
         print(f"summary: {out_dir / 'faster_whisper_judge_summary.json'}")
         return 0
 
     if not items:
         summary = summarize([], model_path=model_path, pack_summary=pack_summary)
+        summary["status"] = "completed"
         write_jsonl(out_dir / "faster_whisper_judge.jsonl", [])
         write_json(out_dir / "faster_whisper_judge_summary.json", summary)
         write_report(out_dir / "faster_whisper_judge_report.md", summary, [])
@@ -1758,6 +1919,19 @@ def main() -> int:
     elif args.max_computed_items > 0 and len(missing_items) > args.max_computed_items:
         missing_items = missing_items[: args.max_computed_items]
     cached_by_pack_id = {str(row.get("source_pack_item_id") or ""): row for row in cached_rows}
+    targeted_run = bool(requested_target_ids or args.review_lane_pack or args.pack_item_id)
+    checkpoint_by_pack_id = (
+        existing_rows_by_pack_id(out_dir)
+        if targeted_run
+        else refreshed_valid_existing_rows_by_pack_id(
+            out_dir,
+            items,
+            sources,
+            audio_review_rows,
+            speaker_state_rows,
+        )
+    )
+    checkpoint_by_pack_id.update(cached_by_pack_id)
     if missing_items:
         progress(
             args,
@@ -1783,6 +1957,19 @@ def main() -> int:
                 speaker_state_rows,
             )
             new_by_pack_id[item_id]["classification_policy_version"] = SCRIPT_VERSION
+            checkpoint_by_pack_id[item_id] = new_by_pack_id[item_id]
+            write_incremental_checkpoint(
+                out_dir,
+                items,
+                checkpoint_by_pack_id,
+                model_path=model_path,
+                pack_summary=pack_summary,
+                selected_items=len(selected),
+                cached_items=cached_count,
+                computed_items=index,
+                pending_items=pending_selected_count - index,
+                sources=sources,
+            )
             classification = new_by_pack_id[item_id].get("classification") or {}
             progress(
                 args,
@@ -1808,16 +1995,20 @@ def main() -> int:
                     speaker_state_rows,
                 )
             )
-    targeted_run = bool(requested_target_ids or args.review_lane_pack or args.pack_item_id)
     merged_by_pack_id = existing_rows_by_pack_id(out_dir) if targeted_run else {}
-    merged_by_pack_id.update(valid_existing_rows_by_pack_id(out_dir, items, sources))
+    merged_by_pack_id.update(
+        refreshed_valid_existing_rows_by_pack_id(
+            out_dir,
+            items,
+            sources,
+            audio_review_rows,
+            speaker_state_rows,
+        )
+    )
     for row in selected_rows:
         if row.get("source_pack_item_id"):
             merged_by_pack_id[str(row["source_pack_item_id"])] = row
-    item_ids = [str(item.get("id") or "") for item in items if item.get("id")]
-    item_id_set = set(item_ids)
-    ordered_ids = item_ids + sorted(pack_id for pack_id in merged_by_pack_id if pack_id not in item_id_set)
-    rows = [merged_by_pack_id[pack_id] for pack_id in ordered_ids if pack_id in merged_by_pack_id]
+    rows = ordered_rows_for_items(items, merged_by_pack_id)
     summary = summarize(rows, model_path=model_path, pack_summary=pack_summary)
     summary["cached_items"] = cached_count
     summary["computed_items"] = len(missing_items)
@@ -1832,6 +2023,11 @@ def main() -> int:
     summary["missing_target_item_ids"] = missing_target_ids
     summary["missing_review_lane_pack_files"] = missing_lane_pack_files
     summary["review_lane_pack_selector_keys"] = lane_pack_selector_keys
+    summary["status"] = final_run_status(
+        summary["pending_selected_items_after_cap"],
+        missing_target_ids,
+        missing_lane_pack_files,
+    )
     write_jsonl(out_dir / "faster_whisper_judge.jsonl", rows)
     write_json(out_dir / "faster_whisper_judge_summary.json", summary)
     write_report(out_dir / "faster_whisper_judge_report.md", summary, rows)

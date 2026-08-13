@@ -267,6 +267,12 @@ coexist, while two concurrent captures remain forbidden.
 - The same rule applies when `--duration` is set: the duration timer and terminal signal race, and an
   early `Ctrl-C` is persisted as the explicit `sigint` stop reason.
 - The recorder closes raw writers and writes `session.json` before the supervisor starts.
+- Normal ScreenCaptureKit capture accumulates RMS evidence while each raw buffer is durably written.
+  Finalization reuses that evidence for the silent-track gate instead of decoding both complete CAF
+  files under the global recording lock. Nonstandard capture backends retain the file-probe fallback.
+- The global recording lock is released immediately after raw writers are closed and `session.json`
+  is atomically written. Optional Live Shadow worker waits and reconciliation happen afterwards, so
+  they cannot prevent the next independent capture from starting.
 - Repeated `Ctrl-C`, `SIGTERM` or `SIGHUP` during bounded capture finalization is deferred so a slow
   writer or Live Shadow shutdown cannot leave raw files half-closed.
 - `Ctrl-C` during processing is forwarded to the active child, the current action is marked

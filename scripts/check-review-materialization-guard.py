@@ -69,6 +69,25 @@ def main() -> int:
     incomplete_evidence = json.loads(json.dumps(unsupported_fallback))
     incomplete_evidence["quality"]["repair"]["micro_reasr"]["attempts"].pop()
     assert readiness.unsupported_micro_asr_fallback(incomplete_evidence) is False
+    with tempfile.TemporaryDirectory(prefix="murmurmark-cumulative-review-") as raw_root:
+        session_path = Path(raw_root)
+        decisions_path = session_path / "derived/readiness/review-plan/review_decisions.jsonl"
+        decisions_path.parent.mkdir(parents=True)
+        decisions_path.write_text(
+            json.dumps(
+                {
+                    "input_profile": "audit_cleanup_v2",
+                    "source": "transcript_order",
+                    "source_audit_id": "order_0001",
+                    "status": "reviewed",
+                    "decision": "keep_me",
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        assert readiness.review_resolved_transcript_order_ids(session_path, "reviewed_v1") == {"order_0001"}
+        assert readiness.review_resolved_transcript_order_ids(session_path, "audit_cleanup_v1") == set()
     transcript_text_row = readiness.compact_transcript_text_utterance(
         {"session_id": "fixture", "session": "/tmp/fixture"},
         unsupported_fallback,
@@ -82,6 +101,168 @@ def main() -> int:
     snapshot = lane.row_feature_snapshot(transcript_text_row)
     assert snapshot["unsupported_micro_asr_fallback"] is True
     assert snapshot["micro_asr_reason"] == "empty_micro_text"
+
+    unstable_music = {
+        "id": "utt_micro_music",
+        "start": 172.19,
+        "end": 172.64,
+        "role": "me",
+        "text": "ВООДУШЕВЛЯЮЩАЯ МУЗЫКА",
+        "quality": {
+            "needs_review": False,
+            "repair": {
+                "action": "micro_reasr",
+                "island_start_ms": 172190,
+                "island_end_ms": 172640,
+                "micro_reasr": {
+                    "status": "ok",
+                    "source_label": "clean_local_fir",
+                    "raw_text": "ВООДУШЕВЛЯЮЩАЯ МУЗЫКА",
+                    "attempts": [
+                        {
+                            "status": "ok",
+                            "source_label": "clean_local_fir",
+                            "raw_text": "ВООДУШЕВЛЯЮЩАЯ МУЗЫКА",
+                        },
+                        {
+                            "status": "ok",
+                            "source_label": "role_masked_for_asr",
+                            "raw_text": "ВООДУШЕВЛЯЮЩАЯ МУЗЫКА",
+                        },
+                        {"status": "ok", "source_label": "raw_for_asr", "raw_text": "Вот."},
+                    ],
+                },
+            },
+        },
+    }
+    music_review = readiness.unstable_successful_micro_asr(unstable_music)
+    assert music_review is not None
+    assert "implausible_short_island_speech_rate" in music_review["reasons"]
+    assert "short_island_source_disagreement" in music_review["reasons"]
+    music_row = readiness.compact_transcript_text_utterance(
+        {"session_id": "fixture", "session": "/tmp/fixture"},
+        unstable_music,
+        input_profile="reviewed_v1",
+        micro_selection_review=music_review,
+    )
+    assert "drop_me" in music_row["allowed_decisions"]
+    assert music_row["review_features"]["unstable_micro_asr_success"] is True
+    music_snapshot = lane.row_feature_snapshot(music_row)
+    assert music_snapshot["unstable_micro_asr_success"] is True
+    assert "short_island_source_disagreement" in music_snapshot["micro_asr_selection_review_reasons"]
+    no_audio_decision = lane.suggested_decision_for_group([music_row], {}, {})
+    assert no_audio_decision[0] == "needs_review", no_audio_decision
+    assert "independent audio-judge" in no_audio_decision[2], no_audio_decision
+
+    unstable_baseline = json.loads(json.dumps(unstable_music))
+    unstable_baseline["id"] = "utt_micro_baseline"
+    unstable_baseline["start"] = 648.2
+    unstable_baseline["end"] = 649.04
+    unstable_baseline["text"] = "Тарак подал крылья."
+    baseline_repair = unstable_baseline["quality"]["repair"]
+    baseline_repair["island_start_ms"] = 648200
+    baseline_repair["island_end_ms"] = 649040
+    baseline_micro = baseline_repair["micro_reasr"]
+    baseline_micro["source_label"] = "current_clean_local_fir"
+    baseline_micro["raw_text"] = "Тарак подал крылья."
+    baseline_micro["attempts"] = [
+        {
+            "status": "ok",
+            "source_label": "current_clean_local_fir",
+            "rows": [{"text": "Тарак подал крылья."}],
+        },
+        {"status": "ok", "source_label": "clean_local_fir", "raw_text": "Да."},
+        {"status": "ok", "source_label": "role_masked_for_asr", "raw_text": "Да."},
+        {"status": "ok", "source_label": "raw_for_asr", "raw_text": "Так."},
+    ]
+    baseline_review = readiness.unstable_successful_micro_asr(unstable_baseline)
+    assert baseline_review is not None
+    assert "baseline_only_selection_without_canonical_support" in baseline_review["reasons"]
+    assert "short_island_source_disagreement" in baseline_review["reasons"]
+
+    stable_micro = json.loads(json.dumps(unstable_baseline))
+    stable_micro["id"] = "utt_micro_stable"
+    stable_micro["start"] = 10.0
+    stable_micro["end"] = 10.7
+    stable_micro["text"] = "Да."
+    stable_repair = stable_micro["quality"]["repair"]
+    stable_repair["island_start_ms"] = 10000
+    stable_repair["island_end_ms"] = 10700
+    stable_meta = stable_repair["micro_reasr"]
+    stable_meta["source_label"] = "current_clean_local_fir"
+    stable_meta["raw_text"] = "Да."
+    stable_meta["attempts"] = [
+        {
+            "status": "ok",
+            "source_label": source,
+            "raw_text": "Да.",
+        }
+        for source in ("clean_local_fir", "raw_for_asr", "role_masked_for_asr")
+    ]
+    assert readiness.unstable_successful_micro_asr(stable_micro) is None
+
+    unstable_remote_item = {
+        "source_reasons": ["review_lane:check_transcript_text", "transcript_text_needs_review"],
+        "review_features": music_row["review_features"],
+        "utterances": [
+            {
+                "id": "utt_micro_music",
+                "role": "me",
+                "source_track": "mic",
+                "start": 172.19,
+                "end": 172.64,
+                "text": "ВООДУШЕВЛЯЮЩАЯ МУЗЫКА",
+            }
+        ],
+    }
+    remote_transcripts = {
+        "mic_clean": {"text": "только колобок мы просто переехали", "segments": [], "no_speech_prob": 0.2},
+        "remote": {"text": "только колобок мы просто переехали", "segments": [], "no_speech_prob": 0.1},
+    }
+    remote_metrics = stronger.source_metrics(
+        remote_transcripts,
+        "ВООДУШЕВЛЯЮЩАЯ МУЗЫКА",
+        "только колобок мы просто переехали",
+    )
+    remote_artifact = stronger.classify_item(
+        unstable_remote_item,
+        None,
+        remote_transcripts,
+        remote_metrics,
+        {
+            "coverage_ratio": 1.0,
+            "silence_ratio": 0.0,
+            "local_active_ratio": 0.0,
+            "remote_only_ratio": 1.0,
+            "double_talk_ratio": 0.0,
+        },
+    )
+    assert remote_artifact["label"] == "confirm_remote_duplicate", remote_artifact
+    assert remote_artifact["confidence"] >= 0.88, remote_artifact
+    assert remote_artifact["scores"]["unstable_micro_remote_artifact"] is True
+
+    local_transcripts = {
+        "mic_clean": {"text": "ну что тогда побежали", "segments": [], "no_speech_prob": 0.1},
+        "remote": {"text": "", "segments": [], "no_speech_prob": 0.9},
+    }
+    local_metrics = stronger.source_metrics(local_transcripts, "Ну что, тогда побежали.", "")
+    local_item = json.loads(json.dumps(unstable_remote_item))
+    local_item["utterances"][0]["text"] = "Ну что, тогда побежали."
+    local_result = stronger.classify_item(
+        local_item,
+        None,
+        local_transcripts,
+        local_metrics,
+        {
+            "coverage_ratio": 1.0,
+            "silence_ratio": 0.0,
+            "local_active_ratio": 1.0,
+            "remote_only_ratio": 0.0,
+            "double_talk_ratio": 0.0,
+        },
+    )
+    assert local_result["label"] == "confirm_me", local_result
+
     judge_item = {
         "source_reasons": ["review_lane:check_transcript_text", "transcript_text_needs_review"],
         "review_features": snapshot,
@@ -154,6 +335,7 @@ def main() -> int:
     assert suggestion[0] == "drop_me", suggestion
 
     raw = {
+        "session_id": "fixture",
         "source": "local_recall",
         "source_audit_id": "local_recall_0001",
         "label": "lost_me",
@@ -170,6 +352,27 @@ def main() -> int:
     suggestion = lane.suggested_decision_for_group([raw], {}, {})
     assert suggestion[0] == "needs_review", suggestion
     assert "materialized" in suggestion[2], suggestion
+
+    false_candidate_judge = {
+        "id": "fwj_false_local_recall",
+        "source_pack_item_id": "local_recall_0001",
+        "session_id": "fixture",
+        "utterance_ids": ["live_candidate_1"],
+        "interval": {"start": 0.0, "end": 3.0},
+        "classification": {"label": "confirm_remote_duplicate", "confidence": 0.95},
+    }
+    suggestion = lane.suggested_decision_for_group([raw], {"fixture": [false_candidate_judge]}, {})
+    assert suggestion[0] == "skip", suggestion
+    assert "false local-recall candidate" in suggestion[2], suggestion
+    false_candidate_item = {
+        **raw,
+        "suggested_decision": suggestion[0],
+        "suggested_decision_confidence": suggestion[1],
+        "suggested_decision_reason": suggestion[2],
+    }
+    assert lane.answer_for_item(false_candidate_item, suggested=True) == "s", false_candidate_item
+    deferred_skip = {**false_candidate_item, "suggested_decision_reason": "leave for later"}
+    assert lane.answer_for_item(deferred_skip, suggested=True) == ".", deferred_skip
 
     normalized = apply.normalize_decision({**raw, "decision": "keep_me"})
     assert normalized.get("_invalid") is True, normalized
@@ -441,6 +644,21 @@ def main() -> int:
             "interval": {"start": 3.0, "end": 4.0, "duration_sec": 1.0},
             "text": [utterances[2]],
         }
+        local_recall_skip = {
+            "schema": "murmurmark.review_decision/v1",
+            "session_id": session.name,
+            "input_profile": "reviewed_v1",
+            "source": "local_recall",
+            "source_audit_id": "local_recall_0001",
+            "cluster_id": "local_recall_cluster",
+            "label": "lost_me",
+            "review_action": "check_local_recall",
+            "decision": "skip",
+            "status": "reviewed",
+            "utterance_ids": ["audit_only_candidate"],
+            "interval": {"start": 6.0, "end": 7.0, "duration_sec": 1.0},
+            "text": [],
+        }
         stale_audio_row = {
             **audio_row,
             "source_audit_id": "arp_stale",
@@ -452,7 +670,11 @@ def main() -> int:
         }
         decisions = Path(temp_dir) / "review_decisions.jsonl"
         decisions.write_text(
-            "\n".join(json.dumps(row, ensure_ascii=False) for row in (order_row, audio_row, stale_audio_row)) + "\n",
+            "\n".join(
+                json.dumps(row, ensure_ascii=False)
+                for row in (order_row, audio_row, local_recall_skip, stale_audio_row)
+            )
+            + "\n",
             encoding="utf-8",
         )
         template = Path(temp_dir) / "review_decisions.template.jsonl"
@@ -501,8 +723,8 @@ def main() -> int:
         )
         assert report["input_profile"] == "audit_cleanup_v2", report
         assert report["coverage"]["complete"] is True, report
-        assert report["summary"]["applied_decision_rows"] == 2, report
-        assert report["summary"]["compatible_out_of_scope_decision_rows"] == 1, report
+        assert report["summary"]["applied_decision_rows"] == 3, report
+        assert report["summary"]["compatible_out_of_scope_decision_rows"] == 2, report
         assert report["summary"]["ignored_out_of_scope_decision_rows"] == 1, report
         assert "compatible_out_of_scope_review_decisions_applied" in report["gates"]["warnings"], report
         assert "out_of_scope_review_decisions_ignored" in report["gates"]["warnings"], report

@@ -71,6 +71,27 @@ letter is reattached to a lower-case continuation in the next `Me` utterance fro
 source. Every repair is also written to `corrections*.jsonl` with reason
 `split_initial_letter_reattached` and the dropped/kept utterance ids.
 
+Operational readiness derives this deterministic stability record from successful short-island
+`micro_reasr` attempts:
+
+```json
+{
+  "schema": "murmurmark.micro_reasr_selection_stability/v1",
+  "status": "needs_review",
+  "reasons": ["baseline_only_selection_without_canonical_support"],
+  "duration_ms": 840,
+  "chars_per_sec": 19.047619,
+  "support_families": [],
+  "independent_support": false
+}
+```
+
+Raw mic and filtered mic are the two evidence families; `clean_local_fir` and
+`role_masked_for_asr` are one derived family. A `needs_review` stability result is materialized as a
+`check_transcript_text` review item with `review_features.unstable_micro_asr_success = true`. It
+permits a later whole-`Me` drop only after an independent local audio judge confirms remote
+duplication or ASR noise. The stability result by itself never changes transcript text.
+
 The current extractive synthesis spike writes:
 
 ```text
@@ -1644,6 +1665,13 @@ Valid labels are `confirm_me`, `confirm_remote_duplicate`, `confirm_asr_noise`,
 missing, and `recommended_next_step`. These outputs are audit evidence only. They may improve
 `review_lane_answers.<lane>.suggested.txt`, but they do not edit transcript profiles, Echo Guard
 outputs or raw capture.
+Every completed decode is atomically checkpointed into `faster_whisper_judge.jsonl`; the summary is
+written with `status: in_progress` until the selected batch finishes. A lifecycle timeout or
+Ctrl-C therefore leaves reusable, fingerprint-bound evidence instead of discarding the completed
+part of a long local run. A resumed targeted run preserves unrelated cached rows and computes only
+missing items. A normal terminal result is `completed`; a bounded run with selected work still
+pending is `completed_partial`; an unavailable local model is `skipped` and preserves any still-valid
+cached rows instead of replacing them with an empty result.
 An interval-weighted `speaker_state` veto prevents `confirm_me` when at least `80%` of a well-covered
 interval is `remote_only`, local-active coverage is at most `10%`, independent local support is
 weak and mic ASR follows remote. The result is `uncertain / needs_review`; speaker state and audio
@@ -3694,6 +3722,9 @@ whose input profile is the selected base or `reviewed_v1` and whose utterance ID
 texts still match exactly. Accepted rows outside the regenerated template are reported as
 `compatible_out_of_scope_decision_rows`; mismatched or stale rows remain ignored. This prevents a
 later lane from erasing an earlier `keep_me`, `drop_me`, local-recall or transcript-order decision.
+Audit-only local-recall and transcript-order decisions are matched by their stable audit IDs and
+compatible profile rather than transcript utterance text: those rows may intentionally refer to no
+materialized utterance. They remain cumulative across later transcript-text review applications.
 
 `--allow-partial-review` makes this gate explicit rather than silent. The report may pass with
 `coverage.allowed: true`, `coverage.complete: false` and warning `partial_review_scope_allowed` when
@@ -3705,6 +3736,9 @@ For `source: "local_recall"` rows, `drop_me`, `drop_remote` and `keep_me` are in
 timeline-repair island, not a transcript utterance. `skip` rejects a false audit candidate without
 editing the transcript; `needs_review` keeps it in the readiness burden. These rows are recorded in
 `review_decisions_applied.reviewed_v1.jsonl` with `review_effect: "audit_only_local_recall"`.
+A suggested `skip` is allowed only when the full-source stronger audio judge independently returns
+`confirm_remote_duplicate` or `confirm_asr_noise` with high confidence and the lane itself allows
+`skip`; otherwise the candidate remains `needs_review`.
 For `source: "transcript_order"` rows, `drop_me` and `drop_remote` are also invalid. `keep_me` and `skip` close the
 chronology risk as checked; `needs_review` keeps it in the readiness burden. These rows are recorded
 with `review_effect: "audit_only_transcript_order"` and are mirrored into

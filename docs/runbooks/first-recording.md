@@ -619,6 +619,10 @@ raw CAF, releases its ScreenCaptureKit/ReplayKit connection and exits before pos
 It is therefore safe to start the next meeting while the previous one is still being processed in a
 different terminal. ScreenCaptureKit content lookup and stream start/stop are bounded; a missing
 completion produces a startup failure and releases the recording lock instead of hanging forever.
+For normal ScreenCaptureKit recording, the silent-track check is collected incrementally during raw
+writes, so a long meeting does not add a second full CAF scan before that lock is released.
+The lock is released as soon as `session.json` exists; unfinished Live Shadow finalization remains
+best-effort work in the old session and does not reserve capture for the next meeting.
 For live-vs-batch evidence, record once with `--experiment live-shadow-v1`; both paths consume the
 same raw session.
 If ScreenCaptureKit stops before `Ctrl-C`, MurmurMark tries to restart the capture stream and keep

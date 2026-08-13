@@ -135,6 +135,7 @@ copy_file "scripts/release-bundle.py"
 copy_file "scripts/install-release.sh"
 copy_file "scripts/acceptance-release-quality.sh"
 copy_file "scripts/check-release-quality.py"
+copy_file "scripts/micro_asr_evidence.py"
 
 cat >"$stage/bin/murmurmark" <<'EOF'
 #!/usr/bin/env bash

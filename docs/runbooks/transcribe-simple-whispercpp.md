@@ -1155,7 +1155,11 @@ The stronger judge is local and optional. It decodes only short review clips, wr
 while loading the model and decoding items. For ad-hoc CPU debugging, use targeted lane-pack batches
 with `--quick --max-items 5 --max-computed-items 5`; for the normal full session process, keep the
 default broader budget so suggested review can close order/timing rows before asking for manual
-listening. Review lane packs use those rows only for safer suggested answers: `confirm_me` and
+listening. Each completed item is checkpointed atomically, so interrupting or timing out a long run
+does not throw away already decoded clips; rerun the same command to compute the remainder. The
+summary distinguishes `in_progress`, `completed`, `completed_partial` and `skipped`; a missing model
+does not erase still-valid cached rows. Review
+lane packs use those rows only for safer suggested answers: `confirm_me` and
 `confirm_timing_or_doubletalk` suggest `keep_me` when allowed; `confirm_remote_duplicate` and
 `confirm_asr_noise` suggest `drop_me` only when the lane and safety gates allow that decision.
 The stronger judge also reads interval-weighted `speaker_state.jsonl`. If the complete interval is
@@ -2029,6 +2033,10 @@ utterance in `local_recall_repair_v1`. Review can then keep or drop that materia
 An independent live candidate ID is evidence provenance, not a transcript utterance ID, so it never
 makes an audit-only row auto-closable. Re-running local-recall or order audit refreshes unreviewed
 lane metadata from the new audit while preserving decisions that were already reviewed.
+The only automatic audit-only rejection is a suggested `skip` backed by a high-confidence
+full-source stronger-judge `confirm_remote_duplicate` or `confirm_asr_noise`; it rejects the false
+candidate and never deletes transcript text. Such local-recall and transcript-order decisions stay
+cumulative when a later transcript-text lane is applied.
 Transcript-order rows are audit-only for timeline content: review can
 clear or keep the chronology risk and records `quality.transcript_order_review` on affected
 utterances, but it does not move utterances or edit text. `reviewed_v1` gates pass only when
@@ -2282,6 +2290,14 @@ clips, and tries normal/wide recognition windows. The already accepted `current`
 used as the baseline candidate: a new decode can replace it only when it wins by score and does not
 drop the beginning of the baseline phrase. This keeps the current transcript stable while testing
 more aggressive recovery.
+
+A successful decoder exit is not sufficient evidence for a short `Me` island. Operational readiness
+derives a deterministic stability check from the stored micro-ASR attempts when the selected phrase
+has an implausible speech rate, exists only in the old baseline, or conflicts across raw and filtered
+mic inputs. These rows go through `check_transcript_text` and the local stronger audio judge. An
+automatic drop requires an independent high-confidence audio decision; instability alone never
+edits the transcript. Keeping this guard after transcription avoids invalidating the frozen
+pre-ASR echo qualification.
 
 `shadow_v2` also has a deliberately narrow boundary-prefix repair for short local utterances. The
 first supported case is `адно` -> `Ладно` near the start of an utterance, only when the local score is

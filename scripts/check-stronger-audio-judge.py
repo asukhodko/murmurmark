@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -263,6 +265,85 @@ def main() -> int:
     assert state["coverage_ratio"] == 1.0, state
     assert state["remote_only_ratio"] == 1.0, state
     assert state["local_active_ratio"] == 0.0, state
+
+    with tempfile.TemporaryDirectory(prefix="murmurmark-stronger-checkpoint-") as raw_root:
+        out_dir = Path(raw_root)
+        checkpoint_items = [{"id": "arp_000002"}, {"id": "arp_000001"}]
+        checkpoint_rows = {
+            "arp_000001": {"source_pack_item_id": "arp_000001", "classification": {"label": "confirm_me"}},
+        }
+        module.write_incremental_checkpoint(
+            out_dir,
+            checkpoint_items,
+            checkpoint_rows,
+            model_path=Path("model"),
+            pack_summary={},
+            selected_items=2,
+            cached_items=0,
+            computed_items=1,
+            pending_items=1,
+            sources=("mic_clean", "remote"),
+        )
+        persisted = [
+            json.loads(line)
+            for line in (out_dir / "faster_whisper_judge.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        assert [row["source_pack_item_id"] for row in persisted] == ["arp_000001"], persisted
+        checkpoint_summary = json.loads(
+            (out_dir / "faster_whisper_judge_summary.json").read_text(encoding="utf-8")
+        )
+        assert checkpoint_summary["status"] == "in_progress", checkpoint_summary
+        assert checkpoint_summary["computed_items"] == 1, checkpoint_summary
+        assert checkpoint_summary["pending_selected_items_after_cap"] == 1, checkpoint_summary
+        assert not list(out_dir.glob(".*.tmp")), list(out_dir.iterdir())
+        assert module.final_run_status(0, [], []) == "completed"
+        assert module.final_run_status(1, [], []) == "completed_partial"
+        assert module.final_run_status(0, ["missing"], []) == "completed_partial"
+        assert module.final_run_status(0, [], ["missing.json"]) == "completed_partial"
+
+        cached_item = {
+            "id": "arp_cached",
+            "session_id": "fixture",
+            "profile": "reviewed_v1",
+            "interval": {"start": 1.0, "end": 2.0, "duration_sec": 1.0},
+            "utterance_ids": ["utt_cached"],
+            "utterances": [
+                {
+                    "id": "utt_cached",
+                    "role": "Me",
+                    "source_track": "mic",
+                    "start": 1.0,
+                    "end": 2.0,
+                    "text": "Проверка",
+                }
+            ],
+            "review_features": {},
+        }
+        cached_row = {
+            "source_pack_item_id": "arp_cached",
+            "source_pack_item_fingerprint": module.item_fingerprint(cached_item),
+            "session_id": "fixture",
+            "profile": "reviewed_v1",
+            "sources": ["mic_clean", "remote"],
+            "interval": cached_item["interval"],
+            "utterance_ids": ["utt_cached"],
+            "utterances": cached_item["utterances"],
+            "transcripts": {
+                "mic_clean": {"text": "Проверка", "segments": [], "no_speech_prob": 0.1},
+                "remote": {"text": "", "segments": [], "no_speech_prob": 0.9},
+            },
+        }
+        module.write_jsonl(out_dir / "faster_whisper_judge.jsonl", [cached_row])
+        preserved = module.refreshed_valid_existing_rows_by_pack_id(
+            out_dir,
+            [cached_item],
+            ("mic_clean", "remote"),
+            {},
+            [],
+        )
+        assert set(preserved) == {"arp_cached"}, preserved
+        assert preserved["arp_cached"]["classification_policy_version"] == module.SCRIPT_VERSION
 
     remote_contained_me = classify(
         module,

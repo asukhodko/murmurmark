@@ -4490,6 +4490,7 @@ with tempfile.TemporaryDirectory() as tmp:
     resolved_ids = module.review_resolved_audio_ids(session_path, "reviewed_v1")
     assert "arp_pending_keep" in resolved_ids, resolved_ids
     assert "arp_pending_todo" not in resolved_ids, resolved_ids
+    assert "arp_pending_cleanup_profile" not in resolved_ids, resolved_ids
     assert "arp_other_profile" not in resolved_ids, resolved_ids
     cleanup_profile_resolved_ids = module.review_resolved_audio_ids(session_path, "audit_cleanup_v7")
     assert "arp_pending_cleanup_profile" in cleanup_profile_resolved_ids, cleanup_profile_resolved_ids
@@ -5169,7 +5170,8 @@ rows = [
 (audit / "audio_review_audit.jsonl").write_text("\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n", encoding="utf-8")
 session_row = {"session_id": session.name, "session": str(session), "selected_profile": "reviewed_v1", "use_gate": "review_first", "transcript_review_burden_sec": 1.0}
 queue, low_materiality = module.build_review_queue_details([session_row], 100)
-assert [row["source_audit_id"] for row in queue + low_materiality] == ["arp_unresolved_me"], (queue, low_materiality)
+assert [row["source_audit_id"] for row in queue] == ["transcript_text:utt_unresolved_me"], (queue, low_materiality)
+assert [row["source_audit_id"] for row in low_materiality] == ["arp_unresolved_me"], (queue, low_materiality)
 burden = module.session_review_burden({"session_id": "partial", "meeting_duration_sec": 100.0, "selected_profile": "reviewed_v1", "verdict": "usable_with_review", "review_scope_remaining_seconds": 7.5})
 assert burden["notes_review_burden_sec"] == 7.5
 assert burden["review_scope_remaining_seconds"] == 7.5

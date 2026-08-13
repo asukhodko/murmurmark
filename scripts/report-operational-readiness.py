@@ -5,13 +5,20 @@ import argparse
 import json
 import re
 import shlex
+import sys
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
 
-SCRIPT_VERSION = "0.4.7"
+from micro_asr_evidence import assess_micro_reasr_selection
+
+
+SCRIPT_VERSION = "0.4.9"
 SCHEMA = "murmurmark.operational_readiness_report/v1"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
@@ -696,12 +703,18 @@ def inherited_profiles_for_review(session_path: Path, profile: str) -> list[str]
     return profiles
 
 
-def pending_review_decision_rows(session_path: Path, profile: str) -> list[dict[str, Any]]:
+def pending_review_decision_rows(
+    session_path: Path,
+    profile: str,
+    *,
+    cumulative_final_profile: bool = False,
+) -> list[dict[str, Any]]:
     path = session_path / "derived/readiness/review-plan/review_decisions.jsonl"
     rows: list[dict[str, Any]] = []
+    cumulative_profile = cumulative_final_profile and profile in {"reviewed_v1", "agent_reviewed_v1"}
     for row in read_jsonl(path):
         input_profile = str(row.get("input_profile") or "")
-        if input_profile and input_profile != profile:
+        if input_profile and input_profile != profile and not cumulative_profile:
             continue
         rows.append(row)
     return rows
@@ -793,7 +806,7 @@ def review_resolved_audio_keys(session_path: Path, profile: str, seen: set[str] 
     resolved: set[str] = set()
     for inherited_profile in inherited_profiles_for_review(session_path, profile):
         resolved.update(review_resolved_audio_keys(session_path, inherited_profile, seen))
-    for row in pending_review_decision_rows(session_path, profile):
+    for row in pending_review_decision_rows(session_path, profile, cumulative_final_profile=True):
         if str(row.get("status") or "") != "reviewed":
             continue
         if str(row.get("source") or "") != "audio_review":
@@ -833,7 +846,7 @@ def review_resolved_local_recall_ids(session_path: Path, profile: str, seen: set
     resolved.update(authoritative_boundary_resolved_ids(session_path, profile, {"local_recall", "local_recall_repair"}))
     resolved.update(residual_me_evidence_resolved_ids(session_path, profile, {"local_recall", "local_recall_repair"}))
     resolved.update(local_speech_completion_resolved_ids(session_path, profile))
-    for row in pending_review_decision_rows(session_path, profile):
+    for row in pending_review_decision_rows(session_path, profile, cumulative_final_profile=True):
         if str(row.get("status") or "") != "reviewed":
             continue
         if str(row.get("source") or "") not in {"local_recall", "local_recall_repair"}:
@@ -872,7 +885,7 @@ def review_resolved_transcript_order_ids(session_path: Path, profile: str, seen:
     resolved: set[str] = set(inherited)
     resolved.update(authoritative_boundary_resolved_ids(session_path, profile, {"transcript_order"}))
     resolved.update(residual_me_evidence_resolved_ids(session_path, profile, {"transcript_order"}))
-    for row in pending_review_decision_rows(session_path, profile):
+    for row in pending_review_decision_rows(session_path, profile, cumulative_final_profile=True):
         if str(row.get("status") or "") != "reviewed":
             continue
         if str(row.get("source") or "") != "transcript_order":
@@ -1993,12 +2006,31 @@ def unsupported_micro_asr_fallback(row: dict[str, Any]) -> bool:
     )
 
 
+def unstable_successful_micro_asr(row: dict[str, Any]) -> dict[str, Any] | None:
+    quality = row.get("quality") if isinstance(row.get("quality"), dict) else {}
+    repair = quality.get("repair") if isinstance(quality.get("repair"), dict) else {}
+    if str(repair.get("action") or "") != "micro_reasr":
+        return None
+    micro = repair.get("micro_reasr") if isinstance(repair.get("micro_reasr"), dict) else {}
+    if str(micro.get("status") or "") != "ok":
+        return None
+    stored = micro.get("selection_stability")
+    if isinstance(stored, dict):
+        return stored if stored.get("status") == "needs_review" else None
+    selected_text = str(micro.get("selected_text") or micro.get("raw_text") or row.get("text") or "")
+    start_ms = int(repair.get("island_start_ms") or round(safe_float(row.get("start")) * 1000.0))
+    end_ms = int(repair.get("island_end_ms") or round(safe_float(row.get("end")) * 1000.0))
+    stability = assess_micro_reasr_selection(selected_text, micro, start_ms, end_ms)
+    return stability if stability.get("status") == "needs_review" else None
+
+
 def compact_transcript_text_utterance(
     session: dict[str, Any],
     row: dict[str, Any],
     *,
     input_profile: str = "local_speech_completion_v2",
     allow_drop: bool = False,
+    micro_selection_review: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     start = safe_float(row.get("start"))
     end_value = safe_float(row.get("end"))
@@ -2009,6 +2041,7 @@ def compact_transcript_text_utterance(
     duration = max(0.0, end - start)
     session_path = str(session.get("session") or "")
     utterance_id = str(row.get("id") or "")
+    selection_review = micro_selection_review or unstable_successful_micro_asr(row)
     listen_start = max(0.0, start - 1.0)
     listen_duration = duration + 2.0
     return {
@@ -2025,7 +2058,7 @@ def compact_transcript_text_utterance(
         "review_action": "check_transcript_text",
         "allowed_decisions": (
             ["drop_me", "keep_me", "needs_review", "skip"]
-            if allow_drop
+            if allow_drop or selection_review
             else ["keep_me", "needs_review", "skip"]
         ),
         "interval": {
@@ -2040,6 +2073,16 @@ def compact_transcript_text_utterance(
         "text": [{"id": utterance_id, "role": "Me", "source_track": "mic", "text": row.get("text")}],
         "review_features": {
             "unsupported_micro_asr_fallback": allow_drop,
+            "unstable_micro_asr_success": selection_review is not None,
+            "micro_asr_selection_review_reasons": (
+                list(selection_review.get("reasons") or []) if selection_review else []
+            ),
+            "micro_asr_chars_per_sec": (
+                selection_review.get("chars_per_sec") if selection_review else None
+            ),
+            "micro_asr_independent_support": (
+                selection_review.get("independent_support") if selection_review else None
+            ),
             "micro_asr_status": micro.get("status"),
             "micro_asr_reason": micro.get("reason"),
             "source_needs_review": quality.get("needs_review") is True,
@@ -2058,7 +2101,12 @@ def compact_transcript_text_utterance(
         "reason": (
             "all canonical mic micro-ASR sources returned empty text for this short Me fallback"
             if allow_drop
-            else "selected transcript marks this Me utterance as needs_review"
+            else (
+                "successful short micro-ASR selection lacks stable independent mic evidence: "
+                + ", ".join(str(value) for value in selection_review.get("reasons") or [])
+                if selection_review
+                else "selected transcript marks this Me utterance as needs_review"
+            )
         ),
     }
 
@@ -2296,7 +2344,11 @@ def build_review_queue_details(sessions: list[dict[str, Any]], max_items: int) -
             / f"clean_dialogue{suffix(profile)}.json"
         ) or {}
         for utterance in selected_dialogue.get("utterances") or []:
-            if not isinstance(utterance, dict) or not unsupported_micro_asr_fallback(utterance):
+            if not isinstance(utterance, dict):
+                continue
+            unsupported_fallback = unsupported_micro_asr_fallback(utterance)
+            selection_review = unstable_successful_micro_asr(utterance)
+            if not unsupported_fallback and selection_review is None:
                 continue
             utterance_id = str(utterance.get("id") or "")
             if not utterance_id or utterance_id in confirmed_me_ids:
@@ -2306,7 +2358,8 @@ def build_review_queue_details(sessions: list[dict[str, Any]], max_items: int) -
                     session,
                     utterance,
                     input_profile=profile,
-                    allow_drop=True,
+                    allow_drop=unsupported_fallback,
+                    micro_selection_review=selection_review,
                 )
             )
         if profile == "local_speech_completion_v2":
@@ -2413,6 +2466,7 @@ def build_review_queue_details(sessions: list[dict[str, Any]], max_items: int) -
             for item in rows
             if str(item.get("session_id") or "") == str(session.get("session_id") or "")
             and str(item.get("source") or "") != "transcript_text"
+            and not review_item_low_materiality(item)
             for utterance_id in item.get("utterance_ids") or []
             if utterance_id
         }

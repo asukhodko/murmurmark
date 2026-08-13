@@ -268,11 +268,17 @@ sessions. A private `sessions/_reports/**/retired_sessions.json` overlay with sc
 `murmurmark.retired_sessions/v1` removes those automatic historical pins without editing the frozen
 policy. An explicit `pinned_sessions.json` or `--pin-file` always wins over retirement. Retirement
 only makes a session eligible for the normal transcript and lifecycle checks; it never bypasses
-them.
+them. Every `plan` and `verify` refreshes the reported pin state from the current manifests, including
+sessions compacted before they were pinned.
 
 After successful guarded export, `murmurmark finish` applies `transcript_only` compaction
 automatically. `murmurmark meeting` inherits that behavior because it calls `finish` only when
-structured quality gates permit export. Both commands accept:
+structured quality gates permit export. A previously promoted frozen profile becomes ineligible for
+fresh automatic selection after its raw/working evidence is intentionally compacted. The preserved
+profile outputs and frozen corpus report remain auditable, while runtime selection fails open to a
+currently verifiable profile. Corpus regression checks accept this state only when the
+`transcript_only` manifest is verified, raw deletion is recorded, and retained outputs still match.
+Both commands accept:
 
 ```bash
 --keep-debug-artifacts
