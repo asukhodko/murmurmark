@@ -1,6 +1,6 @@
 # MurmurMark CLI Roadmap
 
-Updated: 2026-08-12
+Updated: 2026-08-13
 Это читаемое представление активного плана OpsKarta v3:
 
 - `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`
@@ -90,7 +90,8 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Stronger local speaker representation | `done` | `KEEP_EXPLICIT_UNKNOWN`: 3/3 gains, but 12 new false identities |
 | Temporal end-to-end remote diarization | `done` | `KEEP_EXPLICIT_UNKNOWN`: stable timing, but speaker count `0/6`, seven false identities |
 | Disjoint remote-speaker truth v2 | `done` | 72 primary + 12 repeats; `DIRECT_TRUTH_V2_READY`, consistency `1.0` |
-| Disjoint model qualification v1 | `current` | Freeze one new local backend and evaluate it once on independent truth v2 |
+| Disjoint model qualification v1 | `done` | `KEEP_COVERAGE_V3`: ERes2NetV2 unsafe on 7 special real-session items |
+| Remote speaker usability decomposition v1 | `current` | Explain unsafe accepts and misses before designing another candidate |
 ## Актуальная Цепочка
 ```mermaid
 flowchart LR
@@ -121,10 +122,11 @@ flowchart LR
     SR["Done: KEEP EXPLICIT UNKNOWN<br/>Stronger Local Speaker<br/>Representation v1"]
     TD["Done: KEEP EXPLICIT UNKNOWN<br/>Temporal End-to-End Remote<br/>Diarization v1"]
     M["Done: DIRECT TRUTH V2 READY<br/>Remote Speaker Disjoint<br/>Truth Expansion v2"]
-    MQ["Current<br/>Disjoint Remote Speaker<br/>Model Qualification v1"]
+    MQ["Done: KEEP COVERAGE V3<br/>Disjoint Remote Speaker<br/>Model Qualification v1"]
+    UG["Next<br/>Remote Speaker Usability<br/>Gate Error Decomposition v1"]
     O["Optional<br/>Notes, retrieval,<br/>work proposals"]
 
-    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> W --> X --> Y --> RC --> SR --> TD --> M --> MQ
+    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> W --> X --> Y --> RC --> SR --> TD --> M --> MQ --> UG
     F --> D
     L -.-> O
 ```
@@ -284,16 +286,13 @@ fail-closed unsafe accepts 8 -> 13. Net gain 1/8 не прошёл material gate
 `KEEP_EXPLICIT_UNKNOWN`: stability `0.814301`, speaker count `0/6`, gains `2/3`, семь false identities.
 ### 26. Remote Speaker Disjoint Truth Expansion v2 — `done`
 `DIRECT_TRUTH_V2_READY`: 72 primary, 12 repeats, 21 attributed, consistency `1.0`, replay byte-exact.
-### 27. Disjoint Remote Speaker Model Qualification v1 — `current`
-Заморозить один новый local backend и один раз оценить на truth v2; после unseal tuning запрещён.
-### 28. Производные Возможности — `optional`: notes и work proposals остаются отдельными производными после transcript gates.
+### 27. Disjoint Remote Speaker Model Qualification v1 — `done`
+`KEEP_COVERAGE_V3`: frozen ERes2NetV2 дал 12/21 correct, precision `0.631579` и 7 unsafe special accepts; controlled hard perfect, replay exact, production неизменён.
+### 28. Remote Speaker Usability Gate Error Decomposition v1 — `current`
+Разложить unsafe accepts/misses на usability, purity, boundaries, enrollment и identity; Truth v2 только development, следующий promotion требует нового terminal set.
 ## Закрытые И Отложенные Треки
-- Human-Reviewed Lexical Seed заблокирован отсутствием real reference; disagreement не заменяет truth.
-- Пред-ASR разделение закрыто; открыть его может новая независимая проверка Target-Me presence.
-- Free-text local synthesis закрыт `DO_NOT_PROMOTE`; ID-only selector остаётся opt-in.
-- Cross-session voice identity запрещена без отдельного privacy contract. Имена только из review.
-- Live promotion заблокирован; Live Shadow остаётся диагностическим черновиком.
-- Cloud, автоматические внешние записи и UI остаются необязательным хвостом.
+- Human-reviewed lexical truth и новый speaker terminal set остаются внешними prerequisites; disagreement не заменяет truth.
+- Пред-ASR separation, live promotion и cross-session identity закрыты до нового evidence; notes, cloud, external writes и UI optional.
 ## Ворота Продвижения
 Каждая гипотеза замораживает inputs и проверяет replay, integrity, fallback и non-regression; слабые интервалы остаются `unknown`.
 ## Проверка Плана

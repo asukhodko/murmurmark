@@ -140,8 +140,13 @@ synthetic hard-v4 but failed real-session promotion; interval and enrollment var
 their material gates. Blind review then completed 33 primary and 8 repeat answers at consistency
 `0.875`. Direct adjudication kept Coverage v3: the candidate gained three correct identities, lost
 two correct controls and increased fail-closed unsafe accepts from 8 to 13. Purity v2 restored
-control safety but added no identity because only 7/14 profiles qualified. The current stage mines
-homogeneous session-local enrollment. Development evidence cannot promote labels. Notes remain optional.
+control safety but added no identity because only 7/14 profiles qualified. Homogeneous enrollment,
+label-independent re-clustering, WeSpeaker and temporal AHC/VBx then closed without promotion.
+Disjoint Truth v2 completed 72 primary + 12 repeat decisions. Frozen ERes2NetV2 correctly attributed
+12/21 positives with no wrong-known-speaker substitutions, but made seven unsafe special accepts
+and lost two truth-v1 controls, so it closed `KEEP_COVERAGE_V3`. Current work separates interval
+usability and single-speaker purity from identity geometry. Open Truth v2 is development evidence;
+future promotion requires a new frozen terminal set. Notes remain optional.
 
 Target transcription path:
 
@@ -230,8 +235,9 @@ Owns:
 Current implementation note:
 
 - the source of truth is `derived/transcript-simple/whisper-cpp/resolved/clean_dialogue*.json`;
-- the v1 `transcript.rich.json` and `speaker_map.json` are optional audit artifacts; full
-  word/frame-level remote diarization is the active v2 target;
+- word/frame-level Remote Speaker Diarization v2 and Coverage v3 are promoted optional evidence;
+  ordinary read/handoff/export uses their fingerprint-verified speaker-resolved view and exact
+  aggregate fallback;
 - `transcript.shadow_v2.md` is a candidate export only when `repair_comparison.json` passes.
 
 Does not own:

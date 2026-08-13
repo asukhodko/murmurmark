@@ -83,6 +83,7 @@ CRITICAL_PATH = (
     "quality-lightweight-remote-speaker-representation-frontier-v1",
     "quality-remote-speaker-disjoint-truth-expansion-v2",
     "quality-disjoint-remote-speaker-model-qualification-v1",
+    "quality-remote-speaker-usability-gate-error-decomposition-v1",
 )
 
 EXPECTED_STATUSES = {"done", "current", "next", "later", "idea", "optional", "blocked"}
@@ -494,8 +495,18 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
     )
     require(
         nodes["quality-disjoint-remote-speaker-model-qualification-v1"].get("status")
+        == "done",
+        "disjoint remote-speaker model qualification must remain completed",
+    )
+    require(
+        "quality-disjoint-remote-speaker-model-qualification-v1"
+        in nodes["quality-remote-speaker-usability-gate-error-decomposition-v1"].get("deps", []),
+        "remote-speaker usability decomposition must follow disjoint model qualification",
+    )
+    require(
+        nodes["quality-remote-speaker-usability-gate-error-decomposition-v1"].get("status")
         == "current",
-        "disjoint remote-speaker model qualification must be the current quality goal",
+        "remote-speaker usability decomposition must be the current quality goal",
     )
     require("parked-ui" not in nodes, "UI must not occupy the active CLI roadmap")
 

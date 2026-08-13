@@ -40,6 +40,10 @@ largest_actionable_residual: unknown_remote_speaker (598.240s)
 next_goal: Disjoint Remote Speaker Model Qualification v1
 ```
 
+This is the byte-frozen v1 baseline output. Planning has since executed that goal: ERes2NetV2
+closed `KEEP_COVERAGE_V3`. The active OpsKarta goal is Remote Speaker Usability Gate Error
+Decomposition v1; do not rewrite the frozen baseline merely to rename its historical next action.
+
 ## Reading The Result
 
 - `BASELINE_ESTABLISHED` means the scorecard and frozen lineage are valid.
@@ -69,8 +73,10 @@ next_goal: Disjoint Remote Speaker Model Qualification v1
   17 unsafe accepts and six ambiguous clusters, closing `KEEP_EXPLICIT_UNKNOWN`;
 - temporal AHC/VBx passed shift stability but matched speaker count in `0/6` sessions, preserved
   `2/3` gains and introduced seven false identities;
-- the next bounded goal must expand disjoint real-session truth before selecting or tuning another
-  remote-speaker model;
+- Disjoint Truth v2 is complete at 72 primary + 12 repeats; frozen ERes2NetV2 then closed
+  `KEEP_COVERAGE_V3` after seven unsafe special accepts and two lost truth-v1 controls;
+- the next bounded goal must decompose usability/single-speaker evidence before another model is
+  selected; opened Truth v2 cannot be reused as a terminal promotion set;
 - residual seconds belong to different frozen scopes and must not be summed.
 - the first residual row selects the next bounded engineering goal.
 

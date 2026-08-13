@@ -491,9 +491,10 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Session-Local Homogeneous Remote Speaker Enrollment Mining v1: сохранить Coverage v3 и добыть
-несколько неперекрывающихся speaker-homogeneous remote windows на профиль только внутри сессии;
-заморозить material до development truth и не открывать promotion без отдельного candidate gate.
+Remote Speaker Usability Gate Error Decomposition v1: сохранив Coverage v3 и frozen ERes2NetV2
+qualification неизменными, разложить unsafe accepts, misses и truth-v1 regressions на usability,
+single-speaker purity, boundaries, enrollment и identity causes; следующий candidate выбирать
+только после доказательного route decision и с новым независимым terminal set.
 ```
 
 Remote Speaker Attribution Error Decomposition v1 завершён
@@ -531,7 +532,13 @@ The real-session shadow nevertheless failed its fixed word-recovery and independ
 precision gates. Synthetic and machine-reference evidence still cannot replace blind review of
 real-session proposals.
 
-Direct Truth Seed v1 сделал review конечным: 33 primary items / 116 words / `90.100820s`, 8 hidden
-repeats, 41 opaque slots и 355 inherited production guards. Все slots закрыты: 8 attributed,
-11 unknown, 4 mixed, 10 unusable; repeat consistency `7/8`. Результат `DIRECT_TRUTH_SEED_READY`.
-Следующий evaluator использует sealed mapping один раз; backend и threshold tuning запрещены.
+Direct Truth Seed v1 сделал первый review конечным: 33 primary items / 116 words / `90.100820s`,
+8 hidden repeats, 41 opaque slots и 355 inherited production guards. Direct adjudication и все
+последующие fixed-window/temporal candidates сохранили Coverage v3.
+
+Disjoint Truth v2 затем добавил независимые 72 primary + 12 repeat slots: 21 attributed, 28
+unknown, 4 mixed и 19 unusable, repeat consistency `1.0`. Pinned ERes2NetV2 был заморожен до их
+раскрытия и однократно получил 12/21 correct identities, precision `0.631579`, recall `0.571429`,
+zero wrong-known-speaker substitutions и семь unsafe special accepts. Controlled hard остался
+perfect, но real-session safety и truth-v1 controls не прошли. Результат `KEEP_COVERAGE_V3` закрывает
+эту model route и локализует следующий вопрос в пригодности и одноголосии входного интервала.

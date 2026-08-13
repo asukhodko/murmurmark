@@ -356,6 +356,7 @@ struct MurmurMark {
           murmurmark corpus remote-leak [all|latest|./session...] [--plan] [--sessions-root ./sessions]
           murmurmark corpus remote-identity-shadow-v1 preflight|freeze|evaluate|status|replay|finalize|all
           murmurmark corpus remote-temporal-diarization-v1 preflight|prepare|freeze|evaluate|replay|finalize|status|all
+          murmurmark corpus remote-model-disjoint-v1 preflight|prepare|freeze|evaluate|replay|finalize|status|all
           murmurmark corpus echo-supervision build|replay|status [--sessions-root ./sessions]
           murmurmark corpus live [all|latest|./session...] [--refresh] [--target-live-sessions 3] [--sessions-root ./sessions]
           murmurmark corpus lifecycle [all|latest|./session...] [--freeze-inputs] [--require-passing-gates]
@@ -1293,6 +1294,9 @@ enum DoctorChecks {
             "scripts/evaluate-temporal-end-to-end-remote-diarization-v1.py",
             "scripts/setup-temporal-end-to-end-remote-diarization-v1.py",
             "scripts/wespeaker-resnet34-embedding-worker.py",
+            "scripts/evaluate-disjoint-remote-speaker-model-v1.py",
+            "scripts/setup-disjoint-remote-speaker-model-v1.py",
+            "scripts/eres2netv2-speaker-embedding-worker.py",
             "scripts/report-lexical-accuracy-reference-corpus.py",
             "scripts/report-speaker-resolved-transcript-default-corpus.py",
             "scripts/transcribe-simple-whispercpp.py",
@@ -8522,6 +8526,29 @@ enum CorpusCommands {
                 [try script("evaluate-temporal-end-to-end-remote-diarization-v1.py").path] + forwarded,
                 allowedExitCodes: [0, 2]
             )
+        case "remote-model-disjoint-v1", "remote_model_disjoint_v1":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(
+                    try PythonRuntime.resolve(),
+                    [try script("evaluate-disjoint-remote-speaker-model-v1.py").path, "--help"]
+                )
+                return
+            }
+            guard let action = forwarded.first else {
+                throw CLIError(
+                    "remote-model-disjoint-v1 requires preflight, prepare, freeze, evaluate, replay, finalize, status, or all"
+                )
+            }
+            guard [
+                "preflight", "prepare", "freeze", "evaluate", "replay", "finalize", "status", "all",
+            ].contains(action) else {
+                throw CLIError("unsupported remote-model-disjoint-v1 action: \(action)")
+            }
+            _ = try Tooling.runPathAllowingExitCodes(
+                try PythonRuntime.resolve(),
+                [try script("evaluate-disjoint-remote-speaker-model-v1.py").path] + forwarded,
+                allowedExitCodes: [0, 2]
+            )
         case "lifecycle":
             try Tooling.runPath(
                 try PythonRuntime.resolve(),
@@ -8706,6 +8733,8 @@ enum CorpusHelp {
                                       [--policy policies/stronger-local-remote-speaker-representation-qualification-v1.json]
           murmurmark corpus remote-temporal-diarization-v1 preflight|prepare|freeze|evaluate|replay|finalize|status|all
                                       [--policy policies/temporal-end-to-end-remote-diarization-qualification-v1.json]
+          murmurmark corpus remote-model-disjoint-v1 preflight|prepare|freeze|evaluate|replay|finalize|status|all
+                                      [--policy policies/disjoint-remote-speaker-model-qualification-v1.json]
           murmurmark corpus perfection all [--verify-existing]
                                         [--manifest docs/testing/transcript-perfection-corpus-v1-manifest.json]
           murmurmark corpus lexical import SESSION SOURCE --source-id ID

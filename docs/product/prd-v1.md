@@ -150,7 +150,11 @@ six sessions. Blind review completed 33/33 primary and 8/8 repeat answers: 8 att
 correct gains came with two lost correct controls and 13 versus 8 fail-closed unsafe accepts. Remote
 Speaker Enrollment Purity and Abstention Hardening v2 then closed `KEEP_COVERAGE_V3`: 7/14 profiles
 qualified, zero identities were added and unsafe accepts returned to control 8. Homogeneous
-session-local enrollment mining is current; production remains Coverage v3.
+enrollment, label-independent re-clustering, WeSpeaker and temporal AHC/VBx all closed without
+promotion. Disjoint Truth v2 then completed 72 primary + 12 repeat decisions. Frozen ERes2NetV2
+closed `KEEP_COVERAGE_V3`: 12/21 correct identities, precision `0.631579`, seven unsafe special
+accepts and two lost truth-v1 controls. Current work decomposes interval usability and
+single-speaker purity; production remains Coverage v3.
 Notes, external writes and UI remain optional.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.

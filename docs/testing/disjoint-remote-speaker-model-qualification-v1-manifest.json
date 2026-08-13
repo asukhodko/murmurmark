@@ -1,0 +1,46 @@
+{
+  "schema": "murmurmark.disjoint_remote_speaker_model_qualification_tracked_manifest/v1",
+  "decision": "KEEP_COVERAGE_V3",
+  "artifacts": {
+    "policy": {
+      "path": "policies/disjoint-remote-speaker-model-qualification-v1.json",
+      "bytes": 9390,
+      "sha256": "c13a188dcf889dc19d1920588d65911d479772bc8129a37b7596bc47bd542b16"
+    },
+    "report": {
+      "path": "sessions/_reports/disjoint-remote-speaker-model-qualification-v1/disjoint_remote_speaker_model_qualification_report.json",
+      "bytes": 8600,
+      "sha256": "bee02441360a8dcb37e76b54f5b8bb11830d86d5b54da762455991abb143585d"
+    },
+    "freeze": {
+      "path": "sessions/_reports/disjoint-remote-speaker-model-qualification-v1/freeze_manifest.json",
+      "bytes": 7804,
+      "sha256": "b3d765e65d764994839291a4515301f2e219f0e65192515d4131bc1cbdd95557"
+    },
+    "public_pack": {
+      "path": "sessions/_reports/disjoint-remote-speaker-model-qualification-v1/candidate_pack.public.json",
+      "bytes": 2810,
+      "sha256": "0a954cc2f93b47d80675bd723a52ab20ed10a83c4a9f28a98c6ae1af8429d1d9"
+    },
+    "replay": {
+      "path": "sessions/_reports/disjoint-remote-speaker-model-qualification-v1/replay_report.json",
+      "bytes": 484,
+      "sha256": "b0535930c2fb837a08c94effce7b9b7ebb35c69ed8c925321b5df4a2ae0c5108"
+    },
+    "artifact_manifest": {
+      "path": "sessions/_reports/disjoint-remote-speaker-model-qualification-v1/artifact_manifest.json",
+      "bytes": 1129,
+      "sha256": "73f1f3a3cb8db189a4f4096703e0beca3b4008f1159580d86950b6940d38fb24"
+    }
+  },
+  "external_model": {
+    "model_id": "iic/speech_eres2netv2_sv_zh-cn_16k-common",
+    "revision": "c0df10ae7e0dec76f922b2cd2dcef25f92225f09",
+    "source_revision": "065629c313eaf1a01c65c640c46d77e61e9607b4",
+    "file": "pretrained_eres2netv2.ckpt",
+    "bytes": 71768231,
+    "sha256": "0eb4057106b2573dd7b132cf0c36273ab29afd192c1610f80baa9c556dbb963c",
+    "license": "Apache-2.0"
+  },
+  "production_promotion_allowed": false
+}

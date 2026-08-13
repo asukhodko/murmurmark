@@ -1,74 +1,71 @@
 # Current Goal
 
-Updated: 2026-08-12
+Updated: 2026-08-13
 
 This document expands the single executable goal from
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`.
 `scripts/check-planning-consistency.py` keeps the README, roadmap and OpsKarta wording aligned.
 
-## Disjoint Remote Speaker Model Qualification v1
+## Remote Speaker Usability Gate Error Decomposition v1
 
-OpsKarta nearest goal: Disjoint Remote Speaker Model Qualification v1: сохранив Coverage v3 и все frozen inputs неизменными, выбрать ровно один существенно новый локальный класс speaker-модели по лицензии, доступности и совместимости с Apple Silicon; до открытия item-level truth v2 заморозить веса, SHA-256, preprocessing, segmentation, clustering, thresholds и candidate outputs; один раз оценить candidate на независимых 72 primary + 12 repeat Disjoint Truth v2 slots, прежних direct-truth controls и controlled corpus; измерить attributed precision/recall, B-cubed, abstention на unknown/mixed/unusable, speaker-count, boundaries, repeat determinism и conservation; запретить tuning после unseal и выпустить PROMOTE_SHADOW, KEEP_COVERAGE_V3 либо MODEL_UNAVAILABLE с byte-exact replay, privacy-safe отчётом, тестами, актуальными документами, коммитом и push.
+OpsKarta nearest goal: Remote Speaker Usability Gate Error Decomposition v1: сохранив Coverage v3 и frozen ERes2NetV2 qualification неизменными, доказательно разложить 7 unsafe special accepts, 9 missed positive items и truth-v1 regressions на speech usability, single-speaker purity, interval boundaries, enrollment и identity causes; определить доступные до identity label-independent observables; не выбирать candidate и не считать уже открытую Truth v2 новым terminal set; выпустить ADVANCE_USABILITY_GATE, ADVANCE_SEGMENTATION либо EVIDENCE_BOUND с replay, privacy-safe aggregate report, тестами, актуальными документами, коммитом и push.
 
 ## Why Now
 
-Disjoint Truth v2 завершён `DIRECT_TRUTH_V2_READY`: размечены 72 primary и 12 hidden repeat slots,
-repeat consistency равна `1.0`, а candidate/review pack воспроизводится побайтно. Теперь можно
-проверить новый класс модели без повторной подгонки к прежним 33 direct-truth items.
+Disjoint Model Qualification v1 завершён `KEEP_COVERAGE_V3`. ERes2NetV2 идеален на controlled
+hard, правильно узнаёт 12/21 real-session identities и ни разу не заменяет известного участника
+другим. При этом он принудительно атрибутирует семь `unknown/unusable` intervals и теряет два
+truth-v1 correct controls. Следующая неизвестная находится перед identity decision: пригоден ли
+сам аудиоинтервал и говорит ли в нём один поддержанный человек.
 
 ## Objective
 
-Провести одну честную квалификацию нового локального speaker backend на независимой real-session
-truth. Candidate либо докажет право на отдельный shadow-профиль, либо закроет ещё одну ветвь без
-изменения production.
+Не строить очередную модель вслепую. Сначала получить воспроизводимую карту причин для каждого
+ошибочного или пропущенного решения ERes2NetV2 и выяснить, существует ли наблюдаемый до разметки
+аудиопризнак, который отделяет безопасные identity accepts от special/impure intervals.
 
-## Current State
-
-Truth v2 содержит 21 attributed, 28 unknown, 4 mixed и 19 unusable primary outcomes на шести
-сессиях; attributed evidence представлено в четырёх сессиях. Все 12 скрытых повторов совпали.
-Public report не содержит речь, имена, абсолютные пути или private labels. Coverage v3, selected
-transcripts, raw CAF, ASR, Echo Guard и truth v1 не изменились.
-
-Следующий candidate ещё не выбран. ECAPA, WavLM, WeSpeaker fixed-window и Community-1-equivalent
-temporal AHC/VBx уже исчерпаны; повторная настройка этих же ветвей не считается новым классом.
+Truth v2 теперь разрешена только как development evidence этой диагностики. Она не может повторно
+служить terminal promotion set. Coverage v3, candidate ERes2NetV2, его пороги и predictions
+остаются байт-в-байт неизменными.
 
 ## Required Work
 
-1. Сделать короткий feasibility preflight доступных materially new local backends и выбрать один.
-2. Записать лицензию, источник, версию, model SHA-256, runtime и hardware/resource contract.
-3. Заморозить preprocessing, segmentation, embeddings, clustering, thresholds и candidate outputs
-   до чтения item-level truth v2 evaluator-ом.
-4. Выполнить ровно один unseal/evaluation на truth v2; после него не менять candidate.
-5. Сопоставить результат с Coverage v3, v1 controls и controlled truth без потери слов/таймкодов.
-6. Проверить unknown/mixed/unusable abstention, boundaries, speaker count и hidden repeats.
-7. Выпустить privacy-safe aggregate report и byte-exact replay без речи, имён и private labels.
-8. Добавить CLI, fixtures, guards, docs and planning; commit and push.
+1. Зафиксировать item-level analysis ledger для 72 Truth v2 primary, 12 repeats и truth-v1 controls.
+2. Для каждой ошибки записать одну первичную причину и все supporting observables.
+3. Считать только label-independent признаки, доступные до identity assignment: duration, speech
+   activity, silence/noise, SNR, full/subwindow consensus, similarity/margin shape, embedding drift,
+   model disagreement, overlap and boundary evidence.
+4. Отделить `unusable`, `mixed`, unsupported/open-set voice, boundary contamination, impure
+   enrollment и настоящую identity geometry ошибку.
+5. Проверить устойчивость любой разделяющей гипотезы leave-one-session-out, не объявляя promotion.
+6. Измерить, сколько unsafe accepts можно было бы reject и сколько correct identities при этом
+   потерялось бы; не выбирать production threshold.
+7. Выпустить один terminal route decision и точный контракт следующего независимого hard set.
+8. Добавить CLI/status, tests, privacy-safe aggregate report, replay, docs, commit and push.
 
 ## Acceptance Gates
 
-- candidate и evaluator fingerprints заморожены до unseal;
-- truth v2 используется только для one-shot terminal evaluation, а не для tuning;
-- attributed precision не хуже Coverage v3 control и нет новых unsafe accepts;
-- unknown/mixed/unusable не получают принудительную identity;
-- words, timestamps, roles, `Me`, boundaries и aggregate fallback сохраняются;
-- replay byte-exact, public artifacts privacy-safe, все production guards проходят;
-- production не меняется в этой цели: положительный исход разрешает только отдельный shadow.
+- все 7 Truth v2 unsafe accepts, 9 missed positives и truth-v1 regressions имеют стабильную причину;
+- причины воспроизводятся из frozen audio/model evidence и не зависят от речи, имён или session IDs
+  в public report;
+- label-independent observables вычислены до присоединения truth outcome;
+- leave-one-session-out analysis явно отделён от terminal qualification;
+- words, timestamps, Coverage v3, raw CAF, selected transcripts, ASR and Echo Guard неизменны;
+- replay byte-exact; отсутствующие evidence fail open to `unclassified`;
+- следующий candidate не выбран и production gate не добавлен в этой цели.
 
 ## Terminal Outcomes
 
-- `PROMOTE_SHADOW`: candidate проходит material и safety gates и допускается к отдельному shadow.
-- `KEEP_COVERAGE_V3`: candidate доступен, но не даёт безопасного материального улучшения.
-- `MODEL_UNAVAILABLE`: materially new candidate нельзя локально и воспроизводимо запустить; отчёт
-  фиксирует точный blocker без ослабления ворот.
+- `ADVANCE_USABILITY_GATE`: unsafe accepts имеют устойчивый до-identity audio signature; следующий
+  этап строит rejector и новый disjoint terminal set.
+- `ADVANCE_SEGMENTATION`: основной источник ошибок — смешанные или неверно ограниченные интервалы;
+  следующий этап меняет segmentation before identity.
+- `EVIDENCE_BOUND`: доступные observables не разделяют ошибки без неприемлемой потери correct
+  identities; ветка закрывается до появления нового evidence source.
 
 ## Previous Goal Result
 
-Remote Speaker Disjoint Truth Expansion v2 завершён `DIRECT_TRUTH_V2_READY`: 72 primary / 12 repeat,
-21 attributed primary на четырёх сессиях, repeat consistency `1.0`, zero v1 overlap и byte-exact
-replay. Production остался Coverage v3.
-
-## After This Goal
-
-1. `PROMOTE_SHADOW` откроет отдельную corpus-wide shadow qualification без автоматического выбора.
-2. `KEEP_COVERAGE_V3` или `MODEL_UNAVAILABLE` зафиксирует текущий локальный предел и направит работу
-   к новым controlled recordings либо принципиально другому representation class.
+Disjoint Remote Speaker Model Qualification v1 завершён `KEEP_COVERAGE_V3`: frozen ERes2NetV2
+получил Truth v2 precision `0.631579`, recall `0.571429`, 12 correct identities, 7 unsafe special
+accepts и repeat determinism `1.0`. Controlled hard был perfect, но real-session safety не прошла.
+Production и все 355 guards не изменились.

@@ -118,12 +118,12 @@ met, unless an explicit product decision changes the priority.
 
 ## Near-Term Direction
 
-1. **Transcript Perfection Corpus v1:** maintain the completed 26-source benchmark for text,
+1. **Transcript Perfection Corpus v1:** maintain the frozen benchmark for text,
    chronology, roles, speakers, overlap, acoustic modes and known residual defects.
-2. **Session-Local Homogeneous Remote Speaker Enrollment Mining v1:** mine several clean,
-   speaker-bounded windows per anonymous profile before testing another additive candidate.
-3. **Disjoint direct truth:** qualify only a frozen candidate that first passes development gates;
-   development truth, synthetic evidence or machine agreement cannot promote it.
+2. **Remote Speaker Usability Gate Error Decomposition v1:** explain unsafe real-session identity
+   accepts and misses before selecting another backend or threshold.
+3. **Disjoint direct truth:** any future candidate must be frozen before a new terminal set opens;
+   the now-open Truth v2 is development evidence only and cannot promote another candidate.
 4. **Human-Reviewed Lexical Seed v1:** external-evidence prerequisite; do not tune ASR from machine
    agreement while it is absent.
 5. **Measured residual loop:** rerank after every bounded `PROMOTE` or evidence ceiling and close the

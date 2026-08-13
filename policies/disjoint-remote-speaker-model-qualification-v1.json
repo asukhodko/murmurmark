@@ -1,0 +1,140 @@
+{
+  "schema": "murmurmark.disjoint_remote_speaker_model_qualification_policy/v1",
+  "version": "1.0.0",
+  "state": "candidate_selected_before_disjoint_truth_v2_unseal",
+  "purpose": "One-shot qualification of one materially new local speaker model on frozen Disjoint Truth v2 while Coverage v3 remains production.",
+  "candidate": {
+    "id": "3dspeaker_eres2netv2_common",
+    "model_id": "iic/speech_eres2netv2_sv_zh-cn_16k-common",
+    "model_repository": "https://www.modelscope.cn/iic/speech_eres2netv2_sv_zh-cn_16k-common.git",
+    "model_tag": "v1.0.1",
+    "model_revision": "c0df10ae7e0dec76f922b2cd2dcef25f92225f09",
+    "source_repository": "https://github.com/modelscope/3D-Speaker.git",
+    "source_revision": "065629c313eaf1a01c65c640c46d77e61e9607b4",
+    "source_url": "https://github.com/modelscope/3D-Speaker",
+    "model_url": "https://www.modelscope.cn/models/iic/speech_eres2netv2_sv_zh-cn_16k-common",
+    "license": "Apache-2.0",
+    "architecture": "ERes2NetV2 multi-scale residual 2D CNN with AFF fusion and temporal statistics pooling",
+    "training": "3D-Speaker common checkpoint trained on a 200k-speaker corpus",
+    "embedding_dimensions": 192,
+    "sample_rate": 16000,
+    "default_model_root": "~/.local/share/murmurmark/models/disjoint-remote-speaker-model-qualification-v1/eres2netv2-common",
+    "artifacts": [
+      {"path":"model-repo/pretrained_eres2netv2.ckpt","bytes":71768231,"sha256":"0eb4057106b2573dd7b132cf0c36273ab29afd192c1610f80baa9c556dbb963c"},
+      {"path":"model-repo/README.md","bytes":4493,"sha256":"474094d2c054aed40996861ec8c6dc01f742604dc82807fe3409112513a7ed67"},
+      {"path":"model-repo/configuration.json","bytes":384,"sha256":"f24d2dc6e34160a023520552e37aa6bd36d9ad471c56c91a167dad5f98a44bcf"},
+      {"path":"code-repo/LICENSE","bytes":11357,"sha256":"c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"},
+      {"path":"code-repo/speakerlab/models/eres2net/ERes2NetV2.py","bytes":9736,"sha256":"1f7713af4981efea38c70de11ae470a7b31fdd295204f10ca655abf4494eb821"},
+      {"path":"code-repo/speakerlab/models/eres2net/pooling_layers.py","bytes":3777,"sha256":"46c6b480ffdd284af90da90ac1bbf9a0e00bd46229e567c0828d7ebe0e178a0a"},
+      {"path":"code-repo/speakerlab/models/eres2net/fusion.py","bytes":948,"sha256":"b76cfbf8adb99336f10ea43953e90228bda85a56de97cda122d9c436a4c94c53"}
+    ]
+  },
+  "runtime": {
+    "mode": "offline_cpu_pytorch",
+    "worker_path": "scripts/eres2netv2-speaker-embedding-worker.py",
+    "python": "3.12",
+    "threads": 6,
+    "nice": 20,
+    "network_allowed_during_prepare": false,
+    "network_allowed_during_evaluation": false,
+    "packages": {
+      "torch": "2.12.0",
+      "torchaudio": "2.11.0",
+      "numpy": "2.4.6",
+      "scipy": "1.17.1",
+      "soundfile": "0.14.0"
+    }
+  },
+  "preprocessing": {
+    "mono": true,
+    "sample_rate": 16000,
+    "num_mel_bins": 80,
+    "dither": 0.0,
+    "normalization": "utterance_mean",
+    "minimum_audio_sec": 0.65,
+    "subwindow_sec": 1.6,
+    "subwindow_hop_sec": 0.8,
+    "minimum_subwindow_sec": 0.65
+  },
+  "calibration": {
+    "source": "controlled_remote_speaker_truth_lab_v1_dev_only",
+    "similarity_grid": [0.55,0.6,0.65,0.7,0.75,0.8,0.85,0.88,0.9,0.92,0.94,0.96],
+    "margin_grid": [0.02,0.04,0.06,0.08,0.1,0.12,0.15,0.18,0.2],
+    "minimum_dev_pairwise_precision": 0.98,
+    "maximum_dev_open_set_false_attributions": 0,
+    "truth_v1_tuning_allowed": false,
+    "disjoint_truth_v2_tuning_allowed": false,
+    "post_unseal_tuning_allowed": false
+  },
+  "classification": {
+    "centroid": "normalized_mean_of_same_session_pure_exemplars",
+    "require_full_clip_acceptance": true,
+    "minimum_subwindow_consensus": 0.8,
+    "minimum_confident_subwindow_ratio": 0.6,
+    "conflicting_speakers_outcome": "mixed",
+    "failed_gate_outcome": "unknown_speaker",
+    "cross_session_identity_allowed": false
+  },
+  "scope": {
+    "truth_v2_primary_items": 72,
+    "truth_v2_repeat_items": 12,
+    "truth_v2_attributed_items": 21,
+    "truth_v2_special_items": 51,
+    "truth_v2_sessions": 6,
+    "truth_v1_primary_items": 33,
+    "truth_v1_repeat_items": 8,
+    "controlled_hard_words": 71,
+    "production_guards": 355
+  },
+  "sources": [
+    {"id":"truth_v2_policy","path":"policies/remote-speaker-disjoint-truth-expansion-v2.json","bytes":6542,"sha256":"1efdeae816261d675b3a119343df1bcc3ec13ff404e6d8e59599d66b15ecfc60","phase":"prepare"},
+    {"id":"truth_v2_candidate_pack","path":"sessions/_reports/remote-speaker-disjoint-truth-expansion-v2/private/candidate_pack.frozen.json","bytes":20447,"sha256":"5eb9016f2e15033f725ba439bd0ad2e2520b55a4779836e910240c5982699ecf","phase":"prepare"},
+    {"id":"truth_v2_review_pack","path":"sessions/_reports/remote-speaker-disjoint-truth-expansion-v2/private/review_pack.json","bytes":6774,"sha256":"f5d8d2c6a72aa7b7d9966c8665ad3f77b294b37e5a32689df20cc8a31e043f36","phase":"prepare"},
+    {"id":"truth_v2_selection","path":"sessions/_reports/remote-speaker-disjoint-truth-expansion-v2/private/selection.jsonl","bytes":62228,"sha256":"f486579cb97137b6f3ba1cdf3dcf2ce9c6f9a52657ce83248a793c1a63739969","phase":"prepare"},
+    {"id":"truth_v2_exemplars","path":"sessions/_reports/remote-speaker-disjoint-truth-expansion-v2/private/exemplars.jsonl","bytes":9892,"sha256":"c50d3d90539b188b18c7105e1735ae3051171bf42b5e6dd36dcb8842bcfb8f35","phase":"prepare"},
+    {"id":"truth_v2_queue","path":"sessions/_reports/remote-speaker-disjoint-truth-expansion-v2/private/review_queue.jsonl","bytes":108064,"sha256":"377fe250706fb475973b35af1ca7a0fba7875313a4ce7352324a454c85aa2391","phase":"prepare"},
+    {"id":"truth_v2_public_report","path":"sessions/_reports/remote-speaker-disjoint-truth-expansion-v2/remote_speaker_disjoint_truth_report.json","bytes":2593,"sha256":"7404b905b09f4e7e738e9e9e0182eba4d989a01d7af6ddbbe2713b6b552694f1","phase":"prepare"},
+    {"id":"truth_v2_slot_map","path":"sessions/_reports/remote-speaker-disjoint-truth-expansion-v2/private/slot_map.jsonl","bytes":20646,"sha256":"c7d67713d6fdb6f4ddbf63069f1f1aeaa646fb13db0ddf4e2671ba65dd54ffc4","phase":"evaluate"},
+    {"id":"truth_v2_answers","path":"sessions/_reports/remote-speaker-disjoint-truth-expansion-v2/private/answers.jsonl","bytes":16756,"sha256":"e78a1a11a5e5cfd5f53345864962b061251140002fdeac830707442ae157c0f2","phase":"evaluate"},
+    {"id":"truth_v1_queue","path":"sessions/_reports/remote-speaker-direct-truth-seed-v1/private/review_queue.jsonl","bytes":76465,"sha256":"39e401df4b65fdb4f74697bccdfd04316f9c40422bcd1a5d284b51cfbe1bdb65","phase":"prepare"},
+    {"id":"truth_v1_exemplars","path":"sessions/_reports/remote-speaker-direct-truth-seed-v1/private/exemplars.jsonl","bytes":11530,"sha256":"92a07c3eee6b9e65bd62f4ae19aa7fd3ad046a2f5477fdb303c5d533cfc522e8","phase":"prepare"},
+    {"id":"truth_v1_slot_map","path":"sessions/_reports/remote-speaker-direct-truth-seed-v1/private/slot_map.jsonl","bytes":9943,"sha256":"74e8b88c3a1322f47f9596bba39be26fcbb052ff9f821fd9f8784974258d9500","phase":"evaluate"},
+    {"id":"truth_v1_answers","path":"sessions/_reports/remote-speaker-direct-truth-seed-v1/private/answers.jsonl","bytes":8009,"sha256":"e0ee5425e649dc030ed7ecfdeb5e927d9e5f88d4102270d33bd4780a97e64ab2","phase":"evaluate"},
+    {"id":"truth_v1_control","path":"sessions/_reports/remote-speaker-direct-truth-candidate-adjudication-v1/private/item_adjudication.jsonl","bytes":18129,"sha256":"37fefafb7dba6c384195f2ceca862de58101feffa6b9c55d4e6b4cae01e52114","phase":"evaluate"},
+    {"id":"controlled_manifest","path":"sessions/_reports/controlled-remote-speaker-truth-lab-v1/private/frozen_manifest.json","bytes":42947,"sha256":"26074894aeb311b75eedb42f1833db4e0be147e4378a9ff5c6bbe520b453ab6a","phase":"prepare"},
+    {"id":"controlled_report","path":"sessions/_reports/controlled-remote-speaker-truth-lab-v1/controlled_remote_speaker_truth_lab_report.json","bytes":9419,"sha256":"4c84af18d37a97fe1d3464103470068b9890c5dbbe6d10fda3f051cab9049533","phase":"evaluate"},
+    {"id":"coverage_v3_report","path":"sessions/_reports/remote-speaker-coverage-v3/remote_speaker_coverage_corpus_report.json","bytes":50006,"sha256":"0d2d6edcb0a0153a7ea3190760a8df609c3f3f7633c075ab65252035862932d4","phase":"evaluate"}
+  ],
+  "evaluation": {
+    "minimum_new_correct_identity_items": 3,
+    "minimum_attributed_recall": 0.1,
+    "minimum_attributed_precision": 1.0,
+    "maximum_false_identity_items": 0,
+    "maximum_special_unsafe_accepts": 0,
+    "minimum_repeat_determinism": 1.0,
+    "require_no_lost_truth_v1_control_identity": true,
+    "require_no_new_truth_v1_false_identity": true,
+    "require_controlled_hard_no_regression": true,
+    "require_word_and_timestamp_conservation": true
+  },
+  "decision": {
+    "allowed_outcomes": ["PROMOTE_SHADOW","KEEP_COVERAGE_V3","MODEL_UNAVAILABLE"],
+    "candidate_profile": "disjoint_remote_speaker_model_qualification_v1",
+    "production_promotion_allowed": false,
+    "auto_selection_allowed": false
+  },
+  "safety": {
+    "raw_caf_mutation": false,
+    "coverage_v3_mutation": false,
+    "selected_transcript_mutation": false,
+    "primary_asr_mutation": false,
+    "echo_guard_mutation": false,
+    "cloud_allowed": false,
+    "public_item_labels": false,
+    "public_session_ids": false,
+    "public_speech_text": false,
+    "public_human_names": false,
+    "public_absolute_paths": false,
+    "fail_open_as_explicit_unknown": true
+  }
+}

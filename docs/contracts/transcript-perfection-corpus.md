@@ -124,6 +124,15 @@ sessions, preserves `2/3` gains and adds seven false identities. `KEEP_EXPLICIT_
 currently available local diarization route; another model decision requires disjoint real-session
 truth.
 
+Remote Speaker Disjoint Truth Expansion v2 is the thirty-first frozen source. It completed 72
+primary and 12 repeat decisions with repeat consistency `1.0`, making a one-shot independent model
+qualification possible.
+
+Disjoint Remote Speaker Model Qualification v1 is a subsequent tracked experiment, not a rewritten
+v1 baseline source. Frozen ERes2NetV2 closed `KEEP_COVERAGE_V3`: 12/21 correct identities, seven
+unsafe special accepts and two lost truth-v1 controls. Its result routes the next bounded work to
+interval usability and single-speaker purity. Any future promotion needs a new terminal set.
+
 ## Outputs
 
 The command writes only under:

@@ -722,15 +722,30 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-remote-speaker-disjoint-truth-expansion-v2]
-    status: current
+    status: done
     effort: 14
     notes: |
-      Выбрать ровно один materially new local speaker model после license, availability и Apple
-      Silicon preflight. До item-level truth заморозить weights, hashes, preprocessing,
-      segmentation, clustering, thresholds и candidate outputs. Один раз оценить candidate на
-      независимых 72 primary + 12 repeat truth v2 slots, прежних direct controls и controlled
-      truth. Tuning после unseal и production mutation запрещены. Terminal outcomes:
-      PROMOTE_SHADOW, KEEP_COVERAGE_V3 или MODEL_UNAVAILABLE.
+      Завершено KEEP_COVERAGE_V3. Pinned Apache-2.0 ERes2NetV2 заморожен до Truth v2: 1095
+      embedding requests дали byte-exact replay, thresholds выбраны только на controlled dev.
+      One-shot Truth v2: 12/21 correct identity, precision 0.631579, recall 0.571429, zero
+      wrong-known-speaker substitutions, но 7 unsafe special accepts. Truth-v1 потерял 2 correct
+      controls; controlled hard прошёл идеально. Shadow не открыт, production и 355 guards
+      неизменны.
+
+  quality-remote-speaker-usability-gate-error-decomposition-v1:
+    title: "Remote Speaker Usability Gate Error Decomposition v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-disjoint-remote-speaker-model-qualification-v1]
+    status: current
+    effort: 10
+    notes: |
+      На frozen ERes2NetV2/Truth v2 evidence разложить 7 unsafe accepts, 9 missed positive items и
+      truth-v1 regressions по наблюдаемым причинам: speech usability, single-speaker purity,
+      interval boundaries, enrollment или identity geometry. Не менять ERes2NetV2 candidate и не
+      использовать Truth v2 как новый terminal set. Зафиксировать label-independent observables и
+      выпустить ADVANCE_USABILITY_GATE, ADVANCE_SEGMENTATION либо EVIDENCE_BOUND. Любой следующий
+      promotion требует отдельного нового frozen terminal corpus; Coverage v3 остаётся production.
 
 views:
   roadmap-tree:
@@ -749,7 +764,7 @@ views:
         nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-disjoint-remote-speaker-model-qualification-v1]
+        nodes: [quality-remote-speaker-usability-gate-error-decomposition-v1]
       dependent:
         title: "Blind real-session reference blocker"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
@@ -808,6 +823,7 @@ views:
           - quality-lightweight-remote-speaker-representation-frontier-v1
           - quality-remote-speaker-disjoint-truth-expansion-v2
           - quality-disjoint-remote-speaker-model-qualification-v1
+          - quality-remote-speaker-usability-gate-error-decomposition-v1
 
   echo-frontier:
     title: "Пред-ASR отделение Me от remote"
@@ -843,8 +859,8 @@ views:
         title: "Доказанная speaker evidence"
         nodes: [research-remote-diarization, research-rich-transcript, quality-remote-speaker-diarization-v2]
       current:
-        title: "Disjoint real-session speaker truth"
-        nodes: [quality-remote-speaker-disjoint-truth-expansion-v2]
+        title: "Real-session usability evidence"
+        nodes: [quality-disjoint-remote-speaker-model-qualification-v1, quality-remote-speaker-usability-gate-error-decomposition-v1]
       blocker:
         title: "Blind real-session reference"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
@@ -910,13 +926,15 @@ views:
           - quality-session-local-homogeneous-remote-speaker-enrollment-mining-v1
           - quality-lightweight-remote-speaker-representation-frontier-v1
           - quality-remote-speaker-disjoint-truth-expansion-v2
+          - quality-disjoint-remote-speaker-model-qualification-v1
+          - quality-remote-speaker-usability-gate-error-decomposition-v1
 
 x:
   exec:
     program:
       nearest_goal: >-
-        Disjoint Remote Speaker Model Qualification v1: сохранив Coverage v3 и все frozen inputs неизменными, выбрать ровно один существенно новый локальный класс speaker-модели по лицензии, доступности и совместимости с Apple Silicon; до открытия item-level truth v2 заморозить веса, SHA-256, preprocessing, segmentation, clustering, thresholds и candidate outputs; один раз оценить candidate на независимых 72 primary + 12 repeat Disjoint Truth v2 slots, прежних direct-truth controls и controlled corpus; измерить attributed precision/recall, B-cubed, abstention на unknown/mixed/unusable, speaker-count, boundaries, repeat determinism и conservation; запретить tuning после unseal и выпустить PROMOTE_SHADOW, KEEP_COVERAGE_V3 либо MODEL_UNAVAILABLE с byte-exact replay, privacy-safe отчётом, тестами, актуальными документами, коммитом и push.
-      success_by_next_sync: "Один новый локальный speaker backend заморожен и однократно квалифицирован на disjoint truth v2 либо выпущен точный MODEL_UNAVAILABLE."
+        Remote Speaker Usability Gate Error Decomposition v1: сохранив Coverage v3 и frozen ERes2NetV2 qualification неизменными, доказательно разложить 7 unsafe special accepts, 9 missed positive items и truth-v1 regressions на speech usability, single-speaker purity, interval boundaries, enrollment и identity causes; определить доступные до identity label-independent observables; не выбирать candidate и не считать уже открытую Truth v2 новым terminal set; выпустить ADVANCE_USABILITY_GATE, ADVANCE_SEGMENTATION либо EVIDENCE_BOUND с replay, privacy-safe aggregate report, тестами, актуальными документами, коммитом и push.
+      success_by_next_sync: "Каждая ошибка ERes2NetV2 получила воспроизводимую причину, а следующий algorithm class выбран доказательствами либо честно закрыт EVIDENCE_BOUND."
     defaults:
       status_progress:
         done: 1.0
@@ -937,13 +955,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle и batch transcript работают; three-session replay подтвердил raw/cache/speaker conservation и закрыл legacy cache preflight."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Disjoint Remote Speaker Model Qualification v1"
-        scope_nodes: [quality-disjoint-remote-speaker-model-qualification-v1]
+        title: "Remote Speaker Usability Gate Error Decomposition v1"
+        scope_nodes: [quality-remote-speaker-usability-gate-error-decomposition-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Disjoint Truth v2 завершён DIRECT_TRUTH_V2_READY: 72 primary, 12 repeats, consistency 1.0 и byte-exact replay."
-          next_sync_goal: "Заморозить один materially new local backend и выполнить one-shot qualification без tuning на truth v2."
+          sync_note: "ERes2NetV2 завершён KEEP_COVERAGE_V3: 12/21 correct, precision 0.631579, семь unsafe special accepts при идеальном controlled hard."
+          next_sync_goal: "Отделить ошибки пригодности/одноголосия интервала от identity geometry и выбрать ровно следующий доказуемый слой."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -973,6 +991,7 @@ x:
           - quality-lightweight-remote-speaker-representation-frontier-v1
           - quality-remote-speaker-disjoint-truth-expansion-v2
           - quality-disjoint-remote-speaker-model-qualification-v1
+          - quality-remote-speaker-usability-gate-error-decomposition-v1
         kind: main
         mgmt:
           health: yellow
@@ -993,7 +1012,7 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: disjoint truth готов; текущий фокус — one-shot qualification materially new local speaker backend."
+        caption: "Короткая карта: ERes2NetV2 честно отклонён; текущий фокус — доказательно отделить usability/purity от identity."
         blocks:
           - working-now
           - current-quality
