@@ -6466,15 +6466,24 @@ enum TranscriptCommands {
                 : "speaker-resolved transcript unavailable (\(fallbackReason)); using exact aggregate transcript"
             fputs("warning: \(message)\n", stderr)
         }
-        if !aggregate,
-           let speakerSelection,
-           SpeakerPurityReferenceState.identitySafety(session, speaker: speakerSelection)
-            == "diagnostic_external_machine_reference" {
-            fputs(
-                "warning: speaker labels are session-local acoustic clusters with diagnostic purity concerns; "
-                    + "use `--aggregate` for the exact role-only transcript\n",
-                stderr
+        if !aggregate, let speakerSelection {
+            let identitySafety = SpeakerPurityReferenceState.identitySafety(
+                session,
+                speaker: speakerSelection
             )
+            if identitySafety == "diagnostic_external_machine_reference" {
+                fputs(
+                    "warning: speaker labels are session-local acoustic clusters with diagnostic purity concerns; "
+                        + "use `--aggregate` for the exact role-only transcript\n",
+                    stderr
+                )
+            } else if identitySafety == "unverified" {
+                fputs(
+                    "warning: remote_speaker_N labels are anonymous session-local acoustic clusters, "
+                        + "not verified people; use `--aggregate` for the exact role-only transcript\n",
+                    stderr
+                )
+            }
         }
         if cat {
             let data = try Data(contentsOf: url)

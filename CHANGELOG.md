@@ -5,6 +5,8 @@ public release tag exists; development builds also carry the source commit in th
 
 ## Unreleased
 
+- Made every CLI handoff for a selected speaker-resolved transcript identify `remote_speaker_N` as
+  an unverified session-local acoustic cluster and point to the exact aggregate fallback.
 - Added a private remote-speaker cluster-purity audit with reproducible aggregate metrics, explicit
   session-local acoustic-cluster semantics and an exact `transcript --aggregate` fallback.
 - Bound reviewed transcript profiles to their source dialogue and quality-report fingerprints so a

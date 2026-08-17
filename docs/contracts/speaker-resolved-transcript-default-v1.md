@@ -49,6 +49,10 @@ For `murmurmark transcript SESSION` with profile `auto`:
 3. Return the exact selected aggregate Markdown when state is `fallback` or the selector runtime is
    unavailable.
 
+For selected speaker-resolved output, the CLI states that `remote_speaker_N` labels are anonymous
+session-local acoustic clusters rather than verified people. The warning is also emitted for
+`--path-only` and `--cat`; `--aggregate` returns the exact role-only view without speaker claims.
+
 Evidence Handoff v2 copies those same bytes into its bundle. Guarded export copies the handoff
 bytes and records `session_local_anonymous` or `aggregate_colleagues` in `export_manifest.json`.
 `status`, `outcome` and the meeting final report expose the selected speaker profile, state and

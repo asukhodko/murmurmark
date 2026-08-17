@@ -377,6 +377,7 @@ def check_auditor(root: Path) -> None:
     )
     assert default_cli.returncode == 0, default_cli.stderr
     assert "remote-speaker-coverage-v3/transcript.rich.shadow.md" in default_cli.stdout
+    assert "not verified people" in default_cli.stderr
     replay = session / "derived/audit/remote-speaker-coverage-v3-replay"
     run([str(AUDIT), str(session), "--out-dir", str(replay)])
     for name in ("report.json", "word_attribution.jsonl", "recovery_decisions.jsonl", "transcript.rich.shadow.json"):
