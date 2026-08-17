@@ -14,6 +14,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-transcript-dedupe.py
 "$python_bin" scripts/check-whisper-cpu-fallback.py
 "$python_bin" scripts/check-review-materialization-guard.py
+"$python_bin" scripts/check-review-profile-lineage.py
 "$python_bin" scripts/check-session-quality-reconciliation.py
 "$python_bin" scripts/check-remote-role-integrity.py
 "$python_bin" scripts/check-live-voice-activity-retime.py
@@ -117,6 +118,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-planning-consistency.py
 "$python_bin" scripts/check-remote-speaker-disjoint-truth-v2.py
 "$python_bin" scripts/check-disjoint-remote-speaker-model-qualification-v1.py
+"$python_bin" scripts/check-remote-speaker-cluster-purity-reference-v1.py
 "$python_bin" scripts/check-release-quality.py
 MURMURMARK_BIN="$repo_root/.build/debug/murmurmark" \
   "$python_bin" scripts/check-derived-compaction.py
@@ -171,21 +173,26 @@ else
     --python "$python_bin" >/dev/null
   release_bundle_root="$(find "$release_bundle_out" -mindepth 1 -maxdepth 1 -type d -name 'murmurmark-*' -print -quit)"
   [[ -n "$release_bundle_root" ]]
-  release_acceptance_output="$(
-    MURMURMARK_BIN="$release_bundle_root/bin/murmurmark" \
-    MURMURMARK_PYTHON="$python_bin" \
-      "$release_bundle_root/scripts/acceptance-cli-mvp.sh" \
-      --skip-release \
-      --report "$release_acceptance_report"
-  )"
-  printf '%s\n' "$release_acceptance_output"
-  tail -1 <<<"$release_acceptance_output" | grep -q '^next: murmurmark acceptance --live-checklist$'
-  jq -e '
-    .schema == "murmurmark.cli_mvp_acceptance_report/v1"
-    and .status == "ok"
-    and .mode == "release"
-    and any(.checks[]; .name == "release_bundle" and .status == "current")
-    and any(.checks[]; .name == "open_source_readiness" and .status == "not_applicable")
-  ' "$release_acceptance_report" >/dev/null
+  release_doctor_output="$("$release_bundle_root/bin/murmurmark" doctor 2>/dev/null || true)"
+  if grep -q 'shareable displays: 0' <<<"$release_doctor_output"; then
+    echo "release acceptance smoke skipped: shareable display disappeared during checks"
+  else
+    release_acceptance_output="$(
+      MURMURMARK_BIN="$release_bundle_root/bin/murmurmark" \
+      MURMURMARK_PYTHON="$python_bin" \
+        "$release_bundle_root/scripts/acceptance-cli-mvp.sh" \
+        --skip-release \
+        --report "$release_acceptance_report"
+    )"
+    printf '%s\n' "$release_acceptance_output"
+    tail -1 <<<"$release_acceptance_output" | grep -q '^next: murmurmark acceptance --live-checklist$'
+    jq -e '
+      .schema == "murmurmark.cli_mvp_acceptance_report/v1"
+      and .status == "ok"
+      and .mode == "release"
+      and any(.checks[]; .name == "release_bundle" and .status == "current")
+      and any(.checks[]; .name == "open_source_readiness" and .status == "not_applicable")
+    ' "$release_acceptance_report" >/dev/null
+  fi
 fi
 scripts/smoke-fixture.sh

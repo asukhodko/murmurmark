@@ -737,15 +737,29 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-disjoint-remote-speaker-model-qualification-v1]
-    status: current
+    status: done
     effort: 10
     notes: |
-      На frozen ERes2NetV2/Truth v2 evidence разложить 7 unsafe accepts, 9 missed positive items и
-      truth-v1 regressions по наблюдаемым причинам: speech usability, single-speaker purity,
-      interval boundaries, enrollment или identity geometry. Не менять ERes2NetV2 candidate и не
-      использовать Truth v2 как новый terminal set. Зафиксировать label-independent observables и
-      выпустить ADVANCE_USABILITY_GATE, ADVANCE_SEGMENTATION либо EVIDENCE_BOUND. Любой следующий
-      promotion требует отдельного нового frozen terminal corpus; Coverage v3 остаётся production.
+      Завершено ADVANCE_SEGMENTATION через Cluster Purity Reference v1. Независимая машинная
+      расшифровка при alignment 0.928157 показала 10 remote voices против 4 published clusters,
+      weighted purity 0.898106, девять merged reference speakers и minority recall 0.0. Имена и
+      item-level evidence остались private; Coverage v3, его thresholds, selected words/timestamps
+      и production selection не изменены. CLI теперь честно называет IDs session-local acoustic
+      clusters и предоставляет exact aggregate fallback.
+
+  quality-remote-speaker-boundary-minority-segmentation-v1:
+    title: "Remote Speaker Boundary and Minority-Voice Segmentation v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-remote-speaker-usability-gate-error-decomposition-v1]
+    status: current
+    effort: 14
+    notes: |
+      Построить label-independent session-local boundary candidate, который сохраняет каждое слово,
+      отделяет короткие minority turns и оставляет слабые/open-set intervals explicit unknown.
+      Candidate и thresholds заморозить до нового disjoint terminal set. Выпустить только
+      PROMOTE_SEGMENTATION, KEEP_COVERAGE_V3 либо EVIDENCE_BOUND; никакой forced identity и никаких
+      изменений Coverage v3 до прохождения conservation, boundary, minority, stability и safety gates.
 
 views:
   roadmap-tree:
@@ -764,7 +778,7 @@ views:
         nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-remote-speaker-usability-gate-error-decomposition-v1]
+        nodes: [quality-remote-speaker-boundary-minority-segmentation-v1]
       dependent:
         title: "Blind real-session reference blocker"
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
@@ -824,6 +838,7 @@ views:
           - quality-remote-speaker-disjoint-truth-expansion-v2
           - quality-disjoint-remote-speaker-model-qualification-v1
           - quality-remote-speaker-usability-gate-error-decomposition-v1
+          - quality-remote-speaker-boundary-minority-segmentation-v1
 
   echo-frontier:
     title: "Пред-ASR отделение Me от remote"
@@ -933,8 +948,8 @@ x:
   exec:
     program:
       nearest_goal: >-
-        Remote Speaker Usability Gate Error Decomposition v1: сохранив Coverage v3 и frozen ERes2NetV2 qualification неизменными, доказательно разложить 7 unsafe special accepts, 9 missed positive items и truth-v1 regressions на speech usability, single-speaker purity, interval boundaries, enrollment и identity causes; определить доступные до identity label-independent observables; не выбирать candidate и не считать уже открытую Truth v2 новым terminal set; выпустить ADVANCE_USABILITY_GATE, ADVANCE_SEGMENTATION либо EVIDENCE_BOUND с replay, privacy-safe aggregate report, тестами, актуальными документами, коммитом и push.
-      success_by_next_sync: "Каждая ошибка ERes2NetV2 получила воспроизводимую причину, а следующий algorithm class выбран доказательствами либо честно закрыт EVIDENCE_BOUND."
+        Remote Speaker Boundary and Minority-Voice Segmentation v1: сохранив Coverage v3, selected transcript artifacts и диагностический Cluster Purity Reference v1 неизменными, построить session-local boundary detector для разделения смешанных remote-интервалов и восстановления редких голосов; заморозить candidate до нового disjoint terminal set, запрещать forced identity и выпускать только PROMOTE_SEGMENTATION, KEEP_COVERAGE_V3 либо EVIDENCE_BOUND с exact replay, privacy-safe отчётом, тестами, документацией, коммитом и push.
+      success_by_next_sync: "Boundary candidate заморожен до нового terminal set, minority recall измерен отдельно, а production изменён только при полном прохождении safety и conservation gates."
     defaults:
       status_progress:
         done: 1.0
@@ -955,13 +970,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle и batch transcript работают; three-session replay подтвердил raw/cache/speaker conservation и закрыл legacy cache preflight."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Remote Speaker Usability Gate Error Decomposition v1"
-        scope_nodes: [quality-remote-speaker-usability-gate-error-decomposition-v1]
+        title: "Remote Speaker Boundary and Minority-Voice Segmentation v1"
+        scope_nodes: [quality-remote-speaker-boundary-minority-segmentation-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "ERes2NetV2 завершён KEEP_COVERAGE_V3: 12/21 correct, precision 0.631579, семь unsafe special accepts при идеальном controlled hard."
-          next_sync_goal: "Отделить ошибки пригодности/одноголосия интервала от identity geometry и выбрать ровно следующий доказуемый слой."
+          sync_note: "Cluster Purity Reference дал ADVANCE_SEGMENTATION: 10 reference voices против 4 clusters, purity 0.898106 и minority recall 0.0."
+          next_sync_goal: "Заморозить boundary/minority candidate до нового disjoint terminal set и сохранить exact word conservation."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -992,6 +1007,7 @@ x:
           - quality-remote-speaker-disjoint-truth-expansion-v2
           - quality-disjoint-remote-speaker-model-qualification-v1
           - quality-remote-speaker-usability-gate-error-decomposition-v1
+          - quality-remote-speaker-boundary-minority-segmentation-v1
         kind: main
         mgmt:
           health: yellow
@@ -1012,7 +1028,7 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: ERes2NetV2 честно отклонён; текущий фокус — доказательно отделить usability/purity от identity."
+        caption: "Короткая карта: purity evidence выбрал segmentation; текущий фокус — границы и редкие remote-голоса без forced identity."
         blocks:
           - working-now
           - current-quality

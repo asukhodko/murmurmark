@@ -433,6 +433,10 @@ while IFS= read -r json_next_command; do
 done < <(jq -r '.next_commands[].command' "$session/derived/synthesis-simple/extractive/quality_verdict.json")
 transcript_path_only="$("$bin" transcript "$session" --path-only)"
 [[ "$transcript_path_only" == */derived/transcript-simple/whisper-cpp/resolved/transcript.md ]]
+transcript_aggregate_path="$("$bin" transcript "$session" --aggregate --path-only)"
+[[ "$transcript_aggregate_path" == */derived/transcript-simple/whisper-cpp/resolved/transcript.md ]]
+"$bin" transcript "$session" --aggregate | grep -q '^  speaker_claim_scope: remote_role_aggregate$'
+"$bin" transcript "$session" --aggregate | grep -q '^  speaker_identity_safety: not_applicable$'
 "$bin" transcript latest --sessions-root "$workdir" --path-only | grep -q '/derived/transcript-simple/whisper-cpp/resolved/transcript.md$'
 "$bin" transcript "$session" --cat | grep -q '# Simple Transcript'
 jq -e '.schema == "murmurmark.evidence_notes/v2"' "$session/derived/synthesis-simple/extractive/evidence_notes.json" >/dev/null

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.2"
+SCRIPT_VERSION = "0.3.3"
 SCHEMA = "murmurmark.review_decisions_batch_report/v1"
 
 
@@ -211,17 +211,19 @@ def post_apply_readiness(session: Path) -> dict[str, Any]:
 def partial_review_success(args: argparse.Namespace, apply_result: dict[str, Any], review_report: dict[str, Any] | None) -> bool:
     if not args.allow_partial_review or not isinstance(review_report, dict):
         return False
-    if apply_result.get("returncode") not in {0, 2}:
+    if apply_result.get("returncode") != 0:
         return False
     gates = review_report.get("gates") if isinstance(review_report.get("gates"), dict) else {}
     hard_failures = set(str(value) for value in gates.get("hard_failures") or [])
-    if hard_failures != {"incomplete_review_scope"}:
+    if hard_failures or gates.get("passed") is not True:
         return False
     summary = review_report.get("summary") if isinstance(review_report.get("summary"), dict) else {}
     coverage = review_report.get("coverage") if isinstance(review_report.get("coverage"), dict) else {}
     if coverage.get("complete") is True:
         return False
     if coverage.get("allow_partial_review") is not True:
+        return False
+    if coverage.get("allowed") is not True or coverage.get("partial_allowed") is not True:
         return False
     try:
         applied_rows = int(summary.get("applied_decision_rows") or 0)

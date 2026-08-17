@@ -144,9 +144,12 @@ control safety but added no identity because only 7/14 profiles qualified. Homog
 label-independent re-clustering, WeSpeaker and temporal AHC/VBx then closed without promotion.
 Disjoint Truth v2 completed 72 primary + 12 repeat decisions. Frozen ERes2NetV2 correctly attributed
 12/21 positives with no wrong-known-speaker substitutions, but made seven unsafe special accepts
-and lost two truth-v1 controls, so it closed `KEEP_COVERAGE_V3`. Current work separates interval
-usability and single-speaker purity from identity geometry. Open Truth v2 is development evidence;
-future promotion requires a new frozen terminal set. Notes remain optional.
+and lost two truth-v1 controls, so it closed `KEEP_COVERAGE_V3`. Cluster Purity Reference v1 then
+aligned `92.8157%` of a private independent-machine group reference and found 10 remote voices
+compressed into four acoustic clusters, weighted purity `0.898106` and minority recall `0`. It
+closed `ADVANCE_SEGMENTATION`. Current work improves label-independent boundaries and rare turns
+before identity assignment. Open Truth v2 is development evidence; future promotion requires a new
+frozen terminal set. Notes remain optional.
 
 Target transcription path:
 

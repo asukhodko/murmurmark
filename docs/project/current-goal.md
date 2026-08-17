@@ -1,71 +1,81 @@
 # Current Goal
 
-Updated: 2026-08-13
+Updated: 2026-08-17
 
 This document expands the single executable goal from
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`.
 `scripts/check-planning-consistency.py` keeps the README, roadmap and OpsKarta wording aligned.
 
-## Remote Speaker Usability Gate Error Decomposition v1
+## Remote Speaker Boundary and Minority-Voice Segmentation v1
 
-OpsKarta nearest goal: Remote Speaker Usability Gate Error Decomposition v1: сохранив Coverage v3 и frozen ERes2NetV2 qualification неизменными, доказательно разложить 7 unsafe special accepts, 9 missed positive items и truth-v1 regressions на speech usability, single-speaker purity, interval boundaries, enrollment и identity causes; определить доступные до identity label-independent observables; не выбирать candidate и не считать уже открытую Truth v2 новым terminal set; выпустить ADVANCE_USABILITY_GATE, ADVANCE_SEGMENTATION либо EVIDENCE_BOUND с replay, privacy-safe aggregate report, тестами, актуальными документами, коммитом и push.
+OpsKarta nearest goal: Remote Speaker Boundary and Minority-Voice Segmentation v1: сохранив Coverage v3, selected transcript artifacts и диагностический Cluster Purity Reference v1 неизменными, построить session-local boundary detector для разделения смешанных remote-интервалов и восстановления редких голосов; заморозить candidate до нового disjoint terminal set, запрещать forced identity и выпускать только PROMOTE_SEGMENTATION, KEEP_COVERAGE_V3 либо EVIDENCE_BOUND с exact replay, privacy-safe отчётом, тестами, документацией, коммитом и push.
 
 ## Why Now
 
-Disjoint Model Qualification v1 завершён `KEEP_COVERAGE_V3`. ERes2NetV2 идеален на controlled
-hard, правильно узнаёт 12/21 real-session identities и ни разу не заменяет известного участника
-другим. При этом он принудительно атрибутирует семь `unknown/unusable` intervals и теряет два
-truth-v1 correct controls. Следующая неизвестная находится перед identity decision: пригоден ли
-сам аудиоинтервал и говорит ли в нём один поддержанный человек.
+Cluster Purity Reference v1 сопоставил приватную машинную расшифровку групповой встречи с текущим
+speaker-resolved transcript. При `92.8157%` lexical alignment референс содержит 10 remote-голосов,
+а MurmurMark публикует 4 кластера. Weighted purity составляет `89.8106%`, девять reference speakers
+попадают в collision clusters, а recall шести редких голосов равен `0`.
+
+Это диагностический, а не identity reference. Однако расхождение топологии слишком велико, чтобы
+следующий шаг снова сводился к выбору embedding-модели или порога. Сначала нужны более точные
+границы речи и явное сохранение коротких/редких голосов.
 
 ## Objective
 
-Не строить очередную модель вслепую. Сначала получить воспроизводимую карту причин для каждого
-ошибочного или пропущенного решения ERes2NetV2 и выяснить, существует ли наблюдаемый до разметки
-аудиопризнак, который отделяет безопасные identity accepts от special/impure intervals.
-
-Truth v2 теперь разрешена только как development evidence этой диагностики. Она не может повторно
-служить terminal promotion set. Coverage v3, candidate ERes2NetV2, его пороги и predictions
-остаются байт-в-байт неизменными.
+Построить локальный детерминированный candidate, который разбивает remote speech на speaker-bounded
+интервалы до identity assignment, не теряет слова и оставляет сомнительные интервалы `unknown`.
+Проверить его один раз на новом disjoint terminal set и либо продвинуть только segmentation layer,
+либо оставить Coverage v3 неизменным.
 
 ## Required Work
 
-1. Зафиксировать item-level analysis ledger для 72 Truth v2 primary, 12 repeats и truth-v1 controls.
-2. Для каждой ошибки записать одну первичную причину и все supporting observables.
-3. Считать только label-independent признаки, доступные до identity assignment: duration, speech
-   activity, silence/noise, SNR, full/subwindow consensus, similarity/margin shape, embedding drift,
-   model disagreement, overlap and boundary evidence.
-4. Отделить `unusable`, `mixed`, unsupported/open-set voice, boundary contamination, impure
-   enrollment и настоящую identity geometry ошибку.
-5. Проверить устойчивость любой разделяющей гипотезы leave-one-session-out, не объявляя promotion.
-6. Измерить, сколько unsafe accepts можно было бы reject и сколько correct identities при этом
-   потерялось бы; не выбирать production threshold.
-7. Выпустить один terminal route decision и точный контракт следующего независимого hard set.
-8. Добавить CLI/status, tests, privacy-safe aggregate report, replay, docs, commit and push.
+1. Заморозить текущие Coverage v3 outputs, selected rich/aggregate transcripts, policy и corpus
+   hashes до разработки candidate.
+2. Построить boundary evidence из VAD, пауз, word timestamps, embedding change points и локальной
+   стабильности соседних окон; identity labels при поиске границ не использовать.
+3. Отдельно учитывать короткие minority turns и не сливать их с доминирующим голосом только из-за
+   недостатка enrollment.
+4. Сохранить точный текст, порядок и временные границы utterance; candidate меняет только
+   speaker-turn segmentation и anonymous assignment evidence.
+5. Заморозить candidate и пороги на development evidence до открытия нового disjoint terminal set.
+6. Считать boundary precision/recall, speaker-count agreement, B-cubed F1, pairwise precision,
+   minority-speaker recall, explicit unknown и word conservation.
+7. Проверить session-shift stability, open-set safety, exact replay и aggregate fallback.
+8. Выпустить ровно один terminal outcome и синхронизировать CLI status, документы, roadmap,
+   OpsKarta, тесты, commit и push.
 
 ## Acceptance Gates
 
-- все 7 Truth v2 unsafe accepts, 9 missed positives и truth-v1 regressions имеют стабильную причину;
-- причины воспроизводятся из frozen audio/model evidence и не зависят от речи, имён или session IDs
-  в public report;
-- label-independent observables вычислены до присоединения truth outcome;
-- leave-one-session-out analysis явно отделён от terminal qualification;
-- words, timestamps, Coverage v3, raw CAF, selected transcripts, ASR and Echo Guard неизменны;
-- replay byte-exact; отсутствующие evidence fail open to `unclassified`;
-- следующий candidate не выбран и production gate не добавлен в этой цели.
+- Coverage v3, его пороги, основной ASR, Echo Guard, raw CAF и текущие selected artifacts остались
+  byte-identical;
+- boundary detector не использует truth identity при вычислении признаков;
+- 100% входных слов и их порядок сохранены;
+- candidate не присваивает identity при слабом, смешанном или open-set evidence;
+- minority-speaker recall измерен отдельно и не маскируется общей weighted accuracy;
+- новый terminal set не пересекается с material, использованным для выбора candidate;
+- replay byte-exact, missing model/evidence fail open to current Coverage v3;
+- public artifacts не содержат имён, текста встреч, session IDs или absolute paths.
 
 ## Terminal Outcomes
 
-- `ADVANCE_USABILITY_GATE`: unsafe accepts имеют устойчивый до-identity audio signature; следующий
-  этап строит rejector и новый disjoint terminal set.
-- `ADVANCE_SEGMENTATION`: основной источник ошибок — смешанные или неверно ограниченные интервалы;
-  следующий этап меняет segmentation before identity.
-- `EVIDENCE_BOUND`: доступные observables не разделяют ошибки без неприемлемой потери correct
-  identities; ветка закрывается до появления нового evidence source.
+- `PROMOTE_SEGMENTATION`: новый слой проходит все safety, conservation, boundary, minority and
+  no-regression gates и может стать входом существующей anonymous identity attribution.
+- `KEEP_COVERAGE_V3`: candidate измерен, но не даёт безопасного материального улучшения.
+- `EVIDENCE_BOUND`: доступного disjoint reference недостаточно для честного вывода.
 
-## Previous Goal Result
+## Out Of Scope
 
-Disjoint Remote Speaker Model Qualification v1 завершён `KEEP_COVERAGE_V3`: frozen ERes2NetV2
-получил Truth v2 precision `0.631579`, recall `0.571429`, 12 correct identities, 7 unsafe special
-accepts и repeat determinism `1.0`. Controlled hard был perfect, но real-session safety не прошла.
-Production и все 355 guards не изменились.
+- имена и cross-session identity;
+- forced attribution неизвестных голосов;
+- capture, Echo Guard, основной ASR и pre-ASR separation;
+- cloud inference, UI, notes, summaries and export automation.
+
+## First Commands
+
+```bash
+murmurmark corpus remote-cluster-purity-v1 status
+murmurmark corpus remote-cluster-purity-v1 replay
+murmurmark transcript sessions/<session-id> --aggregate --path-only
+scripts/check.sh
+```

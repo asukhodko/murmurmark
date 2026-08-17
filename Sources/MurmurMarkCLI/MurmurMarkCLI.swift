@@ -1298,6 +1298,7 @@ enum DoctorChecks {
             "scripts/setup-disjoint-remote-speaker-model-v1.py",
             "scripts/eres2netv2-speaker-embedding-worker.py",
             "scripts/report-lexical-accuracy-reference-corpus.py",
+            "scripts/report-remote-speaker-cluster-purity-reference-v1.py",
             "scripts/report-speaker-resolved-transcript-default-corpus.py",
             "scripts/transcribe-simple-whispercpp.py",
             "scripts/check-asr-chunk-cache.py",
@@ -6007,6 +6008,38 @@ enum SpeakerResolvedTranscriptState {
     }
 }
 
+enum SpeakerPurityReferenceState {
+    static let schema = "murmurmark.remote_speaker_cluster_purity_session_summary/v1"
+
+    static func payload(
+        _ session: URL,
+        speaker: SpeakerResolvedTranscriptState.Selection?
+    ) -> [String: Any]? {
+        guard let speaker else { return nil }
+        let url = session.appendingPathComponent(
+            "derived/audit/remote-speaker-cluster-purity-reference-v1/summary.json"
+        )
+        guard let payload = try? JSONFiles.object(url),
+              payload["schema"] as? String == schema,
+              payload["selected_profile"] as? String == speaker.payload["selected_profile"] as? String,
+              payload["selected_speaker_profile"] as? String == speaker.speakerProfile,
+              let rich = speaker.payload["rich_transcript"] as? [String: Any],
+              payload["selected_rich_sha256"] as? String == rich["sha256"] as? String
+        else {
+            return nil
+        }
+        return payload
+    }
+
+    static func identitySafety(
+        _ session: URL,
+        speaker: SpeakerResolvedTranscriptState.Selection?
+    ) -> String {
+        guard let speaker else { return "unverified" }
+        return payload(session, speaker: speaker)?["identity_safety"] as? String ?? "unverified"
+    }
+}
+
 enum NotesCommands {
     static func notes(_ args: [String]) throws {
         if args.isEmpty || ArgumentEditing.hasHelpFlag(args) {
@@ -6373,6 +6406,7 @@ enum TranscriptCommands {
         let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
         let requestedProfile = ArgumentEditing.takeOption("profile", from: &remaining) ?? "auto"
         let rich = ArgumentEditing.takeFlag("rich", from: &remaining)
+        let aggregate = ArgumentEditing.takeFlag("aggregate", from: &remaining)
         let reviewedSpeakers = ArgumentEditing.takeFlag("reviewed-speakers", from: &remaining)
         let pathOnly = ArgumentEditing.takeFlag("path-only", from: &remaining)
         let cat = ArgumentEditing.takeFlag("cat", from: &remaining)
@@ -6384,6 +6418,9 @@ enum TranscriptCommands {
         if rich, requestedProfile != "auto" {
             throw CLIError("--rich uses the current Evidence Handoff v2 selection and cannot be combined with --profile")
         }
+        if aggregate, rich {
+            throw CLIError("--aggregate cannot be combined with --rich")
+        }
         if reviewedSpeakers, !rich {
             throw CLIError("--reviewed-speakers requires --rich")
         }
@@ -6391,16 +6428,23 @@ enum TranscriptCommands {
         let url: URL
         let kind: String
         var fallbackReason: String?
+        var speakerSelection: SpeakerResolvedTranscriptState.Selection?
         if rich {
+            speakerSelection = SpeakerResolvedTranscriptState.materialize(session)
             let selection = try richTranscript(session: session, reviewedSpeakers: reviewedSpeakers)
             profile = selection.profile
             url = selection.url
             kind = selection.kind
             fallbackReason = selection.fallbackReason
+        } else if aggregate {
+            profile = try selectedProfile(requestedProfile, session: session)
+            url = transcriptURL(profile: profile, session: session)
+            kind = "aggregate_colleagues"
         } else {
             profile = try selectedProfile(requestedProfile, session: session)
             if requestedProfile == "auto",
                let selection = SpeakerResolvedTranscriptState.materialize(session) {
+                speakerSelection = selection
                 url = selection.transcript
                 kind = selection.speakerProfile
                 fallbackReason = selection.fallbackReason
@@ -6422,6 +6466,16 @@ enum TranscriptCommands {
                 : "speaker-resolved transcript unavailable (\(fallbackReason)); using exact aggregate transcript"
             fputs("warning: \(message)\n", stderr)
         }
+        if !aggregate,
+           let speakerSelection,
+           SpeakerPurityReferenceState.identitySafety(session, speaker: speakerSelection)
+            == "diagnostic_external_machine_reference" {
+            fputs(
+                "warning: speaker labels are session-local acoustic clusters with diagnostic purity concerns; "
+                    + "use `--aggregate` for the exact role-only transcript\n",
+                stderr
+            )
+        }
         if cat {
             let data = try Data(contentsOf: url)
             FileHandle.standardOutput.write(data)
@@ -6439,6 +6493,20 @@ enum TranscriptCommands {
         print("  profile: \(profile)")
         print("  speaker_profile: \(kind)")
         print("  path: \(PathDisplay.display(url))")
+        if aggregate || kind == "aggregate_colleagues" {
+            print("  speaker_claim_scope: remote_role_aggregate")
+            print("  speaker_identity_safety: not_applicable")
+        } else {
+            print("  speaker_claim_scope: session_local_acoustic_cluster")
+            print(
+                "  speaker_identity_safety: "
+                    + SpeakerPurityReferenceState.identitySafety(session, speaker: speakerSelection)
+            )
+            print(
+                "  aggregate_fallback: murmurmark transcript \(PathDisplay.display(session)) "
+                    + "--aggregate --cat"
+            )
+        }
         if let fallbackReason {
             print("  fallback_reason: \(fallbackReason)")
         }
@@ -6688,11 +6756,12 @@ enum TranscriptCommands {
     private static func printHelp() {
         print("""
         usage: murmurmark transcript ./session|latest [--profile auto|current|NAME]
-                              [--rich [--reviewed-speakers]] [--path-only|--cat]
+                              [--aggregate|--rich [--reviewed-speakers]] [--path-only|--cat]
                               [--sessions-root ./sessions]
 
         Resolves the current handoff and selects promoted session-local speaker evidence by default.
         Unsupported remote words remain aggregate Colleagues; stale evidence falls back exactly.
+        Use --aggregate for the exact role-only transcript without remote speaker cluster labels.
         Use --rich for the compatible diagnostic speaker-resolution path.
         Add --reviewed-speakers to request explicit session-local labels. Missing, incomplete or
         stale decisions fail open to the anonymous rich view.
@@ -7973,6 +8042,20 @@ enum CorpusCommands {
                     "--sessions-root", sessionsRoot.path,
                 ]
             )
+        case "remote-cluster-purity-v1", "remote_cluster_purity_v1":
+            if forwarded.isEmpty || ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(
+                    try PythonRuntime.resolve(),
+                    [try script("report-remote-speaker-cluster-purity-reference-v1.py").path, "--help"]
+                )
+                return
+            }
+            try Tooling.runPath(
+                try PythonRuntime.resolve(),
+                [try script("report-remote-speaker-cluster-purity-reference-v1.py").path]
+                    + forwarded
+                    + ["--sessions-root", sessionsRoot.path]
+            )
         case "remote-coverage", "remote_coverage":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 try Tooling.runPath(
@@ -8742,6 +8825,10 @@ enum CorpusHelp {
                                       [--trust-grade independent_machine] [--local-speaker NAME]
           murmurmark corpus lexical build|replay|status
                                       [--write-manifest docs/testing/lexical-accuracy-reference-corpus-v1-manifest.json]
+          murmurmark corpus remote-cluster-purity-v1 import SESSION SOURCE --source-id ID
+                                      [--trust-grade independent_machine] [--local-speaker NAME]
+          murmurmark corpus remote-cluster-purity-v1 evaluate|replay|status
+                                      [--write-manifest docs/testing/remote-speaker-cluster-purity-reference-v1-manifest.json]
           murmurmark corpus lifecycle [all|latest|./session...] [--freeze-inputs]
                                       [--require-frozen-inputs] [--require-passing-gates]
                                       [--sessions-root ./sessions]
@@ -16391,7 +16478,8 @@ enum ReadinessPrinter {
         print("  gate: \(gate)")
         print("  recommendation: \(recommendation)")
         print("  selected_profile: \(profile)")
-        if let speaker = SpeakerResolvedTranscriptState.materialize(session) {
+        let speakerSelection = SpeakerResolvedTranscriptState.materialize(session)
+        if let speaker = speakerSelection {
             print("  selected_speaker_profile: \(speaker.speakerProfile)")
             print("  speaker_resolution_state: \(speaker.state)")
             if let fallbackReason = speaker.fallbackReason {
@@ -16402,6 +16490,7 @@ enum ReadinessPrinter {
             print("  speaker_resolution_state: fallback")
             print("  speaker_fallback_reason: speaker_selector_unavailable")
         }
+        printSpeakerPuritySummary(session, speaker: speakerSelection)
         print("  verdict: \(verdict)")
         if let classification = string(payload["session_classification"]), classification != "conversation" {
             print("  session_classification: \(classification)")
@@ -16470,6 +16559,49 @@ enum ReadinessPrinter {
                 print("    \(command) — \(label)")
             }
         }
+    }
+
+    private static func printSpeakerPuritySummary(
+        _ session: URL,
+        speaker: SpeakerResolvedTranscriptState.Selection?
+    ) {
+        guard let speaker else {
+            print("  speaker_claim_scope: remote_role_aggregate")
+            print("  speaker_identity_safety: not_applicable")
+            return
+        }
+        print("  speaker_claim_scope: session_local_acoustic_cluster")
+        let payload = SpeakerPurityReferenceState.payload(session, speaker: speaker)
+        print(
+            "  speaker_identity_safety: "
+                + (payload?["identity_safety"] as? String ?? "unverified")
+        )
+        print(
+            "  speaker_purity_evidence: "
+                + (payload?["purity_evidence"] as? String ?? "none")
+        )
+        if let metrics = payload?["metrics"] as? [String: Any] {
+            if let referenceSpeakers = int(metrics["reference_remote_speakers"]),
+               let publishedClusters = int(metrics["published_clusters"]) {
+                print(
+                    "  speaker_reference_topology: \(referenceSpeakers) reference voices / "
+                        + "\(publishedClusters) published clusters"
+                )
+            }
+            if let alignment = double(metrics["alignment_ratio"]) {
+                print(String(format: "  speaker_reference_alignment: %.2f%%", alignment * 100))
+            }
+            if let purity = double(metrics["dominant_cluster_weighted_purity"]) {
+                print(String(format: "  speaker_cluster_weighted_purity: %.2f%%", purity * 100))
+            }
+            if let minority = double(metrics["minority_speaker_recall"]) {
+                print(String(format: "  speaker_minority_recall: %.2f%%", minority * 100))
+            }
+        }
+        print(
+            "  speaker_aggregate_fallback: murmurmark transcript \(PathDisplay.display(session)) "
+                + "--aggregate --cat"
+        )
     }
 
     private static func pipelineBlockedPayload(_ session: URL) -> [String: Any]? {

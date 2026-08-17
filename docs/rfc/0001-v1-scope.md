@@ -187,8 +187,9 @@ Current M5+ status:
 - internal speaker changes and overlap are represented without word loss or duplication;
 - rich anonymous speaker artifacts are stable and ordinary transcript selection has exact aggregate
   fallback;
-- direct-truth adjudication kept Coverage v3; monotonic enrollment-purity/abstention hardening is the
-  current quality gate, and local multi-speaker mic remains conditional.
+- direct-truth and disjoint model qualification kept Coverage v3; private cluster-purity evidence
+  routed current work to remote boundaries and minority-voice preservation before identity;
+- local multi-speaker mic remains conditional.
 
 ### M6: Evidence-Backed Synthesis
 

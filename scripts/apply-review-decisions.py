@@ -4,12 +4,18 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import sys
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+import review_profile_lineage as review_lineage
 
-SCRIPT_VERSION = "0.4.2"
+
+SCRIPT_VERSION = "0.4.4"
 OUTPUT_PROFILE_DEFAULT = "reviewed_v1"
 VALID_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip", "todo", ""}
 OPEN_DECISIONS = {"", "todo"}
@@ -186,6 +192,15 @@ def profile_artifacts_exist(session: Path, profile: str) -> bool:
     )
 
 
+def review_profile_is_current(session: Path, profile: str) -> bool:
+    if profile not in {"reviewed_v1", "agent_reviewed_v1"}:
+        return True
+    review_dir = session / "derived/transcript-simple/whisper-cpp/review-decisions"
+    report_path = review_dir / f"review_decisions_report{suffix(profile)}.json"
+    report = read_json(report_path) if report_path.exists() else None
+    return review_lineage.review_profile_is_current(session, report)
+
+
 def review_input_profile(
     session: Path,
     output_profile: str,
@@ -193,7 +208,16 @@ def review_input_profile(
     all_decisions: list[dict[str, Any]],
 ) -> str:
     scoped = selected_profile_from_decisions(in_scope_decisions)
-    if scoped and profile_artifacts_exist(session, scoped):
+    if scoped == output_profile:
+        review_report_path = (
+            session
+            / "derived/transcript-simple/whisper-cpp/review-decisions"
+            / f"review_decisions_report{suffix(output_profile)}.json"
+        )
+        scoped_report = read_json(review_report_path) if review_report_path.exists() else None
+        if not isinstance((scoped_report or {}).get("lineage"), dict):
+            scoped = None
+    if scoped and profile_artifacts_exist(session, scoped) and review_profile_is_current(session, scoped):
         return scoped
 
     review_report = (
@@ -203,7 +227,12 @@ def review_input_profile(
     )
     if review_report.exists():
         previous_input = str(read_json(review_report).get("input_profile") or "")
-        if previous_input and previous_input != output_profile and profile_artifacts_exist(session, previous_input):
+        if (
+            previous_input
+            and previous_input != output_profile
+            and profile_artifacts_exist(session, previous_input)
+            and review_profile_is_current(session, previous_input)
+        ):
             return previous_input
 
     candidates = [
@@ -211,7 +240,11 @@ def review_input_profile(
         for row in all_decisions
         if row.get("input_profile") and str(row.get("input_profile")) != output_profile
     ]
-    candidates = [profile for profile in candidates if profile_artifacts_exist(session, profile)]
+    candidates = [
+        profile
+        for profile in candidates
+        if profile_artifacts_exist(session, profile) and review_profile_is_current(session, profile)
+    ]
     if candidates:
         counts = {profile: candidates.count(profile) for profile in set(candidates)}
         return sorted(counts, key=lambda profile: (-counts[profile], profile))[0]
@@ -241,6 +274,7 @@ def existing_profile(session: Path) -> str:
     if (
         report
         and (report.get("gates") or {}).get("passed") is True
+        and review_lineage.review_profile_is_current(session, report)
         and (resolved / "clean_dialogue.reviewed_v1.json").exists()
         and (resolved / "quality_report.reviewed_v1.json").exists()
     ):
@@ -254,6 +288,7 @@ def existing_profile(session: Path) -> str:
     if (
         agent_report
         and (agent_report.get("gates") or {}).get("passed") is True
+        and review_lineage.review_profile_is_current(session, agent_report)
         and (resolved / "clean_dialogue.agent_reviewed_v1.json").exists()
         and (resolved / "quality_report.agent_reviewed_v1.json").exists()
     ):
@@ -483,6 +518,41 @@ def review_coverage(
     }
 
 
+def allow_compatible_partial_coverage(
+    coverage: dict[str, Any],
+    *,
+    compatible_decision_rows: int,
+    compatible_applied_rows: int,
+    invalid_decision_rows: int,
+    rejected_decision_rows: int,
+    conflict_count: int,
+) -> dict[str, Any]:
+    """Allow a residual queue to coexist with safely carried review decisions."""
+    if coverage.get("allowed") is True or coverage.get("allow_partial_review") is not True:
+        return coverage
+    if coverage.get("status") != "incomplete" or int(coverage.get("required_rows") or 0) <= 0:
+        return coverage
+    if not coverage.get("template_path"):
+        return coverage
+    if compatible_decision_rows <= 0 or compatible_applied_rows <= 0:
+        return coverage
+    if invalid_decision_rows or rejected_decision_rows or conflict_count:
+        return coverage
+
+    updated = copy.deepcopy(coverage)
+    updated.update(
+        {
+            "status": "partial_allowed_from_compatible_decisions",
+            "allowed": True,
+            "partial_allowed": True,
+            "partial_basis": "compatible_out_of_scope_decisions",
+            "compatible_decision_rows": compatible_decision_rows,
+            "compatible_applied_rows": compatible_applied_rows,
+        }
+    )
+    return updated
+
+
 def decision_me_ids(row: dict[str, Any]) -> list[str]:
     ids = row.get("me_utterance_ids")
     if isinstance(ids, list) and ids:
@@ -620,6 +690,8 @@ def main() -> int:
     session = args.session.expanduser().resolve()
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
     review_dir = session / "derived/transcript-simple/whisper-cpp/review-decisions"
+    previous_report_path = review_dir / f"review_decisions_report{suffix(args.output_profile)}.json"
+    previous_report = read_json(previous_report_path) if previous_report_path.exists() else None
     all_decisions = decisions_for_session(args.decisions.expanduser(), session)
     obsolete_decisions = [row for row in all_decisions if obsolete_audit_only_local_recall_keep(row)]
     decisions = [row for row in all_decisions if not obsolete_audit_only_local_recall_keep(row)]
@@ -778,6 +850,18 @@ def main() -> int:
 
     overlaps = build_overlaps(output_utterances)
     applied_all = applied + remote_applied + audit_only_applied
+    applied_review_keys = {review_row_key(row) for row in applied_all}
+    compatible_applied_rows = sum(
+        1 for row in compatible_out_of_scope_decisions if review_row_key(row) in applied_review_keys
+    )
+    coverage = allow_compatible_partial_coverage(
+        coverage,
+        compatible_decision_rows=len(compatible_out_of_scope_decisions),
+        compatible_applied_rows=compatible_applied_rows,
+        invalid_decision_rows=len(invalid_decisions),
+        rejected_decision_rows=len(rejected),
+        conflict_count=len(conflicts),
+    )
     local_recall_rows = [row for row in audit_only_applied if is_local_recall_decision(row)] + [
         row for row in applied if is_local_recall_repair_decision(row)
     ]
@@ -897,8 +981,10 @@ def main() -> int:
         gates["warnings"].append("incomplete_review_scope_allowed")
     if not valid_decisions:
         gates["warnings"].append("no_review_decisions_applied")
-    if coverage["status"] == "partial_allowed":
+    if coverage["partial_allowed"]:
         gates["warnings"].append("partial_review_scope_allowed")
+    if coverage["status"] == "partial_allowed_from_compatible_decisions":
+        gates["warnings"].append("partial_review_scope_allowed_from_compatible_decisions")
     if obsolete_decisions:
         gates["warnings"].append("obsolete_audit_only_local_recall_keep_ignored")
     if out_of_scope_decisions:
@@ -938,6 +1024,14 @@ def main() -> int:
             "quality_report": rel(quality_path, session),
             "allow_partial_review": args.allow_partial_review,
         },
+        "lineage": review_lineage.build_lineage(
+            session=session,
+            input_profile=input_profile,
+            output_profile=args.output_profile,
+            dialogue_path=dialogue_path,
+            quality_path=quality_path,
+            previous_report=previous_report,
+        ),
         "summary": review_summary,
         "coverage": coverage,
         "gates": gates,

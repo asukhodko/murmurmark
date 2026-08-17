@@ -168,10 +168,13 @@ Read in this order:
 164. [Disjoint Remote Speaker Model Qualification v1 manifest](testing/disjoint-remote-speaker-model-qualification-v1-manifest.json)
 165. [Planning and development history](history/README.md)
 166. [Roster-Constrained Remote Speaker Evidence v1 contract](contracts/roster-constrained-remote-speaker-evidence-v1.md)
+167. [Remote Speaker Cluster Purity Reference v1 contract](contracts/remote-speaker-cluster-purity-reference-v1.md)
+168. [Remote Speaker Cluster Purity Reference v1 runbook](runbooks/remote-speaker-cluster-purity-reference-v1.md)
+169. [Remote Speaker Cluster Purity Reference v1 result](testing/2026-08-17-remote-speaker-cluster-purity-reference-v1.md)
 
 ## Current Planning Entry Points
 
-Planning snapshot: 2026-08-13. Durable capture, authoritative batch transcription, guarded review,
+Planning snapshot: 2026-08-17. Durable capture, authoritative batch transcription, guarded review,
 optional extractive notes/export and Speaker-Preserving Neural Echo v2.17 remain production. The bounded
 pre-ASR frontier is closed: SepFormer could assign present Target-Me stems but failed reliable
 presence/absence separation before dev. Anonymous rich transcript, explicit reviewed naming and
@@ -226,9 +229,11 @@ correct controls, but introduced 12 new false identities, left six ambiguous clu
 speaker count in `0/6` sessions, preserved `2/3` gains and introduced seven false identities.
 Disjoint Truth v2 then completed 72 primary + 12 repeat decisions at consistency `1.0`. Frozen
 ERes2NetV2 closed `KEEP_COVERAGE_V3`: 12/21 correct identities, precision `0.631579`, recall
-`0.571429` and seven unsafe special accepts despite perfect controlled hard. The current bounded
-goal decomposes real-session usability and single-speaker purity before another candidate is
-selected. Notes and retrieval remain parked.
+`0.571429` and seven unsafe special accepts despite perfect controlled hard. Cluster Purity
+Reference v1 then closed `ADVANCE_SEGMENTATION`: a private independent-machine reference aligned
+`92.8157%` of remote words and exposed 10 reference voices compressed into four clusters, weighted
+purity `89.8106%` and minority recall `0`. The current goal improves speaker boundaries and rare
+voice preservation before another identity decision. Notes and retrieval remain parked.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

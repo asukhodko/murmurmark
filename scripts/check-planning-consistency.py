@@ -84,6 +84,7 @@ CRITICAL_PATH = (
     "quality-remote-speaker-disjoint-truth-expansion-v2",
     "quality-disjoint-remote-speaker-model-qualification-v1",
     "quality-remote-speaker-usability-gate-error-decomposition-v1",
+    "quality-remote-speaker-boundary-minority-segmentation-v1",
 )
 
 EXPECTED_STATUSES = {"done", "current", "next", "later", "idea", "optional", "blocked"}
@@ -160,7 +161,7 @@ def validate_statuses_and_goal(plan: dict) -> tuple[dict, str]:
     require(isinstance(statuses, dict), "plan.statuses must be a mapping")
     require(set(statuses) == EXPECTED_STATUSES, "plan status set does not match the planning contract")
     require(isinstance(nodes, dict) and nodes, "plan.nodes must be a non-empty mapping")
-    require(len(nodes) <= 52, f"active plan is too large: {len(nodes)} nodes, expected at most 52")
+    require(len(nodes) <= 53, f"active plan is too large: {len(nodes)} nodes, expected at most 53")
 
     current = [(node_id, node) for node_id, node in nodes.items() if node.get("status") == "current"]
     current_tasks = [(node_id, node) for node_id, node in current if node.get("kind") == "task"]
@@ -505,8 +506,18 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
     )
     require(
         nodes["quality-remote-speaker-usability-gate-error-decomposition-v1"].get("status")
+        == "done",
+        "remote-speaker usability decomposition must remain completed",
+    )
+    require(
+        "quality-remote-speaker-usability-gate-error-decomposition-v1"
+        in nodes["quality-remote-speaker-boundary-minority-segmentation-v1"].get("deps", []),
+        "remote-speaker boundary and minority segmentation must follow purity decomposition",
+    )
+    require(
+        nodes["quality-remote-speaker-boundary-minority-segmentation-v1"].get("status")
         == "current",
-        "remote-speaker usability decomposition must be the current quality goal",
+        "remote-speaker boundary and minority segmentation must be the current quality goal",
     )
     require("parked-ui" not in nodes, "UI must not occupy the active CLI roadmap")
 

@@ -491,10 +491,10 @@ This is the flywheel: review burden produces the data needed to reduce future re
 ## Current Executable Goal
 
 ```text
-Remote Speaker Usability Gate Error Decomposition v1: сохранив Coverage v3 и frozen ERes2NetV2
-qualification неизменными, разложить unsafe accepts, misses и truth-v1 regressions на usability,
-single-speaker purity, boundaries, enrollment и identity causes; следующий candidate выбирать
-только после доказательного route decision и с новым независимым terminal set.
+Remote Speaker Boundary and Minority-Voice Segmentation v1: сохранив Coverage v3 и selected
+artifacts неизменными, построить label-independent границы remote-речи, отделять короткие редкие
+голоса и оставлять слабое evidence explicit unknown; candidate открывать только на новом disjoint
+terminal set.
 ```
 
 Remote Speaker Attribution Error Decomposition v1 завершён
@@ -541,4 +541,12 @@ unknown, 4 mixed и 19 unusable, repeat consistency `1.0`. Pinned ERes2NetV2 б�
 раскрытия и однократно получил 12/21 correct identities, precision `0.631579`, recall `0.571429`,
 zero wrong-known-speaker substitutions и семь unsafe special accepts. Controlled hard остался
 perfect, но real-session safety и truth-v1 controls не прошли. Результат `KEEP_COVERAGE_V3` закрывает
-эту model route и локализует следующий вопрос в пригодности и одноголосии входного интервала.
+эту model route.
+
+Cluster Purity Reference v1 затем использовал отдельную приватную машинную расшифровку групповой
+встречи как диагностическое, не identity-truth evidence. При alignment `0.928157` он сопоставил 10
+reference remote voices с четырьмя опубликованными acoustic clusters: weighted purity `0.898106`,
+девять merged speakers и minority recall `0`. Результат `ADVANCE_SEGMENTATION` локализует следующий
+вопрос в границах и сохранении редких голосов до identity assignment. Имена и item-level alignment
+остаются private; ordinary speaker IDs остаются session-local acoustic clusters, а exact aggregate
+handoff доступен через `murmurmark transcript SESSION --aggregate`.

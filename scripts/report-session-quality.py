@@ -7,13 +7,19 @@ import hashlib
 import json
 import shlex
 import statistics
+import sys
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+import review_profile_lineage as review_lineage
 
-SCRIPT_VERSION = "0.5.6"
+
+SCRIPT_VERSION = "0.5.7"
 SCHEMA = "murmurmark.session_quality_report/v1"
 READINESS_SCHEMA = "murmurmark.session_readiness/v1"
 CLEANUP_PROFILES = {
@@ -591,6 +597,8 @@ def selected_profile(session: Path) -> str:
         return "audit_cleanup_v7"
     def review_decisions_usable(report: dict[str, Any] | None) -> bool:
         if not isinstance(report, dict):
+            return False
+        if not review_lineage.review_profile_is_current(session, report):
             return False
         gates = report.get("gates") if isinstance(report.get("gates"), dict) else {}
         if gates.get("passed") is True:

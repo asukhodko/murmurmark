@@ -136,6 +136,9 @@ copy_file "scripts/install-release.sh"
 copy_file "scripts/acceptance-release-quality.sh"
 copy_file "scripts/check-release-quality.py"
 copy_file "scripts/micro_asr_evidence.py"
+copy_file "scripts/review_profile_lineage.py"
+copy_file "scripts/report-remote-speaker-cluster-purity-reference-v1.py"
+copy_file "policies/remote-speaker-cluster-purity-reference-v1.json"
 
 cat >"$stage/bin/murmurmark" <<'EOF'
 #!/usr/bin/env bash

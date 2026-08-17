@@ -464,7 +464,14 @@ with log_path.open("w", encoding="utf-8") as log_file:
         stderr=subprocess.STDOUT,
         start_new_session=True,
     )
-    deadline = time.monotonic() + 30.0
+    # Opportunistic processing intentionally runs at low priority. A busy laptop can
+    # take longer than 30 seconds to start the second synthetic ASR chunk even when
+    # resume behavior is healthy, so keep this readiness wait bounded but generous.
+    ready_timeout_sec = max(
+        10.0,
+        float(os.environ.get("MURMURMARK_SMOKE_INTERRUPT_READY_TIMEOUT_SEC", "90")),
+    )
+    deadline = time.monotonic() + ready_timeout_sec
     while time.monotonic() < deadline:
         if process.poll() is not None:
             print("pipeline exited before fake whisper reached the second chunk", file=sys.stderr)
@@ -480,7 +487,11 @@ with log_path.open("w", encoding="utf-8") as log_file:
     else:
         os.killpg(process.pid, signal.SIGTERM)
         process.wait(timeout=10)
-        print("fake whisper did not reach the second chunk", file=sys.stderr)
+        print(
+            f"fake whisper did not reach the second chunk within {ready_timeout_sec:.0f}s",
+            file=sys.stderr,
+        )
+        print(log_path.read_text(encoding="utf-8", errors="replace"), file=sys.stderr)
         sys.exit(97)
 
     os.killpg(process.pid, signal.SIGINT)

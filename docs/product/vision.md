@@ -120,9 +120,9 @@ met, unless an explicit product decision changes the priority.
 
 1. **Transcript Perfection Corpus v1:** maintain the frozen benchmark for text,
    chronology, roles, speakers, overlap, acoustic modes and known residual defects.
-2. **Remote Speaker Usability Gate Error Decomposition v1:** explain unsafe real-session identity
-   accepts and misses before selecting another backend or threshold.
-3. **Disjoint direct truth:** any future candidate must be frozen before a new terminal set opens;
+2. **Remote Speaker Boundary and Minority-Voice Segmentation v1:** split mixed remote intervals and
+   preserve short rare voices before anonymous identity assignment.
+3. **Disjoint direct truth:** freeze every boundary candidate before a new terminal set opens;
    the now-open Truth v2 is development evidence only and cannot promote another candidate.
 4. **Human-Reviewed Lexical Seed v1:** external-evidence prerequisite; do not tune ASR from machine
    agreement while it is absent.

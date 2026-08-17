@@ -13,8 +13,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+import review_profile_lineage as review_lineage
 
-GENERATOR_VERSION = "0.3.8"
+
+GENERATOR_VERSION = "0.3.9"
 TOKEN_RE = re.compile(r"[0-9A-Za-zА-Яа-яЁё_./+-]+")
 
 DEFAULT_RULES: dict[str, Any] = {
@@ -905,6 +910,7 @@ def frozen_artifact_tree_matches(value: Any) -> bool:
 def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dict[str, Path], dict[str, Any] | None, list[dict[str, Any]]]:
     risk_items: list[dict[str, Any]] = []
     repair_comparison: dict[str, Any] | None = None
+    session = resolved_dir.parents[3]
 
     def authoritative_boundary_paths_if_promoted() -> dict[str, Path] | None:
         paths = source_profile_paths(resolved_dir, "authoritative_boundary_v1")
@@ -1337,6 +1343,7 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
             reviewed_paths["clean_dialogue"].exists()
             and reviewed_error is None
             and isinstance(reviewed_report, dict)
+            and review_lineage.review_profile_is_current(session, reviewed_report)
             and isinstance(reviewed_report.get("gates"), dict)
             and reviewed_report["gates"].get("passed") is True
         ):
@@ -1350,6 +1357,7 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
             agent_paths["clean_dialogue"].exists()
             and agent_error is None
             and isinstance(agent_report, dict)
+            and review_lineage.review_profile_is_current(session, agent_report)
             and isinstance(agent_report.get("gates"), dict)
             and agent_report["gates"].get("passed") is True
         ):
@@ -1414,6 +1422,14 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
         review_report, review_error = read_json(paths["review_decisions_report"])
         if review_error is not None:
             risk_items.append({"type": "missing_review_decisions_report", "severity": "high", "reason": review_error})
+        elif not review_lineage.review_profile_is_current(session, review_report):
+            risk_items.append(
+                {
+                    "type": "stale_review_profile",
+                    "severity": "high",
+                    "reason": "reviewed profile no longer matches its frozen base transcript",
+                }
+            )
         elif (
             not isinstance(review_report, dict)
             or not isinstance(review_report.get("gates"), dict)
@@ -1439,6 +1455,14 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
         review_report, review_error = read_json(paths["review_decisions_report"])
         if review_error is not None:
             risk_items.append({"type": "missing_agent_review_decisions_report", "severity": "high", "reason": review_error})
+        elif not review_lineage.review_profile_is_current(session, review_report):
+            risk_items.append(
+                {
+                    "type": "stale_agent_review_profile",
+                    "severity": "high",
+                    "reason": "agent-reviewed profile no longer matches its frozen base transcript",
+                }
+            )
         elif (
             not isinstance(review_report, dict)
             or not isinstance(review_report.get("gates"), dict)

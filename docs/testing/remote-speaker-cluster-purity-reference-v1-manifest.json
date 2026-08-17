@@ -1,0 +1,25 @@
+{
+  "decision": "ADVANCE_SEGMENTATION",
+  "evidence": [
+    {
+      "evidence_id": "evidence_001",
+      "recommended_route": "ADVANCE_SEGMENTATION",
+      "selected_rich_sha256": "0d54e673905ce4c904479924c16808b0f81f26125bf2a9eb8b2fcd7dcbeb0577",
+      "source_sha256": "7214d890902d0a92b2b6a374f1bd18974038181a689342e461fb25b838f20e24",
+      "trust_grade": "independent_machine"
+    }
+  ],
+  "policy_sha256": "1ba55d1a8a5b45b607d0f67cd69163897542034268612c83b637e8d1501b808f",
+  "schema": "murmurmark.remote_speaker_cluster_purity_reference_manifest/v1",
+  "summary": {
+    "aligned_reference_words": 8475,
+    "alignment_ratio": 0.928157,
+    "attributed_reference_words": 8077,
+    "dominant_cluster_weighted_purity": 0.898106,
+    "evidence_sources": 1,
+    "minority_reference_words": 1062,
+    "minority_speaker_recall": 0.0,
+    "reference_remote_words": 9131
+  },
+  "version": 1
+}

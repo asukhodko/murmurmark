@@ -153,8 +153,10 @@ qualified, zero identities were added and unsafe accepts returned to control 8. 
 enrollment, label-independent re-clustering, WeSpeaker and temporal AHC/VBx all closed without
 promotion. Disjoint Truth v2 then completed 72 primary + 12 repeat decisions. Frozen ERes2NetV2
 closed `KEEP_COVERAGE_V3`: 12/21 correct identities, precision `0.631579`, seven unsafe special
-accepts and two lost truth-v1 controls. Current work decomposes interval usability and
-single-speaker purity; production remains Coverage v3.
+accepts and two lost truth-v1 controls. Cluster Purity Reference v1 then measured 10 reference
+remote voices against four published acoustic clusters, weighted purity `0.898106` and minority
+recall `0`, closing `ADVANCE_SEGMENTATION`. Current work improves boundary and minority-voice
+segmentation; production remains Coverage v3.
 Notes, external writes and UI remain optional.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.

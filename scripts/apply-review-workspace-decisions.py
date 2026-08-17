@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.6.4"
+SCRIPT_VERSION = "0.6.5"
 REVIEW_STATE_FIELDS = {
     "decision",
     "status",
@@ -179,6 +179,43 @@ def review_row_key(row: dict[str, Any]) -> str:
     )
 
 
+def semantic_review_row_key(row: dict[str, Any]) -> str:
+    interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+    text_rows = row.get("text") if isinstance(row.get("text"), list) else []
+    text_key = "|".join(
+        f"{item.get('source_track') or item.get('role') or ''}:{normalize_text(item.get('text'))}"
+        for item in text_rows
+        if isinstance(item, dict)
+    )
+    return (
+        "semantic-review:"
+        f"{row.get('session_id') or ''}:"
+        f"{row.get('source') or ''}:"
+        f"{row.get('review_action') or ''}:"
+        f"{row.get('label') or ''}:"
+        f"{interval.get('start')}:{interval.get('end')}:"
+        f"{text_key}"
+    )
+
+
+def direct_utterance_keys(row: dict[str, Any]) -> list[str]:
+    if str(row.get("source") or "") not in {"audio_review", "transcript_order", "transcript_text"}:
+        return []
+    interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+    interval_key = f"{interval.get('start')}:{interval.get('end')}"
+    text_rows = row.get("text") if isinstance(row.get("text"), list) else []
+    keys: list[str] = []
+    for item in text_rows:
+        if not isinstance(item, dict):
+            continue
+        source = str(item.get("source_track") or item.get("role") or "").lower()
+        role = "mic" if source in {"mic", "me"} else "remote" if source in {"remote", "colleagues"} else ""
+        text = normalize_text(item.get("text"))
+        if role and text:
+            keys.append(f"utterance:{row.get('session_id') or ''}:{interval_key}:{role}:{text}")
+    return keys
+
+
 def obsolete_audit_only_local_recall_keep(row: dict[str, Any]) -> bool:
     return str(row.get("source") or "") == "local_recall" and str(row.get("decision") or "") == "keep_me"
 
@@ -192,17 +229,44 @@ def merge_review_state(template: dict[str, Any], existing: dict[str, Any] | None
 
 def merge_existing(template_rows: list[dict[str, Any]], existing_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     existing_rows = [row for row in existing_rows if not obsolete_audit_only_local_recall_keep(row)]
-    existing_by_key = {
-        review_row_key(row): row
-        for row in existing_rows
-        if str(row.get("decision") or "todo") not in {"", "todo"}
-    }
+    closed_rows = [row for row in existing_rows if str(row.get("decision") or "todo") not in {"", "todo"}]
+    existing_by_key = {review_row_key(row): row for row in closed_rows}
+    semantic_rows: dict[str, list[dict[str, Any]]] = {}
+    direct_rows: dict[str, list[dict[str, Any]]] = {}
+    for row in closed_rows:
+        semantic_rows.setdefault(semantic_review_row_key(row), []).append(row)
+        for key in direct_utterance_keys(row):
+            direct_rows.setdefault(key, []).append(row)
     template_keys = {review_row_key(row) for row in template_rows}
-    merged = [merge_review_state(row, existing_by_key.get(review_row_key(row))) for row in template_rows]
+    used_existing: set[int] = set()
+    merged: list[dict[str, Any]] = []
+    for row in template_rows:
+        existing = existing_by_key.get(review_row_key(row))
+        if existing is None:
+            candidates = semantic_rows.get(semantic_review_row_key(row), [])
+            if len(candidates) == 1:
+                candidate = candidates[0]
+                allowed = allowed_decisions(row)
+                if str(candidate.get("decision") or "") in allowed:
+                    existing = candidate
+        if existing is None and str(row.get("source") or "") == "transcript_text":
+            candidates = {
+                id(candidate): candidate
+                for key in direct_utterance_keys(row)
+                for candidate in direct_rows.get(key, [])
+            }
+            decisions = {str(candidate.get("decision") or "") for candidate in candidates.values()}
+            if len(decisions) == 1:
+                candidate = next(iter(candidates.values()))
+                if candidate.get("decision") in {"keep_me", "drop_me"} and str(candidate.get("decision")) in allowed_decisions(row):
+                    existing = candidate
+        if existing is not None:
+            used_existing.add(id(existing))
+        merged.append(merge_review_state(row, existing))
     merged.extend(
         row
-        for row in existing_rows
-        if review_row_key(row) not in template_keys and str(row.get("decision") or "todo") not in {"", "todo"}
+        for row in closed_rows
+        if id(row) not in used_existing and review_row_key(row) not in template_keys
     )
     return merged
 

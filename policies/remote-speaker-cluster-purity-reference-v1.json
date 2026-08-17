@@ -1,0 +1,21 @@
+{
+  "alignment": {
+    "anchor_min_score": 0.75,
+    "anchor_min_words": 4,
+    "candidate_tolerance_sec": 12.0,
+    "minimum_offset_anchors": 8,
+    "offset_inlier_sec": 20.0,
+    "row_min_score": 0.45
+  },
+  "decision": {
+    "minimum_alignment_ratio": 0.55,
+    "minimum_diagnostic_purity": 0.95
+  },
+  "purity": {
+    "minimum_speaker_words": 5,
+    "minority_max_reference_share": 0.05,
+    "split_min_speaker_share": 0.15
+  },
+  "schema": "murmurmark.remote_speaker_cluster_purity_reference_policy/v1",
+  "version": 1
+}

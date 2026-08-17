@@ -5,6 +5,10 @@ public release tag exists; development builds also carry the source commit in th
 
 ## Unreleased
 
+- Added a private remote-speaker cluster-purity audit with reproducible aggregate metrics, explicit
+  session-local acoustic-cluster semantics and an exact `transcript --aggregate` fallback.
+- Bound reviewed transcript profiles to their source dialogue and quality-report fingerprints so a
+  regenerated base transcript cannot silently reuse stale review artifacts.
 - Added private `retired_sessions/v1` overlays so superseded frozen experiments can release stale
   automatic pins while explicit current-development pins continue to protect active corpora.
 - Completed the frozen disjoint remote-speaker truth v2 review: 72 primary and 12 repeat decisions,

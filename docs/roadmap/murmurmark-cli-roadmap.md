@@ -1,6 +1,6 @@
 # MurmurMark CLI Roadmap
 
-Updated: 2026-08-13
+Updated: 2026-08-17
 Это читаемое представление активного плана OpsKarta v3:
 
 - `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`
@@ -91,7 +91,8 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Temporal end-to-end remote diarization | `done` | `KEEP_EXPLICIT_UNKNOWN`: stable timing, but speaker count `0/6`, seven false identities |
 | Disjoint remote-speaker truth v2 | `done` | 72 primary + 12 repeats; `DIRECT_TRUTH_V2_READY`, consistency `1.0` |
 | Disjoint model qualification v1 | `done` | `KEEP_COVERAGE_V3`: ERes2NetV2 unsafe on 7 special real-session items |
-| Remote speaker usability decomposition v1 | `current` | Explain unsafe accepts and misses before designing another candidate |
+| Remote speaker cluster purity reference v1 | `done` | `ADVANCE_SEGMENTATION`: 10 reference voices / 4 clusters, purity `0.898106`, minority recall `0` |
+| Boundary and minority-voice segmentation v1 | `current` | Split mixed remote intervals and preserve rare voices before identity assignment |
 ## Актуальная Цепочка
 ```mermaid
 flowchart LR
@@ -123,10 +124,11 @@ flowchart LR
     TD["Done: KEEP EXPLICIT UNKNOWN<br/>Temporal End-to-End Remote<br/>Diarization v1"]
     M["Done: DIRECT TRUTH V2 READY<br/>Remote Speaker Disjoint<br/>Truth Expansion v2"]
     MQ["Done: KEEP COVERAGE V3<br/>Disjoint Remote Speaker<br/>Model Qualification v1"]
-    UG["Next<br/>Remote Speaker Usability<br/>Gate Error Decomposition v1"]
+    UG["Done: ADVANCE SEGMENTATION<br/>Remote Speaker Cluster Purity<br/>Reference v1"]
+    BM["Current<br/>Remote Speaker Boundary and<br/>Minority-Voice Segmentation v1"]
     O["Optional<br/>Notes, retrieval,<br/>work proposals"]
 
-    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> W --> X --> Y --> RC --> SR --> TD --> M --> MQ --> UG
+    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> W --> X --> Y --> RC --> SR --> TD --> M --> MQ --> UG --> BM
     F --> D
     L -.-> O
 ```
@@ -166,35 +168,29 @@ B-cubed F1 до `0.962171`, pairwise precision до `0.961675`.
 aggregate fallback и все Transcript Perfection gates остались точными.
 
 ### 5. Remote Speaker Residual Evidence v4 — `done`
-
 V4 проверил speech-aware bounded окна и независимые половины enrollment, не ослабляя thresholds v3.
 Восстановлено 124 words / `83.640s`; reductions `14.5711%` words и `13.9811%` seconds не достигли
 порогов `20%`. B-cubed F1 `0.962171`, pairwise precision `0.961675`, conservation и boundaries
 остались точными.
-
 Результат: воспроизводимый `DO_NOT_PROMOTE`. Promoted v3 остаётся поддерживаемым источником, а
 727 words / `514.599s` сохраняют честный aggregate fallback. Повторять тот же speaker backend с
 пониженными порогами не нужно.
 
 ### 6. Speaker-Resolved Transcript Default v1 — `done`
-
 Обычный CLI read surface, meeting handoff и guarded export выбирают promoted v3 на совместимых
 сессиях. Слабая, отсутствующая или stale evidence возвращает exact aggregate
 `Colleagues`; неподдержанные v3 words остаются aggregate внутри speaker-resolved результата.
 Voice-only имена и cross-session identity запрещены.
-
 Результат: `PROMOTE` на 6/6 sessions, 14 expected speakers и 5/5 boundaries; words, roles, `Me`, timestamps и raw сохранены.
 Roster-constrained Resemblyzer/WeSpeaker extension исправляет один split voice; five-participant проверка выбрала 4 remote speakers при Coverage v3 `94.4038%` и exact fallback.
 
 ### 7. Lexical Accuracy Reference Corpus v1 — `done`
-
 Private graded corpus отделил exact generated truth, scripted expected evidence и independent
 machine references. Точный цифровой поднабор содержит 67 слов при WER/CER `0`; weak sources не
 могут считаться truth. Реальная лексическая точность закрыта `REFERENCE_INSUFFICIENT`: нет ни одной
 human-reviewed встречи.
 
 ### 8. Independent Remote Speaker Evidence v1 — `done`
-
 Pinned local WavLM XVector проверен на frozen six-session Coverage v3 corpus и `598.240s` unknown
 remote speech. Он восстановил 53 слова / `23.357s`: `6.2280%` words и `3.9043%` seconds при gates
 `20%`. B-cubed F1 `0.962171`, pairwise precision `0.961675`, 5/5 boundaries и exact fallback
@@ -203,7 +199,6 @@ remote speech. Он восстановил 53 слова / `23.357s`: `6.2280%` 
 Результат: воспроизводимый `DO_NOT_PROMOTE`. Повторять WavLM с более мягкими порогами нельзя.
 
 ### 9. Remote Speaker Residual Reference Corpus v1 — `done`
-
 Private blind pack покрывает все 851 residual words / `598.240s` в 278 items и отдельно все 53 WavLM
 proposals / `23.357s`. Prediction запечатан отдельно; public artifacts не содержат речь, имена и
 absolute paths. Все structural, privacy, conservation и replay gates проходят.
@@ -212,7 +207,6 @@ absolute paths. Все structural, privacy, conservation и replay gates про�
 Точная приватная очередь сохранена; Coverage v3 и ordinary transcript не изменены.
 
 ### 10. Controlled Remote Speaker Truth Lab v1 — `done`
-
 Локальная лаборатория заморозила 8 disjoint sessions, 6 anonymous voices и 240 exact words. Source
 stems восстанавливают mixtures с ошибкой 0 PCM samples; hard содержит short turns, internal changes,
 overlap, rare speaker и отдельный unseen open-set voice.
@@ -223,7 +217,6 @@ Coverage v3 control квалифицирован: B-cubed F1 `0.983505`, pairwis
 production. Synthetic truth не заменяет blind review реальных 53 proposals.
 
 ### 11. Duration-Aware Remote Speaker Attribution v2 — `done`
-
 До topology work заморожен новый hard-v2: 4 scenarios, 125 words, 4 enrolled и 2 unseen open-set
 voices, отдельный enrollment и exact stems/truth. Три заявленных candidate выбирались только на v1
 development; hard-v2 был открыт один раз после candidate freeze.
@@ -233,7 +226,6 @@ Coverage v3 control, но получил hard B-cubed `0.499381`, known recall `
 Итог: `DO_NOT_PROMOTE_TOPOLOGY`; production не изменён.
 
 ### 12. Segment-Context Remote Speaker Attribution v1 — `done`
-
 Новый hard-v3 был заморожен до алгоритма: 5 scenarios, 197 words, 22 boundaries, 4 enrolled и 2
 open-set voices. Из трёх topology только на v1 + open hard-v2 выбран conservative dual-backend
 fusion; hard-v3 открыт ровно один раз.
@@ -244,7 +236,6 @@ fail-closed, deterministic replay и production boundary сохранены. Э�
 segment-context эвристик продолжать не нужно.
 
 ### 13. Remote Speaker Attribution Error Decomposition v1 — `done`
-
 Oracle-матрица учла 393 exact words и 64 boundaries без нового candidate. Current primary получил
 known recall `0.571006`; identity oracle при тех же границах поднял его до `0.934911`. Fixed gains:
 identity `0.351382`, segmentation `0.063882`, overlap/open-set `0.036364`.
@@ -288,8 +279,17 @@ fail-closed unsafe accepts 8 -> 13. Net gain 1/8 не прошёл material gate
 `DIRECT_TRUTH_V2_READY`: 72 primary, 12 repeats, 21 attributed, consistency `1.0`, replay byte-exact.
 ### 27. Disjoint Remote Speaker Model Qualification v1 — `done`
 `KEEP_COVERAGE_V3`: frozen ERes2NetV2 дал 12/21 correct, precision `0.631579` и 7 unsafe special accepts; controlled hard perfect, replay exact, production неизменён.
-### 28. Remote Speaker Usability Gate Error Decomposition v1 — `current`
-Разложить unsafe accepts/misses на usability, purity, boundaries, enrollment и identity; Truth v2 только development, следующий promotion требует нового terminal set.
+### 28. Remote Speaker Cluster Purity Reference v1 — `done`
+`ADVANCE_SEGMENTATION`: приватный independent-machine reference дал lexical alignment `0.928157`.
+В нём 10 remote voices против 4 published session-local clusters; weighted purity `0.898106`,
+девять merged reference speakers и minority recall `0`. Имена, текст и item-level alignment остались
+private. Coverage v3 и selected transcript artifacts неизменны; CLI явно отличает acoustic cluster
+от подтверждённой личности и предоставляет exact aggregate fallback.
+### 29. Remote Speaker Boundary and Minority-Voice Segmentation v1 — `current`
+Построить label-independent boundary candidate, сохранить каждое слово, отдельно измерить короткие
+minority turns и оставить слабые/open-set intervals `unknown`. Candidate замораживается до нового
+disjoint terminal set; допустимы только `PROMOTE_SEGMENTATION`, `KEEP_COVERAGE_V3` или
+`EVIDENCE_BOUND`.
 ## Закрытые И Отложенные Треки
 - Human-reviewed lexical truth и новый speaker terminal set остаются внешними prerequisites; disagreement не заменяет truth.
 - Пред-ASR separation, live promotion и cross-session identity закрыты до нового evidence; notes, cloud, external writes и UI optional.
