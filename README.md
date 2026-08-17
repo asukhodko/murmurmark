@@ -242,7 +242,7 @@ sessions/<session-id>/
     preprocess/
       speaker-preserving-neural-echo-v2/
         production_selection_report.json
-    transcript-simple/whisper-cpp/
+    transcript-simple/whisper-cpp/  # includes the promoted text-integrity profile and audit
     transcript-rich/speaker-resolved-default-v1/
       selection.json
     synthesis-simple/extractive/
@@ -309,9 +309,9 @@ murmurmark corpus remote-reclustering-v1 status && murmurmark corpus remote-repr
 murmurmark corpus remote-truth-seed-v2 status && murmurmark corpus remote-truth-seed-v2 replay && murmurmark corpus remote-model-disjoint-v1 status && murmurmark corpus remote-model-disjoint-v1 replay && murmurmark corpus remote-cluster-purity-v1 status && murmurmark corpus remote-cluster-purity-v1 replay
 ```
 Disjoint truth v2 is complete: 72 primary + 12 repeats, consistency `1.0` and byte-exact replay.
-The one-shot ERes2NetV2 qualification closed `KEEP_COVERAGE_V3`. Cluster Purity Reference v1 then
-found 10 remote voices compressed into four acoustic clusters, purity `89.8106%` and minority recall
-`0`. This is diagnostic topology evidence, not identity truth. The current goal is **Remote Speaker Boundary and Minority-Voice Segmentation v1**.
+The one-shot ERes2NetV2 qualification closed `KEEP_COVERAGE_V3`; Cluster Purity Reference v1 found
+10 remote voices compressed into four acoustic clusters, purity `89.8106%` and minority recall `0`.
+Transcript Integrity v1 repaired 10/19 proven duplicate/repetition candidates and left nine ambiguous cases explicit. The current goal is **Remote Speaker Boundary and Minority-Voice Segmentation v1**.
 The dependent critical path is:
 ```text
 Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental ASR
@@ -329,7 +329,7 @@ Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental 
 -> Remote Speaker Attribution Error Decomposition v1 (done: identity is the dominant bottleneck)
 -> Stronger Remote Speaker Identity Backend Qualification v1 (done: PROMOTE lab-only ECAPA)
 -> ECAPA Remote Speaker Shadow Qualification v1 (done: DO_NOT_PROMOTE on real sessions)
--> Remote Speaker Shadow Error Decomposition v1 (done) -> Bounded Remote Speaker Interval Purification v1 (done: DO_NOT_ADVANCE) -> Session-Local Remote Speaker Enrollment Hardening v1 (done: DO_NOT_ADVANCE) -> Remote Speaker Direct Truth Seed v1 (done: DIRECT_TRUTH_SEED_READY) -> Remote Speaker Direct-Truth Candidate Adjudication v1 (done: KEEP_COVERAGE_V3) -> Enrollment Purity and Abstention Hardening v2 (done: KEEP_COVERAGE_V3) -> Homogeneous Enrollment Mining v1 (done: KEEP_EXISTING_ENROLLMENT) -> Session-Local Remote Speaker Re-Clustering Feasibility v1 (done: EMBEDDING_GEOMETRY_BOUND) -> Stronger Local Remote Speaker Representation Qualification v1 (done: KEEP_EXPLICIT_UNKNOWN) -> Temporal End-to-End Remote Diarization Qualification v1 (done: KEEP_EXPLICIT_UNKNOWN) -> Remote Speaker Disjoint Truth Expansion v2 (done: DIRECT_TRUTH_V2_READY) -> Disjoint Remote Speaker Model Qualification v1 (done: KEEP_COVERAGE_V3) -> Remote Speaker Usability Gate Error Decomposition v1 (done: ADVANCE_SEGMENTATION) -> Remote Speaker Boundary and Minority-Voice Segmentation v1 (current)
+-> Remote Speaker Shadow Error Decomposition v1 (done) -> Bounded Remote Speaker Interval Purification v1 (done: DO_NOT_ADVANCE) -> Session-Local Remote Speaker Enrollment Hardening v1 (done: DO_NOT_ADVANCE) -> Remote Speaker Direct Truth Seed v1 (done: DIRECT_TRUTH_SEED_READY) -> Remote Speaker Direct-Truth Candidate Adjudication v1 (done: KEEP_COVERAGE_V3) -> Enrollment Purity and Abstention Hardening v2 (done: KEEP_COVERAGE_V3) -> Homogeneous Enrollment Mining v1 (done: KEEP_EXISTING_ENROLLMENT) -> Session-Local Remote Speaker Re-Clustering Feasibility v1 (done: EMBEDDING_GEOMETRY_BOUND) -> Stronger Local Remote Speaker Representation Qualification v1 (done: KEEP_EXPLICIT_UNKNOWN) -> Temporal End-to-End Remote Diarization Qualification v1 (done: KEEP_EXPLICIT_UNKNOWN) -> Remote Speaker Disjoint Truth Expansion v2 (done: DIRECT_TRUTH_V2_READY) -> Disjoint Remote Speaker Model Qualification v1 (done: KEEP_COVERAGE_V3) -> Remote Speaker Usability Gate Error Decomposition v1 (done: ADVANCE_SEGMENTATION) -> Residual Transcript Integrity Hardening v1 (done: PROMOTE, 10 repairs) -> Remote Speaker Boundary and Minority-Voice Segmentation v1 (current)
 ```
 Independent WavLM recovered only `6.2280%` of residual words; its original 53 proposals remain
 ungraded, while the later bounded 33-item seed now has direct truth. Exact synthetic truth qualified the Coverage v3 control (`0.983505` B-cubed F1, zero
@@ -376,12 +376,12 @@ See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](do
   ONNX models are never required by the normal meeting path.
 - `speaker_preserving_echo_adaptation_corpus_v1` is a private local corpus audit after
   `DO_NOT_TRAIN`; it performed no training and cannot select an audio or transcript profile.
-- Batch transcript is authoritative; live is excluded from export/retention, and the normal workflow requires no cloud ASR or raw-audio upload.
+- Batch transcript is authoritative; promoted Transcript Integrity v1 repairs only fingerprint-bound duplicates/repetition and fails open to its base profile. Live is excluded from export/retention, and the normal workflow requires no cloud ASR or raw-audio upload.
 - Notes, summaries, retrieval and work-system proposals are optional derivatives outside the critical roadmap.
 ## Documentation
 
 - [Documentation index](docs/00-index.md), [mission](docs/product/vision.md), [requirements](docs/product/prd-v1.md), [current goal](docs/project/current-goal.md), [route](docs/project/reliable-transcription-route.md), [roadmap](docs/roadmap/murmurmark-cli-roadmap.md), [OpsKarta](docs/roadmap/murmurmark-cli-roadmap.plan.yaml)
-- [Meeting lifecycle contract](docs/contracts/meeting-lifecycle.md), [meeting cheat sheet](docs/runbooks/meeting-cheatsheet.md), [transcription runbook](docs/runbooks/transcribe-simple-whispercpp.md)
+- [Meeting lifecycle contract](docs/contracts/meeting-lifecycle.md), [meeting cheat sheet](docs/runbooks/meeting-cheatsheet.md), [transcription runbook](docs/runbooks/transcribe-simple-whispercpp.md), [Transcript Integrity contract](docs/contracts/transcript-integrity-v1.md) and [runbook](docs/runbooks/transcript-integrity-v1.md)
 - [Transcript Perfection Corpus](docs/contracts/transcript-perfection-corpus.md), [Lexical Accuracy Reference Corpus](docs/contracts/lexical-accuracy-reference-corpus.md), [Remote Speaker Coverage v3](docs/contracts/remote-speaker-coverage-v3.md) and [Residual Evidence v4](docs/contracts/remote-speaker-residual-evidence-v4.md)
 - [Independent evidence](docs/contracts/independent-remote-speaker-evidence-v1.md), [Controlled Truth Lab](docs/contracts/controlled-remote-speaker-truth-lab-v1.md), [Disjoint ERes2NetV2 result](docs/contracts/disjoint-remote-speaker-model-qualification-v1.md), [Cluster Purity Reference contract](docs/contracts/remote-speaker-cluster-purity-reference-v1.md), [runbook](docs/runbooks/remote-speaker-cluster-purity-reference-v1.md) and [result](docs/testing/2026-08-17-remote-speaker-cluster-purity-reference-v1.md)
 - [Speaker-Resolved Default](docs/contracts/speaker-resolved-transcript-default-v1.md) and [roster-constrained evidence](docs/contracts/roster-constrained-remote-speaker-evidence-v1.md)

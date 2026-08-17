@@ -76,6 +76,7 @@ PROFILE_ALIAS_PROFILES = {
     "residual_local_recall_v1",
     "local_speech_completion_v2",
     "mixed_utterance_separation_v1",
+    "transcript_integrity_v1",
 }
 
 
@@ -592,6 +593,7 @@ def parse_args() -> argparse.Namespace:
             "residual_local_recall_v1",
             "local_speech_completion_v2",
             "mixed_utterance_separation_v1",
+            "transcript_integrity_v1",
         ),
         default="auto",
         help="Transcript artifact profile to synthesize from.",
@@ -811,6 +813,9 @@ def source_profile_paths(resolved_dir: Path, requested_profile: str) -> dict[str
         "mixed_utterance_separation_report": resolved_dir.parent
         / "mixed-utterance-separation-v1"
         / "mixed_utterance_profile_report.json",
+        "transcript_integrity_report": resolved_dir.parent
+        / "text-integrity"
+        / "transcript_integrity_report.transcript_integrity_v1.json",
     }
 
 
@@ -911,6 +916,70 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
     risk_items: list[dict[str, Any]] = []
     repair_comparison: dict[str, Any] | None = None
     session = resolved_dir.parents[3]
+
+    def transcript_integrity_paths_if_promoted() -> dict[str, Path] | None:
+        profile = "transcript_integrity_v1"
+        paths = source_profile_paths(resolved_dir, profile)
+        report, report_error = read_json(paths["transcript_integrity_report"])
+        repo_root = Path(__file__).resolve().parent.parent
+        policy, policy_error = read_json(repo_root / "policies/transcript-integrity-v1.json")
+        qualified = policy.get("qualified_algorithm") if isinstance(policy, dict) and isinstance(policy.get("qualified_algorithm"), dict) else {}
+        if (
+            report_error is not None
+            or policy_error is not None
+            or not isinstance(report, dict)
+            or not isinstance(policy, dict)
+            or policy.get("schema") != "murmurmark.transcript_integrity_policy/v1"
+            or policy.get("decision") != "PROMOTE"
+            or qualified.get("sha256") != sha256_file(repo_root / "scripts/apply-transcript-integrity.py")
+            or report.get("output_profile") != profile
+            or not isinstance(report.get("gates"), dict)
+            or report["gates"].get("passed") is not True
+        ):
+            return None
+        input_profile = str(report.get("input_profile") or "")
+        input_paths = source_profile_paths(resolved_dir, input_profile) if input_profile else {}
+        inputs = report.get("inputs") if isinstance(report.get("inputs"), dict) else {}
+        input_keys = {
+            "dialogue": "clean_dialogue",
+            "quality": "quality_report",
+            "overlaps": "overlaps",
+            "simple": "transcript_json",
+            "markdown": "transcript",
+        }
+        if not input_paths or not all(
+            isinstance(inputs.get(report_key), dict)
+            and sha256_file(input_paths[path_key]) == inputs[report_key].get("sha256")
+            for report_key, path_key in input_keys.items()
+        ):
+            return None
+        outputs = report.get("outputs") if isinstance(report.get("outputs"), dict) else {}
+        output_keys = {
+            "dialogue": "clean_dialogue",
+            "quality": "quality_report",
+            "overlaps": "overlaps",
+            "simple": "transcript_json",
+            "markdown": "transcript",
+        }
+        if not all(
+            isinstance(outputs.get(report_key), dict)
+            and sha256_file(paths[path_key]) == outputs[report_key].get("sha256")
+            for report_key, path_key in output_keys.items()
+        ):
+            return None
+        for reviewed_profile in ("reviewed_v1", "agent_reviewed_v1"):
+            reviewed_paths = source_profile_paths(resolved_dir, reviewed_profile)
+            reviewed, reviewed_error = read_json(reviewed_paths["review_decisions_report"])
+            if (
+                reviewed_error is None
+                and isinstance(reviewed, dict)
+                and reviewed.get("input_profile") == profile
+                and review_lineage.review_profile_is_current(session, reviewed)
+                and reviewed_paths["clean_dialogue"].is_file()
+                and reviewed_paths["quality_report"].is_file()
+            ):
+                return None
+        return paths
 
     def authoritative_boundary_paths_if_promoted() -> dict[str, Path] | None:
         paths = source_profile_paths(resolved_dir, "authoritative_boundary_v1")
@@ -1293,30 +1362,49 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
             return "order_repair_v1", order_paths
         return None
 
-    if requested_profile == "auto":
-        mixed_paths = mixed_utterance_separation_paths_if_promoted()
-        if mixed_paths:
+    def auto_result(
+        base_profile: str,
+        base_paths: dict[str, Path],
+    ) -> tuple[str, dict[str, Path], dict[str, Any] | None, list[dict[str, Any]]]:
+        integrity_paths = transcript_integrity_paths_if_promoted()
+        integrity_report, integrity_error = read_json(
+            source_profile_paths(resolved_dir, "transcript_integrity_v1")[
+                "transcript_integrity_report"
+            ]
+        )
+        if (
+            integrity_paths is not None
+            and integrity_error is None
+            and isinstance(integrity_report, dict)
+            and integrity_report.get("input_profile") == base_profile
+        ):
             return (
-                "mixed_utterance_separation_v1",
-                mixed_paths,
+                "transcript_integrity_v1",
+                integrity_paths,
                 repair_comparison,
                 risk_items,
             )
+        return base_profile, base_paths, repair_comparison, risk_items
+
+    if requested_profile == "auto":
+        mixed_paths = mixed_utterance_separation_paths_if_promoted()
+        if mixed_paths:
+            return auto_result("mixed_utterance_separation_v1", mixed_paths)
         completion_paths = local_speech_completion_paths_if_promoted()
         if completion_paths:
-            return "local_speech_completion_v2", completion_paths, repair_comparison, risk_items
+            return auto_result("local_speech_completion_v2", completion_paths)
         residual_local_paths = residual_local_recall_paths_if_promoted()
         if residual_local_paths:
-            return "residual_local_recall_v1", residual_local_paths, repair_comparison, risk_items
+            return auto_result("residual_local_recall_v1", residual_local_paths)
         residual_audio_paths = residual_audio_arbitration_paths_if_promoted()
         if residual_audio_paths:
-            return "residual_audio_arbitration_v1", residual_audio_paths, repair_comparison, risk_items
+            return auto_result("residual_audio_arbitration_v1", residual_audio_paths)
         residual_paths = residual_me_evidence_paths_if_promoted()
         if residual_paths:
-            return "residual_me_evidence_v1", residual_paths, repair_comparison, risk_items
+            return auto_result("residual_me_evidence_v1", residual_paths)
         boundary_paths = authoritative_boundary_paths_if_promoted()
         if boundary_paths:
-            return "authoritative_boundary_v1", boundary_paths, repair_comparison, risk_items
+            return auto_result("authoritative_boundary_v1", boundary_paths)
         comparison_path = resolved_dir / "repair_comparison.json"
         comparison, error = read_json(comparison_path)
         if error is None and isinstance(comparison, dict):
@@ -1335,8 +1423,8 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
         ):
             repaired = order_repair_for("audit_cleanup_v7")
             if repaired:
-                return repaired[0], repaired[1], repair_comparison, risk_items
-            return "audit_cleanup_v7", cleanup_v7_paths, repair_comparison, risk_items
+                return auto_result(repaired[0], repaired[1])
+            return auto_result("audit_cleanup_v7", cleanup_v7_paths)
         reviewed_paths = source_profile_paths(resolved_dir, "reviewed_v1")
         reviewed_report, reviewed_error = read_json(reviewed_paths["review_decisions_report"])
         if (
@@ -1349,8 +1437,8 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
         ):
             repaired = order_repair_for("reviewed_v1")
             if repaired:
-                return repaired[0], repaired[1], repair_comparison, risk_items
-            return "reviewed_v1", reviewed_paths, repair_comparison, risk_items
+                return auto_result(repaired[0], repaired[1])
+            return auto_result("reviewed_v1", reviewed_paths)
         agent_paths = source_profile_paths(resolved_dir, "agent_reviewed_v1")
         agent_report, agent_error = read_json(agent_paths["review_decisions_report"])
         if (
@@ -1363,8 +1451,8 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
         ):
             repaired = order_repair_for("agent_reviewed_v1")
             if repaired:
-                return repaired[0], repaired[1], repair_comparison, risk_items
-            return "agent_reviewed_v1", agent_paths, repair_comparison, risk_items
+                return auto_result(repaired[0], repaired[1])
+            return auto_result("agent_reviewed_v1", agent_paths)
         for cleanup_profile in ("audit_cleanup_v6", "audit_cleanup_v5", "audit_cleanup_v4", "audit_cleanup_v3", "audit_cleanup_v2", "audit_cleanup_v1"):
             cleanup_paths = source_profile_paths(resolved_dir, cleanup_profile)
             cleanup_report, cleanup_error = read_json(cleanup_paths["audit_cleanup_report"])
@@ -1383,18 +1471,18 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
             ):
                 repaired = order_repair_for(cleanup_profile)
                 if repaired:
-                    return repaired[0], repaired[1], repair_comparison, risk_items
-                return cleanup_profile, cleanup_paths, repair_comparison, risk_items
+                    return auto_result(repaired[0], repaired[1])
+                return auto_result(cleanup_profile, cleanup_paths)
         shadow_paths = source_profile_paths(resolved_dir, "shadow_v2")
         if shadow_paths["clean_dialogue"].exists() and repair_comparison and repair_comparison.get("passed") is True:
             repaired = order_repair_for("shadow_v2")
             if repaired:
-                return repaired[0], repaired[1], repair_comparison, risk_items
-            return "shadow_v2", shadow_paths, repair_comparison, risk_items
+                return auto_result(repaired[0], repaired[1])
+            return auto_result("shadow_v2", shadow_paths)
         repaired = order_repair_for("current")
         if repaired:
-            return repaired[0], repaired[1], repair_comparison, risk_items
-        return "current", source_profile_paths(resolved_dir, "current"), repair_comparison, risk_items
+            return auto_result(repaired[0], repaired[1])
+        return auto_result("current", source_profile_paths(resolved_dir, "current"))
 
     if requested_profile in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "audit_cleanup_v5", "audit_cleanup_v6", "audit_cleanup_v7"}:
         paths = source_profile_paths(resolved_dir, requested_profile)
@@ -1730,6 +1818,21 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
             repair_comparison,
             risk_items,
         )
+
+    if requested_profile == "transcript_integrity_v1":
+        paths = source_profile_paths(resolved_dir, requested_profile)
+        if transcript_integrity_paths_if_promoted() is None:
+            risk_items.append(
+                {
+                    "type": "transcript_integrity_not_currently_promoted",
+                    "severity": "high",
+                    "reason": (
+                        "the corpus promotion, qualified algorithm hash, input "
+                        "fingerprint, output hashes, or per-session gates are stale"
+                    ),
+                }
+            )
+        return requested_profile, paths, repair_comparison, risk_items
 
     if requested_profile == "shadow_v2":
         paths = source_profile_paths(resolved_dir, "shadow_v2")
@@ -2228,20 +2331,36 @@ def row_quality_review_sources(row: dict[str, Any]) -> list[dict[str, Any]]:
         return []
     sources: list[dict[str, Any]] = []
     for key, value in quality.items():
-        if not isinstance(value, dict):
-            continue
-        status = str(value.get("status") or "").strip()
-        if not status:
-            continue
-        sources.append(
-            {
-                "key": key,
-                "status": status,
-                "profile": value.get("profile"),
-                "decisions": value.get("decisions") if isinstance(value.get("decisions"), list) else [],
-                "source_audit_ids": value.get("source_audit_ids") if isinstance(value.get("source_audit_ids"), list) else [],
-            }
-        )
+        values = value if isinstance(value, list) else [value]
+        for item in values:
+            if not isinstance(item, dict):
+                continue
+            status = str(item.get("status") or "").strip()
+            if not status:
+                continue
+            sources.append(
+                {
+                    "key": key,
+                    "status": status,
+                    "profile": item.get("profile"),
+                    "reason": item.get("reason"),
+                    "utterance_ids": (
+                        item.get("utterance_ids")
+                        if isinstance(item.get("utterance_ids"), list)
+                        else []
+                    ),
+                    "decisions": (
+                        item.get("decisions")
+                        if isinstance(item.get("decisions"), list)
+                        else []
+                    ),
+                    "source_audit_ids": (
+                        item.get("source_audit_ids")
+                        if isinstance(item.get("source_audit_ids"), list)
+                        else []
+                    ),
+                }
+            )
     return sources
 
 
@@ -3091,8 +3210,8 @@ def build_review_items(
                             "severity": "medium",
                             "start": row.get("start"),
                             "end": row.get("end"),
-                            "utterance_ids": [utterance_id(row, index)],
-                            "reason": f"{source['key']} status needs_review",
+                            "utterance_ids": source.get("utterance_ids") or [utterance_id(row, index)],
+                            "reason": source.get("reason") or f"{source['key']} status needs_review",
                             "source_audit_ids": source.get("source_audit_ids", []),
                             "decisions": source.get("decisions", []),
                             "text": clean_text(row.get("text"), limit=360),
@@ -3128,6 +3247,8 @@ def build_review_items(
                         overlap.get("right_utterance_id"),
                         overlap.get("left_id"),
                         overlap.get("right_id"),
+                        overlap.get("me_utterance_id"),
+                        overlap.get("remote_utterance_id"),
                     )
                     if value
                 ],
@@ -3450,6 +3571,8 @@ def main() -> int:
         inputs["review_decisions_report"] = rel(paths["review_decisions_report"], session)
     if paths.get("order_repair_report") and paths["order_repair_report"].exists():
         inputs["order_repair_report"] = rel(paths["order_repair_report"], session)
+    if paths.get("transcript_integrity_report") and paths["transcript_integrity_report"].exists():
+        inputs["transcript_integrity_report"] = rel(paths["transcript_integrity_report"], session)
     if no_speech_path.exists():
         inputs["no_speech_evidence"] = rel(no_speech_path, session)
 

@@ -84,6 +84,7 @@ CRITICAL_PATH = (
     "quality-remote-speaker-disjoint-truth-expansion-v2",
     "quality-disjoint-remote-speaker-model-qualification-v1",
     "quality-remote-speaker-usability-gate-error-decomposition-v1",
+    "quality-residual-transcript-integrity-hardening-v1",
     "quality-remote-speaker-boundary-minority-segmentation-v1",
 )
 
@@ -161,7 +162,7 @@ def validate_statuses_and_goal(plan: dict) -> tuple[dict, str]:
     require(isinstance(statuses, dict), "plan.statuses must be a mapping")
     require(set(statuses) == EXPECTED_STATUSES, "plan status set does not match the planning contract")
     require(isinstance(nodes, dict) and nodes, "plan.nodes must be a non-empty mapping")
-    require(len(nodes) <= 53, f"active plan is too large: {len(nodes)} nodes, expected at most 53")
+    require(len(nodes) <= 54, f"active plan is too large: {len(nodes)} nodes, expected at most 54")
 
     current = [(node_id, node) for node_id, node in nodes.items() if node.get("status") == "current"]
     current_tasks = [(node_id, node) for node_id, node in current if node.get("kind") == "task"]
@@ -508,6 +509,15 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
         nodes["quality-remote-speaker-usability-gate-error-decomposition-v1"].get("status")
         == "done",
         "remote-speaker usability decomposition must remain completed",
+    )
+    require(
+        nodes["quality-residual-transcript-integrity-hardening-v1"].get("status") == "done",
+        "residual transcript integrity hardening must remain completed",
+    )
+    require(
+        "quality-residual-transcript-integrity-hardening-v1"
+        in nodes["quality-remote-speaker-boundary-minority-segmentation-v1"].get("deps", []),
+        "remote-speaker boundary work must follow residual transcript integrity hardening",
     )
     require(
         "quality-remote-speaker-usability-gate-error-decomposition-v1"

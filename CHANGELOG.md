@@ -5,6 +5,9 @@ public release tag exists; development builds also carry the source commit in th
 
 ## Unreleased
 
+- Added a corpus-qualified `transcript_integrity_v1` profile that removes only proven adjacent
+  duplicates, internal decoder repeats and unsupported repetition loops, with exact lineage,
+  current-hash selection and fail-open local audio judging.
 - Made every CLI handoff for a selected speaker-resolved transcript identify `remote_speaker_N` as
   an unverified session-local acoustic cluster and point to the exact aggregate fallback.
 - Added a private remote-speaker cluster-purity audit with reproducible aggregate metrics, explicit

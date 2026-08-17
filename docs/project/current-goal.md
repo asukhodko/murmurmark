@@ -12,6 +12,12 @@ OpsKarta nearest goal: Remote Speaker Boundary and Minority-Voice Segmentation v
 
 ## Why Now
 
+Residual Transcript Integrity Hardening v1 has already closed the intervening mechanical text debt:
+10 of 19 duplicate/repetition candidates were safely repaired across three sessions, nine remained
+explicit review, and the promoted profile preserves roles, timestamps, raw capture and speaker
+evidence. Boundary work can therefore use a cleaner aggregate transcript without absorbing an
+unrelated text-repair problem.
+
 Cluster Purity Reference v1 сопоставил приватную машинную расшифровку групповой встречи с текущим
 speaker-resolved transcript. При `92.8157%` lexical alignment референс содержит 10 remote-голосов,
 а MurmurMark публикует 4 кластера. Weighted purity составляет `89.8106%`, девять reference speakers

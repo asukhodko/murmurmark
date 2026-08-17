@@ -12,6 +12,7 @@ swift build
 swiftlint lint --quiet
 "$python_bin" -m py_compile scripts/*.py
 "$python_bin" scripts/check-transcript-dedupe.py
+"$python_bin" scripts/check-transcript-integrity-v1.py
 "$python_bin" scripts/check-whisper-cpu-fallback.py
 "$python_bin" scripts/check-review-materialization-guard.py
 "$python_bin" scripts/check-review-profile-lineage.py

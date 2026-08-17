@@ -1304,6 +1304,8 @@ enum DoctorChecks {
             "scripts/check-asr-chunk-cache.py",
             "scripts/check-capture-regressions.sh",
             "scripts/audit-capture-continuity.py",
+            "scripts/apply-transcript-integrity.py",
+            "scripts/report-transcript-integrity-corpus.py",
             "scripts/synthesize-simple-extractive.py",
             "scripts/evidence_handoff_v2.py",
             "scripts/export-session-bundle.py",

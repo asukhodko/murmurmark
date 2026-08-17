@@ -171,6 +171,9 @@ Read in this order:
 167. [Remote Speaker Cluster Purity Reference v1 contract](contracts/remote-speaker-cluster-purity-reference-v1.md)
 168. [Remote Speaker Cluster Purity Reference v1 runbook](runbooks/remote-speaker-cluster-purity-reference-v1.md)
 169. [Remote Speaker Cluster Purity Reference v1 result](testing/2026-08-17-remote-speaker-cluster-purity-reference-v1.md)
+170. [Transcript Integrity v1 contract](contracts/transcript-integrity-v1.md)
+171. [Transcript Integrity v1 runbook](runbooks/transcript-integrity-v1.md)
+172. [Transcript Integrity v1 qualification](testing/2026-08-17-transcript-integrity-v1.md)
 
 ## Current Planning Entry Points
 
@@ -232,7 +235,8 @@ ERes2NetV2 closed `KEEP_COVERAGE_V3`: 12/21 correct identities, precision `0.631
 `0.571429` and seven unsafe special accepts despite perfect controlled hard. Cluster Purity
 Reference v1 then closed `ADVANCE_SEGMENTATION`: a private independent-machine reference aligned
 `92.8157%` of remote words and exposed 10 reference voices compressed into four clusters, weighted
-purity `89.8106%` and minority recall `0`. The current goal improves speaker boundaries and rare
+purity `89.8106%` and minority recall `0`. Transcript Integrity v1 then repaired 10/19 proven
+duplicate/repetition candidates while leaving nine ambiguous cases explicit. The current goal improves speaker boundaries and rare
 voice preservation before another identity decision. Notes and retrieval remain parked.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.

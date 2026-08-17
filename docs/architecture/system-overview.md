@@ -74,6 +74,7 @@ process SESSION
        -> direct candidate whisper.cpp or exact local_fir fallback
   -> timeline/start/boundary repair candidates
   -> audit cleanup + reviewed transcript profiles
+  -> evidence-backed transcript integrity profile
   -> quality verdict + optional evidence-backed extractive notes
   -> atomic authoritative_handoff.json
        -> selected transcript + SHA-256
@@ -148,7 +149,9 @@ and lost two truth-v1 controls, so it closed `KEEP_COVERAGE_V3`. Cluster Purity 
 aligned `92.8157%` of a private independent-machine group reference and found 10 remote voices
 compressed into four acoustic clusters, weighted purity `0.898106` and minority recall `0`. It
 closed `ADVANCE_SEGMENTATION`. Current work improves label-independent boundaries and rare turns
-before identity assignment. Open Truth v2 is development evidence; future promotion requires a new
+before identity assignment. A bounded post-ASR integrity layer separately removed 10 proven
+duplicates/decoder repeats across three sessions while leaving nine ambiguous repetitions explicit;
+it preserves the aggregate text lineage consumed by speaker attribution. Open Truth v2 is development evidence; future promotion requires a new
 frozen terminal set. Notes remain optional.
 
 Target transcription path:

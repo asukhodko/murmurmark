@@ -33,7 +33,7 @@ nodes:
     title: "MurmurMark CLI"
     kind: summary
     status: current
-    effort: 346
+    effort: 352
     notes: |
       Активная CLI-first, local-first и evidence-backed программа. Batch transcript остаётся
       authoritative. Текущий North Star: одной командой получить максимально надёжный transcript,
@@ -747,11 +747,25 @@ nodes:
       и production selection не изменены. CLI теперь честно называет IDs session-local acoustic
       clusters и предоставляет exact aggregate fallback.
 
+  quality-residual-transcript-integrity-hardening-v1:
+    title: "Residual Transcript Integrity Hardening v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-remote-speaker-usability-gate-error-decomposition-v1, corpus-regression]
+    status: done
+    effort: 6
+    notes: |
+      Завершено PROMOTE. На трёх сессиях найдено 19 adjacent/internal repetition candidates:
+      10 исправлены по temporal/text proof или независимому local faster-whisper evidence, девять
+      остались explicit review. Все source/output/raw fingerprints, роли, timestamps, retained
+      utterance lineage и speaker evidence сохранены. Auto-selection требует current policy,
+      qualified algorithm hash и точное совпадение лучшего base profile; иначе действует fallback.
+
   quality-remote-speaker-boundary-minority-segmentation-v1:
     title: "Remote Speaker Boundary and Minority-Voice Segmentation v1"
     kind: task
     parent: murmurmark-cli
-    deps: [quality-remote-speaker-usability-gate-error-decomposition-v1]
+    deps: [quality-remote-speaker-usability-gate-error-decomposition-v1, quality-residual-transcript-integrity-hardening-v1]
     status: current
     effort: 14
     notes: |
@@ -775,7 +789,7 @@ views:
     lanes:
       working:
         title: "Готовая основа"
-        nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1]
+        nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1, quality-residual-transcript-integrity-hardening-v1]
       current:
         title: "Единственная исполнимая цель"
         nodes: [quality-remote-speaker-boundary-minority-segmentation-v1]
@@ -838,6 +852,7 @@ views:
           - quality-remote-speaker-disjoint-truth-expansion-v2
           - quality-disjoint-remote-speaker-model-qualification-v1
           - quality-remote-speaker-usability-gate-error-decomposition-v1
+          - quality-residual-transcript-integrity-hardening-v1
           - quality-remote-speaker-boundary-minority-segmentation-v1
 
   echo-frontier:
@@ -881,7 +896,7 @@ views:
         nodes: [quality-remote-speaker-residual-reference-corpus-v1]
       closure:
         title: "Unified baseline"
-        nodes: [quality-transcript-perfection-corpus-v1, quality-lexical-accuracy-reference-corpus-v1]
+        nodes: [quality-transcript-perfection-corpus-v1, quality-lexical-accuracy-reference-corpus-v1, quality-residual-transcript-integrity-hardening-v1]
       release:
         title: "Основной speaker-resolved result"
         nodes: [product-speaker-resolved-transcript-default-v1]
@@ -943,6 +958,7 @@ views:
           - quality-remote-speaker-disjoint-truth-expansion-v2
           - quality-disjoint-remote-speaker-model-qualification-v1
           - quality-remote-speaker-usability-gate-error-decomposition-v1
+          - quality-residual-transcript-integrity-hardening-v1
 
 x:
   exec:
@@ -963,11 +979,11 @@ x:
     blocks:
       working-now:
         title: "Работает сейчас"
-        scope_nodes: [working-capabilities, corpus-regression, product-one-command-meeting-lifecycle-v1, product-reliable-final-handoff-v1]
+        scope_nodes: [working-capabilities, corpus-regression, product-one-command-meeting-lifecycle-v1, product-reliable-final-handoff-v1, quality-residual-transcript-integrity-hardening-v1]
         kind: main
         mgmt:
           health: green
-          sync_note: "Durable capture, one-command lifecycle и batch transcript работают; three-session replay подтвердил raw/cache/speaker conservation и закрыл legacy cache preflight."
+          sync_note: "Durable capture, one-command lifecycle и batch transcript работают; Transcript Integrity v1 promoted 10 proven repairs with exact fallback."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
         title: "Remote Speaker Boundary and Minority-Voice Segmentation v1"
@@ -1007,6 +1023,7 @@ x:
           - quality-remote-speaker-disjoint-truth-expansion-v2
           - quality-disjoint-remote-speaker-model-qualification-v1
           - quality-remote-speaker-usability-gate-error-decomposition-v1
+          - quality-residual-transcript-integrity-hardening-v1
           - quality-remote-speaker-boundary-minority-segmentation-v1
         kind: main
         mgmt:

@@ -488,6 +488,11 @@ source_audit_ids
 
 This is the flywheel: review burden produces the data needed to reduce future review burden.
 
+Residual Transcript Integrity Hardening v1 closed the mechanical text debt before the active
+speaker-boundary work. Its promoted isolated profile repaired 10 of 19 duplicate/repetition
+candidates on three sessions, left nine ambiguous rows explicit, preserved roles/timestamps/raw and
+is selected only while every source/output hash and the qualified algorithm hash remain current.
+
 ## Current Executable Goal
 
 ```text

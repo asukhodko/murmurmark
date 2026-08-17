@@ -71,7 +71,10 @@ for relative in [
     "scripts/configure-remote-speaker-roster.py",
     "scripts/review_profile_lineage.py",
     "scripts/report-remote-speaker-cluster-purity-reference-v1.py",
+    "scripts/apply-transcript-integrity.py",
+    "scripts/report-transcript-integrity-corpus.py",
     "policies/remote-speaker-cluster-purity-reference-v1.json",
+    "policies/transcript-integrity-v1.json",
 ]:
     path = ROOT / relative
     assert path.is_file(), f"missing release file: {relative}"
@@ -107,7 +110,10 @@ with tempfile.TemporaryDirectory(prefix="murmurmark-release-unit-") as temporary
         "scripts/configure-remote-speaker-roster.py",
         "scripts/review_profile_lineage.py",
         "scripts/report-remote-speaker-cluster-purity-reference-v1.py",
+        "scripts/apply-transcript-integrity.py",
+        "scripts/report-transcript-integrity-corpus.py",
         "policies/remote-speaker-cluster-purity-reference-v1.json",
+        "policies/transcript-integrity-v1.json",
     ]:
         destination = bundle / relative
         destination.parent.mkdir(parents=True, exist_ok=True)

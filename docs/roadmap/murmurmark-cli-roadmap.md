@@ -1,5 +1,4 @@
 # MurmurMark CLI Roadmap
-
 Updated: 2026-08-17
 Это читаемое представление активного плана OpsKarta v3:
 
@@ -7,7 +6,6 @@ Updated: 2026-08-17
 YAML владеет статусами и зависимостями. `docs/project/current-goal.md` раскрывает единственную
 исполняемую цель. Завершённые эксперименты остаются в `docs/research/`, `docs/testing/` и
 `docs/history/`, но не определяют текущий приоритет.
-
 ## Правила Планирования
 - В работе находится ровно одна цель со статусом `current`.
 - Основной путь заканчивается надёжной speaker-resolved транскрибацией, а не производными заметками.
@@ -16,7 +14,6 @@ YAML владеет статусами и зависимостями. `docs/proj
 - Отрицательный эксперимент не ослабляет выбранный transcript и всегда имеет точный fallback.
 - Имена не выводятся по голосу. Разрешены только session-local anonymous IDs и явные review labels.
 - UI, облако, суммаризация и запись во внешние системы не держат критический CLI-путь.
-
 ## Миссия И North Star
 MurmurMark создаёт локальную, надёжную и проверяемую транскрибацию созвона с любым числом
 участников. Он сохраняет слова, порядок, время и роли, различает участников remote-потока по голосу
@@ -92,6 +89,7 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Disjoint remote-speaker truth v2 | `done` | 72 primary + 12 repeats; `DIRECT_TRUTH_V2_READY`, consistency `1.0` |
 | Disjoint model qualification v1 | `done` | `KEEP_COVERAGE_V3`: ERes2NetV2 unsafe on 7 special real-session items |
 | Remote speaker cluster purity reference v1 | `done` | `ADVANCE_SEGMENTATION`: 10 reference voices / 4 clusters, purity `0.898106`, minority recall `0` |
+| Residual transcript integrity v1 | `done` | `PROMOTE`: 10/19 proven duplicate/repetition repairs, nine explicit review cases |
 | Boundary and minority-voice segmentation v1 | `current` | Split mixed remote intervals and preserve rare voices before identity assignment |
 ## Актуальная Цепочка
 ```mermaid
@@ -125,10 +123,11 @@ flowchart LR
     M["Done: DIRECT TRUTH V2 READY<br/>Remote Speaker Disjoint<br/>Truth Expansion v2"]
     MQ["Done: KEEP COVERAGE V3<br/>Disjoint Remote Speaker<br/>Model Qualification v1"]
     UG["Done: ADVANCE SEGMENTATION<br/>Remote Speaker Cluster Purity<br/>Reference v1"]
+    RI["Done: PROMOTE<br/>Residual Transcript<br/>Integrity v1"]
     BM["Current<br/>Remote Speaker Boundary and<br/>Minority-Voice Segmentation v1"]
     O["Optional<br/>Notes, retrieval,<br/>work proposals"]
 
-    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> W --> X --> Y --> RC --> SR --> TD --> M --> MQ --> UG --> BM
+    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> W --> X --> Y --> RC --> SR --> TD --> M --> MQ --> UG --> RI --> BM
     F --> D
     L -.-> O
 ```
@@ -285,7 +284,9 @@ fail-closed unsafe accepts 8 -> 13. Net gain 1/8 не прошёл material gate
 девять merged reference speakers и minority recall `0`. Имена, текст и item-level alignment остались
 private. Coverage v3 и selected transcript artifacts неизменны; CLI явно отличает acoustic cluster
 от подтверждённой личности и предоставляет exact aggregate fallback.
-### 29. Remote Speaker Boundary and Minority-Voice Segmentation v1 — `current`
+### 29. Residual Transcript Integrity Hardening v1 — `done`
+`PROMOTE`: 19 candidates on three sessions, 10 evidence-backed repairs, nine explicit review cases; raw, roles, timestamps, lineage and speaker evidence preserved with exact fallback.
+### 30. Remote Speaker Boundary and Minority-Voice Segmentation v1 — `current`
 Построить label-independent boundary candidate, сохранить каждое слово, отдельно измерить короткие
 minority turns и оставить слабые/open-set intervals `unknown`. Candidate замораживается до нового
 disjoint terminal set; допустимы только `PROMOTE_SEGMENTATION`, `KEEP_COVERAGE_V3` или

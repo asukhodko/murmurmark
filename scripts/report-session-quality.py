@@ -19,7 +19,7 @@ if str(SCRIPT_DIR) not in sys.path:
 import review_profile_lineage as review_lineage
 
 
-SCRIPT_VERSION = "0.5.7"
+SCRIPT_VERSION = "0.5.8"
 SCHEMA = "murmurmark.session_quality_report/v1"
 READINESS_SCHEMA = "murmurmark.session_readiness/v1"
 CLEANUP_PROFILES = {
@@ -40,6 +40,7 @@ CLEANUP_PROFILES = {
     "residual_local_recall_v1",
     "local_speech_completion_v2",
     "mixed_utterance_separation_v1",
+    "transcript_integrity_v1",
 }
 
 
@@ -234,6 +235,80 @@ def profile_output_fingerprint(resolved: Path, profile: str) -> str:
 
 def authoritative_boundary_output_fingerprint(resolved: Path) -> str:
     return profile_output_fingerprint(resolved, "authoritative_boundary_v1")
+
+
+def transcript_integrity_usable(session: Path, expected_input_profile: str | None = None) -> bool:
+    repo_root = Path(__file__).resolve().parent.parent
+    algorithm = repo_root / "scripts/apply-transcript-integrity.py"
+    policy = read_json(repo_root / "policies/transcript-integrity-v1.json")
+    profile = "transcript_integrity_v1"
+    resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
+    report = read_json(
+        session
+        / "derived/transcript-simple/whisper-cpp/text-integrity"
+        / f"transcript_integrity_report.{profile}.json"
+    )
+    if not isinstance(policy, dict) or not isinstance(report, dict):
+        return False
+    qualified = policy.get("qualified_algorithm") if isinstance(policy.get("qualified_algorithm"), dict) else {}
+    if (
+        policy.get("schema") != "murmurmark.transcript_integrity_policy/v1"
+        or policy.get("decision") != "PROMOTE"
+        or qualified.get("sha256") != sha256_file(algorithm)
+        or report.get("schema") != "murmurmark.transcript_integrity_report/v1"
+        or report.get("output_profile") != profile
+        or not isinstance(report.get("gates"), dict)
+        or report["gates"].get("passed") is not True
+    ):
+        return False
+
+    input_profile = str(report.get("input_profile") or "")
+    if expected_input_profile is not None and input_profile != expected_input_profile:
+        return False
+    inputs = report.get("inputs") if isinstance(report.get("inputs"), dict) else {}
+    input_suffix = "" if input_profile == "current" else f".{input_profile}"
+    required_inputs = {
+        "dialogue": resolved / f"clean_dialogue{input_suffix}.json",
+        "quality": resolved / f"quality_report{input_suffix}.json",
+        "overlaps": resolved / f"overlaps{input_suffix}.json",
+        "simple": resolved / f"transcript.simple{input_suffix}.json",
+        "markdown": resolved / f"transcript{input_suffix}.md",
+    }
+    if not all(
+        isinstance(inputs.get(name), dict)
+        and sha256_file(path) == inputs[name].get("sha256")
+        for name, path in required_inputs.items()
+    ):
+        return False
+
+    outputs = report.get("outputs") if isinstance(report.get("outputs"), dict) else {}
+    required = {
+        "dialogue": resolved / f"clean_dialogue.{profile}.json",
+        "quality": resolved / f"quality_report.{profile}.json",
+        "overlaps": resolved / f"overlaps.{profile}.json",
+        "simple": resolved / f"transcript.simple.{profile}.json",
+        "markdown": resolved / f"transcript.{profile}.md",
+    }
+    if not all(
+        isinstance(outputs.get(name), dict)
+        and sha256_file(path) == outputs[name].get("sha256")
+        for name, path in required.items()
+    ):
+        return False
+
+    review_dir = session / "derived/transcript-simple/whisper-cpp/review-decisions"
+    for reviewed_profile in ("reviewed_v1", "agent_reviewed_v1"):
+        reviewed = read_json(review_dir / f"review_decisions_report.{reviewed_profile}.json")
+        reviewed_suffix = f".{reviewed_profile}"
+        if (
+            isinstance(reviewed, dict)
+            and reviewed.get("input_profile") == profile
+            and review_lineage.review_profile_is_current(session, reviewed)
+            and (resolved / f"clean_dialogue{reviewed_suffix}.json").is_file()
+            and (resolved / f"quality_report{reviewed_suffix}.json").is_file()
+        ):
+            return False
+    return True
 
 
 def frozen_boundary_inputs_match(baseline: dict[str, Any] | None, session: Path) -> bool:
@@ -529,7 +604,7 @@ def mixed_utterance_separation_usable(session: Path) -> bool:
     )
 
 
-def selected_profile(session: Path) -> str:
+def selected_profile_without_integrity(session: Path) -> str:
     if mixed_utterance_separation_usable(session):
         return "mixed_utterance_separation_v1"
     if local_speech_completion_usable(session):
@@ -719,6 +794,13 @@ def selected_profile(session: Path) -> str:
     return "missing"
 
 
+def selected_profile(session: Path) -> str:
+    base_profile = selected_profile_without_integrity(session)
+    if transcript_integrity_usable(session, base_profile):
+        return "transcript_integrity_v1"
+    return base_profile
+
+
 def local_recall_repair_input_profile(session: Path) -> str | None:
     report = read_json(
         session / "derived/transcript-simple/whisper-cpp/local-recall-repair/local_recall_repair_report.local_recall_repair_v1.json"
@@ -757,6 +839,18 @@ def mixed_utterance_input_profile(session: Path) -> str | None:
     )
 
 
+def transcript_integrity_input_profile(session: Path) -> str | None:
+    report = read_json(
+        session
+        / "derived/transcript-simple/whisper-cpp/text-integrity"
+        / "transcript_integrity_report.transcript_integrity_v1.json"
+    )
+    if not isinstance(report, dict):
+        return None
+    value = report.get("input_profile")
+    return str(value) if value and str(value) != "transcript_integrity_v1" else None
+
+
 def stage_status(session: Path) -> dict[str, bool]:
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
     synthesis = session / "derived/synthesis-simple/extractive"
@@ -774,6 +868,7 @@ def stage_status(session: Path) -> dict[str, bool]:
         session
         / "derived/transcript-simple/whisper-cpp/mixed-utterance-separation-v1"
     )
+    text_integrity = session / "derived/transcript-simple/whisper-cpp/text-integrity"
     remote_leak_repair = session / "derived/transcript-simple/whisper-cpp/remote-leak-repair"
     remote_forbidden = session / "derived/audit/remote-forbidden"
     return {
@@ -855,6 +950,9 @@ def stage_status(session: Path) -> dict[str, bool]:
             resolved / "clean_dialogue.mixed_utterance_separation_v1.json"
         ).exists()
         and (mixed_utterance / "mixed_utterance_profile_report.json").exists(),
+        "transcript_integrity_v1": (resolved / "quality_report.transcript_integrity_v1.json").exists()
+        and (resolved / "clean_dialogue.transcript_integrity_v1.json").exists()
+        and (text_integrity / "transcript_integrity_report.transcript_integrity_v1.json").exists(),
         "synthesis": (synthesis / "quality_verdict.json").exists() and (synthesis / "evidence_notes.json").exists(),
         "synthesis_audit_cleanup_v1": (synthesis / "quality_verdict.audit_cleanup_v1.json").exists()
         and (synthesis / "evidence_notes.audit_cleanup_v1.json").exists(),
@@ -894,6 +992,10 @@ def stage_status(session: Path) -> dict[str, bool]:
         and (
             synthesis / "evidence_notes.mixed_utterance_separation_v1.json"
         ).exists(),
+        "synthesis_transcript_integrity_v1": (
+            synthesis / "quality_verdict.transcript_integrity_v1.json"
+        ).exists()
+        and (synthesis / "evidence_notes.transcript_integrity_v1.json").exists(),
         "audio_review_pack": (audio_review / "review_pack_summary.json").exists()
         and (audio_review / "review_pack_items.jsonl").exists(),
         "audio_review_audit": (audio_review / "audio_review_summary.json").exists()
@@ -2587,6 +2689,8 @@ def collect_session(
         if profile == "local_speech_completion_v2"
         else mixed_utterance_input_profile(session)
         if profile == "mixed_utterance_separation_v1"
+        else transcript_integrity_input_profile(session)
+        if profile == "transcript_integrity_v1"
         else None
     )
     review_profile = inherited_review_profile if inherited_review_profile in {"reviewed_v1", "agent_reviewed_v1"} else profile

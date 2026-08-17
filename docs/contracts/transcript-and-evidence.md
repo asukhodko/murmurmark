@@ -51,6 +51,11 @@ Current source-of-truth order:
 3. `quality_report*.json` and `overlaps*.json` for risk review.
 4. `transcript*.md` only as a human-readable export.
 
+After the best base profile is selected, `transcript_integrity_v1` may add one isolated post-ASR
+profile for proven adjacent duplicates, internal repetition and unsupported decoder loops. It
+freezes all five source artifacts, preserves roles/timestamps/speaker evidence and leaves ambiguous
+cases for review. See the [contract](transcript-integrity-v1.md).
+
 `quality_report*.json` includes `suspicious_text_fragment_count`. A one-letter Cyrillic utterance
 that is not a valid standalone Russian word is preserved but marked with:
 

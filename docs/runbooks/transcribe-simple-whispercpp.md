@@ -619,6 +619,13 @@ and `repair_comparison.json`; `transcript.md` remains the baseline. The core raw
 JSON files are also written with the same suffix so the shadow result is auditable without mixing it
 with the baseline artifacts.
 
+The ordinary pipeline then runs `transcript_integrity_v1` once over the best current base profile
+before the authoritative handoff. Deterministic candidates are cheap; only a bounded unresolved
+set invokes local faster-whisper. Deferred enrichment never rewrites this selected result.
+Automatic selection requires a current tracked `PROMOTE` policy plus exact input/output hashes.
+Missing or conflicting evidence falls back to the base profile. Manual inspection commands are in the
+[Transcript Integrity v1 runbook](transcript-integrity-v1.md).
+
 Build the local extractive synthesis package directly from the best safe transcript profile:
 
 ```bash

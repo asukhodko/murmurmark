@@ -1,0 +1,17 @@
+{
+  "decision": "PROMOTE",
+  "fallback_profile": "current_selected_profile",
+  "profile": "transcript_integrity_v1",
+  "qualification": {
+    "all_session_safety_gates": true,
+    "applied_patch_count": 10,
+    "candidate_count": 19,
+    "remaining_review_count": 9,
+    "session_count": 3
+  },
+  "qualified_algorithm": {
+    "path": "scripts/apply-transcript-integrity.py",
+    "sha256": "3558405b2945e00ad8ccd466bc5d5ead47c2cd255adca8fe51b054dc073bcd6c"
+  },
+  "schema": "murmurmark.transcript_integrity_policy/v1"
+}

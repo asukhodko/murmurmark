@@ -114,6 +114,10 @@ STEP_COST_HINTS: dict[str, dict[str, str]] = {
         "cost": "heavy",
         "reason": "runs local faster-whisper on selected short review clips when the model is available",
     },
+    "transcript_integrity": {
+        "cost": "heavy",
+        "reason": "repairs deterministic duplicates and runs local faster-whisper only for bounded unresolved repetition candidates",
+    },
     "plan_remote_leak_segment_repair": {
         "cost": "medium",
         "reason": "plans segment-level remote leak repair candidates",
@@ -1058,6 +1062,21 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
             warning_returncodes={2},
         ),
         step("synthesize_v2", [py, str(repo_root / "scripts/synthesize-simple-extractive.py"), str(session), "--transcript-profile", "audit_cleanup_v2"]),
+        step(
+            "transcript_integrity",
+            [
+                py,
+                str(repo_root / "scripts/apply-transcript-integrity.py"),
+                str(session),
+                "--input-profile",
+                "auto",
+                "--judge-mode",
+                "auto",
+            ],
+            enabled=not args.skip_cleanup,
+            reason="--skip-cleanup",
+            warning_returncodes={2},
+        ),
         step(
             "session_operational_readiness_for_audio_review",
             [
