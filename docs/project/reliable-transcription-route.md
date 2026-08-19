@@ -26,9 +26,11 @@ acceptances, five removed controls and only 4/83 target failures recovered. Dire
 Blind Review are complete: 33 primary and 8 repeat answers, consistency `0.875`. Direct adjudication
 then kept Coverage v3 after 3 correct gains, 2 lost correct controls and unsafe accepts 8 -> 13.
 Enrollment Purity and Abstention Hardening v2 kept Coverage v3: 7/14 profiles qualified and no
-identity was added. Homogeneous session-local enrollment mining is current. Notes,
-retrieval and work proposals remain optional derivatives.
-Date: 2026-08-09
+identity was added. Homogeneous enrollment, stronger representations and temporal clustering then
+closed without promotion. Disjoint Truth v2 and Cluster Purity Reference v1 localized the remaining
+topology defect to mixed boundaries and minority turns. Remote Speaker Boundary and Minority-Voice
+Segmentation v1 is current. Notes, retrieval and work proposals remain optional derivatives.
+Date: 2026-08-19
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
 corpus-calibrated gates and explicit review burden before broader repair. Outcome Contract v1,
@@ -63,6 +65,14 @@ three holdouts passed runtime gates, with `20` fail-open timeouts and p95 up to 
 Near-realtime output therefore remains shadow-only. The bounded product
 question is now how much authoritative batch order/boundary review can be closed safely from existing
 source segments and audio evidence.
+
+A fresh complete group-session revalidation confirmed durable capture, exact chunk completion,
+speaker-resolved review materialization and zero actionable review lanes after digital decisions. It
+also left roughly 15% of remote speech explicit unknown and reproduced dense-overlap lexical damage.
+Three stale-state defects found in that run are now closed: reviewed profiles refresh speaker
+selection, reviewed quality no longer inherits cleanup-only harmful seconds, and a recovered deferred
+stage clears its old error. The remaining measured problem still belongs to remote boundaries,
+minority turns and later lexical accuracy rather than lifecycle repair.
 
 ## Why This Exists
 
@@ -511,6 +521,19 @@ Speaker-Resolved Transcript Default v1 завершён `PROMOTE`: ordinary read
 Local mic multi-speaker остаётся условной веткой и открывается только после реального сценария и
 размеченного материала. Производные workflows остаются optional.
 
+## Dependent Milestones
+
+1. **Post-Segmentation Transcript Rebaseline v1** freezes either current terminal outcome, refreshes
+   fresh-session evidence and reranks speaker, overlap, chronology and lexical residuals.
+2. **Human-Reviewed Lexical Seed v1** remains blocked on exact real-meeting word truth covering
+   1x1/group, both roles and two acoustic modes.
+3. **Session-Scoped Lexical Context v1** compiles only a compact meeting-specific prompt or hotword
+   set and requires a frozen multi-session no-regression A/B.
+4. **Speaker-Resolved Transcript Terminal Gate v1** measures the North Star across capture, local
+   preservation, words, order, roles, anonymous speakers, explicit unknown and exact fallback.
+5. **Local Mic Multi-Speaker Diarization v1** and heavier local ASR validators remain conditional
+   branches after the terminal gate and labelled evidence.
+
 ## Current Evidence Boundary
 
 Lexical Accuracy Reference Corpus v1 answers the previous design questions. It separates
@@ -519,6 +542,14 @@ text out of tracked artifacts and aligns weak references by authoritative interv
 `REFERENCE_INSUFFICIENT`: 67 exact generated words pass at WER/CER `0`, but no real-meeting lexical
 claim is allowed before two human-reviewed sessions cover 1x1/group, both roles and two acoustic
 modes.
+
+The current domain glossary is therefore not a production ASR control. `glossary.yaml` is not
+consumed by the whisper.cpp bridge, and the normal `--max-context 0` makes the current prompt path
+ineffective. A bounded diagnostic A/B found that a broad static prompt did not improve a hard real
+interval, while a short topic-specific context materially repaired the targeted terminology when
+context was enabled. This is promising evidence for Session-Scoped Lexical Context, not permission
+to enable a global prompt. Production keeps `prompt_file: null` until direct human truth and
+multi-session no-regression gates exist.
 
 The independent-backend experiment is complete. Pinned WavLM recovered 53 words / `23.357s`, but
 missed both `20%` gates. The subsequent blind corpus froze all 851 residual words, 278 bounded items

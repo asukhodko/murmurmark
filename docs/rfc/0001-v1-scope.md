@@ -2,7 +2,7 @@
 
 Status: implemented
 Date: 2026-06-22
-Last updated: 2026-08-09
+Last updated: 2026-08-19
 
 ## Summary
 
@@ -17,7 +17,7 @@ v1 proves:
 - speaker attribution and evidence-backed quality review;
 - privacy and retention controls.
 
-Current implementation status, 2026-08-07:
+Current implementation status, 2026-08-19:
 
 - capture, session packaging, Echo Guard preprocessing, resumable local `whisper.cpp` transcription,
   quality verdict, evidence-backed extractive notes, guarded export and retention are implemented;
@@ -53,9 +53,14 @@ Current implementation status, 2026-08-07:
   safe ceiling; Speaker-Resolved Transcript Default v1 is promoted. Exact speaker labs rejected both
   Duration-Aware v2 and Segment-Context v1 candidates. Error Decomposition v1 identified speaker
   identity as the dominant error axis. ECAPA passed synthetic hard-v4 but failed real-session
-  promotion; interval and enrollment variants also did not advance. The completed 33-primary and
-  8-repeat direct-truth seed now drives one-shot candidate adjudication. Production remains Coverage
-  v3. Cross-session identity, summaries, cloud/external writes and UI remain future or optional.
+  promotion; interval, enrollment, representation and temporal variants also did not advance.
+  Disjoint Truth v2 and Cluster Purity Reference v1 localized the remaining topology defect to mixed
+  boundaries and minority voices. Boundary/minority segmentation is current; fresh rebaseline,
+  human-reviewed lexical truth, session-scoped lexical context and a terminal product gate follow.
+  Production remains Coverage v3. Cross-session identity, summaries, cloud/external writes and UI
+  remain future or optional;
+- local domain glossaries remain private knowledge inputs. They are not compiled into production ASR
+  context until direct lexical truth and no-regression gates qualify Session-Scoped Lexical Context.
 
 ## Goals
 
@@ -75,7 +80,7 @@ Current implementation status, 2026-08-07:
 
 - Production-grade signed app in the first implementation pass.
 - Legal consent automation.
-- Perfect speaker identity.
+- Cross-session or voice-inferred human identity.
 - Full Confluence/Jira/GitHub write integration.
 - Training new models.
 - Sending raw audio to cloud providers.

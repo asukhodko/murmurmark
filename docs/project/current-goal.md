@@ -1,6 +1,6 @@
 # Current Goal
 
-Updated: 2026-08-17
+Updated: 2026-08-19
 
 This document expands the single executable goal from
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`.
@@ -26,6 +26,12 @@ speaker-resolved transcript. При `92.8157%` lexical alignment референ�
 Это диагностический, а не identity reference. Однако расхождение топологии слишком велико, чтобы
 следующий шаг снова сводился к выбору embedding-модели или порога. Сначала нужны более точные
 границы речи и явное сохранение коротких/редких голосов.
+
+Fresh operational evidence agrees with that ranking. A complete recent group session passed durable
+capture and review materialization, but still left about 15% of remote speech explicit unknown and
+dense-overlap words damaged. The same run exposed stale speaker-selection, cleanup-metric and
+deferred-status refresh defects; those lifecycle defects are fixed and regression-covered, so they
+do not justify diverting the current speaker-boundary goal.
 
 ## Objective
 

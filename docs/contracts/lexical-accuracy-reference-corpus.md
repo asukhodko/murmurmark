@@ -63,6 +63,18 @@ speaker names or machine-specific absolute paths.
 `REFERENCE_INSUFFICIENT` is a scientifically complete result, not a failed run. Transcript Perfection
 may report the exact subset as bounded measurement, but must keep the real-meeting lexical blocker.
 
+## Dependent Lexical Work
+
+Human-Reviewed Lexical Seed v1 must add exact real-meeting truth before any ASR prompt, hotword or
+correction candidate can claim improvement. The minimum coverage is two meetings spanning 1x1 and
+group calls, `Me` and remote roles, and two acoustic modes.
+
+Session-Scoped Lexical Context v1 may then compare the prompt-free control with a compact
+meeting-specific context. Broad static glossaries are not candidates: the current bridge does not
+consume `glossary.yaml`, and diagnostic prompt agreement is not truth. Promotion requires exact
+frozen inputs, term-level gains, overall WER/CER non-regression, role and speaker conservation, and
+byte-exact replay.
+
 ## Safety
 
 - Capture, Echo Guard, primary ASR configuration and speaker profiles are read-only.

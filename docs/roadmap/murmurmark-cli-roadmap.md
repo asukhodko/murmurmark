@@ -1,5 +1,5 @@
 # MurmurMark CLI Roadmap
-Updated: 2026-08-17
+Updated: 2026-08-19
 Это читаемое представление активного плана OpsKarta v3:
 
 - `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`
@@ -91,6 +91,11 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Remote speaker cluster purity reference v1 | `done` | `ADVANCE_SEGMENTATION`: 10 reference voices / 4 clusters, purity `0.898106`, minority recall `0` |
 | Residual transcript integrity v1 | `done` | `PROMOTE`: 10/19 proven duplicate/repetition repairs, nine explicit review cases |
 | Boundary and minority-voice segmentation v1 | `current` | Split mixed remote intervals and preserve rare voices before identity assignment |
+| Post-segmentation transcript rebaseline v1 | `next` | Freeze the outcome, refresh fresh-session corpus and rerank residuals |
+| Human-reviewed lexical seed v1 | `blocked` | Exact real-meeting word truth is still external evidence |
+| Session-scoped lexical context v1 | `later` | Compact per-meeting prompt/hotwords, never a broad static glossary |
+| Speaker-resolved transcript terminal gate v1 | `later` | One measurable product-level North Star gate |
+| Local mic multi-speaker diarization v1 | `idea` | Opens only after a real scenario and labelled evidence |
 ## Актуальная Цепочка
 ```mermaid
 flowchart LR
@@ -125,63 +130,23 @@ flowchart LR
     UG["Done: ADVANCE SEGMENTATION<br/>Remote Speaker Cluster Purity<br/>Reference v1"]
     RI["Done: PROMOTE<br/>Residual Transcript<br/>Integrity v1"]
     BM["Current<br/>Remote Speaker Boundary and<br/>Minority-Voice Segmentation v1"]
+    RB["Next<br/>Post-Segmentation<br/>Transcript Rebaseline v1"]
+    HL["Blocked<br/>Human-Reviewed<br/>Lexical Seed v1"]
+    LC["Later<br/>Session-Scoped<br/>Lexical Context v1"]
+    TG["Later<br/>Speaker-Resolved Transcript<br/>Terminal Gate v1"]
     O["Optional<br/>Notes, retrieval,<br/>work proposals"]
 
-    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> W --> X --> Y --> RC --> SR --> TD --> M --> MQ --> UG --> RI --> BM
+    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> W --> X --> Y --> RC --> SR --> TD --> M --> MQ --> UG --> RI --> BM --> RB --> HL --> LC --> TG
     F --> D
     L -.-> O
 ```
-### 1. Remote Speaker Evidence Map v1 — `done`
-Selected remote utterances и local Resemblyzer дали 14 устойчивых anonymous clusters на шести
-сессиях. На уже attributed речи качество высокое, но 606 из 1235 remote utterances остаются
-aggregate `Colleagues`; internal speaker changes не разделяются. Решение `PROMOTE_AUDIT_ONLY`
-доказывает осуществимость и одновременно фиксирует текущий пробел.
-
-### 2. Remote Speaker Diarization v2 — `done`
-Word/frame-level diarization работает по authoritative remote audio, обнаруживает смену говорящего
-внутри ASR-реплики и связывает каждое remote word с session-local speaker или `unknown`. Решение
-`PROMOTE`: coverage `0.919071`, attributed-only B-cubed F1 `0.960690`, pairwise precision
-`0.959564`, 5/5 boundary cases и zero selected-word loss/duplication.
-
-Результат этапа v2: promoted optional speaker-resolved read surface. Отдельная продуктовая
-квалификация default была выполнена позже и не меняла v2 words или labels.
-
-### 3. Transcript Perfection Corpus v1 — `done`
-
-Единый корпус связывает проверку текста, порядка, ролей, speaker turns, overlap, missing `Me`,
-remote leakage и acoustic modes. Baseline `BASELINE_ESTABLISHED`: 29/29 frozen sources verified,
-восемь явных dimensions, exact lexical subset измерен, real meetings остаются
-reference-insufficient, aggregate score запрещён. Interval и enrollment results включены frozen
-sources; direct adjudication сохраняет Coverage v3 и направляет следующий monotonic candidate.
-
-Результат: конечный критерий сходимости к идеальной транскрибации и защита от бесконечной цепочки
-локальных эвристик.
-
-### 4. Remote Speaker Coverage v3 — `done`
-
-V3 применил единогласные rejected-frame evidence к unknown-словам, не меняя существующие speaker
-labels. `PROMOTE`: восстановлено 368 слов / `199.533s`; coverage вырос с `91.9071%` до `93.9312%`,
-B-cubed F1 до `0.962171`, pairwise precision до `0.961675`.
-
-Результат: unknown words снижены на `30.1887%`, seconds на `25.0113%`; words, timestamps, v2 labels,
-aggregate fallback и все Transcript Perfection gates остались точными.
-
-### 5. Remote Speaker Residual Evidence v4 — `done`
-V4 проверил speech-aware bounded окна и независимые половины enrollment, не ослабляя thresholds v3.
-Восстановлено 124 words / `83.640s`; reductions `14.5711%` words и `13.9811%` seconds не достигли
-порогов `20%`. B-cubed F1 `0.962171`, pairwise precision `0.961675`, conservation и boundaries
-остались точными.
-Результат: воспроизводимый `DO_NOT_PROMOTE`. Promoted v3 остаётся поддерживаемым источником, а
-727 words / `514.599s` сохраняют честный aggregate fallback. Повторять тот же speaker backend с
-пониженными порогами не нужно.
-
-### 6. Speaker-Resolved Transcript Default v1 — `done`
-Обычный CLI read surface, meeting handoff и guarded export выбирают promoted v3 на совместимых
-сессиях. Слабая, отсутствующая или stale evidence возвращает exact aggregate
-`Colleagues`; неподдержанные v3 words остаются aggregate внутри speaker-resolved результата.
-Voice-only имена и cross-session identity запрещены.
-Результат: `PROMOTE` на 6/6 sessions, 14 expected speakers и 5/5 boundaries; words, roles, `Me`, timestamps и raw сохранены.
-Roster-constrained Resemblyzer/WeSpeaker extension исправляет один split voice; five-participant проверка выбрала 4 remote speakers при Coverage v3 `94.4038%` и exact fallback.
+### Promoted Foundation — `done`
+Remote Speaker Evidence Map v1 established the audit surface; Diarization v2 and Coverage v3 then
+promoted word-level anonymous attribution with `93.9312%` speech coverage, B-cubed F1 `0.962171`,
+pairwise precision `0.961675`, exact words and aggregate fallback. Residual v4 measured the remaining
+safe ceiling and did not promote. Speaker-Resolved Transcript Default v1 exposes Coverage v3 through
+ordinary read/handoff/export; names remain explicit review only. Transcript Perfection Corpus keeps
+unlike quality dimensions separate and guards every later candidate.
 
 ### 7. Lexical Accuracy Reference Corpus v1 — `done`
 Private graded corpus отделил exact generated truth, scripted expected evidence и independent
@@ -291,9 +256,23 @@ private. Coverage v3 и selected transcript artifacts неизменны; CLI я
 minority turns и оставить слабые/open-set intervals `unknown`. Candidate замораживается до нового
 disjoint terminal set; допустимы только `PROMOTE_SEGMENTATION`, `KEEP_COVERAGE_V3` или
 `EVIDENCE_BOUND`.
+### 31. Post-Segmentation Transcript Rebaseline v1 — `next`
+Зафиксировать любой terminal outcome, проверить свежие реальные сессии и заново ранжировать
+speaker topology, unknown, overlap, chronology и lexical residuals без смены production по инерции.
+### 32. Human-Reviewed Lexical Seed v1 — `blocked`
+Получить точную ручную разметку слов минимум для двух реальных встреч: 1x1/group, обе роли и два
+акустических режима. Машинное согласие остаётся диагностикой.
+### 33. Session-Scoped Lexical Context v1 — `later`
+Собирать короткий контекст конкретной встречи из локального domain pack. Broad static prompt
+запрещён; кандидат проходит term gain, общий WER/CER, role/speaker conservation и exact replay.
+### 34. Speaker-Resolved Transcript Terminal Gate v1 — `later`
+Свести North Star в один составной, но не усреднённый набор обязательных ворот: capture, Me,
+words, order, roles, remote speakers, explicit unknown, review burden и exact fallback.
 ## Закрытые И Отложенные Треки
-- Human-reviewed lexical truth и новый speaker terminal set остаются внешними prerequisites; disagreement не заменяет truth.
-- Пред-ASR separation, live promotion и cross-session identity закрыты до нового evidence; notes, cloud, external writes и UI optional.
+- Local mic multi-speaker diarization и тяжёлый local ASR validator открываются после terminal gate
+  только при реальном сценарии и размеченном evidence.
+- Пред-ASR separation, live promotion и cross-session identity закрыты до нового evidence; notes,
+  cloud, external writes и UI optional.
 ## Ворота Продвижения
 Каждая гипотеза замораживает inputs и проверяет replay, integrity, fallback и non-regression; слабые интервалы остаются `unknown`.
 ## Проверка Плана

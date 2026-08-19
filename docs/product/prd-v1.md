@@ -33,7 +33,7 @@ Working now:
 - live-ASR cache bridge exists as a diagnostic/future acceleration layer; incompatible or unsafe
   chunks fall back to batch ASR.
 
-Current operating point, 2026-08-09:
+Current operating point, 2026-08-19:
 
 - stable batch capture and processing produce a transcript, verdict, evidence notes, review plan,
   guarded export and retention plan;
@@ -112,6 +112,12 @@ Current operating point, 2026-08-09:
   synthetic hard-v4 but failed real-session promotion, and direct-truth adjudication kept Coverage v3;
 - committed-PCM Live Shadow is capture-safe and advisory. Live promotion remains blocked and does
   not hold the stable CLI path.
+- a fresh complete group-session revalidation confirmed durable two-track capture, exact ASR chunk
+  completion, selected reviewed transcript and digitally closed review lanes. It also reproduced the
+  remaining product limit: roughly one sixth of remote speech stayed explicit unknown and dense
+  overlap still damaged words;
+- review application now refreshes selected speaker evidence, discards stale cleanup-only harmful
+  metrics for reviewed profiles and clears stale deferred-stage errors after successful recovery.
 
 The current technical North Star is an authoritative transcript that preserves words, chronology
 and roles, retains every independently confirmed local word, removes recognizable remote content
@@ -128,6 +134,11 @@ Target-Me presence detector. Free-text LLM synthesis remains unpromoted; ID-only
 is an explicit opt-in view with exact source text. Speaker-Resolved Transcript Default v1 is
 promoted. Lexical Accuracy Reference Corpus v1 closes `REFERENCE_INSUFFICIENT`: the exact generated
 67-word subset has WER/CER `0`, while real-meeting correctness still lacks human-reviewed evidence.
+The local `glossary.yaml` is currently a contract and private knowledge source, not a runtime ASR
+input. Production keeps `prompt_file: null`: the default `--max-context 0` makes the present prompt
+path ineffective, and a diagnostic A/B found no benefit from a broad static prompt. A compact
+topic-specific prompt did improve the targeted terminology, so Session-Scoped Lexical Context v1 is
+planned after Human-Reviewed Lexical Seed v1 and must pass multi-session no-regression gates.
 Remote Speaker Residual Reference Corpus v1 closed `REFERENCE_INSUFFICIENT` after freezing 278 blind
 items and all 53 WavLM proposals without direct truth. Controlled Remote Speaker Truth Lab v1 then
 qualified the Coverage v3 control but rejected the WavLM candidate (`0.834325` B-cubed F1, two
@@ -184,7 +195,8 @@ Implemented in the current CLI spike:
 - session package creation and inspection;
 - Echo Guard diagnostics and derived cleanup engines;
 - session-wide `local_fir` cleanup with the default `preserve_local` role policy;
-- simple local `whisper.cpp` transcription with windowing, domain prompt, timeline repair and `shadow_v2` audit output;
+- simple local `whisper.cpp` transcription with windowing, optional diagnostic prompt, timeline
+  repair and `shadow_v2` audit output; production remains prompt-free until lexical gates pass;
 - extractive local synthesis over transcript-derived JSON without LLM calls.
 
 Excluded from v1 scope or not implemented yet:

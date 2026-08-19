@@ -2,7 +2,7 @@
 
 Status: stable v1
 
-Updated: 2026-08-06
+Updated: 2026-08-19
 
 ## Purpose
 
@@ -118,6 +118,8 @@ Conditional actions are chosen from structured JSON:
 - both outcome refreshes rebuild session-local remote-speaker evidence for the selected transcript
   profile before writing `outcome`; profile changes therefore cannot leave a stale aggregate
   fallback on the ordinary read surface;
+- successful review materialization performs the same speaker-evidence refresh before readiness and
+  review-plan reports are rebuilt; missing optional speaker tooling fails open to aggregate output;
 - suggested preview is used only for a review gate;
 - suggested apply is used only when `suggested_closure_auto_rows > 0`;
 - `finish` is used only when the outcome explicitly allows export.
@@ -232,6 +234,8 @@ When the supervisor stops optional enrichment at its budget, `pipeline_run_state
 `deferred_budget_exhausted`. A compatible newer lifecycle result (`ready` or `ready_with_review`)
 therefore remains the user-facing status; an internal interrupted child cannot hide the readable
 authoritative transcript.
+If a deferred action succeeds on resume, its checkpoint clears any `error` retained from an earlier
+failed or interrupted attempt. A successful status and stale error must never coexist.
 
 `murmurmark status SESSION` accepts a lifecycle result only when the report schema is current, raw is
 preserved, the selected profile matches readiness, the selected transcript exists and the report is

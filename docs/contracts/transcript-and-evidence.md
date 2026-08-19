@@ -3906,6 +3906,10 @@ When reports are refreshed, each applied session row also gets `post_apply_readi
 `next_commands`; for one session they come from the refreshed readiness handoff, and for failed or
 multi-session runs they point to the apply report or corpus report. This makes
 `review_decisions_apply_report.json` a self-contained handoff for CLI wrappers and agents.
+Before those reports are rebuilt, a successful apply refreshes Speaker-Resolved Transcript Default
+evidence against the newly selected reviewed profile. This refresh is best-effort and fail-open: a
+missing optional speaker backend cannot fail review materialization, while stale evidence cannot be
+reused for the new transcript fingerprint.
 The Swift `murmurmark review apply` wrapper performs a preflight before running the batch command.
 If the decisions file or review template is missing, it prints `review_apply: status: not_ready`,
 the missing path kind and the next `review workspace` / `review progress` commands instead of
@@ -8487,6 +8491,9 @@ uses `--preserve-authoritative-profile`. These modes read the valid handoff prof
 evidence and generic aliases, and leave the transcript fingerprint unchanged. Candidate cleanup
 profiles produced during deferred work remain inspectable shadow artifacts until a later explicit
 promotion path selects them.
+When a previously failed or interrupted deferred step later completes, the step checkpoint clears
+its stale `error` field. Consumers must use the current status and current error together; an error
+from an earlier attempt cannot survive a successful completion.
 
 Each successful computed handoff and valid checkpoint reuse appends one
 `murmurmark.authoritative_handoff_run/v1` row. The row records elapsed time, profile, verdict,
@@ -8817,9 +8824,12 @@ They can be `missing` while `pre_asr_echo_active_*` validly identifies
 and partial-recommendation fields from `murmurmark.capture_continuity/v1`.
 
 `outcome.json` exposes `harmful_remote_in_me_seconds` and
-`harmful_remote_in_me_coverage`. The value is the maximum available duration from audit-harmful,
-remote-duplicate and audio-review evidence because those intervals may overlap. If remote-forbidden
-evidence is missing or skipped, a positive value requires review and a zero remains unknown.
+`harmful_remote_in_me_coverage`. The value is the maximum available duration from current-profile
+audit-harmful, remote-duplicate and audio-review evidence because those intervals may overlap.
+Reviewed and agent-reviewed profiles must not inherit `audit_harmful_seconds_after` from an older
+cleanup profile: human/agent dispositions supersede that cleanup-only aggregate. If current
+remote-forbidden evidence is missing or skipped, the value is unknown rather than a stale positive
+or a false zero; a present positive value requires review.
 
 ## Alignment and Echo-Path Model v3 Qualification
 

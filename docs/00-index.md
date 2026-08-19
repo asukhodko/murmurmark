@@ -14,7 +14,7 @@ Read in this order:
 10. [Capture architecture](architecture/capture.md)
 11. [Experimental sidecar architecture](architecture/experimental-sidecar.md)
 12. [Causal recovery generalization](architecture/causal-recovery-generalization.md)
-13. [Transcription architecture](architecture/transcription.md)
+13. [Transcription architecture](architecture/transcription.md) and [domain pack contract](contracts/domain-pack.md)
 14. [Echo Guard architecture](architecture/echo-suppression.md)
 15. [Evidence and synthesis](architecture/evidence-synthesis.md)
 16. [Session package contract](contracts/session-package.md)
@@ -177,7 +177,7 @@ Read in this order:
 
 ## Current Planning Entry Points
 
-Planning snapshot: 2026-08-17. Durable capture, authoritative batch transcription, guarded review,
+Planning snapshot: 2026-08-19. Durable capture, authoritative batch transcription, guarded review,
 optional extractive notes/export and Speaker-Preserving Neural Echo v2.17 remain production. The bounded
 pre-ASR frontier is closed: SepFormer could assign present Target-Me stems but failed reliable
 presence/absence separation before dev. Anonymous rich transcript, explicit reviewed naming and
@@ -236,8 +236,11 @@ ERes2NetV2 closed `KEEP_COVERAGE_V3`: 12/21 correct identities, precision `0.631
 Reference v1 then closed `ADVANCE_SEGMENTATION`: a private independent-machine reference aligned
 `92.8157%` of remote words and exposed 10 reference voices compressed into four clusters, weighted
 purity `89.8106%` and minority recall `0`. Transcript Integrity v1 then repaired 10/19 proven
-duplicate/repetition candidates while leaving nine ambiguous cases explicit. The current goal improves speaker boundaries and rare
-voice preservation before another identity decision. Notes and retrieval remain parked.
+duplicate/repetition candidates while leaving nine ambiguous cases explicit. The current goal
+improves speaker boundaries and rare-voice preservation before another identity decision. It is
+followed by a fresh transcript rebaseline, a human-reviewed lexical seed, session-scoped lexical
+context and a product-level terminal gate. Domain glossaries remain private inputs and are not yet
+compiled into production ASR prompts. Notes and retrieval remain parked.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.
 - [Current goal notes](project/current-goal.md) define the recommended executable scope,

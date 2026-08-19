@@ -77,7 +77,10 @@ status are included when those derivative stages are present.
 The first authoritative handoff no longer waits for optional Neural Echo evaluation. Deferred
 enrichment has an explicit time budget; Neural Echo is skipped when its frozen worst-case estimate
 cannot fit after the review-evidence reserve. `status` finishes with `complete`, an executable recovery
-command, or `human_decision_required` with a bounded item count and duration. Final readiness refresh rebuilds speaker evidence for the selected profile; insufficient evidence stays `Colleagues`. A known group roster can repair one acoustically split anonymous voice; see the speaker-resolved runbook. It never maps names to voices.
+command, or `human_decision_required` with a bounded item count and duration. Applying review
+decisions refreshes speaker evidence for the selected profile and clears stale deferred errors;
+insufficient evidence stays `Colleagues`. A known group roster can repair one acoustically split
+anonymous voice; see the speaker-resolved runbook. It never maps names to voices.
 
 Capture runs in a short-lived child process and releases ScreenCaptureKit/ReplayKit before batch
 processing. A new meeting may start while an earlier one is processed in another terminal. Only one
@@ -292,51 +295,38 @@ murmurmark transcript "$SESSION" --rich --reviewed-speakers
 murmurmark notes "$SESSION" --reviewed-speakers
 murmurmark export "$SESSION" --format markdown --include-json --reviewed-speakers
 ```
-Speaker-aware memory and exact-text notes remain optional derivatives. Transcript Perfection Corpus keeps 31/31 frozen sources explicit and never collapses unlike quality dimensions into one score.
-Lexical Accuracy Reference Corpus v1 measures its exact 67-word digital subset at WER/CER `0` and keeps real-meeting lexical correctness blocked by missing human-reviewed evidence:
+Speaker-aware memory and exact-text notes remain optional derivatives. Transcript Perfection Corpus
+keeps every frozen source explicit and never collapses unlike quality dimensions into one score.
+Lexical Accuracy Reference Corpus v1 measures its exact 67-word digital subset at WER/CER `0` and
+keeps real-meeting lexical correctness blocked by missing human-reviewed evidence:
 ```bash
 murmurmark corpus lexical status
 murmurmark corpus lexical replay --write-manifest docs/testing/lexical-accuracy-reference-corpus-v1-manifest.json
 murmurmark corpus perfection all --verify-existing
-murmurmark corpus remote-reference status && murmurmark corpus remote-reference replay
-murmurmark corpus remote-truth-lab replay && murmurmark corpus remote-duration-v2 status && murmurmark corpus remote-segment-context status
-murmurmark corpus remote-error-decomposition status && murmurmark corpus remote-error-decomposition replay
-murmurmark corpus remote-identity-v1 setup && murmurmark corpus remote-identity-v1 status && murmurmark corpus remote-identity-v1 replay
-murmurmark corpus remote-identity-shadow-v1 status && murmurmark corpus remote-identity-shadow-errors-v1 status && murmurmark corpus remote-identity-interval-v1 status && murmurmark corpus remote-identity-enrollment-v1 status && murmurmark corpus remote-identity-enrollment-v1 replay
-murmurmark corpus remote-truth-seed-v1 status && murmurmark corpus remote-truth-adjudication-v1 status
-murmurmark corpus remote-enrollment-purity-v2 status && murmurmark corpus remote-homogeneous-enrollment-v1 status
-murmurmark corpus remote-reclustering-v1 status && murmurmark corpus remote-representation-v1 status && murmurmark corpus remote-temporal-diarization-v1 status && murmurmark corpus remote-temporal-diarization-v1 replay
 murmurmark corpus remote-truth-seed-v2 status && murmurmark corpus remote-truth-seed-v2 replay && murmurmark corpus remote-model-disjoint-v1 status && murmurmark corpus remote-model-disjoint-v1 replay && murmurmark corpus remote-cluster-purity-v1 status && murmurmark corpus remote-cluster-purity-v1 replay
 ```
-Disjoint truth v2 is complete: 72 primary + 12 repeats, consistency `1.0` and byte-exact replay.
-The one-shot ERes2NetV2 qualification closed `KEEP_COVERAGE_V3`; Cluster Purity Reference v1 found
-10 remote voices compressed into four acoustic clusters, purity `89.8106%` and minority recall `0`.
-Transcript Integrity v1 repaired 10/19 proven duplicate/repetition candidates and left nine ambiguous cases explicit. The current goal is **Remote Speaker Boundary and Minority-Voice Segmentation v1**.
-The dependent critical path is:
+
+The local glossary and prompt files are private inputs. The current production bridge does not
+consume `glossary.yaml`; its default `--max-context 0` also makes a prompt ineffective. A diagnostic
+A/B showed that a short topic-specific context can repair difficult terminology, while a broad
+static prompt did not help and can bias recognition. Production therefore keeps `prompt_file: null`.
+The planned **Session-Scoped Lexical Context v1** may enable compact meeting-specific context only
+after a human-reviewed lexical seed and multi-session no-regression gates exist.
+
+Disjoint truth v2 is complete: 72 primary + 12 repeats, consistency `1.0` and byte-exact replay. The
+one-shot ERes2NetV2 qualification kept Coverage v3; Cluster Purity Reference v1 found 10 remote
+voices compressed into four acoustic clusters, purity `89.8106%` and minority recall `0`. Transcript
+Integrity v1 repaired 10/19 proven duplicate/repetition candidates and left nine ambiguous cases
+explicit. The current goal is **Remote Speaker Boundary and Minority-Voice Segmentation v1**.
+The remaining critical path is:
 ```text
-Meeting Lifecycle -> Echo/Target-Me evidence -> Reliable Handoff -> Incremental ASR
--> Remote Speaker Evidence (done: audit-only, 50.4% coverage)
--> Remote Speaker Diarization v2 (done: PROMOTE, 91.9% coverage)
--> Remote Speaker Coverage v3 (done: PROMOTE, 93.9% coverage)
--> Remote Speaker Residual Evidence v4 (done: DO_NOT_PROMOTE, measured ceiling)
--> Speaker-Resolved Transcript Default v1 (done: PROMOTE, ordinary read/handoff/export)
--> Lexical Accuracy Reference Corpus v1 (done: REFERENCE_INSUFFICIENT, bounded exact subset)
--> Independent Remote Speaker Evidence v1 (done: DO_NOT_PROMOTE, 53 words / 23.357s)
--> Remote Speaker Residual Reference Corpus v1 (done: REFERENCE_INSUFFICIENT, blind pack ready)
--> Controlled Remote Speaker Truth Lab v1 (done: Coverage v3 control qualified, WavLM rejected)
--> Duration-Aware Remote Speaker Attribution v2 (done: DO_NOT_PROMOTE, precision safe but low recall)
--> Segment-Context Remote Speaker Attribution v1 (done: DO_NOT_PROMOTE, boundary/open-set regression)
--> Remote Speaker Attribution Error Decomposition v1 (done: identity is the dominant bottleneck)
--> Stronger Remote Speaker Identity Backend Qualification v1 (done: PROMOTE lab-only ECAPA)
--> ECAPA Remote Speaker Shadow Qualification v1 (done: DO_NOT_PROMOTE on real sessions)
--> Remote Speaker Shadow Error Decomposition v1 (done) -> Bounded Remote Speaker Interval Purification v1 (done: DO_NOT_ADVANCE) -> Session-Local Remote Speaker Enrollment Hardening v1 (done: DO_NOT_ADVANCE) -> Remote Speaker Direct Truth Seed v1 (done: DIRECT_TRUTH_SEED_READY) -> Remote Speaker Direct-Truth Candidate Adjudication v1 (done: KEEP_COVERAGE_V3) -> Enrollment Purity and Abstention Hardening v2 (done: KEEP_COVERAGE_V3) -> Homogeneous Enrollment Mining v1 (done: KEEP_EXISTING_ENROLLMENT) -> Session-Local Remote Speaker Re-Clustering Feasibility v1 (done: EMBEDDING_GEOMETRY_BOUND) -> Stronger Local Remote Speaker Representation Qualification v1 (done: KEEP_EXPLICIT_UNKNOWN) -> Temporal End-to-End Remote Diarization Qualification v1 (done: KEEP_EXPLICIT_UNKNOWN) -> Remote Speaker Disjoint Truth Expansion v2 (done: DIRECT_TRUTH_V2_READY) -> Disjoint Remote Speaker Model Qualification v1 (done: KEEP_COVERAGE_V3) -> Remote Speaker Usability Gate Error Decomposition v1 (done: ADVANCE_SEGMENTATION) -> Residual Transcript Integrity Hardening v1 (done: PROMOTE, 10 repairs) -> Remote Speaker Boundary and Minority-Voice Segmentation v1 (current)
+Coverage v3 + Transcript Integrity v1
+-> Boundary and Minority-Voice Segmentation v1 (current)
+-> Post-Segmentation Transcript Rebaseline v1
+-> Human-Reviewed Lexical Seed v1 (external evidence)
+-> Session-Scoped Lexical Context v1
+-> Speaker-Resolved Transcript Terminal Gate v1
 ```
-Independent WavLM recovered only `6.2280%` of residual words; its original 53 proposals remain
-ungraded, while the later bounded 33-item seed now has direct truth. Exact synthetic truth qualified the Coverage v3 control (`0.983505` B-cubed F1, zero
-open-set errors). Blind hard-v2 then rejected conservative word-level fusion despite precision `1.0`:
-known recall was `0.551402`, boundary recall `0.321429`. Oracle decomposition over 393 exact words
-measured identity gain `0.351382` versus segmentation `0.063882` and overlap/open-set `0.036364`.
-The independently trained ECAPA candidate passed every fixed one-shot hard-v4 gate: B-cubed F1 `0.948042`, pairwise precision `1.0`, known-speaker recall `0.947368`, zero open-set false attribution and exact 154/154 word conservation. Its real-session shadow failed promotion; decomposition routed 93/214 failures to interval purity. The fixed crop recovered only 2 words / 4.155s. Enrollment hardening then added 11 acceptances but lost five controls and closed `DO_NOT_ADVANCE`. Blind review closed all 33 primary and 8 repeat slots: 8 attributed, 11 unknown, 4 mixed, 10 unusable, consistency `7/8`. Direct adjudication kept Coverage v3: the candidate gained 3 correct identities, lost 2 correct controls and raised unsafe accepts from 8 to 13. Purity v2 restored control safety but produced zero additions from only 7/14 qualified profiles. Homogeneous mining found 39 windows for 9/14 profiles but preserved 0/3 gains. ECAPA/WavLM and WeSpeaker fixed-window routes closed on geometry or false identities. Temporal AHC/VBx then passed shift stability but matched speaker count in `0/6` sessions, preserved `2/3` gains and introduced seven false identities. Disjoint truth v2 closed 72 primary and 12 repeat decisions with consistency `1.0`. Frozen ERes2NetV2 then kept 12/21 correct identities but produced seven unsafe special accepts and lost two truth-v1 controls, closing `KEEP_COVERAGE_V3`. The private cluster-purity audit exposed the stronger topology defect: dominant clusters merge rare participants. The next candidate therefore works on boundaries and minority turns before identity assignment, with a new disjoint terminal set.
 See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 ## Scope And Limitations
 
@@ -378,11 +368,14 @@ See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](do
   `DO_NOT_TRAIN`; it performed no training and cannot select an audio or transcript profile.
 - Batch transcript is authoritative; promoted Transcript Integrity v1 repairs only fingerprint-bound duplicates/repetition and fails open to its base profile. Live is excluded from export/retention, and the normal workflow requires no cloud ASR or raw-audio upload.
 - Notes, summaries, retrieval and work-system proposals are optional derivatives outside the critical roadmap.
+- Domain packs are local inputs. `glossary.yaml` is not yet compiled into production ASR context;
+  broad prompts remain disabled until Session-Scoped Lexical Context passes lexical corpus gates.
 ## Documentation
 
 - [Documentation index](docs/00-index.md), [mission](docs/product/vision.md), [requirements](docs/product/prd-v1.md), [current goal](docs/project/current-goal.md), [route](docs/project/reliable-transcription-route.md), [roadmap](docs/roadmap/murmurmark-cli-roadmap.md), [OpsKarta](docs/roadmap/murmurmark-cli-roadmap.plan.yaml)
 - [Meeting lifecycle contract](docs/contracts/meeting-lifecycle.md), [meeting cheat sheet](docs/runbooks/meeting-cheatsheet.md), [transcription runbook](docs/runbooks/transcribe-simple-whispercpp.md), [Transcript Integrity contract](docs/contracts/transcript-integrity-v1.md) and [runbook](docs/runbooks/transcript-integrity-v1.md)
 - [Transcript Perfection Corpus](docs/contracts/transcript-perfection-corpus.md), [Lexical Accuracy Reference Corpus](docs/contracts/lexical-accuracy-reference-corpus.md), [Remote Speaker Coverage v3](docs/contracts/remote-speaker-coverage-v3.md) and [Residual Evidence v4](docs/contracts/remote-speaker-residual-evidence-v4.md)
+- [Domain pack and lexical-context boundary](docs/contracts/domain-pack.md)
 - [Independent evidence](docs/contracts/independent-remote-speaker-evidence-v1.md), [Controlled Truth Lab](docs/contracts/controlled-remote-speaker-truth-lab-v1.md), [Disjoint ERes2NetV2 result](docs/contracts/disjoint-remote-speaker-model-qualification-v1.md), [Cluster Purity Reference contract](docs/contracts/remote-speaker-cluster-purity-reference-v1.md), [runbook](docs/runbooks/remote-speaker-cluster-purity-reference-v1.md) and [result](docs/testing/2026-08-17-remote-speaker-cluster-purity-reference-v1.md)
 - [Speaker-Resolved Default](docs/contracts/speaker-resolved-transcript-default-v1.md) and [roster-constrained evidence](docs/contracts/roster-constrained-remote-speaker-evidence-v1.md)
 

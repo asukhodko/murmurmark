@@ -151,8 +151,15 @@ compressed into four acoustic clusters, weighted purity `0.898106` and minority 
 closed `ADVANCE_SEGMENTATION`. Current work improves label-independent boundaries and rare turns
 before identity assignment. A bounded post-ASR integrity layer separately removed 10 proven
 duplicates/decoder repeats across three sessions while leaving nine ambiguous repetitions explicit;
-it preserves the aggregate text lineage consumed by speaker attribution. Open Truth v2 is development evidence; future promotion requires a new
-frozen terminal set. Notes remain optional.
+it preserves the aggregate text lineage consumed by speaker attribution. Applying review decisions
+now refreshes speaker selection, ignores cleanup-only harmful metrics on reviewed profiles and clears
+stale deferred-stage errors after recovery. Open Truth v2 is development evidence; future promotion
+requires a new frozen terminal set. Notes remain optional.
+
+The dependent route is boundary/minority segmentation, a fresh transcript rebaseline, a blocked
+human-reviewed lexical seed, session-scoped lexical context and a product-level terminal gate. The
+domain glossary is not currently compiled into ASR input; broad static prompts remain disabled.
+Local mic multi-speaker diarization and heavier local ASR validators are conditional later branches.
 
 Target transcription path:
 

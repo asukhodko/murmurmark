@@ -28,7 +28,10 @@ ACTIVE_DOCS = (
     ROOT / "docs/project/reliable-transcription-route.md",
     ROADMAP_PATH,
     ROOT / "docs/architecture/system-overview.md",
+    ROOT / "docs/architecture/transcription.md",
     ROOT / "docs/architecture/experimental-sidecar.md",
+    ROOT / "docs/contracts/domain-pack.md",
+    ROOT / "docs/contracts/lexical-accuracy-reference-corpus.md",
     ROOT / "docs/rfc/0001-v1-scope.md",
 )
 
@@ -86,6 +89,10 @@ CRITICAL_PATH = (
     "quality-remote-speaker-usability-gate-error-decomposition-v1",
     "quality-residual-transcript-integrity-hardening-v1",
     "quality-remote-speaker-boundary-minority-segmentation-v1",
+    "quality-post-segmentation-transcript-rebaseline-v1",
+    "quality-human-reviewed-lexical-seed-v1",
+    "quality-session-scoped-lexical-context-v1",
+    "product-speaker-resolved-transcript-terminal-gate-v1",
 )
 
 EXPECTED_STATUSES = {"done", "current", "next", "later", "idea", "optional", "blocked"}
@@ -162,7 +169,7 @@ def validate_statuses_and_goal(plan: dict) -> tuple[dict, str]:
     require(isinstance(statuses, dict), "plan.statuses must be a mapping")
     require(set(statuses) == EXPECTED_STATUSES, "plan status set does not match the planning contract")
     require(isinstance(nodes, dict) and nodes, "plan.nodes must be a non-empty mapping")
-    require(len(nodes) <= 54, f"active plan is too large: {len(nodes)} nodes, expected at most 54")
+    require(len(nodes) <= 60, f"active plan is too large: {len(nodes)} nodes, expected at most 60")
 
     current = [(node_id, node) for node_id, node in nodes.items() if node.get("status") == "current"]
     current_tasks = [(node_id, node) for node_id, node in current if node.get("kind") == "task"]
@@ -528,6 +535,30 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
         nodes["quality-remote-speaker-boundary-minority-segmentation-v1"].get("status")
         == "current",
         "remote-speaker boundary and minority segmentation must be the current quality goal",
+    )
+    require(
+        nodes["quality-post-segmentation-transcript-rebaseline-v1"].get("status") == "next",
+        "post-segmentation transcript rebaseline must be the next unlocked goal",
+    )
+    require(
+        nodes["quality-human-reviewed-lexical-seed-v1"].get("status") == "blocked",
+        "human-reviewed lexical seed must remain blocked on external truth",
+    )
+    require(
+        nodes["quality-session-scoped-lexical-context-v1"].get("status") == "later",
+        "session-scoped lexical context must follow direct lexical truth",
+    )
+    require(
+        nodes["product-speaker-resolved-transcript-terminal-gate-v1"].get("status") == "later",
+        "speaker-resolved terminal gate must remain a dependent milestone",
+    )
+    require(
+        nodes["quality-local-multi-speaker-diarization-v1"].get("status") == "idea",
+        "local multi-speaker diarization must remain a conditional idea",
+    )
+    require(
+        nodes["research-heavy-local-asr-validator-v1"].get("status") == "idea",
+        "heavy local ASR validator must remain a conditional research idea",
     )
     require("parked-ui" not in nodes, "UI must not occupy the active CLI roadmap")
 

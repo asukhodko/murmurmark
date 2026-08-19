@@ -2033,6 +2033,9 @@ profile for each session. The CLI wrapper prints the next `murmurmark report ...
 successful apply. It can drop whole reviewed `Me` utterances, drop reviewed `Colleagues` utterances
 when remote contains a duplicate of local speech, clear review flags for confirmed local speech,
 close checked local-recall rows, or keep an item marked `needs_review`.
+Before readiness reports are regenerated, the batch wrapper refreshes speaker-resolved evidence for
+the new reviewed profile. Missing optional speaker tooling fails open; stale speaker evidence from
+the previous transcript fingerprint is never selected.
 Raw local-recall rows are audit-only: they do not add missing words to the transcript, and
 `keep_me`, `drop_me` and `drop_remote` are not valid decisions for them. Even strong local audio
 evidence must first go through `murmurmark repair local-recall`, which creates an actual `Me`
@@ -2534,9 +2537,10 @@ removed, local-token retention `1.0`, and maximum corpus runtime factor `0.52486
 production policy now pins this evidence and the current ASR runtimes.
 
 When checking residual remote risk, do not trust `audit_harmful_seconds_after` alone. The outcome
-uses the maximum available overlap-audit, transcript-duplicate and audio-review duration. Missing
-or skipped remote-forbidden evidence marks coverage `partial`; zero under partial coverage is
-unknown rather than proof that `Me` is clean.
+uses the maximum available current-profile overlap-audit, transcript-duplicate and audio-review
+duration. Reviewed profiles do not inherit an older cleanup profile's harmful aggregate. Missing or
+skipped remote-forbidden evidence marks the result unknown; neither a stale positive nor zero under
+partial coverage proves the current `Me` track state.
 
 ## Alignment/Echo-Path v3 Research Audit
 

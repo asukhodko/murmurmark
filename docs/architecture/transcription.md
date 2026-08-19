@@ -202,8 +202,10 @@ real-session shadow gates; bounded interval and enrollment variants did not adva
 33-primary/8-repeat blind seed rejected the frozen enrollment candidate: three correct gains came
 with two lost correct controls and five additional fail-closed unsafe accepts. Coverage v3 remains
 authoritative. Purity v2 preserved all labels and control safety but produced zero additions from
-7/14 qualified profiles. The next shadow mines longer homogeneous intervals inside each session;
-synthetic labels and unqualified candidates never enter a real session.
+7/14 qualified profiles. Homogeneous enrollment, stronger representations and temporal clustering
+also closed without promotion. Disjoint truth and cluster-purity evidence now route work to
+label-independent boundaries and short minority turns before identity assignment. Synthetic labels
+and unqualified candidates never enter a real session.
 
 Mic multi-speaker diarization is a later profile. It starts only after a real multi-person local
 scenario and labelled corpus exist, and must distinguish Target-Me, other local speakers and
@@ -233,6 +235,12 @@ Planned validators:
 
 ## Context Compiler
 
+Status: planned. The current whisper.cpp bridge accepts an optional `prompt_file`, but does not
+compile or consume `glossary.yaml`. Production keeps that prompt disabled: default
+`--max-context 0` makes it ineffective, and a broad static prompt did not improve a bounded real-audio
+A/B. A short topic-specific prompt did repair the targeted terminology when context was enabled, so
+the next lexical candidate is session-scoped and evidence-gated rather than a global term dump.
+
 Input sources:
 
 - meeting title and agenda;
@@ -259,7 +267,8 @@ synthesis_context:
   broader domain summary for later notes
 ```
 
-Do not pass the entire knowledge base to ASR. Short, relevant context is safer.
+Do not pass the entire knowledge base to ASR. Short, relevant context is safer. Human-reviewed
+real-meeting lexical truth and multi-session no-regression gates are prerequisites for promotion.
 
 ## Long Meetings
 

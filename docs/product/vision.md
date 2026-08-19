@@ -79,9 +79,11 @@ Exact local multi-speaker truth qualified the Coverage v3 control. Blind hard-v2
 word-level duration/fusion candidates; blind hard-v3 then rejected long-span segment-context fusion
 with `0/20` boundaries and two open-set errors. Interval and enrollment candidates then failed their
 material gates. Direct blind adjudication kept Coverage v3 after the candidate lost two correct
-controls and increased fail-closed unsafe accepts from 8 to 13. Purity v2 restored control safety
-but only 7/14 profiles qualified and no safe identity was added. The next stage mines homogeneous
-session-local enrollment; any promotion still requires disjoint direct truth and corpus qualification.
+controls and increased fail-closed unsafe accepts from 8 to 13. Purity v2 restored control safety,
+but homogeneous enrollment, stronger representations and temporal clustering all failed their
+promotion gates. Disjoint Truth v2 and the cluster-purity audit then localized the remaining topology
+defect: dominant clusters absorb short minority voices. Current work therefore improves boundaries
+and minority-turn preservation before anonymous identity assignment.
 
 ## Core User Jobs
 
@@ -122,13 +124,15 @@ met, unless an explicit product decision changes the priority.
    chronology, roles, speakers, overlap, acoustic modes and known residual defects.
 2. **Remote Speaker Boundary and Minority-Voice Segmentation v1:** split mixed remote intervals and
    preserve short rare voices before anonymous identity assignment.
-3. **Disjoint direct truth:** freeze every boundary candidate before a new terminal set opens;
-   the now-open Truth v2 is development evidence only and cannot promote another candidate.
-4. **Human-Reviewed Lexical Seed v1:** external-evidence prerequisite; do not tune ASR from machine
-   agreement while it is absent.
-5. **Measured residual loop:** rerank after every bounded `PROMOTE` or evidence ceiling and close the
-   next highest-impact class.
-6. **Local Mic Multi-Speaker Diarization v1:** a conditional branch opened only by a real
+3. **Post-Segmentation Transcript Rebaseline v1:** freeze either terminal outcome, rerun the corpus
+   on fresh sessions and rank the remaining speaker, overlap, chronology and lexical errors.
+4. **Human-Reviewed Lexical Seed v1:** collect exact real-meeting word truth before tuning ASR;
+   agreement between local recognizers is diagnostic evidence only.
+5. **Session-Scoped Lexical Context v1:** compile a short topic-specific prompt or hotword set and
+   promote it only after multi-session no-regression A/B. A broad static glossary is not an ASR prompt.
+6. **Speaker-Resolved Transcript Terminal Gate v1:** make the product North Star measurable across
+   capture, words, chronology, roles, remote speakers, explicit unknown and exact fallback.
+7. **Local Mic Multi-Speaker Diarization v1:** a conditional branch opened only by a real
    multi-person local scenario and labelled corpus.
 
 ## Long-Term Direction

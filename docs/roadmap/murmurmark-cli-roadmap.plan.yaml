@@ -33,7 +33,7 @@ nodes:
     title: "MurmurMark CLI"
     kind: summary
     status: current
-    effort: 352
+    effort: 406
     notes: |
       Активная CLI-first, local-first и evidence-backed программа. Batch transcript остаётся
       authoritative. Текущий North Star: одной командой получить максимально надёжный transcript,
@@ -775,6 +775,77 @@ nodes:
       PROMOTE_SEGMENTATION, KEEP_COVERAGE_V3 либо EVIDENCE_BOUND; никакой forced identity и никаких
       изменений Coverage v3 до прохождения conservation, boundary, minority, stability и safety gates.
 
+  quality-post-segmentation-transcript-rebaseline-v1:
+    title: "Post-Segmentation Transcript Rebaseline v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-remote-speaker-boundary-minority-segmentation-v1]
+    status: next
+    effort: 10
+    notes: |
+      Зафиксировать любой terminal outcome boundary/minority candidate, обновить fresh-session
+      evidence и заново ранжировать speaker topology, explicit unknown, overlap, chronology и lexical
+      residuals. Следующую ветку выбирать из измеренного корпуса, а не из одного нового примера.
+
+  quality-human-reviewed-lexical-seed-v1:
+    title: "Human-Reviewed Lexical Seed v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-post-segmentation-transcript-rebaseline-v1]
+    status: blocked
+    effort: 8
+    notes: |
+      Собрать точную ручную word-level truth минимум для двух реальных встреч: 1x1 и group, Me и
+      remote, два acoustic modes. Machine agreement остаётся diagnostic evidence и не разблокирует
+      ASR tuning. Private text не попадает в tracked artifacts.
+
+  quality-session-scoped-lexical-context-v1:
+    title: "Session-Scoped Lexical Context v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-human-reviewed-lexical-seed-v1]
+    status: later
+    effort: 10
+    notes: |
+      Скомпилировать из локального domain pack короткий meeting-specific prompt/hotword set. Broad
+      static glossary запрещён. Кандидат проходит frozen A/B по term accuracy, общему WER/CER,
+      role/speaker conservation, chronology, deterministic replay и exact prompt-free fallback.
+
+  product-speaker-resolved-transcript-terminal-gate-v1:
+    title: "Speaker-Resolved Transcript Terminal Gate v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-post-segmentation-transcript-rebaseline-v1, quality-session-scoped-lexical-context-v1]
+    status: later
+    effort: 10
+    notes: |
+      Определить завершённость North Star через отдельные обязательные gates: durable capture,
+      Target-Me preservation, words, chronology, roles, remote speaker attribution, explicit unknown,
+      bounded review burden и exact fallback. Запрещён единый усреднённый quality score.
+
+  quality-local-multi-speaker-diarization-v1:
+    title: "Local Mic Multi-Speaker Diarization v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [product-speaker-resolved-transcript-terminal-gate-v1]
+    status: idea
+    effort: 8
+    notes: |
+      Условная ветка для Target-Me, other local speakers и unknown в одном mic-потоке. Открывается
+      только после реального multi-person local scenario и прямой размеченной truth.
+
+  research-heavy-local-asr-validator-v1:
+    title: "Heavy Local ASR Validator v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-session-scoped-lexical-context-v1]
+    status: idea
+    effort: 8
+    notes: |
+      Квалифицировать более тяжёлый локальный ASR или forced aligner как независимого судью сложных
+      слов и тайминга. Он не заменяет основной ASR и не меняет selected text без direct truth и
+      corpus-wide no-regression.
+
 views:
   roadmap-tree:
     title: "Полный активный roadmap"
@@ -793,9 +864,12 @@ views:
       current:
         title: "Единственная исполнимая цель"
         nodes: [quality-remote-speaker-boundary-minority-segmentation-v1]
-      dependent:
-        title: "Blind real-session reference blocker"
-        nodes: [quality-remote-speaker-residual-reference-corpus-v1]
+      next:
+        title: "Следующая разблокированная цель"
+        nodes: [quality-post-segmentation-transcript-rebaseline-v1]
+      blocked:
+        title: "Внешняя lexical truth"
+        nodes: [quality-human-reviewed-lexical-seed-v1]
 
   critical-path:
     title: "Критический CLI-путь"
@@ -854,6 +928,10 @@ views:
           - quality-remote-speaker-usability-gate-error-decomposition-v1
           - quality-residual-transcript-integrity-hardening-v1
           - quality-remote-speaker-boundary-minority-segmentation-v1
+          - quality-post-segmentation-transcript-rebaseline-v1
+          - quality-human-reviewed-lexical-seed-v1
+          - quality-session-scoped-lexical-context-v1
+          - product-speaker-resolved-transcript-terminal-gate-v1
 
   echo-frontier:
     title: "Пред-ASR отделение Me от remote"
@@ -881,6 +959,11 @@ views:
           - research-remote-diarization
           - research-rich-transcript
           - research-speaker-map
+      future:
+        title: "Условные поздние ветки"
+        nodes:
+          - quality-local-multi-speaker-diarization-v1
+          - research-heavy-local-asr-validator-v1
 
   transcript-quality-chain:
     title: "Путь к speaker-resolved transcript"
@@ -889,17 +972,20 @@ views:
         title: "Доказанная speaker evidence"
         nodes: [research-remote-diarization, research-rich-transcript, quality-remote-speaker-diarization-v2]
       current:
-        title: "Real-session usability evidence"
-        nodes: [quality-disjoint-remote-speaker-model-qualification-v1, quality-remote-speaker-usability-gate-error-decomposition-v1]
-      blocker:
-        title: "Blind real-session reference"
-        nodes: [quality-remote-speaker-residual-reference-corpus-v1]
+        title: "Текущая speaker topology"
+        nodes: [quality-remote-speaker-boundary-minority-segmentation-v1]
+      next:
+        title: "Повторное измерение"
+        nodes: [quality-post-segmentation-transcript-rebaseline-v1]
+      lexical:
+        title: "Lexical evidence и context"
+        nodes: [quality-human-reviewed-lexical-seed-v1, quality-session-scoped-lexical-context-v1]
       closure:
         title: "Unified baseline"
         nodes: [quality-transcript-perfection-corpus-v1, quality-lexical-accuracy-reference-corpus-v1, quality-residual-transcript-integrity-hardening-v1]
       release:
         title: "Основной speaker-resolved result"
-        nodes: [product-speaker-resolved-transcript-default-v1]
+        nodes: [product-speaker-resolved-transcript-default-v1, product-speaker-resolved-transcript-terminal-gate-v1]
 
   deps-map:
     title: "Зависимости активного плана"
@@ -959,6 +1045,13 @@ views:
           - quality-disjoint-remote-speaker-model-qualification-v1
           - quality-remote-speaker-usability-gate-error-decomposition-v1
           - quality-residual-transcript-integrity-hardening-v1
+          - quality-remote-speaker-boundary-minority-segmentation-v1
+          - quality-post-segmentation-transcript-rebaseline-v1
+          - quality-human-reviewed-lexical-seed-v1
+          - quality-session-scoped-lexical-context-v1
+          - product-speaker-resolved-transcript-terminal-gate-v1
+          - quality-local-multi-speaker-diarization-v1
+          - research-heavy-local-asr-validator-v1
 
 x:
   exec:
@@ -1025,11 +1118,15 @@ x:
           - quality-remote-speaker-usability-gate-error-decomposition-v1
           - quality-residual-transcript-integrity-hardening-v1
           - quality-remote-speaker-boundary-minority-segmentation-v1
+          - quality-post-segmentation-transcript-rebaseline-v1
+          - quality-human-reviewed-lexical-seed-v1
+          - quality-session-scoped-lexical-context-v1
+          - product-speaker-resolved-transcript-terminal-gate-v1
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Speaker-resolved handoff готов; exact lexical subset измерен, real-meeting lexical truth требует внешней проверки."
-          next_sync_goal: "Сохранить Coverage v3 и требовать disjoint truth для любого следующего promotion."
+          sync_note: "Speaker-resolved handoff готов; после boundary outcome следует fresh rebaseline, затем human lexical truth и session-scoped context."
+          next_sync_goal: "Сохранить Coverage v3, завершить boundary candidate и открыть rebaseline без преждевременного ASR tuning."
     edges:
       - from: working-now
         to: current-quality
