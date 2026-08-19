@@ -33,9 +33,10 @@ murmurmark audit remote-coverage "$SESSION"
 `transcript --rich` accept v2/v3 only when `report.source.profile` equals the current selected
 profile; the algorithm name in `report.parameters.profile` is not a transcript profile.
 
-If v3 is missing, stale or invalid, the ordinary transcript uses the exact aggregate `Colleagues`
-Markdown. Explicit `transcript --rich` keeps its compatible diagnostic v3/v2/aggregate chain. A v2
-artifact from an older selected profile is stale too and is skipped rather than displayed.
+If v3 is missing, stale or invalid, the ordinary transcript uses compatible current v1 evidence as a
+disclaimer-bearing provisional view and marks unsupported speech `remote_speaker_unknown`. Explicit
+`--aggregate` remains exact; `transcript --rich` keeps its diagnostic v3/v2/aggregate chain. A v2
+artifact from an older selected profile is stale and is skipped rather than displayed.
 
 ## Frozen Corpus
 

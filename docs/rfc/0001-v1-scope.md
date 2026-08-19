@@ -190,8 +190,8 @@ Current M5+ status:
 
 - remote diarization is processed independently at word/frame level;
 - internal speaker changes and overlap are represented without word loss or duplication;
-- rich anonymous speaker artifacts are stable and ordinary transcript selection has exact aggregate
-  fallback;
+- rich anonymous speaker artifacts are stable; ordinary reading prefers verified attribution, then a
+  disclaimer-bearing provisional view, while exact aggregate remains explicit and strict;
 - direct-truth and disjoint model qualification kept Coverage v3; private cluster-purity evidence
   routed current work to remote boundaries and minority-voice preservation before identity;
 - local multi-speaker mic remains conditional.

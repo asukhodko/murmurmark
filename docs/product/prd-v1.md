@@ -20,8 +20,8 @@ Working now:
 - `Me`/`Colleagues` role reconciliation;
 - timeline repair for long mic segments that cross remote speech;
 - `shadow_v2` repair profile with no-regression gates, audit artifacts and start-of-call repair;
-- promoted speaker-resolved default with session-local anonymous remote speaker IDs and exact
-  aggregate fallback;
+- promoted speaker-resolved default with session-local anonymous remote speaker IDs, a clearly
+  marked provisional read tier and an explicit exact aggregate fallback;
 - quality verdicts and review items, plus optional local extractive notes;
 - optional Markdown/Obsidian-style export bundles, JSON/audit artifacts for review, and raw
   retention plans;
@@ -104,8 +104,9 @@ Current operating point, 2026-08-19:
   exact v2-label and selected-word conservation plus aggregate fallback;
 - Remote Speaker Residual Evidence v4 closed with `DO_NOT_PROMOTE`: 124 words / `83.640s` recovered,
   but `14.57%` word and `13.98%` second reductions missed both `20%` promotion gates;
-- Speaker-Resolved Transcript Default v1 passed 6/6 frozen sessions and now exposes promoted
-  Coverage v3 through ordinary transcript, handoff and guarded export with exact aggregate fallback;
+- Speaker-Resolved Transcript Default v1 passed 6/6 frozen sessions. Handoff/export stay strict;
+  ordinary reading adds a provisional cluster tier and explicit unknown, while exact aggregate
+  remains available explicitly;
 - Remote Speaker Attribution Error Decomposition v1 completed with
   `ADVANCE_STRONGER_SPEAKER_IDENTITY`: across 393 words and 64 boundaries, identity gain `0.351382`
   dominates segmentation `0.063882` and overlap/open-set `0.036364`; ECAPA subsequently passed

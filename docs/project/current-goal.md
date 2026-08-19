@@ -33,6 +33,12 @@ dense-overlap words damaged. The same run exposed stale speaker-selection, clean
 deferred-status refresh defects; those lifecycle defects are fixed and regression-covered, so they
 do not justify diverting the current speaker-boundary goal.
 
+A later group call also demonstrated a product-level cliff: two stable clusters covered just below
+the strict session floor, so the ordinary read path hid all speaker labels. The strict policy remains
+unchanged, but the read surface now publishes compatible clusters as `provisional`, carries a
+prominent disclaimer and leaves unsupported speech `remote_speaker_unknown`. This prevents silent
+loss of attribution without claiming identity or weakening the boundary candidate's promotion gates.
+
 ## Objective
 
 Построить локальный детерминированный candidate, который разбивает remote speech на speaker-bounded

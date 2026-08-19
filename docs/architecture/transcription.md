@@ -185,8 +185,9 @@ labels through `--rich --reviewed-speakers`; participant identity is never infer
 Remote Speaker Diarization v2 now applies seeded Resemblyzer evidence to authoritative remote
 frames and immutable selected ASR words. It splits supported internal speaker changes, represents
 overlap conservatively and assigns each remote word to a session-local anonymous speaker or explicit
-`unknown`. Selected words and chronology are immutable; missing, stale or failed runtime returns the
-exact aggregate `Colleagues` view.
+`unknown`. Selected words and chronology are immutable. The strict evidence contract retains exact
+aggregate fail-open; the ordinary read surface preserves compatible clusters as a disclaimer-bearing
+provisional view and renders unsupported speech as `remote_speaker_unknown`.
 
 The six-session corpus passed `PROMOTE`: attributable speech `0.919071`, attributed-only B-cubed F1
 `0.960690`, pairwise precision `0.959564`, 5/5 frozen internal-boundary cases and zero selected-word
@@ -216,8 +217,8 @@ unknown without weakening current Target-Me protection.
 Status: seeded local remote diarization and bounded Coverage v3 are promoted; replacement ASR and
 correction components remain target architecture, not current production. Transcript Perfection
 Corpus v1 is the frozen measurement baseline. Residual Evidence v4 measured its safe ceiling and
-closed `DO_NOT_PROMOTE`; Speaker-Resolved Transcript Default v1 now productizes promoted v3 with
-exact aggregate fallback.
+closed `DO_NOT_PROMOTE`; Speaker-Resolved Transcript Default v1 productizes promoted v3, a separate
+provisional read tier and an explicit exact aggregate fallback.
 
 Primary:
 

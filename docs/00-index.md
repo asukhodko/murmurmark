@@ -189,8 +189,9 @@ Diarization v2 passed `PROMOTE`; Coverage v3 raised attributable remote speech t
 preserving B-cubed F1 `0.962171`, pairwise precision `0.961675` and every selected word. Residual
 Evidence v4 safely recovered another 124 words / `83.640s`, but its `14.57%` word and `13.98%`
 second reductions missed both `20%` promotion gates. It closed with reproducible `DO_NOT_PROMOTE`.
-**Speaker-Resolved Transcript Default v1** is promoted for ordinary read/handoff/export with exact
-aggregate fallback. **Lexical Accuracy Reference Corpus v1** closed with
+**Speaker-Resolved Transcript Default v1** is promoted for strict handoff/export. Ordinary reading
+adds a disclaimer-bearing provisional tier instead of silently losing all attribution; exact
+aggregate remains explicit. **Lexical Accuracy Reference Corpus v1** closed with
 `REFERENCE_INSUFFICIENT`: the exact 67-word digital subset has WER/CER `0`, while real-meeting
 correctness still lacks human-reviewed evidence. The independent WavLM experiment over the frozen
 `598.240s` unknown residue is complete with `DO_NOT_PROMOTE`: 53 words / `23.357s` recovered and no

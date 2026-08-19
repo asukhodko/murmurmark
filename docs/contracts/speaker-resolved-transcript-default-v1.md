@@ -1,6 +1,6 @@
 # Speaker-Resolved Transcript Default v1 Contract
 
-Status: `PROMOTE` for the ordinary local transcript, Evidence Handoff v2 and guarded export
+Status: strict `PROMOTE`; provisional ordinary-read fallback enabled
 
 Speaker-Resolved Transcript Default v1 selects the promoted Remote Speaker Coverage v3 view for a
 session only when its complete evidence lineage is current. It never rewrites words, roles,
@@ -17,9 +17,9 @@ The selector reads:
 - every input and output SHA-256 verified by Coverage v3.
 - optional `speaker-roster-v1.json`, whose identity is bound into selection and refresh keys.
 
-The policy pins the selector, corpus runner and six-session default manifest. Missing Python/model
-runtime, stale policy or implementation, a changed selected profile, missing artifacts or a failed
-session gate produces a fallback rather than a partial selection.
+The policy pins the strict selector, corpus runner and six-session default manifest. Missing
+Python/model runtime, stale policy or implementation, a changed selected profile, missing artifacts
+or a failed session gate still prevents a verified selection.
 
 ## Output
 
@@ -30,6 +30,11 @@ derived/transcript-rich/speaker-resolved-default-v1/
   selection.json
   selection.md
   evidence/<refresh-key>/...
+  provisional/
+    selection.json
+    transcript.provisional.json
+    transcript.provisional.md
+    evidence/<refresh-key>/...
 ```
 
 `selection.json` uses `murmurmark.speaker_resolved_transcript_selection/v1` and records:
@@ -40,28 +45,41 @@ derived/transcript-rich/speaker-resolved-default-v1/
 - policy identity, fallback reason and deterministic semantic fingerprint;
 - session-local identity scope and the prohibition on voice-derived names.
 
+The provisional selection uses `murmurmark.provisional_speaker_transcript_selection/v1`; its rich
+payload uses `murmurmark.provisional_speaker_transcript/v1`. It records `provisional` or
+`unavailable`, strict failure reasons, attributed duration/count, stable anonymous clusters, exact
+input/output identities and the materializer fingerprint.
+
 ## Default Read Rule
 
 For `murmurmark transcript SESSION` with profile `auto`:
 
 1. Validate or materialize the selector.
 2. Return the v3 Markdown when state is `selected`.
-3. Return the exact selected aggregate Markdown when state is `fallback` or the selector runtime is
-   unavailable.
+3. If the strict selector falls back, rerun only the current fingerprint-bound v1 evidence with the
+   global coverage floor removed. Per-cluster duration, span, cohesion and per-utterance
+   similarity/margin gates remain unchanged.
+4. Return a disclaimer-bearing provisional Markdown when at least one locally supported cluster is
+   available. Unsupported utterances are labelled `remote_speaker_unknown`.
+5. If no compatible current evidence exists, return an explicit `unavailable` Markdown in which
+   every remote utterance is `remote_speaker_unknown`. It must never look like one real person.
 
-For selected speaker-resolved output, the CLI states that `remote_speaker_N` labels are anonymous
-session-local acoustic clusters rather than verified people. The warning is also emitted for
-`--path-only` and `--cat`; `--aggregate` returns the exact role-only view without speaker claims.
+For selected or provisional output, the CLI states that `remote_speaker_N` labels are anonymous
+session-local acoustic clusters rather than verified people. Provisional Markdown additionally
+warns that one person may be split or several people merged and prints attributed coverage. The
+warning is also emitted for `--path-only` and `--cat`; `--aggregate` returns the exact role-only view
+without speaker claims.
 
-Evidence Handoff v2 copies those same bytes into its bundle. Guarded export copies the handoff
-bytes and records `session_local_anonymous` or `aggregate_colleagues` in `export_manifest.json`.
-`status`, `outcome` and the meeting final report expose the selected speaker profile, state and
-fallback reason.
+Evidence Handoff v2 and guarded export continue to consume only strict `selected` or exact aggregate
+bytes; provisional evidence cannot silently become a verified external claim. The ordinary
+`transcript`, `status`, `outcome` and meeting handoff use the provisional read view when strict
+selection fails and expose its state, coverage and strict fallback reason.
 
 The meeting lifecycle refreshes this selector after readiness changes and automatic review. The
 refresh uses the final selected transcript profile; it runs before `outcome` is rebuilt. If the
 profile changed from `audit_cleanup_v2` to `reviewed_v1`, stale evidence from the earlier profile is
-never reused. Missing or insufficient evidence still fails open to exact aggregate `Colleagues`.
+never reused. Missing evidence produces explicit `remote_speaker_unknown`; the exact aggregate
+remains available only by explicit request and to strict handoff/export consumers.
 
 When a user provides a current roster count, v1 may repair exactly one acoustically split major
 cluster through the separately documented two-backend consensus rule. The roster does not map
@@ -89,7 +107,8 @@ profiles.
 ## Safety Boundary
 
 - Capture, Echo Guard, audio selection, primary ASR and selected dialogue are unchanged.
-- No unsupported word receives a speaker ID.
+- No unsupported word receives a speaker ID; it is marked `remote_speaker_unknown`.
+- Removing the provisional global coverage floor never removes local cluster or assignment gates.
 - No human name is inferred from voice.
 - No local mic multi-speaker or cross-session identity claim is introduced.
 - Aggregate fallback is byte-identical through transcript, handoff and export.

@@ -78,9 +78,12 @@ The first authoritative handoff no longer waits for optional Neural Echo evaluat
 enrichment has an explicit time budget; Neural Echo is skipped when its frozen worst-case estimate
 cannot fit after the review-evidence reserve. `status` finishes with `complete`, an executable recovery
 command, or `human_decision_required` with a bounded item count and duration. Applying review
-decisions refreshes speaker evidence for the selected profile and clears stale deferred errors;
-insufficient evidence stays `Colleagues`. A known group roster can repair one acoustically split
-anonymous voice; see the speaker-resolved runbook. It never maps names to voices.
+decisions refreshes speaker evidence for the selected profile and clears stale deferred errors. When
+the strict publication gate misses, the ordinary read path keeps compatible local clusters as a
+disclaimer-bearing `provisional` attribution and marks the rest `remote_speaker_unknown`; the exact
+role-only transcript remains available through `--aggregate`. `status` and `outcome` print the
+provisional coverage and strict failure reason. A known group roster can repair one
+acoustically split anonymous voice; see the speaker-resolved runbook. It never maps names to voices.
 
 Capture runs in a short-lived child process and releases ScreenCaptureKit/ReplayKit before batch
 processing. A new meeting may start while an earlier one is processed in another terminal. Only one
@@ -271,7 +274,10 @@ bounded resume and incremental ASR are promoted. The normal path is one command 
 
 Speaker-Resolved Transcript Default v1 promotes the fingerprint-verified Coverage v3 view into
 ordinary `transcript`, Evidence Handoff and guarded export. It preserves every selected word and
-uses exact aggregate `Colleagues` fallback when evidence is missing or stale. Refresh or verify it:
+keeps strict Evidence Handoff/export fallback unchanged. The ordinary transcript read surface adds
+a second tier: compatible but non-promoted acoustic clusters are shown as `provisional`, and truly
+unsupported remote speech is marked `remote_speaker_unknown` under a prominent disclaimer. Refresh
+or verify strict evidence:
 
 ```bash
 murmurmark audit speaker-default "$SESSION"
@@ -330,9 +336,10 @@ Coverage v3 + Transcript Integrity v1
 See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 ## Scope And Limitations
 
-- Ordinary auto-selected transcripts use `Me`, fingerprint-verified session-local remote speaker
-  IDs and aggregate `Colleagues` for unsupported words. Incompatible or stale evidence returns the
-  exact aggregate transcript.
+- Ordinary auto-selected transcripts use `Me` and the best current session-local remote speaker
+  evidence. Verified labels are preferred; compatible labels below the strict session gate are
+  published as `provisional`, and unsupported speech becomes `remote_speaker_unknown`. The Markdown
+  header states coverage and failure reasons. `--aggregate` remains the exact role-only fallback.
 - `remote_speaker_NN` is a session-local acoustic cluster, not a confirmed person; `status` exposes
   purity concerns and `murmurmark transcript SESSION --aggregate --cat` returns the role-only fallback.
 - Promoted v3 anonymous remote evidence covers `93.9312%` of frozen-corpus speech and leaves the

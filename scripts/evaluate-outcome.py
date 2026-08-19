@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import shlex
 import subprocess
@@ -11,14 +12,16 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.7"
+SCRIPT_VERSION = "0.1.8"
 OUTCOME_SCHEMA = "murmurmark.outcome/v1"
 REVIEW_PLAN_SCHEMA = "murmurmark.outcome_review_plan/v1"
 RUN_SCHEMA = "murmurmark.pipeline_run/v1"
 SUGGESTED_REVIEW_REPORT = Path("derived/readiness/review-plan/review_workspace_apply_report.json")
 ROOT = Path(__file__).resolve().parents[1]
 SPEAKER_SELECTOR = ROOT / "scripts/select-speaker-resolved-transcript.py"
+PROVISIONAL_SPEAKER_MATERIALIZER = ROOT / "scripts/materialize-provisional-speaker-transcript.py"
 SPEAKER_SELECTION_SCHEMA = "murmurmark.speaker_resolved_transcript_selection/v1"
+PROVISIONAL_SPEAKER_SELECTION_SCHEMA = "murmurmark.provisional_speaker_transcript_selection/v1"
 
 
 def parse_args() -> argparse.Namespace:
@@ -48,6 +51,55 @@ def read_json(path: Path) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def speaker_selection_result(
+    session: Path,
+    selected_profile: Any,
+    payload: dict[str, Any] | None,
+    schema: str,
+    states: set[str],
+) -> dict[str, Any] | None:
+    if not isinstance(payload, dict) or payload.get("schema") != schema:
+        return None
+    if str(payload.get("selected_profile") or "") != str(selected_profile or ""):
+        return None
+    state = str(payload.get("state") or "")
+    if state not in states:
+        return None
+    row = payload.get("selected_transcript") if isinstance(payload.get("selected_transcript"), dict) else {}
+    raw_path = row.get("path")
+    if not isinstance(raw_path, str) or not raw_path or Path(raw_path).is_absolute():
+        return None
+    path = (session / raw_path).resolve()
+    try:
+        path.relative_to(session.resolve())
+    except ValueError:
+        return None
+    if not path.is_file():
+        return None
+    if row.get("bytes") is not None and int(row.get("bytes") or -1) != path.stat().st_size:
+        return None
+    if row.get("sha256") and row.get("sha256") != sha256_file(path):
+        return None
+    summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+    return {
+        "state": state,
+        "selected_speaker_profile": payload.get("selected_speaker_profile"),
+        "fallback_reason": payload.get("fallback_reason"),
+        "transcript_path": raw_path,
+        "identity_scope": payload.get("identity_scope"),
+        "selection_fingerprint": payload.get("semantic_fingerprint"),
+        "attributed_remote_speech_ratio": summary.get("attributed_remote_speech_ratio"),
+    }
+
+
 def speaker_resolution(session: Path, selected_profile: Any) -> dict[str, Any]:
     fallback = {
         "state": "fallback",
@@ -56,41 +108,51 @@ def speaker_resolution(session: Path, selected_profile: Any) -> dict[str, Any]:
         "transcript_path": None,
         "identity_scope": "session_local_anonymous",
     }
-    if not SPEAKER_SELECTOR.is_file():
-        return fallback
-    completed = subprocess.run(
-        [sys.executable, str(SPEAKER_SELECTOR), str(session)],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    if completed.returncode != 0:
-        fallback["fallback_reason"] = "speaker_selector_failed"
-        return fallback
-    payload = read_json(
-        session / "derived/transcript-rich/speaker-resolved-default-v1/selection.json"
-    )
-    if not isinstance(payload, dict) or payload.get("schema") != SPEAKER_SELECTION_SCHEMA:
-        fallback["fallback_reason"] = "speaker_selection_invalid"
-        return fallback
-    if str(payload.get("selected_profile") or "") != str(selected_profile or ""):
-        fallback["fallback_reason"] = "speaker_selection_profile_mismatch"
-        return fallback
-    row = payload.get("selected_transcript") if isinstance(payload.get("selected_transcript"), dict) else {}
-    raw_path = row.get("path")
-    path = session / str(raw_path or "")
-    if not raw_path or not path.is_file():
-        fallback["fallback_reason"] = "speaker_selection_output_missing"
-        return fallback
-    return {
-        "state": payload.get("state"),
-        "selected_speaker_profile": payload.get("selected_speaker_profile"),
-        "fallback_reason": payload.get("fallback_reason"),
-        "transcript_path": str(raw_path),
-        "identity_scope": payload.get("identity_scope"),
-        "selection_fingerprint": payload.get("semantic_fingerprint"),
-    }
+    strict: dict[str, Any] | None = None
+    if SPEAKER_SELECTOR.is_file():
+        completed = subprocess.run(
+            [sys.executable, str(SPEAKER_SELECTOR), str(session)],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if completed.returncode == 0:
+            strict = speaker_selection_result(
+                session,
+                selected_profile,
+                read_json(session / "derived/transcript-rich/speaker-resolved-default-v1/selection.json"),
+                SPEAKER_SELECTION_SCHEMA,
+                {"selected", "fallback"},
+            )
+            if strict is not None and strict.get("state") == "selected":
+                return strict
+        else:
+            fallback["fallback_reason"] = "speaker_selector_failed"
+
+    if PROVISIONAL_SPEAKER_MATERIALIZER.is_file():
+        completed = subprocess.run(
+            [sys.executable, str(PROVISIONAL_SPEAKER_MATERIALIZER), str(session)],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if completed.returncode == 0:
+            provisional = speaker_selection_result(
+                session,
+                selected_profile,
+                read_json(
+                    session
+                    / "derived/transcript-rich/speaker-resolved-default-v1/provisional/selection.json"
+                ),
+                PROVISIONAL_SPEAKER_SELECTION_SCHEMA,
+                {"provisional", "unavailable"},
+            )
+            if provisional is not None:
+                return provisional
+
+    return strict or fallback
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -1105,7 +1167,7 @@ def main() -> int:
         metrics["harmful_remote_in_me_coverage"] = harmful_gate.get("coverage")
     outputs = dict(readiness.get("outputs")) if isinstance(readiness, dict) and isinstance(readiness.get("outputs"), dict) else {}
     speaker = speaker_resolution(session, (readiness or {}).get("selected_profile"))
-    if speaker.get("state") == "selected" and speaker.get("transcript_path"):
+    if speaker.get("state") in {"selected", "provisional", "unavailable"} and speaker.get("transcript_path"):
         outputs["transcript"] = {
             "path": speaker["transcript_path"],
             "exists": (session / str(speaker["transcript_path"])).is_file(),

@@ -6315,11 +6315,13 @@ promoted policy and implementation identities. State is `selected` only after Co
 `--verify-only --require-promoted` passes every required session gate. Otherwise state is `fallback`
 and `selected_transcript` is the exact aggregate Markdown.
 
-Ordinary `murmurmark transcript`, Evidence Handoff v2 and guarded export consume this one selection.
-Status, outcome and meeting handoff expose `selected_speaker_profile`, state and fallback reason.
-Unsupported remote words stay `Colleagues`. Human names still require complete fingerprint-bound
-review and are never inferred from voice. See the dedicated contract for the frozen six-session
-qualification and complete failure rules.
+Evidence Handoff v2 and guarded export consume this strict selection. Ordinary `murmurmark
+transcript` adds `murmurmark.provisional_speaker_transcript_selection/v1`: when strict selection
+falls back, current locally supported clusters remain visible under a warning and unsupported remote
+speech becomes `remote_speaker_unknown`. Status, outcome and meeting handoff expose `selected`,
+`provisional` or `unavailable`, attributed coverage and the strict reason. Human names still require
+complete fingerprint-bound review and are never inferred from voice. See the dedicated contract for
+complete failure rules.
 
 ## Reviewed Remote Speaker Naming v1
 

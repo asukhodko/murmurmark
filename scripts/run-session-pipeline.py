@@ -1277,6 +1277,17 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
             reason="--skip-audits",
             phase=DEFERRED_PHASE,
         ),
+        step(
+            "provisional_speaker_transcript_default",
+            [
+                py,
+                str(repo_root / "scripts/materialize-provisional-speaker-transcript.py"),
+                str(session),
+            ],
+            enabled=not args.skip_audits,
+            reason="--skip-audits",
+            phase=DEFERRED_PHASE,
+        ),
     ]
 
 

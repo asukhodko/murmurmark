@@ -514,8 +514,9 @@ terminal set.
 
 Remote Speaker Attribution Error Decomposition v1 завершён
 `ADVANCE_STRONGER_SPEAKER_IDENTITY` на 393 words и 64 boundaries.
-Speaker-Resolved Transcript Default v1 завершён `PROMOTE`: ordinary read/handoff/export выбирают v3
-на совместимых сессиях и exact aggregate fallback в остальных. Transcript Perfection Corpus остаётся
+Speaker-Resolved Transcript Default v1 завершён `PROMOTE`: strict handoff/export выбирают v3 либо
+exact aggregate, а ordinary read при строгом отказе показывает disclaimer-bearing provisional
+clusters и explicit unknown. Transcript Perfection Corpus остаётся
 общим no-regression gate: exact generated lexical subset измерен, real meetings остаются
 `real_meeting_reference_insufficient`.
 Local mic multi-speaker остаётся условной веткой и открывается только после реального сценария и

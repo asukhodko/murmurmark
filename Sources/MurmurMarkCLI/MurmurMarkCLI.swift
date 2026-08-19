@@ -1321,6 +1321,7 @@ enum DoctorChecks {
             "scripts/audit-remote-speaker-diarization.py",
             "scripts/audit-remote-speaker-coverage-v3.py",
             "scripts/select-speaker-resolved-transcript.py",
+            "scripts/materialize-provisional-speaker-transcript.py",
             "scripts/report-remote-speaker-coverage-v3-corpus.py",
             "scripts/audit-remote-speaker-residual-evidence-v4.py",
             "scripts/report-remote-speaker-residual-evidence-v4-corpus.py",
@@ -5938,6 +5939,7 @@ enum EvidenceHandoffState {
 
 enum SpeakerResolvedTranscriptState {
     static let schema = "murmurmark.speaker_resolved_transcript_selection/v1"
+    static let provisionalSchema = "murmurmark.provisional_speaker_transcript_selection/v1"
 
     struct Selection {
         let payload: [String: Any]
@@ -5950,16 +5952,30 @@ enum SpeakerResolvedTranscriptState {
     static func materialize(_ session: URL) -> Selection? {
         let script = PathURLs.fileURL("scripts/select-speaker-resolved-transcript.py")
         guard FileManager.default.fileExists(atPath: script.path),
-              let python = try? PythonRuntime.resolve(),
-              (try? Tooling.runPathQuietAllowingExitCodes(
-                  python,
-                  [script.path, session.path],
-                  allowedExitCodes: [0, 2]
-              )) == 0
+              let python = try? PythonRuntime.resolve()
         else {
             return nil
         }
-        return selection(session)
+        let strictStatus = try? Tooling.runPathQuietAllowingExitCodes(
+            python,
+            [script.path, session.path],
+            allowedExitCodes: [0, 2]
+        )
+        let strict = strictStatus == 0 ? selection(session) : nil
+        if strict?.state == "selected" {
+            return strict
+        }
+        let provisionalScript = PathURLs.fileURL("scripts/materialize-provisional-speaker-transcript.py")
+        if FileManager.default.fileExists(atPath: provisionalScript.path),
+           (try? Tooling.runPathQuietAllowingExitCodes(
+               python,
+               [provisionalScript.path, session.path],
+               allowedExitCodes: [0, 2]
+           )) == 0,
+           let provisional = provisionalSelection(session) {
+            return provisional
+        }
+        return strict
     }
 
     static func selection(_ session: URL) -> Selection? {
@@ -5987,6 +6003,50 @@ enum SpeakerResolvedTranscriptState {
             speakerProfile: speakerProfile,
             fallbackReason: payload["fallback_reason"] as? String
         )
+    }
+
+    static func provisionalSelection(_ session: URL) -> Selection? {
+        let report = session.appendingPathComponent(
+            "derived/transcript-rich/speaker-resolved-default-v1/provisional/selection.json"
+        )
+        guard let payload = try? JSONFiles.object(report),
+              payload["schema"] as? String == provisionalSchema,
+              let profile = payload["selected_profile"] as? String,
+              let readiness = try? JSONFiles.object(
+                  session.appendingPathComponent("derived/readiness/session_readiness.json")
+              ),
+              readiness["selected_profile"] as? String == profile,
+              let row = payload["selected_transcript"] as? [String: Any],
+              let transcript = identityURL(row, session: session),
+              let state = payload["state"] as? String,
+              ["provisional", "unavailable"].contains(state),
+              let speakerProfile = payload["selected_speaker_profile"] as? String
+        else {
+            return nil
+        }
+        return Selection(
+            payload: payload,
+            transcript: transcript,
+            state: state,
+            speakerProfile: speakerProfile,
+            fallbackReason: payload["fallback_reason"] as? String
+        )
+    }
+
+    static func attributedRemoteSpeechRatio(_ selection: Selection) -> Double? {
+        guard let summary = selection.payload["summary"] as? [String: Any] else {
+            return nil
+        }
+        if let value = summary["attributed_remote_speech_ratio"] as? Double {
+            return value
+        }
+        if let value = summary["attributed_remote_speech_ratio"] as? NSNumber {
+            return value.doubleValue
+        }
+        if let value = summary["attributed_remote_speech_ratio"] as? String {
+            return Double(value)
+        }
+        return nil
     }
 
     private static func identityURL(_ row: [String: Any], session: URL) -> URL? {
@@ -6463,12 +6523,19 @@ enum TranscriptCommands {
         }
 
         if let fallbackReason, cat || pathOnly {
-            let message = rich
-                ? "reviewed speaker labels unavailable (\(fallbackReason)); using anonymous rich transcript"
-                : "speaker-resolved transcript unavailable (\(fallbackReason)); using exact aggregate transcript"
+            let message: String
+            if rich {
+                message = "reviewed speaker labels unavailable (\(fallbackReason)); using anonymous rich transcript"
+            } else if speakerSelection?.state == "provisional" {
+                message = "speaker attribution is provisional (\(fallbackReason)); read the transcript disclaimer"
+            } else if speakerSelection?.state == "unavailable" {
+                message = "speaker attribution is unavailable (\(fallbackReason)); remote speech is marked remote_speaker_unknown"
+            } else {
+                message = "speaker-resolved transcript unavailable (\(fallbackReason)); using exact aggregate transcript"
+            }
             fputs("warning: \(message)\n", stderr)
         }
-        if !aggregate, let speakerSelection {
+        if !aggregate, let speakerSelection, speakerSelection.state != "unavailable" {
             let identitySafety = SpeakerPurityReferenceState.identitySafety(
                 session,
                 speaker: speakerSelection
@@ -6503,10 +6570,20 @@ enum TranscriptCommands {
         print("  kind: \(kind)")
         print("  profile: \(profile)")
         print("  speaker_profile: \(kind)")
+        if let speakerSelection {
+            print("  speaker_resolution_state: \(speakerSelection.state)")
+            if let ratio = SpeakerResolvedTranscriptState.attributedRemoteSpeechRatio(speakerSelection) {
+                print(String(format: "  speaker_attribution_coverage: %.2f%%", ratio * 100))
+            }
+        }
         print("  path: \(PathDisplay.display(url))")
         if aggregate || kind == "aggregate_colleagues" {
             print("  speaker_claim_scope: remote_role_aggregate")
             print("  speaker_identity_safety: not_applicable")
+        } else if speakerSelection?.state == "unavailable" {
+            print("  speaker_claim_scope: remote_role_unattributed")
+            print("  speaker_identity_safety: not_applicable")
+            print("  attribution_warning: remote_speaker_unknown is not one person")
         } else {
             print("  speaker_claim_scope: session_local_acoustic_cluster")
             print(
@@ -6517,6 +6594,9 @@ enum TranscriptCommands {
                 "  aggregate_fallback: murmurmark transcript \(PathDisplay.display(session)) "
                     + "--aggregate --cat"
             )
+            if speakerSelection?.state == "provisional" {
+                print("  attribution_warning: provisional labels; read the transcript disclaimer")
+            }
         }
         if let fallbackReason {
             print("  fallback_reason: \(fallbackReason)")
@@ -6770,8 +6850,9 @@ enum TranscriptCommands {
                               [--aggregate|--rich [--reviewed-speakers]] [--path-only|--cat]
                               [--sessions-root ./sessions]
 
-        Resolves the current handoff and selects promoted session-local speaker evidence by default.
-        Unsupported remote words remain aggregate Colleagues; stale evidence falls back exactly.
+        Resolves the current handoff and selects verified session-local speaker evidence by default.
+        When strict gates do not pass, returns a disclaimer-bearing provisional attribution view.
+        Unsupported remote words are marked remote_speaker_unknown instead of silently becoming Colleagues.
         Use --aggregate for the exact role-only transcript without remote speaker cluster labels.
         Use --rich for the compatible diagnostic speaker-resolution path.
         Add --reviewed-speakers to request explicit session-local labels. Missing, incomplete or
@@ -16493,6 +16574,9 @@ enum ReadinessPrinter {
         if let speaker = speakerSelection {
             print("  selected_speaker_profile: \(speaker.speakerProfile)")
             print("  speaker_resolution_state: \(speaker.state)")
+            if let ratio = SpeakerResolvedTranscriptState.attributedRemoteSpeechRatio(speaker) {
+                print(String(format: "  speaker_attribution_coverage: %.2f%%", ratio * 100))
+            }
             if let fallbackReason = speaker.fallbackReason {
                 print("  speaker_fallback_reason: \(fallbackReason)")
             }
@@ -16579,6 +16663,16 @@ enum ReadinessPrinter {
         guard let speaker else {
             print("  speaker_claim_scope: remote_role_aggregate")
             print("  speaker_identity_safety: not_applicable")
+            return
+        }
+        if speaker.state == "unavailable" {
+            print("  speaker_claim_scope: remote_role_unattributed")
+            print("  speaker_identity_safety: not_applicable")
+            print("  speaker_purity_evidence: none")
+            print(
+                "  speaker_aggregate_fallback: murmurmark transcript \(PathDisplay.display(session)) "
+                    + "--aggregate --cat"
+            )
             return
         }
         print("  speaker_claim_scope: session_local_acoustic_cluster")
@@ -17501,6 +17595,9 @@ enum ReadinessPrinter {
         )
         if let speaker = payload["speaker_resolution"] as? [String: Any] {
             print("  speaker_resolution_state: \(string(speaker["state"]) ?? "fallback")")
+            if let ratio = double(speaker["attributed_remote_speech_ratio"]) {
+                print(String(format: "  speaker_attribution_coverage: %.2f%%", ratio * 100))
+            }
             if let reason = string(speaker["fallback_reason"]) {
                 print("  speaker_fallback_reason: \(reason)")
             }
@@ -17701,7 +17798,7 @@ enum ReadinessPrinter {
         if canOpenReadOutputs {
             appendOpenCommand("open_notes", outputKey: "notes", session: session, outputs: outputs, to: &commands)
             if let selection = SpeakerResolvedTranscriptState.materialize(session),
-               selection.state == "selected" {
+               ["selected", "provisional", "unavailable"].contains(selection.state) {
                 commands.append(("open_transcript", "less \(PathDisplay.display(selection.transcript))"))
             } else {
                 appendOpenCommand("open_transcript", outputKey: "transcript", session: session, outputs: outputs, to: &commands)

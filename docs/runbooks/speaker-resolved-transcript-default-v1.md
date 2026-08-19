@@ -22,11 +22,11 @@ speaker_resolution_state: selected
 ```
 
 The Markdown uses anonymous session-local labels such as `remote_speaker_01`. Intervals without
-enough evidence remain `Colleagues`.
+enough evidence are explicit `remote_speaker_unknown` in the ordinary read view.
 
 ## Known Participant Count
 
-If a group call safely falls back because one voice was split into multiple acoustic clusters or a
+If a group call is `provisional` because one voice was split into multiple acoustic clusters or a
 real participant spoke too briefly for the global publication floor, record the known remote roster
 and read the transcript again:
 
@@ -45,7 +45,7 @@ The roster constrains count only. Output remains anonymous until names are expli
 The selector automatically invalidates stale speaker evidence and runs the bounded two-backend
 check. A short participant still needs at least 6 usable utterances, 24 seconds of speech, broad
 session span, high cohesion and stable independent separation. If the models or temporal evidence
-disagree, the command keeps aggregate `Colleagues`.
+disagree, the command keeps a provisional/unknown read view and does not claim verified people.
 
 Inspect the configured roster without changing it:
 
@@ -75,19 +75,31 @@ murmurmark audit remote-diarization "$SESSION"
 murmurmark audit remote-coverage "$SESSION"
 ```
 
-## Fallback
+## Provisional Or Unavailable Attribution
 
 Typical status:
 
 ```text
-selected_speaker_profile: aggregate_colleagues
-speaker_resolution_state: fallback
-speaker_fallback_reason: coverage_artifact_missing
+selected_speaker_profile: remote_speaker_provisional_v1
+speaker_resolution_state: provisional
+speaker_attribution_coverage: 32.71%
+speaker_fallback_reason: coverage_not_publishable:published_speech_ratio
 ```
 
-Fallback is a valid, safe result. `murmurmark transcript`, Evidence Handoff and export use the exact
-aggregate Markdown. Do not bypass a stale hash. Rebuild evidence with `audit speaker-default`; if it
-still falls back, keep `Colleagues`.
+The transcript header is mandatory: it reports strict failure reason, attributed coverage and warns
+that anonymous labels can merge or split people. `remote_speaker_unknown` is genuinely unattributed
+speech, not one participant. If no current compatible evidence exists, state becomes `unavailable`
+and all remote speech receives that unknown label.
+
+Do not bypass stale hashes. Rebuild strict evidence with `audit speaker-default`; ordinary
+`murmurmark transcript` materializes the provisional view automatically. Use the exact role-only
+fallback only when it is explicitly needed:
+
+```bash
+murmurmark transcript "$SESSION" --aggregate --cat
+```
+
+Evidence Handoff and guarded export remain strict and do not promote provisional labels.
 
 ## Human Names
 

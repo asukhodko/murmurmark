@@ -291,7 +291,17 @@ def main() -> int:
         assert "using anonymous rich transcript" in cli_fallback.stderr
         plain = run_cli(session, "transcript", str(session), "--path-only")
         assert plain.returncode == 0, plain.stderr
-        assert "transcript-rich" not in plain.stdout
+        assert "speaker-resolved-default-v1/provisional" in plain.stdout
+        assert "speaker attribution is" in plain.stderr
+        aggregate = run_cli(
+            session,
+            "transcript",
+            str(session),
+            "--aggregate",
+            "--path-only",
+        )
+        assert aggregate.returncode == 0, aggregate.stderr
+        assert "transcript-rich" not in aggregate.stdout
         assert_existing_unchanged(session, protected)
 
     print("reviewed remote speaker naming checks passed")

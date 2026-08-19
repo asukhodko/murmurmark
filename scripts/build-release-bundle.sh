@@ -140,6 +140,7 @@ copy_file "scripts/review_profile_lineage.py"
 copy_file "scripts/report-remote-speaker-cluster-purity-reference-v1.py"
 copy_file "scripts/apply-transcript-integrity.py"
 copy_file "scripts/report-transcript-integrity-corpus.py"
+copy_file "scripts/materialize-provisional-speaker-transcript.py"
 copy_file "policies/remote-speaker-cluster-purity-reference-v1.json"
 copy_file "policies/transcript-integrity-v1.json"
 

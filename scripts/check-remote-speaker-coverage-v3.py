@@ -416,7 +416,24 @@ def check_auditor(root: Path) -> None:
         check=False,
     )
     assert fallback_cli.returncode == 0, fallback_cli.stderr
-    assert fallback_cli.stdout.strip().endswith("transcript.fixture.md")
+    provisional_selection = read_json(
+        session
+        / "derived/transcript-rich/speaker-resolved-default-v1/provisional/selection.json"
+    )
+    assert provisional_selection["state"] in {"provisional", "unavailable"}
+    assert fallback_cli.stdout.strip().endswith(
+        provisional_selection["selected_transcript"]["path"]
+    )
+    assert "speaker attribution is" in fallback_cli.stderr
+    aggregate_cli = subprocess.run(
+        [str(CLI), "transcript", str(session), "--aggregate", "--path-only"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert aggregate_cli.returncode == 0, aggregate_cli.stderr
+    assert aggregate_cli.stdout.strip().endswith("transcript.fixture.md")
 
 
 def corpus_words(uid: str, start: float, speakers: list[str | None]) -> tuple[str, list[dict[str, Any]]]:

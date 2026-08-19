@@ -126,8 +126,8 @@ selected word, timestamp and aggregate fallback. `--rich` verifies the promoted 
 input lineage; explicit session-local decisions remain the only way to replace anonymous display
 IDs. Transcript Perfection Corpus v1 remains the measurement baseline. Its current ranked closure is
 complete: Residual Evidence v4 recovered 124 words / `83.640s` but missed both `20%` gates and closed
-with `DO_NOT_PROMOTE`. Speaker-Resolved Transcript Default v1 is promoted as the normal transcript
-surface with exact aggregate fail-open. Lexical Accuracy Reference Corpus v1 closed
+with `DO_NOT_PROMOTE`. Speaker-Resolved Transcript Default v1 keeps strict aggregate fail-open and
+adds a provisional ordinary-read tier with explicit unknown. Lexical Accuracy Reference Corpus v1 closed
 `REFERENCE_INSUFFICIENT`. Independent WavLM recovered 53 words / `23.357s`, missed both coverage
 gates and closed `DO_NOT_PROMOTE`. Remote Speaker Residual Reference Corpus v1 froze 278 blind items
 and closed `REFERENCE_INSUFFICIENT` because direct truth covers 0/53 proposals. Controlled Remote
@@ -249,8 +249,8 @@ Current implementation note:
 
 - the source of truth is `derived/transcript-simple/whisper-cpp/resolved/clean_dialogue*.json`;
 - word/frame-level Remote Speaker Diarization v2 and Coverage v3 are promoted optional evidence;
-  ordinary read/handoff/export uses their fingerprint-verified speaker-resolved view and exact
-  aggregate fallback;
+  ordinary read uses verified evidence first and a disclaimer-bearing provisional cluster view when
+  strict publication misses; handoff/export stay strict and `--aggregate` remains exact;
 - `transcript.shadow_v2.md` is a candidate export only when `repair_comparison.json` passes.
 
 Does not own:
