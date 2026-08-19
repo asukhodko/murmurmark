@@ -218,10 +218,28 @@ def load_policy(path: Path) -> dict[str, Any]:
     return policy
 
 
+def resolve_session(raw: str, sessions_root: Path) -> tuple[Path, str]:
+    value = Path(raw).expanduser()
+    candidates = [value] if value.is_absolute() else [value, sessions_root / value, sessions_root / value.name]
+    root = sessions_root.resolve()
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        if not resolved.is_dir():
+            continue
+        try:
+            session_id = resolved.relative_to(root).as_posix()
+        except ValueError:
+            continue
+        if session_id and session_id != ".":
+            return resolved, session_id
+    raise CorpusError(f"session not found under {sessions_root}: {raw}")
+
+
 def import_external(args: argparse.Namespace, policy: dict[str, Any]) -> int:
     source = args.source.resolve()
     if not source.is_file():
         raise CorpusError(f"source not found: {source}")
+    _, session_id = resolve_session(args.session_id, args.sessions_root)
     allowed = set(policy["correctness_eligible_trust_grades"]) | set(policy["diagnostic_only_trust_grades"])
     if args.trust_grade not in allowed:
         raise CorpusError(f"unsupported trust grade: {args.trust_grade}")
@@ -256,7 +274,7 @@ def import_external(args: argparse.Namespace, policy: dict[str, Any]) -> int:
         "source_id": args.source_id,
         "kind": "external_transcript",
         "trust_grade": args.trust_grade,
-        "session_id": args.session_id,
+        "session_id": session_id,
         "meeting_mode": args.meeting_mode,
         "acoustic_mode": args.acoustic_mode,
         "source": fingerprint(copied),
@@ -561,7 +579,7 @@ def external_rows(args: argparse.Namespace) -> list[dict[str, Any]]:
         if fingerprint(original_path) != source["source"]:
             raise CorpusError(f"source changed: {source['source_id']}")
         reference_rows = read_json(parsed_path)["entries"]
-        session = args.sessions_root / source["session_id"]
+        session, session_id = resolve_session(str(source["session_id"]), args.sessions_root)
         dialogue_path, utterances, lineage = selected_dialogue(session)
         metrics, overall_reference, overall_hypothesis, timing = aligned_external_metrics(reference_rows, utterances)
         roles = sorted({str(row.get("role") or "remote") for row in reference_rows})
@@ -572,7 +590,7 @@ def external_rows(args: argparse.Namespace) -> list[dict[str, Any]]:
                 "kind": "external_transcript",
                 "trust_grade": source["trust_grade"],
                 "correctness_eligible": source["trust_grade"] in {"exact_generated", "human_reviewed"},
-                "session_id": source["session_id"],
+                "session_id": session_id,
                 "meeting_mode": source["meeting_mode"],
                 "acoustic_mode": source["acoustic_mode"],
                 "role_scope": roles,

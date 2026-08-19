@@ -72,6 +72,14 @@ def main() -> int:
     with tempfile.TemporaryDirectory(dir=ROOT / "sessions") as temp:
         root = Path(temp)
         args = SimpleNamespace(policy=POLICY_PATH, out_dir=root, sessions_root=ROOT / "sessions")
+        resolved, session_id = module.resolve_session(
+            f"sessions/{root.name}", ROOT / "sessions"
+        )
+        assert resolved == root.resolve()
+        assert session_id == root.name
+        resolved, session_id = module.resolve_session(root.name, ROOT / "sessions")
+        assert resolved == root.resolve()
+        assert session_id == root.name
         exact = private_row(module, "exact", "exact_generated", "controlled", "digital_source", ["remote"], None)
         weak_1x1 = private_row(module, "weak-1x1", "independent_machine", "1x1", "speaker_playback", ["me", "remote"], "fixture-1")
         weak_group = private_row(module, "weak-group", "independent_machine", "group", "headphones_or_low_leak", ["me", "remote"], "fixture-2")
