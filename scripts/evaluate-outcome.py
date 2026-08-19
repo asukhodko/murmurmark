@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.6"
+SCRIPT_VERSION = "0.1.7"
 OUTCOME_SCHEMA = "murmurmark.outcome/v1"
 REVIEW_PLAN_SCHEMA = "murmurmark.outcome_review_plan/v1"
 RUN_SCHEMA = "murmurmark.pipeline_run/v1"
@@ -345,7 +345,9 @@ def outcome_from_gates(base_outcome: str, gates: list[dict[str, Any]]) -> str:
     return base_outcome
 
 
-def harmful_remote_evidence(metrics: dict[str, Any]) -> dict[str, Any]:
+def harmful_remote_evidence(
+    metrics: dict[str, Any], selected_profile: str | None = None
+) -> dict[str, Any]:
     sources = {
         key: safe_float(metrics.get(key))
         for key in (
@@ -355,6 +357,11 @@ def harmful_remote_evidence(metrics: dict[str, Any]) -> dict[str, Any]:
             "audio_review_probable_error_seconds",
         )
     }
+    if selected_profile in {"reviewed_v1", "agent_reviewed_v1"}:
+        # This value describes the cleanup input profile. Once review has
+        # removed whole Me utterances, current profile-aware audio-review and
+        # quality metrics are the relevant evidence.
+        sources.pop("audit_harmful_seconds_after", None)
     observed = {key: value for key, value in sources.items() if value is not None}
     remote_forbidden_status = str(metrics.get("remote_forbidden_status") or "missing")
     remote_forbidden_complete = remote_forbidden_status == "ok"
@@ -540,7 +547,9 @@ def evaluate_gates(
         }
     )
 
-    harmful = harmful_remote_evidence(metrics)
+    harmful = harmful_remote_evidence(
+        metrics, str(readiness.get("selected_profile") or "")
+    )
     harmful_seconds = harmful["seconds"]
     gates.append(
         {
@@ -951,7 +960,17 @@ def build_outcome_summary(
     if outcome == "ready_for_notes":
         headline = "ready_for_notes: notes can be read; export is allowed only when export_status is allowed"
     elif outcome == "review_first":
-        headline = "review_first: transcript is useful, but a short review queue remains"
+        non_actionable = (
+            readiness.get("non_actionable_blockers")
+            if isinstance(readiness, dict)
+            and isinstance(readiness.get("non_actionable_blockers"), list)
+            else []
+        )
+        headline = (
+            "review_first: residual risk is documented; no actionable review queue remains"
+            if non_actionable and not lanes
+            else "review_first: transcript is useful, but a short review queue remains"
+        )
     elif outcome == "pipeline_failed":
         headline = "pipeline_failed: inspect the failed step, then rerun process"
     elif outcome == "partial":

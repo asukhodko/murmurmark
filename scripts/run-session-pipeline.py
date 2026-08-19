@@ -28,7 +28,7 @@ from murmurmark_resource_policy import (
     resolve_resource_policy,
 )
 
-SCRIPT_VERSION = "0.2.6"
+SCRIPT_VERSION = "0.2.7"
 SCHEMA = "murmurmark.session_pipeline_run/v1"
 RUN_STATE_SCHEMA = "murmurmark.pipeline_run_state/v1"
 HANDOFF_SCHEMA = "murmurmark.authoritative_handoff/v1"
@@ -1712,6 +1712,8 @@ def update_deferred_checkpoint(
     )
     if error:
         deferred["error"] = error
+    else:
+        deferred.pop("error", None)
     payload["deferred_enrichment"] = deferred
     payload["updated_at"] = datetime.now(timezone.utc).isoformat()
     write_json_atomic(path, payload)

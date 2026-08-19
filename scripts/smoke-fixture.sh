@@ -3611,7 +3611,7 @@ EOF
     --operational-readiness-out-dir "$batch_operational_dir" \
     --review-plan-out-dir "$batch_review_plan_dir" >/dev/null
   [[ -s "$batch_report" ]]
-  jq -e '.schema == "murmurmark.review_decisions_batch_report/v1" and .summary.session_count == 1 and .summary.failed_sessions == 0 and .summary.failed_refresh_steps == 0 and (.refresh_reports | length) == 3' "$batch_report" >/dev/null
+  jq -e '.schema == "murmurmark.review_decisions_batch_report/v1" and .summary.session_count == 1 and .summary.failed_sessions == 0 and .summary.failed_refresh_steps == 0 and (.refresh_reports | length) == 4' "$batch_report" >/dev/null
   jq -e '.summary.recommended_next != null and (.next_commands | length) >= 1 and .sessions[0].post_apply_readiness.exists == true and (.sessions[0].post_apply_readiness.next_commands | length) >= 1' "$batch_report" >/dev/null
   [[ -s "$batch_session_quality_dir/session_quality_report.json" ]]
   [[ -s "$batch_operational_dir/operational_readiness_report.json" ]]

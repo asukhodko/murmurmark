@@ -921,6 +921,34 @@ def main() -> int:
         assert outcome_plan["lanes"] == [], outcome_plan
         assert outcome_plan["summary"]["reason"] == "actionable_review_scope_exhausted", outcome_plan
 
+        harmful_metrics = {
+            "audit_harmful_seconds_after": 2.03,
+            "remote_duplicate_in_me_seconds": 0.0,
+            "audio_review_remote_leak_probable_error_seconds": 0.0,
+            "audio_review_probable_error_seconds": 0.0,
+            "remote_forbidden_status": "ok",
+        }
+        assert outcome.harmful_remote_evidence(
+            harmful_metrics, "audit_cleanup_v2"
+        )["seconds"] == 2.03
+        reviewed_harmful = outcome.harmful_remote_evidence(
+            harmful_metrics, "reviewed_v1"
+        )
+        assert reviewed_harmful["seconds"] == 0.0, reviewed_harmful
+
+        summary = outcome.build_outcome_summary(
+            outcome="review_first",
+            export_status="blocked_until_review",
+            next_command="murmurmark status fixture",
+            readiness=explained_readiness,
+            metrics={"review_burden_sec": 0.0},
+            gates=[],
+            review_plan=outcome_plan,
+            outputs={},
+            speaker={"state": "fallback"},
+        )
+        assert "no actionable review queue remains" in summary["headline"], summary
+
     print("review materialization guard checks ok")
     return 0
 

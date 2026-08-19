@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.3"
+SCRIPT_VERSION = "0.3.4"
 SCHEMA = "murmurmark.review_decisions_batch_report/v1"
 
 
@@ -309,7 +309,16 @@ def refresh_reports(args: argparse.Namespace, repo_root: Path, sessions: list[Pa
     operational_out = args.operational_readiness_out_dir.expanduser()
     review_plan_out = args.review_plan_out_dir.expanduser()
     refresh_sessions = refresh_sessions_from_existing_report(session_quality_out, sessions)
-    steps = [
+    speaker_refresh_steps = [
+        [
+            sys.executable,
+            str(repo_root / "scripts/select-speaker-resolved-transcript.py"),
+            str(session),
+            "--refresh-evidence",
+        ]
+        for session in sessions
+    ]
+    report_steps = [
         [
             sys.executable,
             str(repo_root / "scripts/report-session-quality.py"),
@@ -341,7 +350,13 @@ def refresh_reports(args: argparse.Namespace, repo_root: Path, sessions: list[Pa
             str(review_plan_out),
         ],
     ]
-    return [run_command(command) for command in steps]
+    speaker_results = []
+    for command in speaker_refresh_steps:
+        result = run_command(command)
+        result["optional"] = True
+        result["purpose"] = "refresh_speaker_resolved_transcript"
+        speaker_results.append(result)
+    return speaker_results + [run_command(command) for command in report_steps]
 
 
 def main() -> int:
@@ -433,7 +448,16 @@ def main() -> int:
         )
         or (row.get("synthesize") and row["synthesize"]["returncode"] != 0)
     ]
-    failed_refresh = [row for row in refresh_results if row.get("returncode") != 0]
+    failed_refresh = [
+        row
+        for row in refresh_results
+        if row.get("returncode") != 0 and row.get("optional") is not True
+    ]
+    failed_optional_refresh = [
+        row
+        for row in refresh_results
+        if row.get("returncode") != 0 and row.get("optional") is True
+    ]
     next_commands = report_next_commands(args.out.expanduser(), results, failed, failed_refresh)
     report = {
         "schema": SCHEMA,
@@ -457,6 +481,7 @@ def main() -> int:
             "failed_sessions": len(failed),
             "refresh_steps": len(refresh_results),
             "failed_refresh_steps": len(failed_refresh),
+            "failed_optional_refresh_steps": len(failed_optional_refresh),
             "recommended_next": next((item["command"] for item in next_commands if item.get("command")), None),
         },
         "sessions": results,

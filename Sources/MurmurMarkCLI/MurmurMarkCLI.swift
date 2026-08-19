@@ -17557,8 +17557,13 @@ enum ReadinessPrinter {
             if !hasSummary, let review = double(metrics["review_burden_sec"]) {
                 print(String(format: "  review_burden: %.2f min", review / 60.0))
             }
-            if let harmful = double(metrics["harmful_remote_in_me_seconds"])
-                ?? double(metrics["audit_harmful_seconds_after"]) {
+            if metrics.keys.contains("harmful_remote_in_me_seconds") {
+                if let harmful = double(metrics["harmful_remote_in_me_seconds"]) {
+                    print(String(format: "  harmful_remote_in_me: %.2fs", harmful))
+                } else {
+                    print("  harmful_remote_in_me: unknown")
+                }
+            } else if let harmful = double(metrics["audit_harmful_seconds_after"]) {
                 print(String(format: "  harmful_remote_in_me: %.2fs", harmful))
             }
             if let coverage = string(metrics["harmful_remote_in_me_coverage"]), !coverage.isEmpty {

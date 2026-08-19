@@ -164,6 +164,7 @@ def main() -> int:
         )
         assert updated is not None
         assert updated["deferred_enrichment"]["status"] == "completed"
+        assert "error" not in updated["deferred_enrichment"]
         assert updated["transcript_fingerprint"]["sha256"] == before
         assert MODULE.handoff_fingerprint_matches(updated, session)
 
