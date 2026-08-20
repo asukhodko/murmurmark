@@ -56,7 +56,7 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 
 | Область | Состояние | Доказанный результат |
 |---|---|---|
-| Capture и lifecycle | `done` | Durable запись, resume, один пользовательский запуск |
+| Capture и lifecycle | `current hardening` | Durable writer работает; 3 restart-gap / `2.268542s` требуют closure |
 | Echo / Target-Me | `done` | v2.17: safe personalized plateau, exact fallback |
 | Сильнее разделить mic | `done` | `DO_NOT_ADVANCE`: нет надёжного Target-Me presence gate |
 | Transcript / handoff | `done` | Authoritative batch, Evidence Handoff v2, guarded export |
@@ -92,7 +92,9 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Residual transcript integrity v1 | `done` | `PROMOTE`: 10/19 proven duplicate/repetition repairs, nine explicit review cases |
 | Boundary and minority-voice segmentation v1 | `done` | `KEEP_COVERAGE_V3`: exact words, but real precision `0.044688`, speaker ratio `0.5`, minority recall `0.017161` |
 | Enrichment transaction and cache coherence v1 | `done` | Idempotent downstream refresh, review history, decode reuse and one canonical queue |
-| Post-segmentation transcript rebaseline v1 | `current` | Refresh one comparable corpus and rank the remaining quality axes |
+| Post-segmentation transcript rebaseline v1 | `done` | 6/6 fresh, coherent surfaces; next hard defect selected by evidence |
+| Capture continuity loss closure v1 | `current` | Remove software restart latency or publish exact external-outage boundary |
+| Remote unknown evidence recovery v1 | `next` | Attribute only with independent evidence; keep unsupported speech unknown |
 | Human-reviewed lexical seed v1 | `blocked` | Exact real-meeting word truth is still external evidence |
 | Session-scoped lexical context v1 | `later` | Compact per-meeting prompt/hotwords, never a broad static glossary |
 | Speaker-resolved transcript terminal gate v1 | `later` | One measurable product-level North Star gate |
@@ -132,13 +134,15 @@ flowchart LR
     RI["Done: PROMOTE<br/>Residual Transcript<br/>Integrity v1"]
     BM["Done: KEEP COVERAGE V3<br/>Remote Speaker Boundary and<br/>Minority-Voice Segmentation v1"]
     EC["Done<br/>Enrichment Transaction and<br/>Cache Coherence v1"]
-    RB["Current<br/>Post-Segmentation<br/>Transcript Rebaseline v1"]
+    RB["Done: REBASELINE ESTABLISHED<br/>Post-Segmentation<br/>Transcript Rebaseline v1"]
+    CC["Current<br/>Capture Continuity<br/>Loss Closure v1"]
+    RU["Next<br/>Remote Unknown<br/>Evidence Recovery v1"]
     HL["Blocked<br/>Human-Reviewed<br/>Lexical Seed v1"]
     LC["Later<br/>Session-Scoped<br/>Lexical Context v1"]
     TG["Later<br/>Speaker-Resolved Transcript<br/>Terminal Gate v1"]
     O["Optional<br/>Notes, retrieval,<br/>work proposals"]
 
-    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> W --> X --> Y --> RC --> SR --> TD --> M --> MQ --> UG --> RI --> BM --> EC --> RB --> HL --> LC --> TG
+    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> W --> X --> Y --> RC --> SR --> TD --> M --> MQ --> UG --> RI --> BM --> EC --> RB --> CC --> RU --> HL --> LC --> TG
     F --> D
     L -.-> O
 ```
@@ -265,17 +269,22 @@ history remains auditable, and content-identical faster-whisper clips reuse loca
 reconciler rejects mixed profiles or queue counts. On `2026-08-20_11-31-56`, two repeated runs kept
 raw and `reviewed_v1` hashes unchanged, preserved 47 archived decisions and converged to 20 rows /
 `111.35s` in progress, readiness and outcome.
-### 32. Post-Segmentation Transcript Rebaseline v1 — `current`
-Зафиксировать `KEEP_COVERAGE_V3`, проверить свежие реальные сессии единым способом и заново
-ранжировать speaker topology, unknown, overlap, chronology, lexical residuals и
-rich/provisional/aggregate surfaces без смены production по инерции.
-### 33. Human-Reviewed Lexical Seed v1 — `blocked`
+### 32. Post-Segmentation Transcript Rebaseline v1 — `done`
+`REBASELINE_ESTABLISHED`: 6/6 fingerprint-bound sessions, 5 strict rich + 1 warned provisional,
+exact words/roles/timestamps/fallback. Strict unknown is `5.0562%` versus frozen `6.0688%`. Three
+restart gaps / `2.268542s` became the first hard residual; replay is byte-exact and privacy-safe.
+### 33. Capture Continuity Loss Closure v1 — `current`
+Разложить ScreenCaptureKit restart latency, убрать программную паузу и покрыть state machine fault
+injection. Неизбежный macOS outage должен иметь точные интервалы и никогда не выглядеть полной записью.
+### 34. Remote Unknown Evidence Recovery v1 — `next`
+После source continuity разобрать `397.543570s` / 547 strict unknown words по cause и прямому evidence, не ослабляя abstention gates.
+### 35. Human-Reviewed Lexical Seed v1 — `blocked`
 Получить точную ручную разметку слов минимум для двух реальных встреч: 1x1/group, обе роли и два
 акустических режима. Машинное согласие остаётся диагностикой.
-### 34. Session-Scoped Lexical Context v1 — `later`
+### 36. Session-Scoped Lexical Context v1 — `later`
 Собирать короткий контекст конкретной встречи из локального domain pack. Broad static prompt
 запрещён; кандидат проходит term gain, общий WER/CER, role/speaker conservation и exact replay.
-### 35. Speaker-Resolved Transcript Terminal Gate v1 — `later`
+### 37. Speaker-Resolved Transcript Terminal Gate v1 — `later`
 Свести North Star в один составной, но не усреднённый набор обязательных ворот: capture, Me,
 words, order, roles, remote speakers, explicit unknown, review burden и exact fallback.
 ## Закрытые И Отложенные Треки

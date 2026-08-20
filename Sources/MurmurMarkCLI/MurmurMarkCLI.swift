@@ -8102,6 +8102,20 @@ enum CorpusCommands {
                 try PythonRuntime.resolve(),
                 [try script("report-transcript-perfection-corpus.py").path] + forwarded
             )
+        case "post-segmentation-rebaseline", "post_segmentation_rebaseline":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(
+                    try PythonRuntime.resolve(),
+                    [try script("report-post-segmentation-transcript-rebaseline-v1.py").path, "--help"]
+                )
+                return
+            }
+            try Tooling.runPath(
+                try PythonRuntime.resolve(),
+                [try script("report-post-segmentation-transcript-rebaseline-v1.py").path]
+                    + forwarded
+                    + ["--sessions-root", sessionsRoot.path]
+            )
         case "lexical", "lexical-accuracy", "lexical_accuracy":
             if forwarded.isEmpty || ArgumentEditing.hasHelpFlag(forwarded) {
                 try Tooling.runPath(
@@ -8906,6 +8920,8 @@ enum CorpusHelp {
                                       [--policy policies/disjoint-remote-speaker-model-qualification-v1.json]
           murmurmark corpus perfection all [--verify-existing]
                                         [--manifest docs/testing/transcript-perfection-corpus-v1-manifest.json]
+          murmurmark corpus post-segmentation-rebaseline all [--refresh] [--verify-existing]
+                                        [--write-snapshot]
           murmurmark corpus lexical import SESSION SOURCE --source-id ID
                                       --meeting-mode 1x1|group --acoustic-mode MODE
                                       [--trust-grade independent_machine] [--local-speaker NAME]

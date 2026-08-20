@@ -90,6 +90,8 @@ CRITICAL_PATH = (
     "quality-residual-transcript-integrity-hardening-v1",
     "quality-remote-speaker-boundary-minority-segmentation-v1",
     "quality-post-segmentation-transcript-rebaseline-v1",
+    "quality-capture-continuity-loss-closure-v1",
+    "quality-remote-unknown-evidence-recovery-v1",
     "quality-human-reviewed-lexical-seed-v1",
     "quality-session-scoped-lexical-context-v1",
     "product-speaker-resolved-transcript-terminal-gate-v1",
@@ -169,7 +171,7 @@ def validate_statuses_and_goal(plan: dict) -> tuple[dict, str]:
     require(isinstance(statuses, dict), "plan.statuses must be a mapping")
     require(set(statuses) == EXPECTED_STATUSES, "plan status set does not match the planning contract")
     require(isinstance(nodes, dict) and nodes, "plan.nodes must be a non-empty mapping")
-    require(len(nodes) <= 60, f"active plan is too large: {len(nodes)} nodes, expected at most 60")
+    require(len(nodes) <= 62, f"active plan is too large: {len(nodes)} nodes, expected at most 62")
 
     current = [(node_id, node) for node_id, node in nodes.items() if node.get("status") == "current"]
     current_tasks = [(node_id, node) for node_id, node in current if node.get("kind") == "task"]
@@ -537,8 +539,26 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
         "remote-speaker boundary and minority segmentation must remain completed",
     )
     require(
-        nodes["quality-post-segmentation-transcript-rebaseline-v1"].get("status") == "current",
-        "post-segmentation transcript rebaseline must be the current quality goal",
+        nodes["quality-post-segmentation-transcript-rebaseline-v1"].get("status") == "done",
+        "post-segmentation transcript rebaseline must remain completed",
+    )
+    require(
+        "quality-post-segmentation-transcript-rebaseline-v1"
+        in nodes["quality-capture-continuity-loss-closure-v1"].get("deps", []),
+        "capture continuity closure must follow the fresh transcript rebaseline",
+    )
+    require(
+        nodes["quality-capture-continuity-loss-closure-v1"].get("status") == "current",
+        "capture continuity loss closure must be the current quality goal",
+    )
+    require(
+        "quality-capture-continuity-loss-closure-v1"
+        in nodes["quality-remote-unknown-evidence-recovery-v1"].get("deps", []),
+        "remote unknown recovery must follow source continuity closure",
+    )
+    require(
+        nodes["quality-remote-unknown-evidence-recovery-v1"].get("status") == "next",
+        "remote unknown evidence recovery must remain the next measured quality residual",
     )
     require(
         nodes["quality-human-reviewed-lexical-seed-v1"].get("status") == "blocked",

@@ -178,6 +178,9 @@ Read in this order:
 174. [Remote Speaker Boundary and Minority-Voice Segmentation v1 runbook](runbooks/remote-speaker-boundary-minority-v1.md)
 175. [Remote Speaker Boundary and Minority-Voice Segmentation v1 result](testing/2026-08-20-remote-speaker-boundary-minority-v1.md)
 176. [Remote Speaker Boundary and Minority-Voice Segmentation v1 manifest](testing/remote-speaker-boundary-minority-v1-manifest.json)
+177. [Post-Segmentation Transcript Rebaseline v1 contract](contracts/post-segmentation-transcript-rebaseline-v1.md)
+178. [Post-Segmentation Transcript Rebaseline v1 runbook](runbooks/post-segmentation-transcript-rebaseline-v1.md)
+179. [Post-Segmentation Transcript Rebaseline v1 result](testing/2026-08-20-post-segmentation-transcript-rebaseline-v1.md)
 
 ## Current Planning Entry Points
 
@@ -244,9 +247,10 @@ purity `89.8106%` and minority recall `0`. Transcript Integrity v1 then repaired
 duplicate/repetition candidates while leaving nine ambiguous cases explicit. The Boundary and
 Minority-Voice candidate then closed `KEEP_COVERAGE_V3`: all words survived, but real
 boundary precision was `0.044688`, speaker-count ratio `0.5`, minority recall `0.017161` and
-timing-shift partition ARI `0.289387`. The current goal is a fresh transcript rebaseline, followed
-by a human-reviewed lexical seed, session-scoped lexical context and a product-level terminal gate.
-Before that rebaseline, Enrichment Transaction and Cache Coherence v1 closed stale-state risk:
+timing-shift partition ARI `0.289387`. The fresh rebaseline then passed on six fingerprint-bound
+sessions and found three restart-bounded PCM gaps / `2.268542s`. Capture Continuity Loss Closure v1
+is now current; human-reviewed lexical truth and session-scoped context follow it.
+Before the rebaseline, Enrichment Transaction and Cache Coherence v1 closed stale-state risk:
 deferred profile changes now reconcile review history, speaker evidence, readiness and outcome, and
 identical stronger-audio clips reuse content-addressed local decodes.
 Domain glossaries remain private inputs and are not yet

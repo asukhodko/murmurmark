@@ -129,15 +129,17 @@ met, unless an explicit product decision changes the priority.
    exact words survived, but boundary precision, speaker-count and minority gates failed.
 3. **Enrichment Transaction and Cache Coherence v1:** completed; late Echo/review changes now
    rebuild dependent outputs, preserve compatible decisions and converge to one canonical queue.
-4. **Post-Segmentation Transcript Rebaseline v1:** current; rerun one comparable fresh corpus and
-   rank speaker topology, unknown, overlap, chronology, lexical and read-surface errors.
-5. **Human-Reviewed Lexical Seed v1:** collect exact real-meeting word truth before tuning ASR;
+4. **Post-Segmentation Transcript Rebaseline v1:** completed; six fresh sessions passed surface and
+   conservation checks and exposed three restart-bounded PCM gaps.
+5. **Capture Continuity Loss Closure v1:** current; remove avoidable restart latency and make any
+   external source outage exact and impossible to mistake for complete capture.
+6. **Human-Reviewed Lexical Seed v1:** collect exact real-meeting word truth before tuning ASR;
    agreement between local recognizers is diagnostic evidence only.
-6. **Session-Scoped Lexical Context v1:** compile a short topic-specific prompt or hotword set and
+7. **Session-Scoped Lexical Context v1:** compile a short topic-specific prompt or hotword set and
    promote it only after multi-session no-regression A/B. A broad static glossary is not an ASR prompt.
-7. **Speaker-Resolved Transcript Terminal Gate v1:** make the product North Star measurable across
+8. **Speaker-Resolved Transcript Terminal Gate v1:** make the product North Star measurable across
    capture, words, chronology, roles, remote speakers, explicit unknown and exact fallback.
-8. **Local Mic Multi-Speaker Diarization v1:** a conditional branch opened only by a real
+9. **Local Mic Multi-Speaker Diarization v1:** a conditional branch opened only by a real
    multi-person local scenario and labelled corpus.
 
 ## Long-Term Direction

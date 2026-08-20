@@ -1,0 +1,212 @@
+{
+  "controls": {
+    "all_fingerprints_current": true,
+    "boundary_minority_terminal_decision": "KEEP_COVERAGE_V3",
+    "coverage_v3_baseline_decision": "PROMOTE",
+    "transcript_perfection_baseline_decision": "BASELINE_ESTABLISHED"
+  },
+  "decision": "REBASELINE_ESTABLISHED",
+  "dimensions": {
+    "capture_completeness": {
+      "gap_seconds": 2.268542,
+      "status": "failed"
+    },
+    "explicit_unknown": {
+      "causes": [
+        {
+          "cause": "similarity_below_threshold",
+          "seconds": 136.457975,
+          "sessions": 3,
+          "words": 119
+        },
+        {
+          "cause": "embedding_unavailable",
+          "seconds": 108.0,
+          "sessions": 5,
+          "words": 146
+        },
+        {
+          "cause": "conflicting_frame_speakers",
+          "seconds": 74.067191,
+          "sessions": 3,
+          "words": 147
+        },
+        {
+          "cause": "protected_remote_overlap",
+          "seconds": 43.21859,
+          "sessions": 4,
+          "words": 50
+        },
+        {
+          "cause": "margin_below_threshold",
+          "seconds": 35.799814,
+          "sessions": 3,
+          "words": 85
+        }
+      ],
+      "seconds": 397.54357,
+      "status": "measured_abstention_not_correctness",
+      "words": 547
+    },
+    "lexical_evidence": {
+      "review_rows": 93,
+      "review_seconds": 372.77,
+      "status": "partial_no_fresh_independent_truth"
+    },
+    "overlap_and_chronology": {
+      "chronology_seconds": 47.7,
+      "overlap_review_seconds": 12.66,
+      "status": "measured"
+    },
+    "read_surface_coherence": {
+      "status": "passed"
+    },
+    "remote_speaker_topology": {
+      "internal_change_utterances": 49,
+      "published_speakers": 12,
+      "status": "measured_without_human_count_truth"
+    },
+    "review_burden": {
+      "remaining_rows": 107,
+      "remaining_seconds": 398.92,
+      "status": "measured"
+    },
+    "timestamp_and_role_conservation": {
+      "status": "passed"
+    },
+    "word_conservation": {
+      "status": "passed"
+    }
+  },
+  "gates": {
+    "aggregate_quality_score_disabled": true,
+    "boundary_terminal_keep_coverage_v3": true,
+    "capture_complete": false,
+    "controls_frozen": true,
+    "coverage_v3_baseline_promoted": true,
+    "minimum_fresh_sessions": true,
+    "no_stale_or_incompatible_sessions": true,
+    "one_to_one_and_group_present": true,
+    "privacy_safe_public_report": true,
+    "product_no_regression": false,
+    "read_surfaces_coherent": true,
+    "rebaseline_evidence_complete": true,
+    "transcript_perfection_baseline_current": true,
+    "word_order_role_conserved": true,
+    "zero_production_mutations": true
+  },
+  "next_priority": {
+    "axis": "capture_continuity",
+    "goal": "Capture Continuity Loss Closure v1",
+    "reason": "recorded tracks contain restart-bounded intervals with no captured PCM"
+  },
+  "privacy": {
+    "absolute_paths": false,
+    "private_manifest": "private/input_manifest.json",
+    "session_ids": false,
+    "speaker_names": false,
+    "speech_text": false
+  },
+  "residual_axes": [
+    {
+      "actionable": true,
+      "axis": "capture_continuity",
+      "evidence": "restart_bounded_pcm_scan",
+      "hard_regression": true,
+      "item_unit": "capture_gaps",
+      "items": 3,
+      "rank": 1,
+      "reason": "recorded tracks contain restart-bounded intervals with no captured PCM",
+      "seconds": 2.268542,
+      "sessions": 1
+    },
+    {
+      "actionable": true,
+      "axis": "remote_unknown_evidence",
+      "evidence": "explicit_coverage_abstention",
+      "hard_regression": false,
+      "item_unit": "words",
+      "items": 547,
+      "rank": 2,
+      "reason": "remote speech is preserved but lacks supported speaker attribution",
+      "seconds": 1037.62357,
+      "sessions": 6
+    },
+    {
+      "actionable": true,
+      "axis": "manual_review_burden",
+      "evidence": "current_review_progress",
+      "hard_regression": false,
+      "item_unit": "review_rows",
+      "items": 107,
+      "rank": 3,
+      "reason": "current session use still requires unresolved review decisions",
+      "seconds": 398.92,
+      "sessions": 6
+    },
+    {
+      "actionable": true,
+      "axis": "chronology_risk",
+      "evidence": "current_order_audit",
+      "hard_regression": false,
+      "item_unit": "review_rows",
+      "items": 7,
+      "rank": 4,
+      "reason": "speaker-bounded order risk remains explicit",
+      "seconds": 47.7,
+      "sessions": 1
+    },
+    {
+      "actionable": false,
+      "axis": "lexical_review",
+      "evidence": "machine_review_queue_without_independent_truth",
+      "hard_regression": false,
+      "item_unit": "review_rows",
+      "items": 93,
+      "rank": 5,
+      "reason": "text uncertainty is measured, but fresh independent lexical truth is absent",
+      "seconds": 372.77,
+      "sessions": 6
+    },
+    {
+      "actionable": false,
+      "axis": "read_surface_coherence",
+      "evidence": "selected_provisional_aggregate_contract",
+      "hard_regression": false,
+      "item_unit": "sessions",
+      "items": 1,
+      "rank": 6,
+      "reason": "strict fallback or provisional output is visible on the ordinary read surface",
+      "seconds": null,
+      "sessions": 1
+    }
+  ],
+  "safety": {
+    "coverage_v3_changed": 0,
+    "production_profiles_changed": 0,
+    "raw_audio_changed": 0,
+    "session_artifacts_written": 0
+  },
+  "schema": "murmurmark.post_segmentation_transcript_rebaseline_snapshot/v1",
+  "summary": {
+    "aggregate_only_sessions": 0,
+    "aggregate_quality_score": null,
+    "capture_seconds": 13936.399,
+    "excluded_sessions": 0,
+    "frozen_baseline_unknown_seconds_ratio": 0.060688,
+    "frozen_sessions": 6,
+    "included_sessions": 6,
+    "meeting_shapes": [
+      "group",
+      "one_to_one"
+    ],
+    "provisional_sessions": 1,
+    "remote_speech_seconds_coverage_v3": 7862.44,
+    "remote_words_coverage_v3": 15332,
+    "strict_rich_sessions": 5,
+    "unknown_remote_seconds_coverage_v3": 397.54357,
+    "unknown_remote_seconds_ratio": 0.050562,
+    "unknown_remote_words_coverage_v3": 547,
+    "unknown_remote_words_ratio": 0.035677
+  }
+}

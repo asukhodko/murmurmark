@@ -33,7 +33,7 @@ nodes:
     title: "MurmurMark CLI"
     kind: summary
     status: current
-    effort: 412
+    effort: 420
     notes: |
       Активная CLI-first, local-first и evidence-backed программа. Batch transcript остаётся
       authoritative. Текущий North Star: одной командой получить максимально надёжный transcript,
@@ -785,19 +785,47 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-remote-speaker-boundary-minority-segmentation-v1]
-    status: current
+    status: done
     effort: 10
     notes: |
-      Зафиксировать KEEP_COVERAGE_V3 outcome boundary/minority candidate, обновить fresh-session
-      evidence и заново ранжировать speaker topology, explicit unknown, overlap, chronology, lexical
-      residuals и пользовательские rich/provisional/aggregate surfaces. Следующую ветку выбрать по
-      измеренному corpus-wide вреду, доступной truth и проверяемости, а не по одному новому примеру.
+      Завершено REBASELINE_ESTABLISHED. Шесть fingerprint-bound свежих сессий дали пять strict rich
+      и одну disclaimer-bearing provisional surface; words, roles, timestamps и aggregate fallback
+      сохранены. Strict Coverage v3 оставил unknown 5.0562% remote seconds против frozen 6.0688%.
+      Найдены три restart-bounded capture gap общей длиной 2.268542s, поэтому hard source loss стал
+      единственным следующим приоритетом раньше downstream unknown/review residuals.
+
+  quality-capture-continuity-loss-closure-v1:
+    title: "Capture Continuity Loss Closure v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-post-segmentation-transcript-rebaseline-v1]
+    status: current
+    effort: 8
+    notes: |
+      Заморозить подтверждённый случай трёх ScreenCaptureKit restart-gap, разложить stop -> restart ->
+      first committed PCM latency, устранить лишнюю программную паузу и покрыть restart state machine
+      детерминированным fault injection. Если macOS не отдаёт PCM во время outage, не подменять потерю
+      тишиной: источник должен оставаться usable partial с точными интервалами и явным предупреждением.
+      Production ASR, Echo Guard, Coverage v3 и сохранённые raw не менять.
+
+  quality-remote-unknown-evidence-recovery-v1:
+    title: "Remote Unknown Evidence Recovery v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-capture-continuity-loss-closure-v1]
+    status: next
+    effort: 10
+    notes: |
+      После source continuity разобрать 397.543570s / 547 strict Coverage v3 unknown words и
+      provisional fallback отдельно по similarity, embedding availability, conflicting frames,
+      overlap и margin causes. Восстанавливать speaker label только по независимому evidence;
+      unknown остаётся корректным исходом, production thresholds не ослабляются по одному корпусу.
 
   quality-human-reviewed-lexical-seed-v1:
     title: "Human-Reviewed Lexical Seed v1"
     kind: task
     parent: murmurmark-cli
-    deps: [quality-post-segmentation-transcript-rebaseline-v1]
+    deps: [quality-remote-unknown-evidence-recovery-v1]
     status: blocked
     effort: 8
     notes: |
@@ -866,13 +894,16 @@ views:
     lanes:
       working:
         title: "Готовая основа"
-        nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1, quality-residual-transcript-integrity-hardening-v1, quality-remote-speaker-boundary-minority-segmentation-v1, product-one-command-meeting-lifecycle-v1]
+        nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1, quality-residual-transcript-integrity-hardening-v1, quality-remote-speaker-boundary-minority-segmentation-v1, quality-post-segmentation-transcript-rebaseline-v1, product-one-command-meeting-lifecycle-v1]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-post-segmentation-transcript-rebaseline-v1]
+        nodes: [quality-capture-continuity-loss-closure-v1]
       blocked:
         title: "Внешняя lexical truth"
         nodes: [quality-human-reviewed-lexical-seed-v1]
+      next:
+        title: "Следующий quality residual"
+        nodes: [quality-remote-unknown-evidence-recovery-v1]
 
   critical-path:
     title: "Критический CLI-путь"
@@ -932,6 +963,8 @@ views:
           - quality-residual-transcript-integrity-hardening-v1
           - quality-remote-speaker-boundary-minority-segmentation-v1
           - quality-post-segmentation-transcript-rebaseline-v1
+          - quality-capture-continuity-loss-closure-v1
+          - quality-remote-unknown-evidence-recovery-v1
           - quality-human-reviewed-lexical-seed-v1
           - quality-session-scoped-lexical-context-v1
           - product-speaker-resolved-transcript-terminal-gate-v1
@@ -975,8 +1008,11 @@ views:
         title: "Доказанная speaker evidence"
         nodes: [research-remote-diarization, research-rich-transcript, quality-remote-speaker-diarization-v2]
       current:
-        title: "Повторное измерение"
-        nodes: [quality-post-segmentation-transcript-rebaseline-v1]
+        title: "Надёжность источника"
+        nodes: [quality-capture-continuity-loss-closure-v1]
+      unknown:
+        title: "Следующий измеренный остаток"
+        nodes: [quality-remote-unknown-evidence-recovery-v1]
       boundary-result:
         title: "Отклонённый boundary candidate"
         nodes: [quality-remote-speaker-boundary-minority-segmentation-v1]
@@ -1050,6 +1086,8 @@ views:
           - quality-residual-transcript-integrity-hardening-v1
           - quality-remote-speaker-boundary-minority-segmentation-v1
           - quality-post-segmentation-transcript-rebaseline-v1
+          - quality-capture-continuity-loss-closure-v1
+          - quality-remote-unknown-evidence-recovery-v1
           - quality-human-reviewed-lexical-seed-v1
           - quality-session-scoped-lexical-context-v1
           - product-speaker-resolved-transcript-terminal-gate-v1
@@ -1060,8 +1098,8 @@ x:
   exec:
     program:
       nearest_goal: >-
-        Post-Segmentation Transcript Rebaseline v1: зафиксировав terminal outcome KEEP_COVERAGE_V3 и неизменный production Coverage v3, пересобрать свежий корпус speaker-resolved транскрибаций, проверить selected/provisional/aggregate surfaces и ранжировать остаточные topology, unknown, overlap, chronology и lexical defects; выпустить один evidence-backed приоритет следующего улучшения с frozen inputs, exact replay, no-regression gates, privacy-safe отчётом, тестами, документацией, коммитом и push.
-      success_by_next_sync: "Есть fingerprint-bound fresh-session rebaseline без production mutations, раздельные метрики всех residual axes и один доказанный следующий технический приоритет."
+        Capture Continuity Loss Closure v1: зафиксировав завершённый Post-Segmentation Transcript Rebaseline v1 и неизменные production transcript profiles, воспроизвести три restart-bounded PCM gap общей длиной 2.268542s, измерить stop-to-first-committed-PCM latency, устранить доказанную программную задержку либо выпустить точный EVIDENCE_BOUND для macOS outage, сделать loss явным в lifecycle/readiness, добавить fault-injection, soak и no-regression тесты, синхронизировать документацию и планы, затем закоммитить и отправить изменения в origin/main.
+      success_by_next_sync: "Restart state machine воспроизводится тестом; устранимая задержка закрыта, а неизбежная потеря PCM точно измеряется и никогда не маскируется как полная запись."
     defaults:
       status_progress:
         done: 1.0
@@ -1082,13 +1120,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle и batch transcript работают; Transcript Integrity v1 promoted 10 proven repairs with exact fallback."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Post-Segmentation Transcript Rebaseline v1"
-        scope_nodes: [quality-post-segmentation-transcript-rebaseline-v1]
+        title: "Capture Continuity Loss Closure v1"
+        scope_nodes: [quality-capture-continuity-loss-closure-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Boundary/minority v1 закрыт KEEP_COVERAGE_V3: real precision 0.044688, speaker-count ratio 0.5 и minority recall 0.017161 при exact words."
-          next_sync_goal: "Пересобрать fresh corpus на неизменном Coverage v3 и выбрать следующий axis по измеренному вреду."
+          sync_note: "Fresh rebaseline завершён: surfaces и conservation прошли, но одна сессия потеряла 2.268542s PCM на трёх ScreenCaptureKit restarts."
+          next_sync_goal: "Устранить программную restart latency и сделать неизбежный source loss точным и видимым."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -1122,14 +1160,16 @@ x:
           - quality-residual-transcript-integrity-hardening-v1
           - quality-remote-speaker-boundary-minority-segmentation-v1
           - quality-post-segmentation-transcript-rebaseline-v1
+          - quality-capture-continuity-loss-closure-v1
+          - quality-remote-unknown-evidence-recovery-v1
           - quality-human-reviewed-lexical-seed-v1
           - quality-session-scoped-lexical-context-v1
           - product-speaker-resolved-transcript-terminal-gate-v1
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Speaker-resolved handoff готов; boundary candidate не прошёл, поэтому fresh rebaseline предшествует следующей модели или ASR tuning."
-          next_sync_goal: "Сохранить Coverage v3 и ранжировать topology, unknown, overlap, chronology и lexical residuals единым корпусом."
+          sync_note: "Speaker-resolved handoff и fresh rebaseline готовы; hard capture loss закрывается до следующей speaker/lexical гипотезы."
+          next_sync_goal: "Вернуться к remote unknown evidence после закрытия source continuity."
     edges:
       - from: working-now
         to: current-quality
@@ -1145,7 +1185,7 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: boundary candidate сохранён как KEEP_COVERAGE_V3; текущий фокус — единый fresh-session rebaseline и выбор следующего axis."
+        caption: "Короткая карта: fresh rebaseline завершён; текущий фокус — три измеренных restart-gap и честная непрерывность raw capture."
         blocks:
           - working-now
           - current-quality

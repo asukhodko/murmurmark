@@ -1,0 +1,129 @@
+{
+  "schema": "murmurmark.post_segmentation_transcript_rebaseline_policy/v1",
+  "version": 1,
+  "state": "read_only_fingerprint_bound_rebaseline",
+  "discovery": {
+    "minimum_session_name": "2026-08-19_00-00-00",
+    "maximum_sessions": 6,
+    "minimum_sessions": 6,
+    "required_files": [
+      "session.json",
+      "derived/readiness/session_readiness.json",
+      "derived/transcript-rich/speaker-resolved-default-v1/selection.json"
+    ]
+  },
+  "controls": [
+    {
+      "id": "coverage_v3_policy",
+      "path": "policies/remote-speaker-coverage-v3.json",
+      "sha256": "41a40a4be53d7c9732165021900808a6a02c205601408aa9424f9d6ad476b8ff"
+    },
+    {
+      "id": "speaker_resolved_selector_policy",
+      "path": "policies/speaker-resolved-transcript-default-v1.json",
+      "sha256": "01985703b1f9d04d00ba2dd64734fa07830ea0a37fcf8204e5759818df5058df"
+    },
+    {
+      "id": "speaker_resolved_selector",
+      "path": "scripts/select-speaker-resolved-transcript.py",
+      "sha256": "423a36b93a764ce239eb55d63ef00a6bb4a34a78de55bc9bdeac29152d4a9d21"
+    },
+    {
+      "id": "provisional_materializer",
+      "path": "scripts/materialize-provisional-speaker-transcript.py",
+      "sha256": "a3c5c2e67566b8b3c3cd89402af90565653607422cb0a776eba61de937470035"
+    },
+    {
+      "id": "boundary_minority_policy",
+      "path": "policies/remote-speaker-boundary-minority-v1.json",
+      "sha256": "a439dfed74931fd9b1bd5cc250d0bc8994b281bdac664ff47c33bd282844b9e7"
+    },
+    {
+      "id": "boundary_minority_freeze",
+      "path": "sessions/_reports/remote-speaker-boundary-minority-v1/freeze_manifest.json",
+      "sha256": "b262bcd900ca8aa198f37f6946da487b10194d335329b0f8a0687e8c8f0f7f91"
+    },
+    {
+      "id": "boundary_minority_terminal_report",
+      "path": "sessions/_reports/remote-speaker-boundary-minority-v1/report.json",
+      "sha256": "04af3e039ec10471f2fefe5f91990ef734cf55298ba1ff3fabb42f71d55ba17e"
+    },
+    {
+      "id": "coverage_v3_frozen_baseline",
+      "path": "sessions/_reports/remote-speaker-coverage-v3/remote_speaker_coverage_corpus_report.json",
+      "sha256": "0d2d6edcb0a0153a7ea3190760a8df609c3f3f7633c075ab65252035862932d4"
+    },
+    {
+      "id": "transcript_perfection_baseline",
+      "path": "sessions/_reports/transcript-perfection-corpus-v1/transcript_perfection_corpus_report.json",
+      "sha256": "3bb00077719fedca9f5fcb68e45cf3ce76c42b703f7b0322fd7b75c96eaf38f2"
+    },
+    {
+      "id": "transcript_perfection_residuals",
+      "path": "sessions/_reports/transcript-perfection-corpus-v1/residual_ranking.jsonl",
+      "sha256": "17c2dd30b788ccdb9b9a0933ce71ed19b4a4c9756c7f75032cc0fd12d8325c1b"
+    },
+    {
+      "id": "acoustic_mode_frozen_baseline",
+      "path": "sessions/_reports/speaker-mode-hardening-v1/acoustic_mode_corpus_report.json",
+      "sha256": "72beb4f29cf897e0b9829da83e9ec42209517bd3bf49b5259cb97c539f3bf179"
+    }
+  ],
+  "surfaces": {
+    "strict": "derived/transcript-rich/speaker-resolved-default-v1/selection.json",
+    "provisional": "derived/transcript-rich/speaker-resolved-default-v1/provisional/selection.json",
+    "aggregate_rule": "selection.aggregate_transcript",
+    "strict_selected_precedes_provisional": true,
+    "fallback_must_be_exact": true,
+    "weak_attribution_requires_disclaimer": true
+  },
+  "dimensions": [
+    "capture_completeness",
+    "word_conservation",
+    "timestamp_and_role_conservation",
+    "read_surface_coherence",
+    "remote_speaker_topology",
+    "explicit_unknown",
+    "overlap_and_chronology",
+    "lexical_evidence",
+    "review_burden"
+  ],
+  "priority": {
+    "hard_regressions_first": true,
+    "rank_measured_seconds_descending": true,
+    "missing_truth_cannot_be_called_correct": true,
+    "selected_goal_by_axis": {
+      "capture_continuity": "Capture Continuity Loss Closure v1",
+      "remote_unknown_evidence": "Remote Unknown Evidence Recovery v1",
+      "read_surface_coherence": "Speaker Read Surface Coherence v1",
+      "chronology_risk": "Residual Chronology Arbitration v1",
+      "lexical_review": "Lexical Truth Expansion v1",
+      "manual_review_burden": "Residual Review Burden Closure v1"
+    }
+  },
+  "gates": {
+    "required_boundary_decision": "KEEP_COVERAGE_V3",
+    "required_coverage_baseline_decision": "PROMOTE",
+    "required_perfection_baseline_decision": "BASELINE_ESTABLISHED",
+    "minimum_meeting_shapes": 2,
+    "maximum_capture_gap_seconds": 0.0,
+    "required_production_mutations": 0
+  },
+  "privacy": {
+    "public_session_ids": false,
+    "public_absolute_paths": false,
+    "public_speech_text": false,
+    "public_speaker_names": false,
+    "private_manifest_under_sessions": true
+  },
+  "safety": {
+    "read_only_sessions": true,
+    "coverage_v3_mutation": false,
+    "selected_transcript_mutation": false,
+    "raw_audio_mutation": false,
+    "primary_asr_mutation": false,
+    "echo_guard_mutation": false,
+    "cloud_inference": false,
+    "aggregate_quality_score": false
+  }
+}

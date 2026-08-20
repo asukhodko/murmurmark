@@ -309,9 +309,9 @@ keeps real-meeting lexical correctness blocked by missing human-reviewed evidenc
 murmurmark corpus lexical status
 murmurmark corpus lexical replay --write-manifest docs/testing/lexical-accuracy-reference-corpus-v1-manifest.json
 murmurmark corpus perfection all --verify-existing
+murmurmark corpus post-segmentation-rebaseline all --verify-existing
 murmurmark corpus remote-truth-seed-v2 status && murmurmark corpus remote-truth-seed-v2 replay && murmurmark corpus remote-model-disjoint-v1 status && murmurmark corpus remote-model-disjoint-v1 replay && murmurmark corpus remote-cluster-purity-v1 status && murmurmark corpus remote-cluster-purity-v1 replay
 ```
-
 The local glossary and prompt files are private inputs. The current production bridge does not
 consume `glossary.yaml`; its default `--max-context 0` also makes a prompt ineffective. A diagnostic
 A/B showed that a short topic-specific context can repair difficult terminology, while a broad
@@ -323,13 +323,14 @@ Disjoint truth v2 is complete: 72 primary + 12 repeats, consistency `1.0` and by
 one-shot ERes2NetV2 qualification kept Coverage v3; Cluster Purity Reference v1 found 10 remote
 voices compressed into four acoustic clusters, purity `89.8106%` and minority recall `0`. Transcript
 Integrity v1 repaired 10/19 proven duplicate/repetition candidates. Frozen Boundary and
-Minority-Voice Segmentation v1 then kept Coverage v3: exact words, but real precision `0.044688`,
-speaker ratio `0.5` and minority recall `0.017161`. Enrichment Transaction and Cache Coherence v1 is done; current: **Post-Segmentation Transcript Rebaseline v1**.
+Minority-Voice Segmentation v1 kept Coverage v3. Post-Segmentation Transcript Rebaseline v1 is done:
+6/6 fresh sessions, coherent surfaces and exact conservation; current: **Capture Continuity Loss Closure v1** after three measured restart gaps totalling `2.268542s`.
 The remaining critical path is:
 ```text
 Coverage v3 + Transcript Integrity v1 -> Boundary Segmentation v1 (KEEP_COVERAGE_V3)
--> Post-Segmentation Transcript Rebaseline v1 (current)
--> Human-Reviewed Lexical Seed v1 (external evidence)
+-> Post-Segmentation Transcript Rebaseline v1 (REBASELINE_ESTABLISHED)
+-> Capture Continuity Loss Closure v1 (current)
+-> Remote Unknown Evidence Recovery v1 (next) -> Human-Reviewed Lexical Seed v1 (external evidence)
 -> Session-Scoped Lexical Context v1
 -> Speaker-Resolved Transcript Terminal Gate v1
 ```
@@ -381,7 +382,7 @@ See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](do
 
 - [Documentation index](docs/00-index.md), [mission](docs/product/vision.md), [requirements](docs/product/prd-v1.md), [current goal](docs/project/current-goal.md), [route](docs/project/reliable-transcription-route.md), [roadmap](docs/roadmap/murmurmark-cli-roadmap.md), [OpsKarta](docs/roadmap/murmurmark-cli-roadmap.plan.yaml)
 - [Meeting lifecycle contract](docs/contracts/meeting-lifecycle.md), [meeting cheat sheet](docs/runbooks/meeting-cheatsheet.md), [transcription runbook](docs/runbooks/transcribe-simple-whispercpp.md), [Transcript Integrity contract](docs/contracts/transcript-integrity-v1.md) and [runbook](docs/runbooks/transcript-integrity-v1.md)
-- [Transcript Perfection Corpus](docs/contracts/transcript-perfection-corpus.md), [Lexical Accuracy Reference Corpus](docs/contracts/lexical-accuracy-reference-corpus.md), [Remote Speaker Coverage v3](docs/contracts/remote-speaker-coverage-v3.md) and [Residual Evidence v4](docs/contracts/remote-speaker-residual-evidence-v4.md)
+- [Transcript Perfection Corpus](docs/contracts/transcript-perfection-corpus.md), [Post-Segmentation Rebaseline](docs/contracts/post-segmentation-transcript-rebaseline-v1.md), [Lexical Accuracy Reference Corpus](docs/contracts/lexical-accuracy-reference-corpus.md), [Remote Speaker Coverage v3](docs/contracts/remote-speaker-coverage-v3.md) and [Residual Evidence v4](docs/contracts/remote-speaker-residual-evidence-v4.md)
 - [Domain pack and lexical-context boundary](docs/contracts/domain-pack.md)
 - [Independent evidence](docs/contracts/independent-remote-speaker-evidence-v1.md), [Controlled Truth Lab](docs/contracts/controlled-remote-speaker-truth-lab-v1.md), [Disjoint ERes2NetV2 result](docs/contracts/disjoint-remote-speaker-model-qualification-v1.md), [Cluster Purity Reference](docs/contracts/remote-speaker-cluster-purity-reference-v1.md), and [Boundary and Minority-Voice result](docs/testing/2026-08-20-remote-speaker-boundary-minority-v1.md)
 - [Speaker-Resolved Default](docs/contracts/speaker-resolved-transcript-default-v1.md) and [roster-constrained evidence](docs/contracts/roster-constrained-remote-speaker-evidence-v1.md)
@@ -395,5 +396,5 @@ murmurmark corpus remote-coverage all --verify-existing && murmurmark corpus rem
 murmurmark corpus remote-independent all --verify-existing && murmurmark corpus remote-reference replay && murmurmark corpus remote-duration-v2 replay
 murmurmark corpus speaker-default all --verify-existing
 murmurmark corpus remote-identity-v1 replay && murmurmark corpus remote-boundary-minority-v1 replay
-murmurmark corpus perfection all --verify-existing
+murmurmark corpus perfection all --verify-existing && murmurmark corpus post-segmentation-rebaseline all --verify-existing
 ```

@@ -55,7 +55,8 @@ Current implementation status, 2026-08-20:
   identity as the dominant error axis. ECAPA passed synthetic hard-v4 but failed real-session
   promotion; interval, enrollment, representation and temporal variants also did not advance.
   Disjoint Truth v2 and Cluster Purity Reference v1 localized the remaining topology defect to mixed
-  boundaries and minority voices. Boundary/minority segmentation kept Coverage v3; fresh rebaseline is current,
+  boundaries and minority voices. Boundary/minority segmentation kept Coverage v3; fresh rebaseline
+  passed and exposed three restart-bounded capture gaps. Capture continuity closure is current;
   human-reviewed lexical truth, session-scoped lexical context and a terminal product gate follow.
   Production remains Coverage v3. Cross-session identity, summaries, cloud/external writes and UI
   remain future or optional;

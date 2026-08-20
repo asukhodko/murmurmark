@@ -29,9 +29,10 @@ Enrollment Purity and Abstention Hardening v2 kept Coverage v3: 7/14 profiles qu
 identity was added. Homogeneous enrollment, stronger representations and temporal clustering then
 closed without promotion. Disjoint Truth v2 and Cluster Purity Reference v1 localized the remaining
 topology defect to mixed boundaries and minority turns. Boundary and Minority-Voice Segmentation v1
-then kept Coverage v3 after weak real precision, speaker-count and minority gates. A unified
-Post-Segmentation Transcript Rebaseline v1 is current. Notes, retrieval and work proposals remain
-optional derivatives.
+then kept Coverage v3 after weak real precision, speaker-count and minority gates. Post-Segmentation
+Transcript Rebaseline v1 passed on six fresh sessions and selected measured raw continuity loss as
+the first hard residual. Capture Continuity Loss Closure v1 is current. Notes, retrieval and work
+proposals remain optional derivatives.
 Date: 2026-08-20
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
@@ -508,10 +509,10 @@ is selected only while every source/output hash and the qualified algorithm hash
 ## Current Executable Goal
 
 ```text
-Post-Segmentation Transcript Rebaseline v1: зафиксировать KEEP_COVERAGE_V3, пересобрать свежий
-speaker-resolved corpus на неизменном production и раздельно ранжировать topology, unknown,
-overlap, chronology, lexical и read-surface residuals; выбрать один следующий axis по измеренному
-вреду и доступной truth.
+Capture Continuity Loss Closure v1: на завершённом fresh rebaseline воспроизвести три
+restart-bounded PCM gap / 2.268542s, отделить macOS outage от программной restart latency,
+устранить лишнюю паузу и сделать любой неизбежный source loss точным и видимым во всех
+пользовательских поверхностях.
 ```
 
 Remote Speaker Attribution Error Decomposition v1 завершён
@@ -526,13 +527,15 @@ Local mic multi-speaker остаётся условной веткой и отк
 
 ## Dependent Milestones
 
-1. **Human-Reviewed Lexical Seed v1** remains blocked on exact real-meeting word truth covering
+1. **Remote Unknown Evidence Recovery v1** follows capture closure and targets supported attribution
+   only; explicit unknown remains valid abstention.
+2. **Human-Reviewed Lexical Seed v1** remains blocked on exact real-meeting word truth covering
    1x1/group, both roles and two acoustic modes.
-2. **Session-Scoped Lexical Context v1** compiles only a compact meeting-specific prompt or hotword
+3. **Session-Scoped Lexical Context v1** compiles only a compact meeting-specific prompt or hotword
    set and requires a frozen multi-session no-regression A/B.
-3. **Speaker-Resolved Transcript Terminal Gate v1** measures the North Star across capture, local
+4. **Speaker-Resolved Transcript Terminal Gate v1** measures the North Star across capture, local
    preservation, words, order, roles, anonymous speakers, explicit unknown and exact fallback.
-4. **Local Mic Multi-Speaker Diarization v1** and heavier local ASR validators remain conditional
+5. **Local Mic Multi-Speaker Diarization v1** and heavier local ASR validators remain conditional
    branches after the terminal gate and labelled evidence.
 
 ## Current Evidence Boundary
