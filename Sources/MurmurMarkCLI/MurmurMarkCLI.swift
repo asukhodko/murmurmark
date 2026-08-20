@@ -1260,6 +1260,7 @@ enum DoctorChecks {
     static func checkScripts(_ report: inout DoctorReport) {
         for path in [
             "scripts/run-session-pipeline.py",
+            "scripts/reconcile-session-state.py",
             "scripts/murmurmark_resource_policy.py",
             "scripts/run-meeting-lifecycle.py",
             "scripts/report-meeting-lifecycle-corpus.py",
@@ -1952,52 +1953,15 @@ enum PipelineCommands {
         }
 
         guard remaining.isEmpty else { throw CLIError("unexpected report arguments: \(remaining.joined(separator: " "))") }
-        let python = try PythonRuntime.resolve()
-        let script = PathURLs.fileURL("scripts/report-session-quality.py")
-        guard FileManager.default.fileExists(atPath: script.path) else {
-            throw CLIError("session quality reporter not found: \(script.path)")
-        }
         let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
         print("SESSION=\"\(PathDisplay.display(session))\"")
-        try Tooling.runPathQuiet(python, [
-            script.path,
-            session.path,
-            "--out-dir", session.appendingPathComponent("derived/readiness/session-quality").path,
-            "--write-session-readiness",
-        ])
-        try refreshSpeakerSelection(session)
-        try refreshOutcome(session)
+        try SessionStateReconciler.run(session, reason: "report", rebaseReview: false)
         try ReadinessPrinter.printSession(session)
         try ReadinessPrinter.printFinalNext(session)
     }
 
     private static func refreshReadiness(_ session: URL) throws {
-        let python = try PythonRuntime.resolve()
-        let script = PathURLs.fileURL("scripts/report-session-quality.py")
-        guard FileManager.default.fileExists(atPath: script.path) else {
-            throw CLIError("session quality reporter not found: \(script.path)")
-        }
-        try Tooling.runPathQuiet(python, [
-            script.path,
-            session.path,
-            "--out-dir", session.appendingPathComponent("derived/readiness/session-quality").path,
-            "--write-session-readiness",
-        ])
-        try refreshSpeakerSelection(session)
-        try refreshOutcome(session)
-    }
-
-    private static func refreshSpeakerSelection(_ session: URL) throws {
-        let python = try PythonRuntime.resolve()
-        let script = PathURLs.fileURL("scripts/select-speaker-resolved-transcript.py")
-        guard FileManager.default.fileExists(atPath: script.path) else {
-            throw CLIError("speaker-resolved transcript selector not found: \(script.path)")
-        }
-        _ = try Tooling.runPathQuietAllowingExitCodes(
-            python,
-            [script.path, session.path, "--refresh-evidence"],
-            allowedExitCodes: [0, 2]
-        )
+        try SessionStateReconciler.run(session, reason: "readiness_refresh", rebaseReview: false)
     }
 
     private static func refreshOutcome(_ session: URL) throws {
@@ -2161,6 +2125,21 @@ enum PipelineCommands {
             throw CLIError("--limit must be a positive integer")
         }
         return parsed
+    }
+}
+
+enum SessionStateReconciler {
+    static func run(_ session: URL, reason: String, rebaseReview: Bool) throws {
+        let python = try PythonRuntime.resolve()
+        let script = PathURLs.fileURL("scripts/reconcile-session-state.py")
+        guard FileManager.default.fileExists(atPath: script.path) else {
+            throw CLIError("session state reconciler not found: \(script.path)")
+        }
+        var arguments = [script.path, session.path, "--reason", reason]
+        if !rebaseReview {
+            arguments.append("--skip-review-rebase")
+        }
+        try Tooling.runPathQuiet(python, arguments)
     }
 }
 
@@ -2951,6 +2930,7 @@ enum ReviewCommands {
             }
             let report = try apply(forwarded, sessionsRoot: sessionsRoot)
             if let session {
+                try SessionStateReconciler.run(session, reason: "review_apply", rebaseReview: false)
                 print("SESSION=\"\(PathDisplay.display(session))\"")
             }
             try ReviewPrinter.printApply(report: report)
@@ -3608,6 +3588,7 @@ enum ReviewSuggestedCommand {
             runStrongerAudioJudge: !skipTargetedJudge,
             runTargetMe: !skipTargetMe
         )
+        try SessionStateReconciler.run(session, reason: "suggested_review_apply", rebaseReview: false)
         print("")
         print("suggested_fixed_point:")
         print("  additional_materialized_passes: \(convergence.materializedPasses)")

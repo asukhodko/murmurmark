@@ -244,7 +244,7 @@ if command == "enrich":
         {"deferred_enrichment": {"status": "completed"}},
     )
     raise SystemExit(0)
-if command == "outcome":
+if command in {"outcome", "report"}:
     if scenario == "stale_refresh":
         raise SystemExit(0)
     applied = (session / "fixture-applied").exists()
@@ -527,9 +527,7 @@ def main() -> None:
     refresh_start = swift_source.index("private static func refreshReadiness")
     refresh_end = swift_source.index("private static func refreshOutcome", refresh_start)
     refresh_body = swift_source[refresh_start:refresh_end]
-    assert refresh_body.index("refreshSpeakerSelection(session)") < refresh_body.index(
-        "refreshOutcome(session)"
-    )
+    assert "SessionStateReconciler.run" in refresh_body
 
     with tempfile.TemporaryDirectory(prefix="murmurmark-meeting-lifecycle-") as temporary:
         root = Path(temporary)
@@ -871,7 +869,8 @@ def main() -> None:
         assert budget_skip_report["deferred_work"]["blocking"] is False
         assert budget_skip_report["budgets"]["status"] == "enrichment_deferred_budget_exhausted"
         assert budget_skip_report["raw"]["preserved"] is True
-        assert " enrich " not in f" {(budget_skip_session / 'fake-cli.log').read_text(encoding='utf-8')} "
+        budget_skip_log = (budget_skip_session / "fake-cli.log").read_text(encoding="utf-8").splitlines()
+        assert not any(line.startswith("enrich ") for line in budget_skip_log)
 
         budget_timeout_session = write_session(root, "budget-timeout")
         budget_timeout_run = run_supervisor(
@@ -902,6 +901,14 @@ def main() -> None:
         )
         assert budget_pipeline_state["status"] == "deferred_budget_exhausted"
         assert budget_pipeline_state["message"] == "deferred_enrichment_budget_exhausted"
+
+        budget_resume = run_supervisor(root, budget_timeout_session, fake, "review", "--resume")
+        assert budget_resume.returncode == 0, (budget_resume.stdout, budget_resume.stderr)
+        budget_resume_report = report(budget_timeout_session)
+        assert budget_resume_report["actions"]["enrich"]["status"] == "passed"
+        assert budget_resume_report["deferred_work"]["status"] == "completed"
+        budget_resume_log = (budget_timeout_session / "fake-cli.log").read_text(encoding="utf-8").splitlines()
+        assert any(line.startswith("enrich ") for line in budget_resume_log)
 
         if cli_value:
             budget_pipeline_state["status"] = "interrupted"

@@ -285,6 +285,8 @@ def main() -> int:
         assert "transcribe_current" in handoff_names
         assert "speaker_preserving_neural_echo_v2" not in handoff_names
         assert "speaker_preserving_neural_echo_v2" in deferred_names
+        assert "audit_local_recall" in handoff_names and "audit_local_recall" in deferred_names
+        assert "transcript_integrity" in handoff_names and "transcript_integrity" in deferred_names
 
         write_json(
             session / "session.json",
@@ -306,6 +308,25 @@ def main() -> int:
             )
             assert bounded_selector["enabled"] is False, bounded_selector
             assert "run `murmurmark enrich SESSION` explicitly" in bounded_selector["skip_reason"]
+
+            write_json(
+                session / "session.json",
+                {"health": {"actual_duration_sec": 2340.0}},
+            )
+            write_json(
+                session / "derived/preprocess/echo/local_fir_report.json",
+                {
+                    "acoustic_mode": {
+                        "mode": "speaker_playback",
+                        "confidence": 0.95,
+                        "metrics": {"coupled_window_ratio": 0.5},
+                    }
+                },
+            )
+            severe_decision = MODULE.deferred_echo_budget_decision(REPO_ROOT, session)
+            assert severe_decision["severe_speaker_playback"] is True, severe_decision
+            assert severe_decision["reserve_sec"] == 0.0, severe_decision
+            assert severe_decision["enabled"] is True, severe_decision
         finally:
             if previous_bounded is None:
                 os.environ.pop(MODULE.DEFERRED_BOUNDED_ENV, None)
@@ -376,17 +397,15 @@ def main() -> int:
         assert deferred_names.index("rebuild_audio_review_pack_v2") < deferred_names.index(
             "audit_stronger_audio_judge"
         )
-        assert deferred_names[-5:] == [
+        assert deferred_names[-3:] == [
             "synthesize_authoritative_final",
             "audit_transcript_order_authoritative_final",
-            "session_readiness_authoritative_final",
-            "speaker_resolved_transcript_default",
-            "provisional_speaker_transcript_default",
+            "reconcile_session_state",
         ]
         final_synthesis = next(item for item in pipeline_steps if item["name"] == "synthesize_authoritative_final")
         assert final_synthesis["command"][-2:] == ["--transcript-profile", "authoritative"]
-        final_readiness = next(item for item in pipeline_steps if item["name"] == "session_readiness_authoritative_final")
-        assert final_readiness["command"][-1] == "--preserve-authoritative-profile"
+        reconcile = next(item for item in pipeline_steps if item["name"] == "reconcile_session_state")
+        assert reconcile["command"][-2:] == ["--reason", "deferred_enrichment"]
 
         started = time.monotonic()
         timed_out = MODULE.run_step(

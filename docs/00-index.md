@@ -246,6 +246,9 @@ Minority-Voice candidate then closed `KEEP_COVERAGE_V3`: all words survived, but
 boundary precision was `0.044688`, speaker-count ratio `0.5`, minority recall `0.017161` and
 timing-shift partition ARI `0.289387`. The current goal is a fresh transcript rebaseline, followed
 by a human-reviewed lexical seed, session-scoped lexical context and a product-level terminal gate.
+Before that rebaseline, Enrichment Transaction and Cache Coherence v1 closed stale-state risk:
+deferred profile changes now reconcile review history, speaker evidence, readiness and outcome, and
+identical stronger-audio clips reuse content-addressed local decodes.
 Domain glossaries remain private inputs and are not yet
 compiled into production ASR prompts. Notes and retrieval remain parked.
 

@@ -5,6 +5,7 @@ import importlib.util
 import json
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 
@@ -268,6 +269,65 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="murmurmark-stronger-checkpoint-") as raw_root:
         out_dir = Path(raw_root)
+        model_dir = out_dir / "model"
+        model_dir.mkdir()
+        (model_dir / "model.bin").write_bytes(b"fixture-model-v1")
+        clip_a = out_dir / "clip-a.wav"
+        clip_b = out_dir / "clip-b.wav"
+        clip_a.write_bytes(b"same-audio-content")
+        clip_b.write_bytes(b"same-audio-content")
+        cache_args = SimpleNamespace(
+            no_cache=False,
+            device="cpu",
+            compute_type="int8",
+            language="ru",
+            beam_size=1,
+        )
+        decode_cache = module.DecodeCache(out_dir, model_dir, cache_args)
+        decoded = {"path": str(clip_a), "text": "Проверка", "segments": []}
+        decode_cache.put(clip_a, decoded)
+        reused_decode = decode_cache.get(clip_b)
+        assert reused_decode is not None, "equal audio content must reuse decode across paths"
+        assert reused_decode["text"] == "Проверка"
+        assert reused_decode["path"] == str(clip_b)
+        model_metadata = model_dir / ".cache/huggingface/download"
+        model_metadata.mkdir(parents=True)
+        (model_metadata / "model.bin.metadata").write_text("transient\n", encoding="utf-8")
+        metadata_cache = module.DecodeCache(out_dir, model_dir, cache_args)
+        assert metadata_cache.model_sha256 == decode_cache.model_sha256
+        changed_config = SimpleNamespace(**{**vars(cache_args), "beam_size": 2})
+        changed_cache = module.DecodeCache(out_dir, model_dir, changed_config)
+        assert changed_cache.get(clip_b) is None, "decode config must participate in the cache key"
+        (model_dir / "tokenizer.json").write_text('{"version": 2}\n', encoding="utf-8")
+        changed_model_cache = module.DecodeCache(out_dir, model_dir, cache_args)
+        assert changed_model_cache.get(clip_b) is None, "all local model files must participate in the cache key"
+        cache_item = {
+            "id": "arp_cache_fixture",
+            "session_id": "fixture",
+            "profile": "reviewed_v1",
+            "interval": {"start": 1.0, "end": 2.0},
+            "utterance_ids": ["utt_1"],
+            "utterances": [],
+            "clips": {"mic_clean": str(clip_b)},
+        }
+        cache_row = {
+            "source_pack_item_fingerprint": module.item_fingerprint(cache_item),
+            "sources": ["mic_clean"],
+            "transcripts": {"mic_clean": decoded},
+        }
+        assert module.cached_row_matches_item(
+            cache_row,
+            cache_item,
+            ("mic_clean",),
+            decode_cache,
+        )
+        assert not module.cached_row_matches_item(
+            cache_row,
+            cache_item,
+            ("mic_clean",),
+            changed_model_cache,
+        ), "judge rows must not bypass model-aware decode cache invalidation"
+
         checkpoint_items = [{"id": "arp_000002"}, {"id": "arp_000001"}]
         checkpoint_rows = {
             "arp_000001": {"source_pack_item_id": "arp_000001", "classification": {"label": "confirm_me"}},

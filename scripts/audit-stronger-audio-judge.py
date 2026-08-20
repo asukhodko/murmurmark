@@ -18,7 +18,8 @@ from typing import Any
 
 SCHEMA_ROW = "murmurmark.faster_whisper_judge/v1"
 SCHEMA_SUMMARY = "murmurmark.faster_whisper_judge_summary/v1"
-SCRIPT_VERSION = "0.1.11"
+SCRIPT_VERSION = "0.2.0"
+DECODE_CACHE_SCHEMA = "murmurmark.faster_whisper_decode_cache/v1"
 DEFAULT_MODEL = Path.home() / ".local/share/murmurmark/models/faster-whisper/large-v3"
 DEFAULT_MAX_ITEMS = 80
 DEFAULT_SOURCES = ("mic_role_masked", "mic_clean", "mic_raw", "remote")
@@ -848,7 +849,12 @@ def item_fingerprint(item: dict[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def cached_row_matches_item(row: dict[str, Any], item: dict[str, Any], sources: tuple[str, ...] = ()) -> bool:
+def cached_row_matches_item(
+    row: dict[str, Any],
+    item: dict[str, Any],
+    sources: tuple[str, ...] = (),
+    decode_cache: "DecodeCache | None" = None,
+) -> bool:
     expected = item_fingerprint(item)
     actual = str(row.get("source_pack_item_fingerprint") or "")
     fingerprint_matches = actual == expected if actual else item_fingerprint_payload(row) == item_fingerprint_payload(item)
@@ -858,7 +864,22 @@ def cached_row_matches_item(row: dict[str, Any], item: dict[str, Any], sources: 
     if not row_sources:
         transcripts = row.get("transcripts") if isinstance(row.get("transcripts"), dict) else {}
         row_sources = {str(source) for source, value in transcripts.items() if isinstance(value, dict)}
-    return not sources or set(sources) <= row_sources
+    if sources and not set(sources) <= row_sources:
+        return False
+    if decode_cache is None:
+        return True
+    clips = item.get("clips") if isinstance(item.get("clips"), dict) else {}
+    transcripts = row.get("transcripts") if isinstance(row.get("transcripts"), dict) else {}
+    for source in sources:
+        path_value = clips.get(source)
+        transcript = transcripts.get(source)
+        if not path_value or not isinstance(transcript, dict):
+            return False
+        identity = decode_cache.cache_identity(Path(str(path_value)).expanduser())
+        metadata = transcript.get("decode_cache")
+        if identity is None or not isinstance(metadata, dict) or metadata.get("key") != identity[0]:
+            return False
+    return True
 
 
 def item_matches_legacy_fingerprint(row: dict[str, Any], item: dict[str, Any]) -> bool:
@@ -982,6 +1003,155 @@ def transcribe_clip(model: Any, path: Path, args: argparse.Namespace) -> dict[st
         "avg_logprob": round(avg_logprob, 6) if avg_logprob is not None else None,
         "no_speech_prob": round(no_speech_prob, 6) if no_speech_prob is not None else None,
     }
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as file:
+        while block := file.read(1024 * 1024):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def model_content_fingerprint(model_path: Path, cache_root: Path) -> str:
+    model_files = (
+        sorted(
+            path
+            for path in model_path.rglob("*")
+            if path.is_file() and ".cache" not in path.relative_to(model_path).parts
+        )
+        if model_path.is_dir()
+        else [model_path]
+    )
+    if not model_files:
+        raise FileNotFoundError(f"faster-whisper model has no files: {model_path}")
+    identity_path = cache_root / "model_identity.json"
+    existing = read_json(identity_path)
+    signature = [
+        {
+            "path": str(path.relative_to(model_path)) if model_path.is_dir() else path.name,
+            "bytes": path.stat().st_size,
+            "mtime_ns": path.stat().st_mtime_ns,
+        }
+        for path in model_files
+    ]
+    if isinstance(existing, dict) and existing.get("signature") == signature and existing.get("sha256"):
+        return str(existing["sha256"])
+    digest = hashlib.sha256()
+    for path, file_signature in zip(model_files, signature):
+        digest.update(str(file_signature["path"]).encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(sha256_file(path).encode("ascii"))
+        digest.update(b"\0")
+    fingerprint = digest.hexdigest()
+    write_json(
+        identity_path,
+        {
+            "schema": "murmurmark.faster_whisper_model_identity/v1",
+            "signature": signature,
+            "sha256": fingerprint,
+        },
+    )
+    return fingerprint
+
+
+class DecodeCache:
+    def __init__(self, out_dir: Path, model_path: Path, args: argparse.Namespace) -> None:
+        self.enabled = not args.no_cache
+        self.root = out_dir / "faster_whisper_decode_cache" / "v1"
+        self.root.mkdir(parents=True, exist_ok=True)
+        self.model_sha256 = model_content_fingerprint(model_path, self.root)
+        self.config = {
+            "model_sha256": self.model_sha256,
+            "device": args.device,
+            "compute_type": args.compute_type,
+            "language": args.language,
+            "beam_size": args.beam_size,
+            "vad_filter": False,
+            "condition_on_previous_text": False,
+            "word_timestamps": False,
+        }
+        self._clip_hashes: dict[tuple[str, int, int], str] = {}
+        self.hits = 0
+        self.misses = 0
+        self.writes = 0
+
+    def clip_sha256(self, path: Path) -> str:
+        stat = path.stat()
+        key = (str(path.resolve()), stat.st_size, stat.st_mtime_ns)
+        digest = self._clip_hashes.get(key)
+        if digest is None:
+            digest = sha256_file(path)
+            self._clip_hashes[key] = digest
+        return digest
+
+    def cache_identity(self, path: Path) -> tuple[str, dict[str, Any]] | None:
+        if not path.is_file() or path.stat().st_size <= 0:
+            return None
+        payload = {
+            "clip_sha256": self.clip_sha256(path),
+            "decode_config": self.config,
+        }
+        encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(encoded.encode("utf-8")).hexdigest(), payload
+
+    def get(self, path: Path) -> dict[str, Any] | None:
+        if not self.enabled:
+            self.misses += 1
+            return None
+        identity = self.cache_identity(path)
+        if identity is None:
+            self.misses += 1
+            return None
+        key, payload = identity
+        entry = read_json(self.root / f"{key}.json")
+        if not isinstance(entry, dict) or entry.get("cache_key") != key or entry.get("identity") != payload:
+            self.misses += 1
+            return None
+        result = entry.get("result")
+        if not isinstance(result, dict):
+            self.misses += 1
+            return None
+        self.hits += 1
+        reused = dict(result)
+        reused["path"] = str(path)
+        reused["decode_cache"] = {"hit": True, "key": key, "identity": payload}
+        return reused
+
+    def put(self, path: Path, result: dict[str, Any]) -> None:
+        if not self.enabled:
+            return
+        identity = self.cache_identity(path)
+        if identity is None:
+            return
+        key, payload = identity
+        cached_result = dict(result)
+        cached_result.pop("decode_cache", None)
+        write_json(
+            self.root / f"{key}.json",
+            {
+                "schema": DECODE_CACHE_SCHEMA,
+                "cache_key": key,
+                "identity": payload,
+                "result": cached_result,
+            },
+        )
+        self.writes += 1
+        result["decode_cache"] = {"hit": False, "key": key, "identity": payload}
+
+    def has(self, path: Path) -> bool:
+        before_hits = self.hits
+        before_misses = self.misses
+        result = self.get(path)
+        self.hits = before_hits
+        self.misses = before_misses
+        return result is not None
+
+
+def item_decode_cache_ready(item: dict[str, Any], sources: tuple[str, ...], cache: DecodeCache) -> bool:
+    clips = item.get("clips") if isinstance(item.get("clips"), dict) else {}
+    required = [Path(str(clips[source])).expanduser() for source in sources if clips.get(source)]
+    return bool(required) and all(cache.has(path) for path in required)
 
 
 def source_metrics(transcripts: dict[str, dict[str, Any]], me_text: str, remote_text: str) -> dict[str, Any]:
@@ -1566,11 +1736,12 @@ def classify_item(
 
 
 def audit_item(
-    model: Any,
+    model: Any | None,
     item: dict[str, Any],
     audit_row: dict[str, Any] | None,
     args: argparse.Namespace,
     speaker_state_rows: list[dict[str, Any]],
+    decode_cache: DecodeCache,
 ) -> dict[str, Any]:
     sources = selected_sources(args)
     clips = item.get("clips") if isinstance(item.get("clips"), dict) else {}
@@ -1579,7 +1750,16 @@ def audit_item(
         path_value = clips.get(source)
         if not path_value:
             continue
-        transcripts[source] = transcribe_clip(model, Path(path_value), args)
+        clip_path = Path(str(path_value)).expanduser()
+        cached = decode_cache.get(clip_path)
+        if cached is not None:
+            transcripts[source] = cached
+            continue
+        if model is None:
+            raise RuntimeError(f"decode cache miss without a loaded model: {clip_path}")
+        result = transcribe_clip(model, clip_path, args)
+        decode_cache.put(clip_path, result)
+        transcripts[source] = result
     me_text, remote_text = utterance_texts(item)
     metrics = source_metrics(transcripts, me_text, remote_text)
     speaker_state = interval_speaker_state_evidence(speaker_state_rows, item.get("interval"))
@@ -1632,10 +1812,16 @@ def refreshed_valid_existing_rows_by_pack_id(
     sources: tuple[str, ...],
     audio_review_rows: dict[str, dict[str, Any]],
     speaker_state_rows: list[dict[str, Any]],
+    decode_cache: DecodeCache | None = None,
 ) -> dict[str, dict[str, Any]]:
     items_by_id = {str(item.get("id") or ""): item for item in items if item.get("id")}
     refreshed: dict[str, dict[str, Any]] = {}
-    for pack_id, row in valid_existing_rows_by_pack_id(out_dir, items, sources).items():
+    for pack_id, row in valid_existing_rows_by_pack_id(
+        out_dir,
+        items,
+        sources,
+        decode_cache=decode_cache,
+    ).items():
         item = items_by_id.get(pack_id)
         if item is None:
             continue
@@ -1702,6 +1888,7 @@ def cached_rows_for_items(
     *,
     disabled: bool,
     sources: tuple[str, ...] = (),
+    decode_cache: DecodeCache | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], int]:
     if disabled:
         return [], items, 0
@@ -1715,7 +1902,7 @@ def cached_rows_for_items(
     for item in items:
         pack_id = str(item.get("id") or "")
         row = cached_by_pack_id.get(pack_id)
-        if row and cached_row_matches_item(row, item, sources):
+        if row and cached_row_matches_item(row, item, sources, decode_cache):
             cached.append(row)
         else:
             missing.append(item)
@@ -1726,13 +1913,14 @@ def valid_existing_rows_by_pack_id(
     out_dir: Path,
     items: list[dict[str, Any]],
     sources: tuple[str, ...] = (),
+    decode_cache: DecodeCache | None = None,
 ) -> dict[str, dict[str, Any]]:
     by_item_id = {str(item.get("id") or ""): item for item in items if item.get("id")}
     rows: dict[str, dict[str, Any]] = {}
     for row in read_jsonl(out_dir / "faster_whisper_judge.jsonl"):
         pack_id = str(row.get("source_pack_item_id") or "")
         item = by_item_id.get(pack_id)
-        if item and cached_row_matches_item(row, item, sources):
+        if item and cached_row_matches_item(row, item, sources, decode_cache):
             rows[pack_id] = row
     return rows
 
@@ -1808,6 +1996,8 @@ def write_report(path: Path, summary: dict[str, Any], rows: list[dict[str, Any]]
         f"- Selected items: `{summary.get('selected_items', 0)}`",
         f"- Computed items: `{summary.get('computed_items', 0)}`",
         f"- Cached items: `{summary.get('cached_items', 0)}`",
+        f"- Decoded clips: `{(summary.get('decode_cache') or {}).get('decoded_clips', 0)}`",
+        f"- Decode cache hits: `{(summary.get('decode_cache') or {}).get('hits', 0)}`",
         f"- Still pending selected items: `{summary.get('pending_selected_items_after_cap', 0)}`",
         f"- Sources: `{', '.join(summary.get('sources') or [])}`",
         f"- Suggested keep seconds: `{summary['suggested_keep_me_seconds']}`",
@@ -1907,15 +2097,19 @@ def main() -> int:
     selected = selected_items(items, matched_audio_review_rows, args.max_items, target_ids=requested_target_ids)
     missing_target_ids = [item_id for item_id in requested_target_ids if item_id not in {str(item.get("id") or "") for item in items}]
     sources = selected_sources(args)
+    decode_cache = DecodeCache(out_dir, model_path, args)
     cached_rows, missing_items, cached_count = cached_rows_for_items(
         out_dir,
         selected,
         disabled=args.no_cache,
         sources=sources,
+        decode_cache=decode_cache,
     )
     pending_selected_count = len(missing_items)
     if args.cached_only:
-        missing_items = []
+        missing_items = [
+            item for item in missing_items if item_decode_cache_ready(item, sources, decode_cache)
+        ]
     elif args.max_computed_items > 0 and len(missing_items) > args.max_computed_items:
         missing_items = missing_items[: args.max_computed_items]
     cached_by_pack_id = {str(row.get("source_pack_item_id") or ""): row for row in cached_rows}
@@ -1929,6 +2123,7 @@ def main() -> int:
             sources,
             audio_review_rows,
             speaker_state_rows,
+            decode_cache,
         )
     )
     checkpoint_by_pack_id.update(cached_by_pack_id)
@@ -1941,9 +2136,16 @@ def main() -> int:
                 f"sources={','.join(sources)}"
             ),
         )
-        progress(args, f"loading faster-whisper model: {model_path}")
-        model = load_model(model_path, args)
-        progress(args, "model loaded")
+        requires_model = any(
+            not item_decode_cache_ready(item, sources, decode_cache) for item in missing_items
+        )
+        model = None
+        if requires_model:
+            progress(args, f"loading faster-whisper model: {model_path}")
+            model = load_model(model_path, args)
+            progress(args, "model loaded")
+        else:
+            progress(args, "all required clip decodes are content-cache hits")
         new_by_pack_id: dict[str, dict[str, Any]] = {}
         for index, item in enumerate(missing_items, start=1):
             item_id = str(item.get("id") or "")
@@ -1955,6 +2157,7 @@ def main() -> int:
                 matched_audio_review_rows.get(item_id),
                 args,
                 speaker_state_rows,
+                decode_cache,
             )
             new_by_pack_id[item_id]["classification_policy_version"] = SCRIPT_VERSION
             checkpoint_by_pack_id[item_id] = new_by_pack_id[item_id]
@@ -2003,6 +2206,7 @@ def main() -> int:
             sources,
             audio_review_rows,
             speaker_state_rows,
+            decode_cache,
         )
     )
     for row in selected_rows:
@@ -2018,6 +2222,15 @@ def main() -> int:
     summary["sources"] = list(sources)
     summary["quick"] = bool(args.quick)
     summary["cached_only"] = bool(args.cached_only)
+    summary["decode_cache"] = {
+        "schema": DECODE_CACHE_SCHEMA,
+        "model_sha256": decode_cache.model_sha256,
+        "hits": decode_cache.hits,
+        "misses": decode_cache.misses,
+        "writes": decode_cache.writes,
+        "decoded_clips": decode_cache.writes,
+        "decode_config": decode_cache.config,
+    }
     summary["max_computed_items"] = args.max_computed_items
     summary["target_item_ids"] = requested_target_ids
     summary["missing_target_item_ids"] = missing_target_ids
@@ -2034,6 +2247,8 @@ def main() -> int:
     print(f"items: {len(rows)}")
     print(f"cached_items: {cached_count}")
     print(f"computed_items: {len(missing_items)}")
+    print(f"decoded_clips: {summary['decode_cache']['decoded_clips']}")
+    print(f"decode_cache_hits: {summary['decode_cache']['hits']}")
     print(f"pending_selected_items_after_cap: {summary['pending_selected_items_after_cap']}")
     print(f"sources: {', '.join(selected_sources(args))}")
     if requested_target_ids:

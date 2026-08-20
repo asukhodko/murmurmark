@@ -141,6 +141,7 @@ def required_layout(root: Path) -> None:
         "scripts/evaluate-remote-speaker-boundary-minority-v1.py",
         "scripts/apply-transcript-integrity.py",
         "scripts/report-transcript-integrity-corpus.py",
+        "scripts/reconcile-session-state.py",
         "policies/remote-speaker-cluster-purity-reference-v1.json",
         "policies/remote-speaker-boundary-minority-v1.json",
         "policies/transcript-integrity-v1.json",

@@ -17,6 +17,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-review-materialization-guard.py
 "$python_bin" scripts/check-review-profile-lineage.py
 "$python_bin" scripts/check-session-quality-reconciliation.py
+"$python_bin" scripts/check-enrichment-coherence.py
 "$python_bin" scripts/check-remote-role-integrity.py
 "$python_bin" scripts/check-live-voice-activity-retime.py
 "$python_bin" scripts/check-live-progressive-target-me.py

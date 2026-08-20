@@ -81,10 +81,12 @@ process SESSION
        -> verdict + exact next command
 
 enrich SESSION
-  -> stronger local audio judge
-  -> extended repair evidence and clips
-  -> live-vs-batch diagnostics
-  -> deferred report without changing the published transcript
+  -> optional advanced pre-ASR Echo candidate
+  -> invalidated cleanup, synthesis and order audits
+  -> stronger local audio judge with content-addressed decode reuse
+  -> review decision rebase and immutable decision history
+  -> speaker selection + readiness + outcome reconciliation
+  -> exact published fallback when reconciliation cannot complete
 
 review / finish / export / retention
   -> selected batch profile
@@ -109,6 +111,12 @@ safe handoff. `murmurmark enrich SESSION` runs bounded optional diagnostics and 
 or resumed independently. `murmurmark process SESSION --full` runs both for compatibility. CLI
 read commands accept the handoff only while its transcript SHA-256, selected profile and readiness
 path still match; a stale or edited result falls back to normal readiness/resume handling.
+
+Deferred enrichment is a dependency-aware transaction rather than a loose report tail. If the
+selected pre-ASR candidate or transcript fingerprint changes, the runner rebuilds only the declared
+downstream cleanup, synthesis, order, review and speaker surfaces. The final reconciler records a
+recoverable transaction report, keeps the previous published transcript as an exact fallback and
+rejects profile or review-queue disagreement. Repeating the reconciliation is idempotent.
 
 Reliable Final Handoff v1 makes the phase boundary explicit: unchanged candidate windows reuse
 baseline ASR, expensive work has a machine-readable budget/deferred reason, and every terminal

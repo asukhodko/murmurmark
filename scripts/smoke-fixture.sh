@@ -5131,7 +5131,7 @@ PY
   echo "$latest_apply_output" | grep -q '^  recommended_next: '
   if echo "$latest_apply_output" | grep -q '^  status: incomplete$'; then
     ! echo "$latest_apply_output" | grep -q '^  handoff:$'
-    echo "$latest_apply_output" | grep -q 'Inspect the readiness blocker'
+    echo "$latest_apply_output" | grep -Eq 'Inspect the (readiness|outcome) blocker'
   else
     echo "$latest_apply_output" | grep -q '^  handoff:$'
     echo "$latest_apply_output" | grep -q '^    open_notes: less '

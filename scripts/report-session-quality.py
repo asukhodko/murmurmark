@@ -19,7 +19,7 @@ if str(SCRIPT_DIR) not in sys.path:
 import review_profile_lineage as review_lineage
 
 
-SCRIPT_VERSION = "0.5.8"
+SCRIPT_VERSION = "0.5.9"
 SCHEMA = "murmurmark.session_quality_report/v1"
 READINESS_SCHEMA = "murmurmark.session_readiness/v1"
 CLEANUP_PROFILES = {
@@ -85,11 +85,45 @@ def read_json(path: Path) -> dict[str, Any] | None:
 
 
 def read_review_progress_summary(session: Path) -> dict[str, Any]:
-    payload = read_json(session / "derived/readiness/review-plan/review_decisions_progress.json")
+    plan = session / "derived/readiness/review-plan"
+    progress_path = plan / "review_decisions_progress.json"
+    payload = read_json(progress_path)
     if not payload:
+        return {}
+    try:
+        progress_mtime = progress_path.stat().st_mtime_ns
+        for source in (
+            plan / "review_decisions.template.jsonl",
+            plan / "review_decisions.jsonl",
+        ):
+            if source.exists() and source.stat().st_mtime_ns > progress_mtime:
+                return {}
+    except OSError:
         return {}
     summary = payload.get("summary")
     return summary if isinstance(summary, dict) else {}
+
+
+def review_progress_metrics(summary: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(summary, dict) or not summary:
+        return {}
+    total = safe_int(summary.get("total")) or 0
+    reviewed = safe_int(summary.get("reviewed")) or 0
+    remaining = safe_int(summary.get("remaining")) or 0
+    remaining_seconds = safe_float(summary.get("remaining_seconds")) or 0.0
+    return {
+        "review_scope_status": "complete" if remaining == 0 else "partial",
+        "review_scope_complete": remaining == 0,
+        "review_scope_required_rows": total,
+        "review_scope_closed_rows": reviewed,
+        "review_scope_coverage_ratio": round(reviewed / total, 6) if total else 1.0,
+        "review_scope_missing_rows": remaining,
+        "review_scope_pending_rows": remaining,
+        "review_scope_remaining_seconds": round(remaining_seconds, 3),
+        "manual_review_queue_rows": remaining,
+        "manual_review_queue_seconds": round(remaining_seconds, 3),
+        "manual_review_queue_source": "review_decisions_progress",
+    }
 
 
 def safe_float(value: Any) -> float | None:
@@ -2233,9 +2267,9 @@ def risk_flags(row: dict[str, Any]) -> list[str]:
     partial_review_only = (
         row.get("review_scope_complete") is False
         and safe_float(row.get("review_scope_remaining_seconds") or 0.0) > 0.001
-        and safe_int(row.get("review_decisions_applied")) > 0
-        and safe_int(row.get("review_decisions_rejected")) == 0
-        and safe_int(row.get("review_decisions_conflicts")) == 0
+        and (safe_int(row.get("review_decisions_applied")) or 0) > 0
+        and (safe_int(row.get("review_decisions_rejected")) or 0) == 0
+        and (safe_int(row.get("review_decisions_conflicts")) or 0) == 0
     )
     if (
         row.get("selected_profile") == "reviewed_v1"
@@ -2823,8 +2857,8 @@ def collect_session(
     row.update(pre_asr_echo_selection_metrics(session))
     row.update(group_metrics(group_summary))
     row.update(cleanup_metrics(quality, cleanup_report))
+    review_progress = read_review_progress_summary(session)
     row.update(review_decision_metrics(review_report))
-    row.update(suggested_closure_metrics(workspace_apply_report, read_review_progress_summary(session)))
     row.update(synthesis_review_metrics(verdict))
     row.update(notes_needs_review_metrics(session, profile, evidence))
     row.update(audio_review_metrics(audio_summary, session, profile, evidence))
@@ -2998,6 +3032,10 @@ def collect_session(
                 "local_speech_completion_disposition_count": len(dispositions),
             }
         )
+    # Review progress is the canonical user-visible queue. Apply it last so a
+    # profile-specific audit summary cannot resurrect already closed rows.
+    row.update(review_progress_metrics(review_progress))
+    row.update(suggested_closure_metrics(workspace_apply_report, review_progress))
     row["risk_flags"] = risk_flags(row)
     add_use_gate(row)
     return row
@@ -3818,7 +3856,13 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
             "review_scope_complete": row.get("review_scope_complete"),
             "review_scope_required_rows": row.get("review_scope_required_rows"),
             "review_scope_closed_rows": row.get("review_scope_closed_rows"),
+            "review_scope_coverage_ratio": row.get("review_scope_coverage_ratio"),
+            "review_scope_missing_rows": row.get("review_scope_missing_rows"),
+            "review_scope_pending_rows": row.get("review_scope_pending_rows"),
             "review_scope_remaining_seconds": row.get("review_scope_remaining_seconds"),
+            "manual_review_queue_rows": row.get("manual_review_queue_rows"),
+            "manual_review_queue_seconds": row.get("manual_review_queue_seconds"),
+            "manual_review_queue_source": row.get("manual_review_queue_source"),
             "suggested_closure_status": row.get("suggested_closure_status"),
             "suggested_closure_report_dry_run": row.get("suggested_closure_report_dry_run"),
             "suggested_closure_generated_rows": row.get("suggested_closure_generated_rows"),

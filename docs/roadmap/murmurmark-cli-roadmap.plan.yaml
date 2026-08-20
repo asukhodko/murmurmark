@@ -33,7 +33,7 @@ nodes:
     title: "MurmurMark CLI"
     kind: summary
     status: current
-    effort: 406
+    effort: 412
     notes: |
       Активная CLI-first, local-first и evidence-backed программа. Batch transcript остаётся
       authoritative. Текущий North Star: одной командой получить максимально надёжный transcript,
@@ -62,7 +62,7 @@ nodes:
     parent: murmurmark-cli
     deps: [working-capabilities, corpus-regression]
     status: done
-    effort: 8
+    effort: 14
     notes: |
       Свести обычную встречу к `murmurmark meeting`: durable capture, первый Ctrl-C, plain
       authoritative process, bounded enrich, safe suggested review, guarded finish и честный
@@ -72,6 +72,10 @@ nodes:
       при заданном --duration также финализирует raw и запускает lifecycle безопасно. Capture
       изолирован в короткоживущем child process: ScreenCaptureKit/ReplayKit освобождается до
       post-processing, а зависший startup ограничен timeout и не удерживает recording lock.
+      Enrichment Transaction and Cache Coherence v1 завершён внутри lifecycle: deferred Echo/review
+      изменения пересобирают зависимые outputs, review history сохраняется, stronger-audio decode
+      переиспользуется по content identity, explicit resume повторяет budget-deferred enrich, а
+      reconciliation сводит profile и manual queue во всех user-facing reports.
 
   corpus-regression:
     title: "Corpus regression и evidence store"
@@ -862,7 +866,7 @@ views:
     lanes:
       working:
         title: "Готовая основа"
-        nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1, quality-residual-transcript-integrity-hardening-v1, quality-remote-speaker-boundary-minority-segmentation-v1]
+        nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1, quality-residual-transcript-integrity-hardening-v1, quality-remote-speaker-boundary-minority-segmentation-v1, product-one-command-meeting-lifecycle-v1]
       current:
         title: "Единственная исполнимая цель"
         nodes: [quality-post-segmentation-transcript-rebaseline-v1]

@@ -8910,3 +8910,36 @@ passed, but Target-Me, other-local, absent-query and unexplained-residual qualit
 profile therefore has no apply path and cannot modify canonical audio, transcript, notes or export.
 The standalone schema and provenance contract is documented in
 [Multi-Component Residual Separator Contract](multi-component-residual-separator.md).
+
+## Deferred Enrichment Coherence
+
+Deferred profile changes and review application share these versioned artifacts:
+
+```text
+derived/pipeline-run/state-reconciliation/state_reconciliation_report.json
+  murmurmark.session_state_reconciliation/v1
+
+derived/readiness/review-plan/review_decisions_rebase.json
+  murmurmark.review_decisions_rebase/v1
+
+derived/readiness/review-plan/review_decisions_history.jsonl
+  murmurmark.review_decision_history/v1
+
+derived/audit/audio-review-pack/faster_whisper_decode_cache/v1/*.json
+  murmurmark.faster_whisper_decode_cache/v1
+```
+
+`review_decisions_progress.json` is the canonical user-visible manual queue. Session quality,
+readiness and outcome copy its remaining rows and seconds into `manual_review_queue_*`; a
+profile-local audit counter may not override them. Stale progress whose template or decision file is
+newer is ignored until rebuilt.
+
+Review rebase is conservative. It carries only closed decisions with unchanged evidence identity,
+or one unambiguous interval/text match whose decision remains allowed. Changed text, ambiguous
+matches, protected content and one-to-many matches stay unresolved. Applied decisions are archived
+idempotently so regeneration of a smaller unresolved template does not erase audit history.
+
+The stronger-audio decode cache is content-addressed by clip SHA-256, every file in the local
+faster-whisper model directory and all transcription settings that affect output. Path or profile
+changes alone do not force inference; any audio, model or setting change does. Cache failure is a
+normal miss and cannot authorize a transcript mutation.

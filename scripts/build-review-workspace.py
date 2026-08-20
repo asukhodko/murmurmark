@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
 import shlex
 import subprocess
 from collections import Counter
@@ -11,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.4.4"
+SCRIPT_VERSION = "0.5.0"
 REVIEW_STATE_FIELDS = {
     "decision",
     "status",
@@ -57,6 +59,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--session", action="append", default=[], help="Optional session id/path filter. Can be repeated.")
     parser.add_argument("--out-dir", type=Path, default=Path("sessions/_reports/review-plan"))
     parser.add_argument("--silence-sec", type=float, default=0.5)
+    parser.add_argument(
+        "--rebase-decisions",
+        action="store_true",
+        help="Rewrite decisions against the current template, carrying only evidence-identical closed rows.",
+    )
+    parser.add_argument(
+        "--history-source",
+        action="append",
+        type=Path,
+        default=[],
+        help="Additional applied decision JSONL to preserve in review_decisions_history.jsonl.",
+    )
     return parser.parse_args()
 
 
@@ -71,6 +85,17 @@ def read_json(path: Path) -> dict[str, Any]:
 def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def write_jsonl_atomic(path: Path, rows: list[dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    with temp.open("w", encoding="utf-8") as file:
+        for row in rows:
+            file.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
+        file.flush()
+        os.fsync(file.fileno())
+    temp.replace(path)
 
 
 def display_path(path: Path) -> str:
@@ -236,6 +261,36 @@ def semantic_review_row_key(row: dict[str, Any]) -> str:
     )
 
 
+def review_evidence_identity(row: dict[str, Any]) -> str:
+    interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+    text_rows = row.get("text") if isinstance(row.get("text"), list) else []
+    payload = {
+        "session_id": str(row.get("session_id") or ""),
+        "source": str(row.get("source") or ""),
+        "cluster_id": str(row.get("cluster_id") or ""),
+        "review_action": str(row.get("review_action") or ""),
+        "label": str(row.get("label") or ""),
+        "utterance_ids": [str(value) for value in row.get("utterance_ids") or []],
+        "me_utterance_ids": [str(value) for value in row.get("me_utterance_ids") or []],
+        "remote_utterance_ids": [str(value) for value in row.get("remote_utterance_ids") or []],
+        "interval": {
+            "start": round(float(interval.get("start") or 0.0), 3),
+            "end": round(float(interval.get("end") or 0.0), 3),
+        },
+        "text": [
+            {
+                "id": str(item.get("id") or ""),
+                "role": str(item.get("source_track") or item.get("role") or "").lower(),
+                "text": normalize_text(item.get("text")),
+            }
+            for item in text_rows
+            if isinstance(item, dict)
+        ],
+    }
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
 def direct_utterance_keys(row: dict[str, Any]) -> list[str]:
     if str(row.get("source") or "") not in {"audio_review", "transcript_order", "transcript_text"}:
         return []
@@ -265,32 +320,56 @@ def merge_review_state(template: dict[str, Any], existing: dict[str, Any] | None
     return merged
 
 
-def merge_existing(template_rows: list[dict[str, Any]], existing_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def merge_existing_with_report(
+    template_rows: list[dict[str, Any]],
+    existing_rows: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     existing_rows = [row for row in existing_rows if not obsolete_audit_only_local_recall_keep(row)]
     closed_rows = [row for row in existing_rows if str(row.get("decision") or "todo") not in {"", "todo"}]
-    existing_by_key = {review_row_key(row): row for row in closed_rows}
+    existing_by_identity: dict[str, list[dict[str, Any]]] = {}
     semantic_rows: dict[str, list[dict[str, Any]]] = {}
     direct_rows: dict[str, list[dict[str, Any]]] = {}
     for row in closed_rows:
+        existing_by_identity.setdefault(review_evidence_identity(row), []).append(row)
         semantic_rows.setdefault(semantic_review_row_key(row), []).append(row)
         for key in direct_utterance_keys(row):
             direct_rows.setdefault(key, []).append(row)
 
     merged_rows: list[dict[str, Any]] = []
+    carried_by_match: Counter[str] = Counter()
+    carried_source_ids: set[int] = set()
     for row in template_rows:
-        existing = existing_by_key.get(review_row_key(row))
+        existing = None
+        match = ""
+        identity_candidates = [
+            candidate
+            for candidate in existing_by_identity.get(review_evidence_identity(row), [])
+            if id(candidate) not in carried_source_ids
+        ]
+        if len(identity_candidates) == 1:
+            candidate = identity_candidates[0]
+            allowed = {str(value) for value in row.get("allowed_decisions") or []}
+            if not allowed or str(candidate.get("decision") or "") in allowed:
+                existing = candidate
+                match = "evidence_identity"
         if existing is None:
-            candidates = semantic_rows.get(semantic_review_row_key(row), [])
+            candidates = [
+                candidate
+                for candidate in semantic_rows.get(semantic_review_row_key(row), [])
+                if id(candidate) not in carried_source_ids
+            ]
             if len(candidates) == 1:
                 candidate = candidates[0]
                 allowed = {str(value) for value in row.get("allowed_decisions") or []}
                 if not allowed or str(candidate.get("decision") or "") in allowed:
                     existing = candidate
+                    match = "semantic_interval_text"
         if existing is None and str(row.get("source") or "") == "transcript_text":
             candidates = {
                 id(candidate): candidate
                 for key in direct_utterance_keys(row)
                 for candidate in direct_rows.get(key, [])
+                if id(candidate) not in carried_source_ids
             }
             decisions = {str(candidate.get("decision") or "") for candidate in candidates.values()}
             if len(decisions) == 1:
@@ -300,8 +379,71 @@ def merge_existing(template_rows: list[dict[str, Any]], existing_rows: list[dict
                     not allowed or str(candidate.get("decision")) in allowed
                 ):
                     existing = candidate
-        merged_rows.append(merge_review_state(row, existing))
-    return merged_rows
+                    match = "direct_utterance_interval_text"
+        merged = merge_review_state(row, existing)
+        if existing is not None:
+            carried_source_ids.add(id(existing))
+            carried_by_match[match] += 1
+            merged["review_rebase"] = {
+                "schema": "murmurmark.review_decision_rebase_evidence/v1",
+                "match": match,
+                "source_input_profile": existing.get("input_profile"),
+                "source_evidence_identity": review_evidence_identity(existing),
+                "target_evidence_identity": review_evidence_identity(row),
+            }
+        merged_rows.append(merged)
+    report = {
+        "schema": "murmurmark.review_decisions_rebase/v1",
+        "generator": {"name": "build-review-workspace", "version": SCRIPT_VERSION},
+        "template_rows": len(template_rows),
+        "existing_closed_rows": len(closed_rows),
+        "carried_rows": sum(carried_by_match.values()),
+        "carried_by_match": dict(sorted(carried_by_match.items())),
+        "unmatched_closed_rows": len(closed_rows) - len(carried_source_ids),
+    }
+    return merged_rows, report
+
+
+def merge_existing(template_rows: list[dict[str, Any]], existing_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows, _ = merge_existing_with_report(template_rows, existing_rows)
+    return rows
+
+
+def archive_closed_decisions(
+    history_rows: list[dict[str, Any]],
+    existing_rows: list[dict[str, Any]],
+    *,
+    archived_at: str,
+) -> tuple[list[dict[str, Any]], int]:
+    archived = list(history_rows)
+
+    def history_key(row: dict[str, Any]) -> tuple[str, str, str, str]:
+        return (
+            review_evidence_identity(row),
+            str(row.get("decision") or ""),
+            str(row.get("reviewer") or ""),
+            str(row.get("reviewed_at") or ""),
+        )
+
+    seen = {history_key(row) for row in archived}
+    added = 0
+    for row in existing_rows:
+        if str(row.get("decision") or "todo") in {"", "todo"}:
+            continue
+        key = history_key(row)
+        if key in seen:
+            continue
+        entry = dict(row)
+        entry["review_history"] = {
+            "schema": "murmurmark.review_decision_history/v1",
+            "archived_at": archived_at,
+            "evidence_identity": key[0],
+            "reason": "review_template_rebase",
+        }
+        archived.append(entry)
+        seen.add(key)
+        added += 1
+    return archived, added
 
 
 def undecided(row: dict[str, Any]) -> bool:
@@ -489,10 +631,33 @@ def main() -> int:
     args = parse_args()
     template = args.template.expanduser()
     decisions = args.decisions.expanduser()
-    rows = merge_existing(read_jsonl(template), read_jsonl(decisions))
+    out_dir = args.out_dir.expanduser()
+    existing_rows = read_jsonl(decisions)
+    rows, rebase_report = merge_existing_with_report(read_jsonl(template), existing_rows)
+    if args.rebase_decisions:
+        generated_at = datetime.now(timezone.utc).isoformat()
+        history_path = out_dir / "review_decisions_history.jsonl"
+        history_rows, archived_rows = archive_closed_decisions(
+            read_jsonl(history_path),
+            existing_rows
+            + [
+                row
+                for source in args.history_source
+                for row in read_jsonl(source.expanduser())
+            ],
+            archived_at=generated_at,
+        )
+        write_jsonl_atomic(history_path, history_rows)
+        write_jsonl_atomic(decisions, rows)
+        rebase_report["generated_at"] = generated_at
+        rebase_report["template"] = str(template)
+        rebase_report["decisions"] = str(decisions)
+        rebase_report["history"] = str(history_path)
+        rebase_report["history_rows"] = len(history_rows)
+        rebase_report["archived_rows_this_run"] = archived_rows
+        write_json(out_dir / "review_decisions_rebase.json", rebase_report)
     session_filters = {item.strip() for item in args.session if item.strip()}
     counts = lane_counts(rows, session_filters)
-    out_dir = args.out_dir.expanduser()
     lane_pack_dir = out_dir / "lane-packs"
     script = Path(__file__).resolve().parent / "build-review-lane-pack.py"
     lanes = [

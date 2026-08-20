@@ -125,17 +125,24 @@ artifact paths, transcript SHA-256, verdict, ASR provenance, gate decisions, def
 exact next command. `status`, `next`, `transcript`, `notes` and `finish` consume it only while the
 fingerprint and readiness profile still match.
 
-`murmurmark enrich` runs the deferred part: rebuilt review clips, optional stronger local audio
-judge, remote-forbidden/repair evidence, optional later cleanup profiles and live-vs-batch
-comparison. Each deferred step has a bounded timeout. Deferred work may update its own report but
-must not change the transcript fingerprint already published by the handoff. `audit_cleanup_v5`
-remains a separate batch step after the suggested-review shadow report.
+`murmurmark enrich` runs the deferred part: optional advanced Echo selection, invalidated cleanup
+and synthesis layers, rebuilt review clips, stronger local audio judging, remote-forbidden/repair
+evidence and live-vs-batch comparison. Each deferred step has a bounded timeout. Strong
+speaker-playback evidence removes the ordinary review-evidence reserve so the advanced Echo
+candidate gets a fair bounded attempt. Other acoustic modes keep the reserve.
 
-At the end of deferred enrichment the runner rebuilds the generic synthesis aliases, transcript-order
-audit and session readiness using the profile recorded in the authoritative handoff. This lets late
-evidence refine risks and next actions while keeping the published transcript path and SHA-256
-unchanged. A missing or invalid handoff fails this final refresh instead of selecting a newer shadow
-profile implicitly.
+At the end of deferred enrichment `reconcile-session-state.py` rebuilds review progress, speaker
+selection, provisional attribution, readiness and outcome as one consistency transaction. Closed
+review decisions are carried only when their evidence identity or bounded interval/text identity is
+unchanged; every carried or rejected decision has provenance, and prior decisions remain in
+`review_decisions_history.jsonl`. The previous published transcript is fingerprinted as a fail-open
+fallback. A missing input or disagreement produces `failed_recoverable`, never a silently mixed set
+of reports.
+
+The stronger local audio judge caches each faster-whisper decode by clip SHA-256, the complete local
+model fingerprint and decode configuration. Rebuilding the review pack or changing profile IDs can
+therefore reuse identical audio without loading the model or decoding it again. Changed audio,
+model files or decode settings always miss the cache.
 When the authoritative verdict still requires review and deferred work is pending, the handoff and
 `murmurmark next SESSION` recommend `murmurmark enrich SESSION` before any manual review command.
 Run `murmurmark next SESSION` again after enrichment to see only the unresolved remainder. Use
@@ -247,6 +254,11 @@ the selected profile, verdict, review burden and synthesis review item summary w
 reports. Use `murmurmark report SESSION` when readiness should be refreshed first. Both commands end
 with the final copyable `next: ...` command. If readiness is missing, `status` points to
 `murmurmark process SESSION`.
+`report` runs the same reconciliation contract used after enrichment and review, but does not rebase
+decisions. Its readiness, outcome and review progress therefore expose one canonical manual queue.
+If a previous meeting stopped with `deferred_budget_exhausted`, run the printed
+`murmurmark meeting --resume SESSION`; explicit resume grants a fresh deferred budget and retries the
+unfinished enrichment checkpoint.
 Use `murmurmark sessions` to list recent session packages with their current readiness state and
 next safe command before choosing a target. The list includes label, creation time, duration and
 review burden when readiness has those metrics. Use `murmurmark sessions --status review_required

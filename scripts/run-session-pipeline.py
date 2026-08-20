@@ -28,13 +28,14 @@ from murmurmark_resource_policy import (
     resolve_resource_policy,
 )
 
-SCRIPT_VERSION = "0.2.7"
+SCRIPT_VERSION = "0.2.8"
 SCHEMA = "murmurmark.session_pipeline_run/v1"
 RUN_STATE_SCHEMA = "murmurmark.pipeline_run_state/v1"
 HANDOFF_SCHEMA = "murmurmark.authoritative_handoff/v1"
 HANDOFF_RUN_SCHEMA = "murmurmark.authoritative_handoff_run/v1"
 HANDOFF_PHASE = "authoritative_handoff"
 DEFERRED_PHASE = "deferred_enrichment"
+BOTH_PHASE = "handoff_and_deferred"
 INTERRUPTED_CAPTURE_WARNING_MARKERS = (
     "stream stopped with error",
     "capture produced no audio samples",
@@ -401,26 +402,48 @@ def deferred_echo_budget_decision(repo_root: Path, session: Path) -> dict[str, A
     if runtime_factor <= 0 or not math.isfinite(runtime_factor):
         runtime_factor = DEFAULT_ECHO_SELECTOR_RUNTIME_FACTOR
     estimated_sec = duration_sec * runtime_factor
-    available_sec = max(0.0, budget_sec - DEFERRED_ECHO_RESERVE_SEC)
+    fir_report = read_json(session / "derived/preprocess/echo/local_fir_report.json") or {}
+    acoustic_mode = (
+        fir_report.get("acoustic_mode")
+        if isinstance(fir_report.get("acoustic_mode"), dict)
+        else {}
+    )
+    mode_metrics = (
+        acoustic_mode.get("metrics")
+        if isinstance(acoustic_mode.get("metrics"), dict)
+        else {}
+    )
+    severe_speaker_playback = bool(
+        acoustic_mode.get("mode") == "speaker_playback"
+        and float(acoustic_mode.get("confidence") or 0.0) >= 0.8
+        and float(mode_metrics.get("coupled_window_ratio") or 0.0) >= 0.3
+    )
+    reserve_sec = 0.0 if severe_speaker_playback else DEFERRED_ECHO_RESERVE_SEC
+    available_sec = max(0.0, budget_sec - reserve_sec)
     enabled = estimated_sec <= available_sec
     reason = (
-        "bounded Neural Echo estimate fits after the review-evidence reserve"
+        (
+            "bounded Neural Echo prioritized for severe speaker playback"
+            if severe_speaker_playback
+            else "bounded Neural Echo estimate fits after the review-evidence reserve"
+        )
         if enabled
         else (
             f"bounded Neural Echo skipped: estimate {estimated_sec:.1f}s exceeds "
-            f"{available_sec:.1f}s available after the {DEFERRED_ECHO_RESERVE_SEC:.0f}s "
-            "review-evidence reserve; run `murmurmark enrich SESSION` explicitly"
+            f"{available_sec:.1f}s available after the {reserve_sec:.0f}s "
+            "reserve; run `murmurmark enrich SESSION` explicitly"
         )
     )
     return {
         "bounded": True,
         "enabled": enabled,
         "budget_sec": round(budget_sec, 3),
-        "reserve_sec": DEFERRED_ECHO_RESERVE_SEC,
+        "reserve_sec": round(reserve_sec, 3),
         "available_sec": round(available_sec, 3),
         "capture_duration_sec": round(duration_sec, 3),
         "runtime_factor": round(runtime_factor, 6),
         "estimated_sec": round(estimated_sec, 3),
+        "severe_speaker_playback": severe_speaker_playback,
         "reason": reason,
     }
 
@@ -1011,6 +1034,7 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
             ],
             enabled=not args.skip_audits,
             reason="--skip-audits",
+            phase=BOTH_PHASE,
         ),
         step(
             "audit_group_overlaps",
@@ -1029,6 +1053,7 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
             ],
             enabled=not args.skip_audits,
             reason="--skip-audits",
+            phase=BOTH_PHASE,
         ),
         step(
             "cleanup_v1",
@@ -1036,8 +1061,13 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
             enabled=not args.skip_cleanup,
             reason="--skip-cleanup",
             warning_returncodes={2},
+            phase=BOTH_PHASE,
         ),
-        step("synthesize_v1", [py, str(repo_root / "scripts/synthesize-simple-extractive.py"), str(session), "--transcript-profile", "audit_cleanup_v1"]),
+        step(
+            "synthesize_v1",
+            [py, str(repo_root / "scripts/synthesize-simple-extractive.py"), str(session), "--transcript-profile", "audit_cleanup_v1"],
+            phase=BOTH_PHASE,
+        ),
         step(
             "build_audio_review_pack",
             [
@@ -1052,16 +1082,28 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
             ],
             enabled=not args.skip_audits,
             reason="--skip-audits",
+            phase=BOTH_PHASE,
         ),
-        step("audit_audio_review_pack", [py, str(repo_root / "scripts/audit-audio-review-pack.py"), str(session)], enabled=not args.skip_audits, reason="--skip-audits"),
+        step(
+            "audit_audio_review_pack",
+            [py, str(repo_root / "scripts/audit-audio-review-pack.py"), str(session)],
+            enabled=not args.skip_audits,
+            reason="--skip-audits",
+            phase=BOTH_PHASE,
+        ),
         step(
             "cleanup_v2",
             [py, str(repo_root / "scripts/apply-audit-cleanup.py"), str(session), "--input-profile", "audit_cleanup_v1", "--output-profile", "audit_cleanup_v2", "--mode", "conservative"],
             enabled=not args.skip_cleanup,
             reason="--skip-cleanup",
             warning_returncodes={2},
+            phase=BOTH_PHASE,
         ),
-        step("synthesize_v2", [py, str(repo_root / "scripts/synthesize-simple-extractive.py"), str(session), "--transcript-profile", "audit_cleanup_v2"]),
+        step(
+            "synthesize_v2",
+            [py, str(repo_root / "scripts/synthesize-simple-extractive.py"), str(session), "--transcript-profile", "audit_cleanup_v2"],
+            phase=BOTH_PHASE,
+        ),
         step(
             "transcript_integrity",
             [
@@ -1076,6 +1118,43 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
             enabled=not args.skip_cleanup,
             reason="--skip-cleanup",
             warning_returncodes={2},
+            phase=BOTH_PHASE,
+        ),
+        step(
+            "synthesize_auto_after_echo",
+            [
+                py,
+                str(repo_root / "scripts/synthesize-simple-extractive.py"),
+                str(session),
+                "--transcript-profile",
+                "auto",
+            ],
+            phase=DEFERRED_PHASE,
+        ),
+        step(
+            "audit_transcript_order_after_echo",
+            [
+                py,
+                str(repo_root / "scripts/audit-transcript-order.py"),
+                str(session),
+                "--profile",
+                "auto",
+            ],
+            enabled=not args.skip_audits,
+            reason="--skip-audits",
+            phase=DEFERRED_PHASE,
+        ),
+        step(
+            "session_readiness_after_echo",
+            [
+                py,
+                str(repo_root / "scripts/report-session-quality.py"),
+                str(session),
+                "--out-dir",
+                str(session / "derived/readiness/session-quality"),
+                "--write-session-readiness",
+            ],
+            phase=DEFERRED_PHASE,
         ),
         step(
             "session_operational_readiness_for_audio_review",
@@ -1253,39 +1332,14 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
             phase=DEFERRED_PHASE,
         ),
         step(
-            "session_readiness_authoritative_final",
+            "reconcile_session_state",
             [
                 py,
-                str(repo_root / "scripts/report-session-quality.py"),
+                str(repo_root / "scripts/reconcile-session-state.py"),
                 str(session),
-                "--out-dir",
-                str(session / "derived/readiness/session-quality"),
-                "--write-session-readiness",
-                "--preserve-authoritative-profile",
+                "--reason",
+                "deferred_enrichment",
             ],
-            phase=DEFERRED_PHASE,
-        ),
-        step(
-            "speaker_resolved_transcript_default",
-            [
-                py,
-                str(repo_root / "scripts/select-speaker-resolved-transcript.py"),
-                str(session),
-                "--refresh-evidence",
-            ],
-            enabled=not args.skip_audits,
-            reason="--skip-audits",
-            phase=DEFERRED_PHASE,
-        ),
-        step(
-            "provisional_speaker_transcript_default",
-            [
-                py,
-                str(repo_root / "scripts/materialize-provisional-speaker-transcript.py"),
-                str(session),
-            ],
-            enabled=not args.skip_audits,
-            reason="--skip-audits",
             phase=DEFERRED_PHASE,
         ),
     ]
@@ -1786,8 +1840,12 @@ def default_handoff_reuse_allowed(args: argparse.Namespace) -> bool:
 
 
 def steps_for_phase(steps: list[dict[str, Any]], phase: str) -> list[dict[str, Any]]:
-    handoff = [item for item in steps if item.get("phase") == HANDOFF_PHASE]
-    deferred = [item for item in steps if item.get("phase") == DEFERRED_PHASE]
+    handoff = [
+        item for item in steps if item.get("phase") in {HANDOFF_PHASE, BOTH_PHASE}
+    ]
+    deferred = [
+        item for item in steps if item.get("phase") in {DEFERRED_PHASE, BOTH_PHASE}
+    ]
     if phase == "handoff":
         return handoff
     if phase == "deferred":

@@ -91,6 +91,7 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Remote speaker cluster purity reference v1 | `done` | `ADVANCE_SEGMENTATION`: 10 reference voices / 4 clusters, purity `0.898106`, minority recall `0` |
 | Residual transcript integrity v1 | `done` | `PROMOTE`: 10/19 proven duplicate/repetition repairs, nine explicit review cases |
 | Boundary and minority-voice segmentation v1 | `done` | `KEEP_COVERAGE_V3`: exact words, but real precision `0.044688`, speaker ratio `0.5`, minority recall `0.017161` |
+| Enrichment transaction and cache coherence v1 | `done` | Idempotent downstream refresh, review history, decode reuse and one canonical queue |
 | Post-segmentation transcript rebaseline v1 | `current` | Refresh one comparable corpus and rank the remaining quality axes |
 | Human-reviewed lexical seed v1 | `blocked` | Exact real-meeting word truth is still external evidence |
 | Session-scoped lexical context v1 | `later` | Compact per-meeting prompt/hotwords, never a broad static glossary |
@@ -130,13 +131,14 @@ flowchart LR
     UG["Done: ADVANCE SEGMENTATION<br/>Remote Speaker Cluster Purity<br/>Reference v1"]
     RI["Done: PROMOTE<br/>Residual Transcript<br/>Integrity v1"]
     BM["Done: KEEP COVERAGE V3<br/>Remote Speaker Boundary and<br/>Minority-Voice Segmentation v1"]
+    EC["Done<br/>Enrichment Transaction and<br/>Cache Coherence v1"]
     RB["Current<br/>Post-Segmentation<br/>Transcript Rebaseline v1"]
     HL["Blocked<br/>Human-Reviewed<br/>Lexical Seed v1"]
     LC["Later<br/>Session-Scoped<br/>Lexical Context v1"]
     TG["Later<br/>Speaker-Resolved Transcript<br/>Terminal Gate v1"]
     O["Optional<br/>Notes, retrieval,<br/>work proposals"]
 
-    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> W --> X --> Y --> RC --> SR --> TD --> M --> MQ --> UG --> RI --> BM --> RB --> HL --> LC --> TG
+    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> W --> X --> Y --> RC --> SR --> TD --> M --> MQ --> UG --> RI --> BM --> EC --> RB --> HL --> LC --> TG
     F --> D
     L -.-> O
 ```
@@ -256,17 +258,24 @@ private. Coverage v3 и selected transcript artifacts неизменны; CLI я
 diagnostic получил boundary precision `0.044688`, recall `0.670886`, speaker-count ratio `0.5`,
 minority recall `0.017161` и timing-shift partition ARI `0.289387`. Controlled-hard B-cubed F1
 `0.529176`. Replay byte-exact, production unchanged; post-terminal tuning запрещён.
-### 31. Post-Segmentation Transcript Rebaseline v1 — `current`
+### 31. Enrichment Transaction and Cache Coherence v1 — `done`
+Deferred Echo/review changes now rebuild their dependent transcript, synthesis, order, review and
+speaker surfaces before publication. Compatible review decisions survive a profile rebase, their
+history remains auditable, and content-identical faster-whisper clips reuse local decodes. The final
+reconciler rejects mixed profiles or queue counts. On `2026-08-20_11-31-56`, two repeated runs kept
+raw and `reviewed_v1` hashes unchanged, preserved 47 archived decisions and converged to 20 rows /
+`111.35s` in progress, readiness and outcome.
+### 32. Post-Segmentation Transcript Rebaseline v1 — `current`
 Зафиксировать `KEEP_COVERAGE_V3`, проверить свежие реальные сессии единым способом и заново
 ранжировать speaker topology, unknown, overlap, chronology, lexical residuals и
 rich/provisional/aggregate surfaces без смены production по инерции.
-### 32. Human-Reviewed Lexical Seed v1 — `blocked`
+### 33. Human-Reviewed Lexical Seed v1 — `blocked`
 Получить точную ручную разметку слов минимум для двух реальных встреч: 1x1/group, обе роли и два
 акустических режима. Машинное согласие остаётся диагностикой.
-### 33. Session-Scoped Lexical Context v1 — `later`
+### 34. Session-Scoped Lexical Context v1 — `later`
 Собирать короткий контекст конкретной встречи из локального domain pack. Broad static prompt
 запрещён; кандидат проходит term gain, общий WER/CER, role/speaker conservation и exact replay.
-### 34. Speaker-Resolved Transcript Terminal Gate v1 — `later`
+### 35. Speaker-Resolved Transcript Terminal Gate v1 — `later`
 Свести North Star в один составной, но не усреднённый набор обязательных ворот: capture, Me,
 words, order, roles, remote speakers, explicit unknown, review burden и exact fallback.
 ## Закрытые И Отложенные Треки

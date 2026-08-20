@@ -236,6 +236,32 @@ therefore remains the user-facing status; an internal interrupted child cannot h
 authoritative transcript.
 If a deferred action succeeds on resume, its checkpoint clears any `error` retained from an earlier
 failed or interrupted attempt. A successful status and stale error must never coexist.
+An explicit `meeting --resume SESSION` also retries `deferred_budget_exhausted`, `failed_soft` and
+skipped enrichment checkpoints with the budget supplied by the new invocation. Downstream refresh,
+review and finish actions return to `pending`; completed capture, inspect and authoritative process
+checkpoints are not repeated.
+
+## Session-State Reconciliation
+
+Deferred enrichment and review materialization end with `reconcile-session-state.py`. Its report is:
+
+```text
+derived/pipeline-run/state-reconciliation/state_reconciliation_report.json
+schema: murmurmark.session_state_reconciliation/v1
+```
+
+The transaction refreshes session quality, operational readiness, the review plan and progress,
+speaker selection, provisional speaker output and outcome in dependency order. When rebasing is
+enabled, a closed decision is reused only by exact evidence SHA-256 or by an unambiguous bounded
+interval/text identity with a still-allowed decision. One old decision cannot close multiple new
+rows. Earlier applied decisions are archived in `review_decisions_history.jsonl` under
+`murmurmark.review_decision_history/v1`.
+
+The terminal consistency gate requires the selected profile to agree across readiness, outcome and
+speaker selection, and requires review rows/seconds to agree with the canonical progress queue.
+Failure writes `failed_recoverable`, the previous transcript fingerprint and an executable resume
+command. It does not delete or overwrite raw capture. Repeating a completed reconciliation must not
+change the selected transcript, current decision file or decision history.
 
 `murmurmark status SESSION` accepts a lifecycle result only when the report schema is current, raw is
 preserved, the selected profile matches readiness, the selected transcript exists and the report is

@@ -24,7 +24,7 @@ STATE_SCHEMA = "murmurmark.meeting_lifecycle_state/v1"
 NEXT_SCHEMA = "murmurmark.meeting_next_action/v1"
 EVENT_SCHEMA = "murmurmark.meeting_lifecycle_event/v1"
 REPORT_SCHEMA = "murmurmark.meeting_lifecycle_report/v1"
-GENERATOR = {"name": "run-meeting-lifecycle", "version": "0.1.2"}
+GENERATOR = {"name": "run-meeting-lifecycle", "version": "0.1.3"}
 DEFAULT_POST_STOP_BUDGET_RATIO = 1.0
 DEFAULT_MAX_ENRICHMENT_BUDGET_SEC = 1800.0
 ACTION_ORDER = (
@@ -251,9 +251,26 @@ def ensure_state_shape(state: dict[str, Any], session: Path) -> dict[str, Any]:
     return state
 
 
-def recover_state_for_resume(state: dict[str, Any]) -> None:
-    for action, action_state in state["actions"].items():
+def recover_state_for_resume(state: dict[str, Any], *, retry_deferred: bool = False) -> None:
+    reset_downstream = False
+    for action in ACTION_ORDER:
+        action_state = state["actions"][action]
         status = action_state.get("status")
+        if retry_deferred and action == "enrich" and status in {
+            "deferred_budget_exhausted",
+            "failed_soft",
+            "skipped",
+        }:
+            action_state["status"] = "pending"
+            action_state["error"] = None
+            action_state["reason"] = "explicit resume retries incomplete deferred enrichment"
+            reset_downstream = True
+            continue
+        if reset_downstream:
+            action_state["status"] = "pending"
+            action_state["error"] = None
+            action_state["reason"] = "upstream deferred enrichment is being retried"
+            continue
         if status in {"running", "interrupted"}:
             action_state["status"] = "pending"
             action_state["error"] = None
@@ -393,10 +410,18 @@ class MeetingLifecycle:
                                 selected_profile=refreshed.get("selected_profile"),
                             )
                             report = refreshed
-                        print_summary(report)
-                        return 0
+                        if not self.resume or self.deferred_is_complete():
+                            print_summary(report)
+                            return 0
                 if self.resume:
-                    recover_state_for_resume(self.state)
+                    self.state["budget_policy"] = {
+                        "post_stop_budget_ratio": self.post_stop_budget_ratio,
+                        "max_enrichment_budget_sec": self.max_enrichment_budget_sec,
+                    }
+                    recover_state_for_resume(
+                        self.state,
+                        retry_deferred=not self.deferred_is_complete(),
+                    )
                     self.event("lifecycle_resumed", resume=True)
                 else:
                     raise LifecycleError(
@@ -486,10 +511,10 @@ class MeetingLifecycle:
             "inspect": [base, "inspect", session],
             "process": [base, "process", session, "--skip-build"],
             "enrich": [base, "enrich", session],
-            "refresh_after_enrich": [base, "outcome", session, "--refresh"],
+            "refresh_after_enrich": [base, "report", session],
             "review_suggested_preview": [base, "review", "suggested", "preview", session],
             "review_suggested_apply": [base, "review", "suggested", "apply", session],
-            "refresh_after_review": [base, "outcome", session, "--refresh"],
+            "refresh_after_review": [base, "report", session],
             "finish": [base, "finish", session]
             + (["--keep-debug-artifacts"] if self.state.get("keep_debug_artifacts") else []),
         }

@@ -74,11 +74,11 @@ prints an exact `murmurmark meeting --resume SESSION` command. The final summary
 transcript, verdict, unresolved review burden and raw preservation result; optional notes and export
 status are included when those derivative stages are present.
 
-The first authoritative handoff no longer waits for optional Neural Echo evaluation. Deferred
-enrichment has an explicit time budget; Neural Echo is skipped when its frozen worst-case estimate
-cannot fit after the review-evidence reserve. `status` finishes with `complete`, an executable recovery
-command, or `human_decision_required` with a bounded item count and duration. Applying review
-decisions refreshes speaker evidence for the selected profile and clears stale deferred errors. When
+The first authoritative handoff no longer waits for optional Neural Echo evaluation. Deferred enrichment has an explicit
+time budget: severe speaker playback prioritizes advanced Echo; other modes retain the review reserve.
+Explicit resume retries budget-deferred work. Enrichment, review and `report` finish through one
+reconciliation step that preserves compatible decisions and synchronizes profile, speaker evidence and
+the canonical review queue. When
 the strict publication gate misses, the ordinary read path keeps compatible local clusters as a
 disclaimer-bearing `provisional` attribution and marks the rest `remote_speaker_unknown`; the exact
 role-only transcript remains available through `--aggregate`. `status` and `outcome` print the
@@ -324,7 +324,7 @@ one-shot ERes2NetV2 qualification kept Coverage v3; Cluster Purity Reference v1 
 voices compressed into four acoustic clusters, purity `89.8106%` and minority recall `0`. Transcript
 Integrity v1 repaired 10/19 proven duplicate/repetition candidates. Frozen Boundary and
 Minority-Voice Segmentation v1 then kept Coverage v3: exact words, but real precision `0.044688`,
-speaker ratio `0.5` and minority recall `0.017161`. Current: **Post-Segmentation Transcript Rebaseline v1**.
+speaker ratio `0.5` and minority recall `0.017161`. Enrichment Transaction and Cache Coherence v1 is done; current: **Post-Segmentation Transcript Rebaseline v1**.
 The remaining critical path is:
 ```text
 Coverage v3 + Transcript Integrity v1 -> Boundary Segmentation v1 (KEEP_COVERAGE_V3)

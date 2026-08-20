@@ -82,8 +82,11 @@ material gates. Direct blind adjudication kept Coverage v3 after the candidate l
 controls and increased fail-closed unsafe accepts from 8 to 13. Purity v2 restored control safety,
 but homogeneous enrollment, stronger representations and temporal clustering all failed their
 promotion gates. Disjoint Truth v2 and the cluster-purity audit then localized the remaining topology
-defect: dominant clusters absorb short minority voices. Current work therefore improves boundaries
-and minority-turn preservation before anonymous identity assignment.
+defect: dominant clusters absorb short minority voices. The first frozen boundary candidate kept
+Coverage v3 after failing precision, speaker-count and minority-recall gates. The current step is a
+fresh transcript rebaseline that ranks the remaining axes before another model is chosen. Deferred
+enrichment now ends in one idempotent state-reconciliation transaction, so stale review or
+attribution reports cannot distort that comparison.
 
 ## Core User Jobs
 
@@ -124,15 +127,17 @@ met, unless an explicit product decision changes the priority.
    chronology, roles, speakers, overlap, acoustic modes and known residual defects.
 2. **Remote Speaker Boundary and Minority-Voice Segmentation v1:** completed `KEEP_COVERAGE_V3`;
    exact words survived, but boundary precision, speaker-count and minority gates failed.
-3. **Post-Segmentation Transcript Rebaseline v1:** current; rerun one comparable fresh corpus and
+3. **Enrichment Transaction and Cache Coherence v1:** completed; late Echo/review changes now
+   rebuild dependent outputs, preserve compatible decisions and converge to one canonical queue.
+4. **Post-Segmentation Transcript Rebaseline v1:** current; rerun one comparable fresh corpus and
    rank speaker topology, unknown, overlap, chronology, lexical and read-surface errors.
-4. **Human-Reviewed Lexical Seed v1:** collect exact real-meeting word truth before tuning ASR;
+5. **Human-Reviewed Lexical Seed v1:** collect exact real-meeting word truth before tuning ASR;
    agreement between local recognizers is diagnostic evidence only.
-5. **Session-Scoped Lexical Context v1:** compile a short topic-specific prompt or hotword set and
+6. **Session-Scoped Lexical Context v1:** compile a short topic-specific prompt or hotword set and
    promote it only after multi-session no-regression A/B. A broad static glossary is not an ASR prompt.
-6. **Speaker-Resolved Transcript Terminal Gate v1:** make the product North Star measurable across
+7. **Speaker-Resolved Transcript Terminal Gate v1:** make the product North Star measurable across
    capture, words, chronology, roles, remote speakers, explicit unknown and exact fallback.
-7. **Local Mic Multi-Speaker Diarization v1:** a conditional branch opened only by a real
+8. **Local Mic Multi-Speaker Diarization v1:** a conditional branch opened only by a real
    multi-person local scenario and labelled corpus.
 
 ## Long-Term Direction

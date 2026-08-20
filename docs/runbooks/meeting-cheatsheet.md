@@ -1,6 +1,6 @@
 # Meeting Cheat Sheet
 
-Updated: 2026-08-10
+Updated: 2026-08-20
 
 ## Update A Packaged Release
 
@@ -48,6 +48,11 @@ The first authoritative result does not wait for optional Neural Echo enrichment
 exhausted, the summary records `deferred_work` and still returns the baseline result. A terminal
 `human_decision_required` line includes the exact bounded item count and seconds; inspect
 `derived/meeting-lifecycle/report.md` rather than rerunning `status` in a loop.
+
+If enrichment exhausted its budget, the printed `meeting --resume` command retries it with a fresh
+budget. Successful enrichment or review automatically reconciles the selected profile, speaker
+attribution, readiness, outcome and the remaining review queue. No separate internal refresh
+commands are required.
 
 Run `meeting` as the foreground command by itself. Do not paste the status/transcript command block
 into that terminal while capture or processing is still active: the shell buffers that input and may
@@ -110,6 +115,7 @@ SESSION="sessions/<session-id>"
 murmurmark inspect "$SESSION"
 murmurmark process "$SESSION"
 murmurmark enrich "$SESSION"
+murmurmark report "$SESSION"
 murmurmark next "$SESSION"
 murmurmark finish "$SESSION"
 ```
