@@ -17241,6 +17241,14 @@ enum ReadinessPrinter {
         if let current = currentReviewRemaining(session) {
             remainingRows = current.rows
             remainingSeconds = current.seconds
+            let reportSummary = payload["summary"] as? [String: Any] ?? [:]
+            if let reportTotal = int(reportSummary["total_rows"]), reportTotal != current.total {
+                print("  suggested_closure:")
+                print("    status: stale_review_queue")
+                print(String(format: "    manual_remaining: %d rows / %.2f min", remainingRows, remainingSeconds / 60.0))
+                print("    refresh: murmurmark review suggested \(PathDisplay.display(session))")
+                return
+            }
         }
         let closureWasApplied = suggestedClosureAlreadyPartiallyApplied(session)
         print("  suggested_closure:")
@@ -17277,20 +17285,24 @@ enum ReadinessPrinter {
         return (int(closed["rows"]) ?? 0) > 0
     }
 
-    private static func currentReviewRemaining(_ session: URL) -> (rows: Int, seconds: Double)? {
+    private struct CurrentReviewRemaining {
+        let total: Int
+        let rows: Int
+        let seconds: Double
+    }
+
+    private static func currentReviewRemaining(_ session: URL) -> CurrentReviewRemaining? {
         let progressURL = session.appendingPathComponent("derived/readiness/review-plan/review_decisions_progress.json")
         guard let payload = try? JSONFiles.object(progressURL),
-              let summary = payload["summary"] as? [String: Any]
+              let summary = payload["summary"] as? [String: Any],
+              let total = int(summary["total"]),
+              let remaining = int(summary["remaining"])
         else {
             return nil
         }
-        let reviewed = int(summary["reviewed"]) ?? 0
-        let remaining = int(summary["remaining"])
-        guard reviewed > 0, let remaining else {
-            return nil
-        }
-        let seconds = (double(summary["remaining_minutes"]) ?? 0.0) * 60.0
-        return (remaining, seconds)
+        let seconds = double(summary["remaining_seconds"])
+            ?? (double(summary["remaining_minutes"]) ?? 0.0) * 60.0
+        return CurrentReviewRemaining(total: total, rows: remaining, seconds: seconds)
     }
 
     private struct UseSummary {

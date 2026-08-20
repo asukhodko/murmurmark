@@ -253,7 +253,8 @@ if command in {"outcome", "report"}:
     raise SystemExit(0)
 if command == "review" and "preview" in args:
     auto_rows = 1 if scenario in {"ready", "stale_finish", "archived_finish"} else 0
-    artifacts(session, ready=False, auto_rows=auto_rows, blocked=scenario == "blocked")
+    # Preview is fresher than readiness; the lifecycle must use its closure directly.
+    artifacts(session, ready=False, auto_rows=0, blocked=scenario == "blocked")
     write(
         session / "derived/readiness/review-plan/review_workspace_apply_report.json",
         {
@@ -1045,8 +1046,10 @@ def main() -> None:
             "--max-transitions",
             "9",
         )
-        assert limited_run.returncode == 2
-        assert report(limited_session)["reason"] == "transition_limit_exceeded"
+        assert limited_run.returncode == 0, (limited_run.stdout, limited_run.stderr)
+        limited_state = json.loads(limited_state_path.read_text(encoding="utf-8"))
+        assert limited_state["transition_count"] <= 9, limited_state
+        assert limited_state["cumulative_transition_count"] >= 9, limited_state
 
         resumed = run_supervisor(root, interrupted_session, fake, "review", "--resume")
         assert resumed.returncode == 0, (resumed.stdout, resumed.stderr)

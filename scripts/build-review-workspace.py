@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.5.0"
+SCRIPT_VERSION = "0.5.1"
 REVIEW_STATE_FIELDS = {
     "decision",
     "status",
@@ -320,6 +320,39 @@ def merge_review_state(template: dict[str, Any], existing: dict[str, Any] | None
     return merged
 
 
+def unambiguous_review_candidate(
+    candidates: list[dict[str, Any]],
+    *,
+    allowed_decisions: set[str],
+    carried_source_ids: set[int],
+) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    available = [candidate for candidate in candidates if id(candidate) not in carried_source_ids]
+    decisions = {
+        str(candidate.get("decision") or "")
+        for candidate in available
+        if str(candidate.get("decision") or "") not in {"", "todo"}
+    }
+    if len(decisions) != 1:
+        return None, []
+    decision = next(iter(decisions))
+    if allowed_decisions and decision not in allowed_decisions:
+        return None, []
+    matching = [candidate for candidate in available if str(candidate.get("decision") or "") == decision]
+    return (matching[0], matching) if matching else (None, [])
+
+
+def rebase_candidate_rows(
+    existing_rows: list[dict[str, Any]],
+    history_rows: list[dict[str, Any]],
+    history_source_rows: list[dict[str, Any]],
+    *,
+    enabled: bool,
+) -> list[dict[str, Any]]:
+    if not enabled:
+        return existing_rows
+    return existing_rows + history_rows + history_source_rows
+
+
 def merge_existing_with_report(
     template_rows: list[dict[str, Any]],
     existing_rows: list[dict[str, Any]],
@@ -340,49 +373,45 @@ def merge_existing_with_report(
     carried_source_ids: set[int] = set()
     for row in template_rows:
         existing = None
+        consumed_candidates: list[dict[str, Any]] = []
         match = ""
-        identity_candidates = [
-            candidate
-            for candidate in existing_by_identity.get(review_evidence_identity(row), [])
-            if id(candidate) not in carried_source_ids
-        ]
-        if len(identity_candidates) == 1:
-            candidate = identity_candidates[0]
-            allowed = {str(value) for value in row.get("allowed_decisions") or []}
-            if not allowed or str(candidate.get("decision") or "") in allowed:
-                existing = candidate
-                match = "evidence_identity"
+        allowed = {str(value) for value in row.get("allowed_decisions") or []}
+        existing, consumed_candidates = unambiguous_review_candidate(
+            existing_by_identity.get(review_evidence_identity(row), []),
+            allowed_decisions=allowed,
+            carried_source_ids=carried_source_ids,
+        )
+        if existing is not None:
+            match = "evidence_identity"
         if existing is None:
-            candidates = [
-                candidate
-                for candidate in semantic_rows.get(semantic_review_row_key(row), [])
-                if id(candidate) not in carried_source_ids
-            ]
-            if len(candidates) == 1:
-                candidate = candidates[0]
-                allowed = {str(value) for value in row.get("allowed_decisions") or []}
-                if not allowed or str(candidate.get("decision") or "") in allowed:
-                    existing = candidate
-                    match = "semantic_interval_text"
+            existing, consumed_candidates = unambiguous_review_candidate(
+                semantic_rows.get(semantic_review_row_key(row), []),
+                allowed_decisions=allowed,
+                carried_source_ids=carried_source_ids,
+            )
+            if existing is not None:
+                match = "semantic_interval_text"
         if existing is None and str(row.get("source") or "") == "transcript_text":
-            candidates = {
+            candidates = list({
                 id(candidate): candidate
                 for key in direct_utterance_keys(row)
                 for candidate in direct_rows.get(key, [])
                 if id(candidate) not in carried_source_ids
-            }
-            decisions = {str(candidate.get("decision") or "") for candidate in candidates.values()}
-            if len(decisions) == 1:
-                candidate = next(iter(candidates.values()))
-                allowed = {str(value) for value in row.get("allowed_decisions") or []}
-                if candidate.get("decision") in {"keep_me", "drop_me"} and (
-                    not allowed or str(candidate.get("decision")) in allowed
-                ):
-                    existing = candidate
-                    match = "direct_utterance_interval_text"
+            }.values())
+            direct_allowed = {"keep_me", "drop_me"}
+            if allowed:
+                direct_allowed &= allowed
+            if direct_allowed:
+                existing, consumed_candidates = unambiguous_review_candidate(
+                    candidates,
+                    allowed_decisions=direct_allowed,
+                    carried_source_ids=carried_source_ids,
+                )
+            if existing is not None:
+                match = "direct_utterance_interval_text"
         merged = merge_review_state(row, existing)
         if existing is not None:
-            carried_source_ids.add(id(existing))
+            carried_source_ids.update(id(candidate) for candidate in consumed_candidates)
             carried_by_match[match] += 1
             merged["review_rebase"] = {
                 "schema": "murmurmark.review_decision_rebase_evidence/v1",
@@ -633,18 +662,29 @@ def main() -> int:
     decisions = args.decisions.expanduser()
     out_dir = args.out_dir.expanduser()
     existing_rows = read_jsonl(decisions)
-    rows, rebase_report = merge_existing_with_report(read_jsonl(template), existing_rows)
+    history_path = out_dir / "review_decisions_history.jsonl"
+    existing_history = read_jsonl(history_path) if args.rebase_decisions else []
+    history_source_rows = (
+        [
+            row
+            for source in args.history_source
+            for row in read_jsonl(source.expanduser())
+        ]
+        if args.rebase_decisions
+        else []
+    )
+    candidate_rows = rebase_candidate_rows(
+        existing_rows,
+        existing_history,
+        history_source_rows,
+        enabled=args.rebase_decisions,
+    )
+    rows, rebase_report = merge_existing_with_report(read_jsonl(template), candidate_rows)
     if args.rebase_decisions:
         generated_at = datetime.now(timezone.utc).isoformat()
-        history_path = out_dir / "review_decisions_history.jsonl"
         history_rows, archived_rows = archive_closed_decisions(
-            read_jsonl(history_path),
-            existing_rows
-            + [
-                row
-                for source in args.history_source
-                for row in read_jsonl(source.expanduser())
-            ],
+            existing_history,
+            existing_rows + history_source_rows,
             archived_at=generated_at,
         )
         write_jsonl_atomic(history_path, history_rows)
@@ -654,6 +694,8 @@ def main() -> int:
         rebase_report["decisions"] = str(decisions)
         rebase_report["history"] = str(history_path)
         rebase_report["history_rows"] = len(history_rows)
+        rebase_report["history_candidate_rows"] = len(existing_history)
+        rebase_report["history_source_rows"] = len(history_source_rows)
         rebase_report["archived_rows_this_run"] = archived_rows
         write_json(out_dir / "review_decisions_rebase.json", rebase_report)
     session_filters = {item.strip() for item in args.session if item.strip()}

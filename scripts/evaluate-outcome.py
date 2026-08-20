@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.8"
+SCRIPT_VERSION = "0.1.9"
 OUTCOME_SCHEMA = "murmurmark.outcome/v1"
 REVIEW_PLAN_SCHEMA = "murmurmark.outcome_review_plan/v1"
 RUN_SCHEMA = "murmurmark.pipeline_run/v1"
@@ -317,8 +317,42 @@ def suggested_review_metrics(session: Path) -> dict[str, Any]:
     auto_seconds = safe_float(closed.get("seconds")) or 0.0
     remaining_rows = safe_int(remaining.get("rows")) or 0
     remaining_seconds = safe_float(remaining.get("seconds")) or 0.0
+    progress = read_json(
+        session / "derived/readiness/review-plan/review_decisions_progress.json"
+    )
+    progress_summary = (
+        progress.get("summary")
+        if isinstance(progress, dict) and isinstance(progress.get("summary"), dict)
+        else {}
+    )
+    current_remaining = safe_int(progress_summary.get("remaining"))
+    if current_remaining is not None:
+        remaining_rows = current_remaining
+        current_seconds = safe_float(progress_summary.get("remaining_seconds"))
+        if current_seconds is not None:
+            remaining_seconds = current_seconds
+    report_summary = report.get("summary") if isinstance(report.get("summary"), dict) else {}
+    report_total = safe_int(report_summary.get("total_rows"))
+    progress_total = safe_int(progress_summary.get("total"))
+    if report_total is not None and progress_total is not None and report_total != progress_total:
+        return {
+            "suggested_closure_report_dry_run": report.get("dry_run"),
+            "suggested_closure_report_stale": True,
+            "suggested_closure_status": "stale_review_queue",
+            "suggested_closure_actionable_rows": 0,
+            "suggested_closure_actionable_seconds": 0.0,
+            "suggested_closure_auto_rows": 0,
+            "suggested_closure_auto_seconds": 0.0,
+            "suggested_closure_auto_keep_rows": 0,
+            "suggested_closure_auto_keep_seconds": 0.0,
+            "suggested_closure_auto_drop_rows": 0,
+            "suggested_closure_auto_drop_seconds": 0.0,
+            "suggested_closure_manual_remaining_rows": remaining_rows,
+            "suggested_closure_manual_remaining_seconds": round(remaining_seconds, 3),
+        }
     return {
         "suggested_closure_report_dry_run": report.get("dry_run"),
+        "suggested_closure_report_stale": False,
         "suggested_closure_status": closure.get("status"),
         "suggested_closure_generated_rows": rows,
         "suggested_closure_generated_seconds": round(seconds, 3),

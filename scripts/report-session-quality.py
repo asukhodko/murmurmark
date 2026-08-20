@@ -19,7 +19,7 @@ if str(SCRIPT_DIR) not in sys.path:
 import review_profile_lineage as review_lineage
 
 
-SCRIPT_VERSION = "0.5.9"
+SCRIPT_VERSION = "0.6.0"
 SCHEMA = "murmurmark.session_quality_report/v1"
 READINESS_SCHEMA = "murmurmark.session_readiness/v1"
 CLEANUP_PROFILES = {
@@ -1550,6 +1550,11 @@ def suggested_closure_metrics(
         if isinstance(closure.get("generated_suggestions"), dict)
         else {}
     )
+    report_summary = (
+        workspace_apply_report.get("summary")
+        if isinstance(workspace_apply_report.get("summary"), dict)
+        else {}
+    )
     closed_by_decision = closed.get("by_decision") if isinstance(closed.get("by_decision"), list) else []
     pending_apply = workspace_apply_report.get("dry_run") is True
 
@@ -1570,9 +1575,8 @@ def suggested_closure_metrics(
     manual_remaining_rows = safe_int(remaining.get("rows"))
     manual_remaining_seconds = round_or_none(remaining.get("seconds"))
     if isinstance(review_progress, dict):
-        reviewed = safe_int(review_progress.get("reviewed")) or 0
         current_remaining = safe_int(review_progress.get("remaining"))
-        if reviewed > 0 and current_remaining is not None:
+        if current_remaining is not None:
             manual_remaining_rows = current_remaining
             remaining_seconds = safe_float(review_progress.get("remaining_seconds"))
             if remaining_seconds is not None:
@@ -1582,8 +1586,35 @@ def suggested_closure_metrics(
                 if remaining_minutes is not None:
                     manual_remaining_seconds = round(remaining_minutes * 60.0, 3)
 
+    report_total = safe_int(report_summary.get("total_rows"))
+    progress_total = safe_int(review_progress.get("total")) if isinstance(review_progress, dict) else None
+    stale_review_queue = (
+        report_total is not None
+        and progress_total is not None
+        and report_total != progress_total
+    )
+    if stale_review_queue:
+        return {
+            "suggested_closure_report_dry_run": pending_apply,
+            "suggested_closure_report_stale": True,
+            "suggested_closure_status": "stale_review_queue",
+            "suggested_closure_actionable_rows": 0,
+            "suggested_closure_actionable_seconds": 0.0,
+            "suggested_closure_auto_rows": 0,
+            "suggested_closure_auto_seconds": 0.0,
+            "suggested_closure_auto_keep_rows": 0,
+            "suggested_closure_auto_keep_seconds": 0.0,
+            "suggested_closure_auto_drop_rows": 0,
+            "suggested_closure_auto_drop_seconds": 0.0,
+            "suggested_closure_auto_review_rows": 0,
+            "suggested_closure_auto_review_seconds": 0.0,
+            "suggested_closure_manual_remaining_rows": manual_remaining_rows,
+            "suggested_closure_manual_remaining_seconds": manual_remaining_seconds,
+        }
+
     return {
         "suggested_closure_report_dry_run": pending_apply,
+        "suggested_closure_report_stale": False,
         "suggested_closure_status": closure.get("status"),
         "suggested_closure_generated_rows": safe_int(generated.get("rows")),
         "suggested_closure_generated_seconds": round_or_none(generated.get("seconds")),

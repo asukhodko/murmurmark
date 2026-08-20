@@ -24,7 +24,7 @@ STATE_SCHEMA = "murmurmark.meeting_lifecycle_state/v1"
 NEXT_SCHEMA = "murmurmark.meeting_next_action/v1"
 EVENT_SCHEMA = "murmurmark.meeting_lifecycle_event/v1"
 REPORT_SCHEMA = "murmurmark.meeting_lifecycle_report/v1"
-GENERATOR = {"name": "run-meeting-lifecycle", "version": "0.1.3"}
+GENERATOR = {"name": "run-meeting-lifecycle", "version": "0.1.4"}
 DEFAULT_POST_STOP_BUDGET_RATIO = 1.0
 DEFAULT_MAX_ENRICHMENT_BUDGET_SEC = 1800.0
 ACTION_ORDER = (
@@ -212,6 +212,7 @@ def new_state(
         "current_action": None,
         "next_action": "capture_validate",
         "transition_count": 0,
+        "cumulative_transition_count": 0,
         "actions": {action: default_action_state() for action in ACTION_ORDER},
         "raw_inputs": [],
         "warnings": [],
@@ -239,6 +240,7 @@ def ensure_state_shape(state: dict[str, Any], session: Path) -> dict[str, Any]:
     state["resume_command"] = resume_command(session, bool(state["keep_debug_artifacts"]))
     state.setdefault("warnings", [])
     state.setdefault("transition_count", 0)
+    state.setdefault("cumulative_transition_count", 0)
     state.setdefault("record_command_elapsed_sec", state.get("capture_elapsed_sec", 0.0))
     state.setdefault("capture_finalize_elapsed_sec", 0.0)
     state.setdefault(
@@ -252,6 +254,11 @@ def ensure_state_shape(state: dict[str, Any], session: Path) -> dict[str, Any]:
 
 
 def recover_state_for_resume(state: dict[str, Any], *, retry_deferred: bool = False) -> None:
+    previous_transitions = int(state.get("transition_count") or 0)
+    state["cumulative_transition_count"] = (
+        int(state.get("cumulative_transition_count") or 0) + previous_transitions
+    )
+    state["transition_count"] = 0
     reset_downstream = False
     for action in ACTION_ORDER:
         action_state = state["actions"][action]
@@ -279,6 +286,7 @@ def recover_state_for_resume(state: dict[str, Any], *, retry_deferred: bool = Fa
                 action_state["status"] = "pending"
                 action_state["error"] = None
     state["status"] = "running"
+    state["failure_reason"] = None
     state["current_action"] = None
     state["updated_at"] = now_iso()
 
@@ -1035,6 +1043,21 @@ class MeetingLifecycle:
         )
 
     def safe_suggested_rows(self) -> int:
+        report = read_json(self.review_apply_report_path()) or {}
+        closure = (
+            report.get("suggested_closure")
+            if isinstance(report.get("suggested_closure"), dict)
+            else {}
+        )
+        closed = (
+            closure.get("closed_by_suggestions")
+            if isinstance(closure.get("closed_by_suggestions"), dict)
+            else {}
+        )
+        if report.get("answers_source") == "suggested" and report.get("dry_run") is True:
+            preview_rows = closed.get("rows")
+            if isinstance(preview_rows, (int, float)) and int(preview_rows) > 0:
+                return int(preview_rows)
         readiness = read_json(self.readiness_path()) or {}
         metrics = readiness.get("metrics") if isinstance(readiness.get("metrics"), dict) else {}
         value = metrics.get("suggested_closure_auto_rows")
