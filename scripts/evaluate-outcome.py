@@ -252,12 +252,19 @@ def compact_metrics(metrics: dict[str, Any]) -> dict[str, Any]:
         "remote_forbidden_review_burden_seconds",
         "remote_forbidden_status",
         "capture_continuity_status",
+        "capture_continuity_complete",
+        "capture_continuity_terminal_gate",
         "capture_continuity_restart_count",
+        "capture_continuity_restart_attempt_count",
         "capture_continuity_gap_count",
         "capture_continuity_gap_seconds",
         "capture_continuity_max_gap_seconds",
         "capture_continuity_gap_ratio",
         "capture_continuity_partial_recommended",
+        "capture_continuity_restart_provenance_status",
+        "capture_continuity_max_software_idle_ms",
+        "capture_continuity_max_start_api_ms",
+        "capture_continuity_max_restart_to_pcm_ms",
         "capture_continuity_source",
         "pre_asr_echo_active_status",
         "pre_asr_echo_active_reason",
@@ -563,14 +570,18 @@ def evaluate_gates(
     continuity_status = str(metrics.get("capture_continuity_status") or "missing")
     continuity_partial = metrics.get("capture_continuity_partial_recommended") is True
     continuity_available = continuity_status != "missing"
+    continuity_complete = metrics.get("capture_continuity_complete")
+    continuity_incomplete = continuity_complete is False or (
+        continuity_available and (safe_float(metrics.get("capture_continuity_gap_seconds")) or 0.0) > 0.0
+    )
     gates.append(
         {
             "id": "capture_continuity",
-            "status": "review" if continuity_partial else "pass" if continuity_available else "unknown",
-            "severity": "risk" if continuity_partial else "info",
+            "status": "review" if continuity_incomplete else "pass" if continuity_available else "unknown",
+            "severity": "risk" if continuity_incomplete else "info",
             "message": (
-                "capture gaps can make the transcript incomplete"
-                if continuity_partial
+                "measured uncaptured PCM intervals can make the transcript incomplete"
+                if continuity_incomplete
                 else "restart-correlated PCM continuity is measured"
                 if continuity_available
                 else "capture continuity audit is unavailable"
@@ -581,7 +592,9 @@ def evaluate_gates(
             "gap_seconds": metrics.get("capture_continuity_gap_seconds"),
             "max_gap_seconds": metrics.get("capture_continuity_max_gap_seconds"),
             "partial_recommended": continuity_partial if continuity_available else None,
-            "blocking": continuity_partial,
+            "capture_complete": continuity_complete if continuity_available else None,
+            "restart_provenance_status": metrics.get("capture_continuity_restart_provenance_status"),
+            "blocking": continuity_incomplete,
         }
     )
 

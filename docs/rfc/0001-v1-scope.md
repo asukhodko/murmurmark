@@ -56,8 +56,10 @@ Current implementation status, 2026-08-20:
   promotion; interval, enrollment, representation and temporal variants also did not advance.
   Disjoint Truth v2 and Cluster Purity Reference v1 localized the remaining topology defect to mixed
   boundaries and minority voices. Boundary/minority segmentation kept Coverage v3; fresh rebaseline
-  passed and exposed three restart-bounded capture gaps. Capture continuity closure is current;
-  human-reviewed lexical truth, session-scoped lexical context and a terminal product gate follow.
+  passed and exposed three restart-bounded capture gaps. Capture continuity closure completed
+  `EVIDENCE_BOUND`: software restart latency was removed and every remaining native source gap now
+  blocks completeness. Remote Unknown Evidence Recovery is current; human-reviewed lexical truth,
+  session-scoped lexical context and a terminal product gate follow.
   Production remains Coverage v3. Cross-session identity, summaries, cloud/external writes and UI
   remain future or optional;
 - local domain glossaries remain private knowledge inputs. They are not compiled into production ASR

@@ -1,0 +1,42 @@
+{
+  "schema": "murmurmark.capture_continuity_loss_closure_manifest/v1",
+  "version": 1,
+  "frozen_at": "2026-08-20",
+  "files": [
+    {
+      "path": "sessions/2026-08-19_14-12-32/session.json",
+      "bytes": 2874,
+      "sha256": "2275ebd4ebc05859c5abb45622274d6434fee46ffef83df552e2d400314de626"
+    },
+    {
+      "path": "sessions/2026-08-19_14-12-32/events.jsonl",
+      "bytes": 1541,
+      "sha256": "9f2a8b781a6a621083faecc61a086ba5392b248c5ade382ed27e97ad85e8ec16"
+    },
+    {
+      "path": "sessions/2026-08-19_14-12-32/audio/mic/000001.caf",
+      "bytes": 596169456,
+      "sha256": "3dd30eb351c5440db310bd3482d56e2891827990c22bcc753476ed0d71fbaab9"
+    },
+    {
+      "path": "sessions/2026-08-19_14-12-32/audio/remote/000001.caf",
+      "bytes": 1192342984,
+      "sha256": "8edbefbc733382640ddeaec0c833c82eacab329a5bd00a605a3bc281e2bd4a72"
+    },
+    {
+      "path": "sessions/2026-08-19_14-12-32/derived/audit/capture-continuity/capture_continuity_report.json",
+      "bytes": 3940,
+      "sha256": "284a581dfaec38f2ba3419a99a445043a941b4bd9445d243cd4b5a505a92d710"
+    },
+    {
+      "path": "sessions/_reports/post-segmentation-transcript-rebaseline-v1/post_segmentation_rebaseline_report.json",
+      "bytes": 19624,
+      "sha256": "1764c0b4b569effcbb6db27d67b2f718f15cf554356eb3942a7581d7c51ee145"
+    },
+    {
+      "path": "docs/testing/post-segmentation-transcript-rebaseline-v1-snapshot.json",
+      "bytes": 6129,
+      "sha256": "fa95baf75796f41fed54820844b70f240f85bd259791f3fb444cced27b7f70ff"
+    }
+  ]
+}

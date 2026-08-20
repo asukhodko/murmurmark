@@ -149,6 +149,20 @@ Rules:
 - split chunks by size or time;
 - never write transcript or speech content to logs.
 
+### ScreenCaptureKit Restart Contract
+
+The durable writer remains the only capture authority during recovery. A `streamStopped` or stalled
+signal enters `CaptureRestartCoordinator`; one caller owns the attempt and concurrent callers await
+the same result. Final stop first closes the coordinator, cancels any active attempt and only then
+closes raw writers. The old stream is stopped only for a stall while it may still be alive;
+`streamStopped` skips that call. No fixed sleep is allowed between old-stream disposition and the
+next `startCapture` request.
+
+`events.jsonl` records monotonic restart phases and one terminal outcome. The writer records each
+post-start timestamp hole as `session.json.health.capture_gaps` with exact boundaries and
+`captured_audio=false`. Silence may preserve timeline alignment, but downstream code must never
+interpret it as captured source audio. Any such interval makes terminal capture completeness false.
+
 ## Health Monitor
 
 Before start:

@@ -1306,6 +1306,7 @@ enum DoctorChecks {
             "scripts/check-asr-chunk-cache.py",
             "scripts/check-capture-regressions.sh",
             "scripts/audit-capture-continuity.py",
+            "scripts/report-capture-continuity-loss-closure-v1.py",
             "scripts/apply-transcript-integrity.py",
             "scripts/report-transcript-integrity-corpus.py",
             "scripts/synthesize-simple-extractive.py",
@@ -6432,6 +6433,23 @@ struct SynthesisArtifactHandoff {
 }
 
 enum TranscriptCommands {
+    private struct CaptureContinuityWarning {
+        let gapCount: Int
+        let gapSeconds: Double
+
+        var message: String {
+            String(
+                format: "capture is incomplete: %d uncaptured PCM interval(s) / %.3fs; speech may be missing",
+                gapCount,
+                gapSeconds
+            )
+        }
+
+        var markdown: String {
+            "> [!WARNING]\n> \(message).\n\n"
+        }
+    }
+
     private struct RichSelection {
         let profile: String
         let url: URL
@@ -6504,6 +6522,11 @@ enum TranscriptCommands {
             throw CLIError("transcript not found: \(PathDisplay.display(url)); run `murmurmark process \(PathDisplay.display(session))`")
         }
 
+        let continuityWarning = captureContinuityWarning(session)
+        if let continuityWarning {
+            fputs("warning: \(continuityWarning.message)\n", stderr)
+        }
+
         if let fallbackReason, cat || pathOnly {
             let message: String
             if rich {
@@ -6537,6 +6560,9 @@ enum TranscriptCommands {
             }
         }
         if cat {
+            if let continuityWarning {
+                FileHandle.standardOutput.write(Data(continuityWarning.markdown.utf8))
+            }
             let data = try Data(contentsOf: url)
             FileHandle.standardOutput.write(data)
             return
@@ -6552,6 +6578,13 @@ enum TranscriptCommands {
         print("  kind: \(kind)")
         print("  profile: \(profile)")
         print("  speaker_profile: \(kind)")
+        if let continuityWarning {
+            print("  capture_complete: false")
+            print("  capture_gap_count: \(continuityWarning.gapCount)")
+            print(String(format: "  capture_gap_seconds: %.6f", continuityWarning.gapSeconds))
+        } else {
+            print("  capture_complete: true")
+        }
         if let speakerSelection {
             print("  speaker_resolution_state: \(speakerSelection.state)")
             if let ratio = SpeakerResolvedTranscriptState.attributedRemoteSpeechRatio(speakerSelection) {
@@ -6595,6 +6628,18 @@ enum TranscriptCommands {
             print("    \(command)")
         }
         FinalNextPrinter.print(handoff.recommendedNext)
+    }
+
+    private static func captureContinuityWarning(_ session: URL) -> CaptureContinuityWarning? {
+        let reportURL = session.appendingPathComponent(
+            "derived/audit/capture-continuity/capture_continuity_report.json"
+        )
+        guard let report = try? JSONFiles.object(reportURL) else { return nil }
+        let gapCount = int(report["observed_gap_count"]) ?? 0
+        let gapSeconds = double(report["observed_gap_seconds"]) ?? 0.0
+        let captureComplete = bool(report["capture_complete"]) ?? (gapCount == 0 && gapSeconds <= 0.0)
+        guard !captureComplete || gapCount > 0 || gapSeconds > 0.0 else { return nil }
+        return CaptureContinuityWarning(gapCount: gapCount, gapSeconds: gapSeconds)
     }
 
     private static func richTranscript(session: URL, reviewedSpeakers: Bool) throws -> RichSelection {
@@ -6823,6 +6868,26 @@ enum TranscriptCommands {
         if let value = value as? Int { return value }
         if let value = value as? NSNumber { return value.intValue }
         if let value = value as? String { return Int(value) }
+        return nil
+    }
+
+    private static func double(_ value: Any?) -> Double? {
+        if let value = value as? Double { return value }
+        if let value = value as? NSNumber { return value.doubleValue }
+        if let value = value as? String { return Double(value) }
+        return nil
+    }
+
+    private static func bool(_ value: Any?) -> Bool? {
+        if let value = value as? Bool { return value }
+        if let value = value as? NSNumber { return value.boolValue }
+        if let value = value as? String {
+            switch value.lowercased() {
+            case "true", "1", "yes": return true
+            case "false", "0", "no": return false
+            default: return nil
+            }
+        }
         return nil
     }
 
@@ -10798,7 +10863,11 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     private let fileManager = FileManager.default
     private let queue = DispatchQueue(label: "murmurmark.capture.samples")
     private let stateQueue = DispatchQueue(label: "murmurmark.capture.state")
+    private let restartCoordinator = CaptureRestartCoordinator()
+    private let restartProvenance = CaptureRestartProvenanceLedger()
     private var stream: SCStream?
+    private var restartStreamID: ObjectIdentifier?
+    private var currentRestartAttemptID: Int?
     private var screenCaptureFilter: SCContentFilter?
     private var screenCaptureConfiguration: SCStreamConfiguration?
     private var micWriter: AudioFileWriter?
@@ -10827,6 +10896,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     private var screenCaptureSampleBufferCount = 0
     private var captureSilenceWarningCount = 0
     private var captureSilenceRestartCount = 0
+    private var testRestartInjected = false
     private var captureStarted = false
     private var recordingActivity: NSObjectProtocol?
 
@@ -11098,9 +11168,14 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             await stopScreenCaptureStream()
             stopRemoteInputCapture()
             stopVoiceProcessingMic()
+            if needsScreenCaptureKit {
+                queue.sync {}
+            }
             stopDate = Date()
             let actualDuration = max(0.0, (stopDate ?? Date()).timeIntervalSince(startDate))
             try padScreenCaptureWritersToDuration(actualDuration)
+            let nativeCaptureGaps = captureGapManifestRows()
+            let nativeCaptureGapSeconds = nativeCaptureGaps.reduce(0.0) { $0 + $1.durationSec }
             liveSegments?.closeAll(finalDurationSeconds: actualDuration)
             experimentLivePreview?.closeAll(finalDurationSeconds: actualDuration)
             rawSidecarCommits?.closeAll(finalFramesBySource: [
@@ -11127,6 +11202,9 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                 "explicit_stop": stopReason.isExplicitStop,
                 "actual_duration_sec": Double(round(actualDuration * 1000) / 1000),
                 "screen_capture_restart_count": screenCaptureRestartCount,
+                "capture_complete": nativeCaptureGaps.isEmpty,
+                "capture_gap_count": nativeCaptureGaps.count,
+                "capture_gap_seconds": roundedCaptureSeconds(nativeCaptureGapSeconds),
             ]
             if severePreFinishAudioCoverageGap {
                 stoppedFields["audio_coverage_ratio"] = Double((preFinishAudioCoverage * 1000).rounded() / 1000)
@@ -11136,6 +11214,15 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             }
             try eventLog.write(type: "capture.stopped", fields: stoppedFields)
             try finish()
+            if !nativeCaptureGaps.isEmpty {
+                print(
+                    String(
+                        format: "warning: capture contains %d uncaptured timeline gap(s) / %.3fs; transcript may omit speech",
+                        nativeCaptureGaps.count,
+                        nativeCaptureGapSeconds
+                    )
+                )
+            }
             recordingLock.release()
             try? eventLog.write(
                 type: "capture.recording_lock_released",
@@ -11465,9 +11552,12 @@ extension SessionRecorder {
         let restartCount: Int
     }
 
-    func stream(_: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
+    func stream(_ sourceStream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
         guard CMSampleBufferDataIsReady(sampleBuffer), CMSampleBufferGetNumSamples(sampleBuffer) > 0 else {
             return
+        }
+        let restartAttemptID = stateQueue.sync {
+            restartStreamID == ObjectIdentifier(sourceStream) ? currentRestartAttemptID : nil
         }
         stateQueue.sync {
             lastSampleDate = Date()
@@ -11477,6 +11567,7 @@ extension SessionRecorder {
         do {
             switch type {
             case .audio:
+                markRestartFirstCallback(attemptID: restartAttemptID, source: "remote")
                 guard let format = AudioFileWriter.audioFormat(from: sampleBuffer) else {
                     throw CLIError("cannot read audio format for remote")
                 }
@@ -11489,6 +11580,11 @@ extension SessionRecorder {
                     )
                 }
                 let committedWrite = try remoteWriter?.writeReturningCommittedPCM(sampleBuffer, format: format)
+                markRestartFirstCommitted(
+                    attemptID: restartAttemptID,
+                    source: "remote",
+                    write: committedWrite
+                )
                 if let remoteWriter {
                     recordRawSidecarCommit(source: "remote", framesWritten: remoteWriter.framesWritten, sampleRate: format.sampleRate)
                 }
@@ -11497,6 +11593,7 @@ extension SessionRecorder {
                 }
                 writeLiveSegmentSafely(sampleBuffer, source: "remote")
             case .microphone:
+                markRestartFirstCallback(attemptID: restartAttemptID, source: "mic")
                 guard let format = AudioFileWriter.audioFormat(from: sampleBuffer) else {
                     throw CLIError("cannot read audio format for mic")
                 }
@@ -11509,6 +11606,11 @@ extension SessionRecorder {
                     )
                 }
                 let committedWrite = try micWriter?.writeReturningCommittedPCM(sampleBuffer, format: format)
+                markRestartFirstCommitted(
+                    attemptID: restartAttemptID,
+                    source: "mic",
+                    write: committedWrite
+                )
                 if let micWriter {
                     recordRawSidecarCommit(source: "mic", framesWritten: micWriter.framesWritten, sampleRate: format.sampleRate)
                 }
@@ -11520,10 +11622,112 @@ extension SessionRecorder {
                 break
             }
         } catch {
+            let message = "write failed for \(type): \(error.localizedDescription)"
             stateQueue.sync {
-                warnings.append("write failed for \(type): \(error.localizedDescription)")
+                warnings.append(message)
             }
+            try? events?.write(
+                type: "capture.write_failed",
+                fields: [
+                    "stream_output_type": String(describing: type),
+                    "error": error.localizedDescription,
+                ]
+            )
         }
+    }
+
+    private func markRestartFirstCallback(attemptID: Int?, source: String) {
+        guard let attemptID,
+              let event = restartProvenance.mark(
+                  attemptID: attemptID,
+                  phase: "first_callback",
+                  source: source,
+                  at: CaptureMonotonicClock.nowNanoseconds()
+              )
+        else {
+            return
+        }
+        writeRestartProvenance(event)
+    }
+
+    private func markRestartPhase(
+        attemptID: Int?,
+        phase: String,
+        extra: [String: Any] = [:]
+    ) {
+        guard let attemptID,
+              let event = restartProvenance.mark(
+                  attemptID: attemptID,
+                  phase: phase,
+                  at: CaptureMonotonicClock.nowNanoseconds()
+              )
+        else {
+            return
+        }
+        writeRestartProvenance(event, extra: extra)
+    }
+
+    private func markRestartFirstCommitted(
+        attemptID: Int?,
+        source: String,
+        write: CommittedAudioWrite?
+    ) {
+        guard let attemptID,
+              let write,
+              let event = restartProvenance.mark(
+                  attemptID: attemptID,
+                  phase: "first_committed_pcm",
+                  source: source,
+                  at: CaptureMonotonicClock.nowNanoseconds()
+              )
+        else {
+            return
+        }
+        writeRestartProvenance(
+            event,
+            extra: [
+                "gap_frames": write.gapFrames,
+                "sample_frames": write.sampleFrames,
+                "sample_rate": write.format.sampleRate,
+                "captured_audio": true,
+            ]
+        )
+    }
+
+    private func writeRestartProvenance(
+        _ event: CaptureRestartProvenanceEvent,
+        extra: [String: Any] = [:]
+    ) {
+        var fields: [String: Any] = [
+            "attempt_id": event.attemptID,
+            "reason": event.reason,
+            "phase": event.phase,
+            "elapsed_from_request_ms": roundedMilliseconds(event.elapsedFromRequestMS),
+        ]
+        if let source = event.source {
+            fields["source"] = source
+        }
+        if let status = event.terminalStatus {
+            fields["terminal_status"] = status
+        }
+        if let value = event.elapsedFromStartCompletedMS {
+            fields["elapsed_from_start_completed_ms"] = roundedMilliseconds(value)
+        }
+        if let value = event.elapsedFromFirstCallbackMS {
+            fields["elapsed_from_first_callback_ms"] = roundedMilliseconds(value)
+        }
+        for (key, value) in extra {
+            fields[key] = value
+        }
+        try? events?.write(
+            type: "capture.restart_provenance",
+            fields: fields,
+            monotonicNS: event.monotonicNS
+        )
+    }
+
+    private func roundedMilliseconds(_ value: Double) -> Double {
+        Double((value * 1000).rounded() / 1000)
     }
 
     private func writeLiveSegmentSafely(_ sampleBuffer: CMSampleBuffer, source: String) {
@@ -11593,6 +11797,7 @@ extension SessionRecorder {
         let initialRestartThreshold: TimeInterval = 10
         let initialFailureThreshold: TimeInterval = 45
         let maxInitialRestartCount = 3
+        let injectedRestartAfter = testRestartAfterSeconds()
         while !Task.isCancelled {
             let snapshot = stateQueue.sync { () -> CaptureSilenceSnapshot in
                 let now = Date()
@@ -11603,6 +11808,25 @@ extension SessionRecorder {
                     sampleCount: screenCaptureSampleBufferCount,
                     restartCount: captureSilenceRestartCount
                 )
+            }
+
+            if let injectedRestartAfter,
+               snapshot.sinceStart >= injectedRestartAfter,
+               stateQueue.sync(execute: { !testRestartInjected }) {
+                stateQueue.sync {
+                    testRestartInjected = true
+                }
+                try? events?.write(
+                    type: "capture.test_restart_injected",
+                    fields: ["after_sec": injectedRestartAfter]
+                )
+                if let activeStream = stream {
+                    _ = try? await ScreenCaptureStreamLifecycle.stop(activeStream)
+                }
+                stateQueue.sync {
+                    streamStoppedUnexpectedly = true
+                }
+                continue
             }
 
             if snapshot.sampleCount == 0 {
@@ -11655,7 +11879,16 @@ extension SessionRecorder {
         return .terminated
     }
 
-    private func startScreenCaptureStream() async throws {
+    private func testRestartAfterSeconds() -> TimeInterval? {
+        guard let raw = ProcessInfo.processInfo.environment[
+            "MURMURMARK_TEST_CAPTURE_RESTART_AFTER_SEC"
+        ], let seconds = TimeInterval(raw), seconds > 0 else {
+            return nil
+        }
+        return seconds
+    }
+
+    private func startScreenCaptureStream(restartAttemptID: Int? = nil) async throws {
         guard let filter = screenCaptureFilter, let config = screenCaptureConfiguration else {
             throw CLIError("ScreenCaptureKit stream is not configured")
         }
@@ -11668,10 +11901,29 @@ extension SessionRecorder {
                 try candidate.addStreamOutput(self, type: .microphone, sampleHandlerQueue: queue)
             }
             stream = candidate
+            if let restartAttemptID {
+                stateQueue.sync {
+                    currentRestartAttemptID = restartAttemptID
+                    restartStreamID = ObjectIdentifier(candidate)
+                }
+                markRestartPhase(
+                    attemptID: restartAttemptID,
+                    phase: "start_requested",
+                    extra: ["candidate_attempt": attempt + 1]
+                )
+            }
             do {
                 try await ScreenCaptureStreamLifecycle.start(candidate)
-                stateQueue.sync {
-                    lastSampleDate = Date()
+                if let restartAttemptID {
+                    markRestartPhase(
+                        attemptID: restartAttemptID,
+                        phase: "start_completed",
+                        extra: ["candidate_attempt": attempt + 1]
+                    )
+                } else {
+                    stateQueue.sync {
+                        lastSampleDate = Date()
+                    }
                 }
                 return
             } catch let timeout as ScreenCaptureOperationTimeout where attempt == 0 {
@@ -11692,10 +11944,20 @@ extension SessionRecorder {
                     )
                 }
                 stream = nil
+                if restartAttemptID != nil {
+                    stateQueue.sync {
+                        restartStreamID = nil
+                    }
+                }
                 screenCaptureStartupRetryCount += 1
                 try await Task.sleep(nanoseconds: 500_000_000)
             } catch {
                 stream = nil
+                if restartAttemptID != nil {
+                    stateQueue.sync {
+                        restartStreamID = nil
+                    }
+                }
                 throw error
             }
         }
@@ -11713,17 +11975,59 @@ extension SessionRecorder {
     }
 
     private func restartScreenCaptureStream(reason: StopReason) async -> Bool {
-        let shouldRestart = stateQueue.sync {
-            if stoppingRequested {
-                return false
-            }
-            if restartingScreenCapture {
-                return true
-            }
+        let result = await restartCoordinator.run { [weak self] attemptID in
+            guard let self else { return false }
+            return await self.performScreenCaptureRestart(
+                attemptID: attemptID,
+                reason: reason
+            )
+        }
+        if result.participation == .joined {
+            try? events?.write(
+                type: "capture.restart_joined",
+                fields: [
+                    "attempt_id": result.attemptID as Any? ?? NSNull(),
+                    "reason": reason.rawValue,
+                    "succeeded": result.succeeded,
+                ]
+            )
+        }
+        return result.succeeded
+    }
+
+    private func performScreenCaptureRestart(attemptID: Int, reason: StopReason) async -> Bool {
+        let requestTime = CaptureMonotonicClock.nowNanoseconds()
+        guard let requested = restartProvenance.begin(
+            attemptID: attemptID,
+            reason: reason.rawValue,
+            at: requestTime
+        ) else {
+            appendWarning("restart provenance rejected overlapping attempt \(attemptID)")
+            return false
+        }
+        writeRestartProvenance(
+            requested,
+            extra: [
+                "session_offset_sec": roundedSeconds(Date().timeIntervalSince(startDate)),
+                "expected_sources": screenCaptureExpectedSources,
+            ]
+        )
+        let canRestart = stateQueue.sync { () -> Bool in
+            guard !stoppingRequested else { return false }
             restartingScreenCapture = true
+            currentRestartAttemptID = attemptID
             return true
         }
-        guard shouldRestart else { return false }
+        guard canRestart else {
+            if let terminal = restartProvenance.terminal(
+                attemptID: attemptID,
+                status: "rejected_stopping",
+                at: CaptureMonotonicClock.nowNanoseconds()
+            ) {
+                writeRestartProvenance(terminal)
+            }
+            return false
+        }
         defer {
             stateQueue.sync {
                 restartingScreenCapture = false
@@ -11732,42 +12036,91 @@ extension SessionRecorder {
 
         var oldStream = stream
         stream = nil
-        if let oldStream {
-            _ = try? await ScreenCaptureStreamLifecycle.stop(oldStream)
+        if reason == .streamStopped {
+            markRestartPhase(
+                attemptID: attemptID,
+                phase: "old_stream_already_stopped"
+            )
+        } else if let oldStream {
+            markRestartPhase(attemptID: attemptID, phase: "old_stream_stop_requested")
+            do {
+                try await ScreenCaptureStreamLifecycle.stop(oldStream)
+                markRestartPhase(attemptID: attemptID, phase: "old_stream_stop_completed")
+            } catch {
+                markRestartPhase(
+                    attemptID: attemptID,
+                    phase: "old_stream_stop_failed",
+                    extra: ["error": error.localizedDescription]
+                )
+            }
         }
         oldStream = nil
         do {
-            try await Task.sleep(nanoseconds: 500_000_000)
-            try await startScreenCaptureStream()
+            try Task.checkCancellation()
+            try await startScreenCaptureStream(restartAttemptID: attemptID)
+            try Task.checkCancellation()
             let restartCount = stateQueue.sync {
                 screenCaptureRestartCount += 1
                 return screenCaptureRestartCount
+            }
+            if let terminal = restartProvenance.terminal(
+                attemptID: attemptID,
+                status: "started",
+                at: CaptureMonotonicClock.nowNanoseconds()
+            ) {
+                writeRestartProvenance(terminal)
             }
             appendWarning("ScreenCaptureKit stream restarted after \(reason.rawValue)")
             try? events?.write(
                 type: "capture.restarted",
                 fields: [
+                    "attempt_id": attemptID,
                     "reason": reason.rawValue,
                     "restart_count": restartCount,
                 ]
             )
             print("\ncapture stream restarted after \(reason.rawValue); recording continues...")
             return true
+        } catch is CancellationError {
+            if let terminal = restartProvenance.terminal(
+                attemptID: attemptID,
+                status: "cancelled",
+                at: CaptureMonotonicClock.nowNanoseconds()
+            ) {
+                writeRestartProvenance(terminal)
+            }
+            return false
         } catch {
+            if let terminal = restartProvenance.terminal(
+                attemptID: attemptID,
+                status: "failed",
+                at: CaptureMonotonicClock.nowNanoseconds()
+            ) {
+                writeRestartProvenance(terminal, extra: ["error": error.localizedDescription])
+            }
             appendWarning("ScreenCaptureKit restart failed after \(reason.rawValue): \(error.localizedDescription)")
             return false
         }
     }
 
     private func stopScreenCaptureStream() async {
+        stateQueue.sync {
+            stoppingRequested = true
+        }
+        await restartCoordinator.stopAndWait()
         guard let activeStream = stream else {
+            stateQueue.sync {
+                restartStreamID = nil
+                currentRestartAttemptID = nil
+            }
             screenCaptureFilter = nil
             screenCaptureConfiguration = nil
             return
         }
         stream = nil
         stateQueue.sync {
-            stoppingRequested = true
+            restartStreamID = nil
+            currentRestartAttemptID = nil
         }
         do {
             try await ScreenCaptureStreamLifecycle.stop(activeStream)
@@ -11832,6 +12185,57 @@ extension SessionRecorder {
         }
     }
 
+    private func captureGapManifestRows() -> [CaptureGapManifest] {
+        struct SourceGap {
+            let start: Double
+            let end: Double
+            let source: String
+        }
+
+        struct MergedGap {
+            var start: Double
+            var end: Double
+            var sources: Set<String>
+        }
+
+        let sourceRows = (micWriter?.captureTimelineGaps ?? [])
+            + (remoteWriter?.captureTimelineGaps ?? [])
+        let sorted = sourceRows.compactMap { row -> SourceGap? in
+            guard row.sampleRate > 0 else { return nil }
+            let start = Double(row.startFrame) / row.sampleRate
+            let end = Double(row.endFrame) / row.sampleRate
+            guard end > start else { return nil }
+            return SourceGap(start: start, end: end, source: row.source)
+        }.sorted { left, right in
+            left.start == right.start ? left.end < right.end : left.start < right.start
+        }
+
+        var merged: [MergedGap] = []
+        for row in sorted {
+            if let lastIndex = merged.indices.last,
+               row.start <= merged[lastIndex].end + 0.050 {
+                merged[lastIndex].end = max(merged[lastIndex].end, row.end)
+                merged[lastIndex].sources.insert(row.source)
+            } else {
+                merged.append(MergedGap(start: row.start, end: row.end, sources: [row.source]))
+            }
+        }
+        return merged.map { row in
+            CaptureGapManifest(
+                startSec: roundedCaptureSeconds(row.start),
+                endSec: roundedCaptureSeconds(row.end),
+                durationSec: roundedCaptureSeconds(row.end - row.start),
+                sources: row.sources.sorted(),
+                evidence: "writer_inserted_timeline_silence",
+                capturedAudio: false
+            )
+        }
+    }
+
+    private func roundedCaptureSeconds(_ value: Double) -> Double {
+        Double((value * 1_000_000).rounded() / 1_000_000)
+    }
+
     private func prepareDirectories() throws {
         if fileManager.fileExists(atPath: outputDirectory.path) {
             let contents = try fileManager.contentsOfDirectory(atPath: outputDirectory.path)
@@ -11888,6 +12292,14 @@ extension SessionRecorder {
 
         let endedAt = stopDate ?? Date()
         let actualDuration = max(0.0, endedAt.timeIntervalSince(startDate))
+        let captureGaps = captureGapManifestRows()
+        let captureGapSeconds = captureGaps.reduce(0.0) { $0 + $1.durationSec }
+        if !captureGaps.isEmpty {
+            finalWarnings.append(
+                "capture contains \(captureGaps.count) uncaptured timeline gap(s) / "
+                    + "\(String(format: "%.3f", captureGapSeconds))s; transcript may omit speech"
+            )
+        }
         let stopReason = finalStopReason
         let trackCoverage = min(audioCoverage(micInfo, actualDuration: actualDuration), audioCoverage(remoteInfo, actualDuration: actualDuration))
         let severeAudioCoverageGap = actualDuration >= 60 && trackCoverage < 0.80
@@ -11966,6 +12378,9 @@ extension SessionRecorder {
                 actualDurationSec: roundedSeconds(actualDuration),
                 requestedDurationSec: duration.map(roundedSeconds),
                 screenCaptureRestartCount: screenCaptureRestartCount,
+                captureComplete: captureGaps.isEmpty,
+                captureGapSeconds: roundedCaptureSeconds(captureGapSeconds),
+                captureGaps: captureGaps,
                 tracks: [
                     "mic": TrackHealthManifest(from: micInfo),
                     "remote": TrackHealthManifest(from: remoteInfo),
@@ -12255,6 +12670,17 @@ extension SessionRecorder {
         remoteBackend == .screenCaptureKit || microphoneBackend == .screenCaptureKit
     }
 
+    private var screenCaptureExpectedSources: [String] {
+        var sources: [String] = []
+        if microphoneBackend == .screenCaptureKit {
+            sources.append("mic")
+        }
+        if remoteBackend == .screenCaptureKit {
+            sources.append("remote")
+        }
+        return sources
+    }
+
     private var captureMode: String {
         if remoteBackend == .screenCaptureKit, microphoneBackend == .screenCaptureKit {
             return "screencapturekit_system"
@@ -12351,9 +12777,17 @@ extension SessionRecorder {
 struct CommittedAudioWrite: @unchecked Sendable {
     let format: AVAudioFormat
     let buffer: AVAudioPCMBuffer
+    let gapStartFrame: AVAudioFramePosition
     let gapFrames: AVAudioFramePosition
     let sampleFrames: AVAudioFramePosition
     let totalFramesWritten: AVAudioFramePosition
+}
+
+struct CaptureTimelineGap: Sendable {
+    let source: String
+    let startFrame: AVAudioFramePosition
+    let endFrame: AVAudioFramePosition
+    let sampleRate: Double
 }
 
 struct CommittedAudioPacket: @unchecked Sendable {
@@ -12384,6 +12818,7 @@ final class AudioFileWriter {
     private var firstWallDate: Date?
     private var timelineResetCount = 0
     private(set) var insertedSilenceFrames: AVAudioFramePosition = 0
+    private var timelineGaps: [CaptureTimelineGap] = []
     private let trackLevel: Bool
     private var levelSumSquares = 0.0
     private var levelSampleCount = Int64(0)
@@ -12396,6 +12831,10 @@ final class AudioFileWriter {
         guard trackLevel, levelSampleCount > 0 else { return nil }
         let rms = sqrt(levelSumSquares / Double(levelSampleCount))
         return rms > 1e-12 ? 20 * log10(rms) : -.infinity
+    }
+
+    var captureTimelineGaps: [CaptureTimelineGap] {
+        timelineGaps
     }
 
     init(url: URL, source: String, timelineStartDate: Date? = nil, trackLevel: Bool = false) throws {
@@ -12438,8 +12877,19 @@ final class AudioFileWriter {
 
         try ensureFile(format: format)
         let gapFrames = timelineGapFrames(sampleBuffer: sampleBuffer, format: format)
+        let gapStartFrame = framesWritten
         if gapFrames > 0 {
             try writeSilence(format: format, frames: gapFrames)
+            if gapStartFrame > 0 {
+                timelineGaps.append(
+                    CaptureTimelineGap(
+                        source: source,
+                        startFrame: gapStartFrame,
+                        endFrame: gapStartFrame + gapFrames,
+                        sampleRate: format.sampleRate
+                    )
+                )
+            }
         }
         try writePCMBuffer(buffer)
         let sampleFrames = AVAudioFramePosition(buffer.frameLength)
@@ -12447,6 +12897,7 @@ final class AudioFileWriter {
         return CommittedAudioWrite(
             format: format,
             buffer: buffer,
+            gapStartFrame: gapStartFrame,
             gapFrames: gapFrames,
             sampleFrames: sampleFrames,
             totalFramesWritten: gapFrames + sampleFrames
@@ -16987,6 +17438,10 @@ enum ReadinessPrinter {
         )
         if let continuity = try? JSONFiles.object(continuityURL) {
             print("    continuity: \(string(continuity["status"]) ?? "unknown")")
+            let complete = bool(continuity["capture_complete"])
+                ?? ((int(continuity["observed_gap_count"]) ?? 0) == 0)
+            print("    complete: \(complete)")
+            print("    batch_authoritative: \(bool(continuity["batch_authoritative"]) ?? true)")
             print("    restarts: \(int(continuity["screen_capture_restart_count"]) ?? 0)")
             let gaps = int(continuity["observed_gap_count"]) ?? 0
             let gapSeconds = double(continuity["observed_gap_seconds"]) ?? 0.0
@@ -16995,6 +17450,13 @@ enum ReadinessPrinter {
                 print(String(format: "    largest_pcm_gap: %.3fs", maximum))
             }
             print("    partial_recommended: \(bool(continuity["partial_recommended"]) ?? false)")
+            if let provenance = string(continuity["restart_provenance_status"]) {
+                print("    restart_provenance: \(provenance)")
+            }
+            if let latency = continuity["restart_latency"] as? [String: Any],
+               let softwareIdle = double(latency["max_software_idle_ms"]) {
+                print(String(format: "    max_restart_software_idle: %.3fms", softwareIdle))
+            }
         } else if let restarts = int(health["screen_capture_restart_count"]), restarts > 0 {
             print("    restarts: \(restarts)")
             print("    continuity: not_measured")
@@ -17695,6 +18157,7 @@ enum ReadinessPrinter {
                 let gaps = int(metrics["capture_continuity_gap_count"]) ?? 0
                 let gapSeconds = double(metrics["capture_continuity_gap_seconds"]) ?? 0.0
                 print(String(format: "  capture_continuity: %@ (%d gaps / %.3fs)", continuityStatus, gaps, gapSeconds))
+                print("  capture_complete: \(bool(metrics["capture_continuity_complete"]) ?? (gaps == 0))")
             }
             if let activeStatus = string(metrics["pre_asr_echo_active_status"]), !activeStatus.isEmpty {
                 let activeProfile = string(metrics["pre_asr_echo_active_profile"]) ?? "unknown"
@@ -20265,19 +20728,28 @@ enum PermissionTexts {
 final class EventLog {
     let url: URL
     private let handle: FileHandle
-    private let encoder = JSONEncoder()
+    private let lock = NSLock()
+    private var sequence = 0
 
     init(url: URL) throws {
         self.url = url
         FileManager.default.createFile(atPath: url.path, contents: Data())
         handle = try FileHandle(forWritingTo: url)
-        encoder.outputFormatting = [.sortedKeys]
     }
 
-    func write(type: String, fields: [String: Any] = [:]) throws {
+    func write(
+        type: String,
+        fields: [String: Any] = [:],
+        monotonicNS: UInt64? = nil
+    ) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        sequence += 1
         var payload = fields
         payload["t"] = DateStrings.iso8601(Date())
         payload["type"] = type
+        payload["sequence"] = sequence
+        payload["monotonic_ns"] = monotonicNS ?? CaptureMonotonicClock.nowNanoseconds()
         let data = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
         handle.write(data)
         handle.write(Data("\n".utf8))
@@ -20405,6 +20877,9 @@ struct HealthManifest: Codable {
     let actualDurationSec: Double?
     let requestedDurationSec: Double?
     let screenCaptureRestartCount: Int?
+    let captureComplete: Bool?
+    let captureGapSeconds: Double?
+    let captureGaps: [CaptureGapManifest]?
     let tracks: [String: TrackHealthManifest]?
 
     enum CodingKeys: String, CodingKey {
@@ -20416,7 +20891,28 @@ struct HealthManifest: Codable {
         case actualDurationSec = "actual_duration_sec"
         case requestedDurationSec = "requested_duration_sec"
         case screenCaptureRestartCount = "screen_capture_restart_count"
+        case captureComplete = "capture_complete"
+        case captureGapSeconds = "capture_gap_seconds"
+        case captureGaps = "capture_gaps"
         case tracks
+    }
+}
+
+struct CaptureGapManifest: Codable, Sendable {
+    let startSec: Double
+    let endSec: Double
+    let durationSec: Double
+    let sources: [String]
+    let evidence: String
+    let capturedAudio: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case startSec = "start_sec"
+        case endSec = "end_sec"
+        case durationSec = "duration_sec"
+        case sources
+        case evidence
+        case capturedAudio = "captured_audio"
     }
 }
 

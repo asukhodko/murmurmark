@@ -548,8 +548,8 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
         "capture continuity closure must follow the fresh transcript rebaseline",
     )
     require(
-        nodes["quality-capture-continuity-loss-closure-v1"].get("status") == "current",
-        "capture continuity loss closure must be the current quality goal",
+        nodes["quality-capture-continuity-loss-closure-v1"].get("status") == "done",
+        "capture continuity loss closure must remain completed",
     )
     require(
         "quality-capture-continuity-loss-closure-v1"
@@ -557,8 +557,8 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
         "remote unknown recovery must follow source continuity closure",
     )
     require(
-        nodes["quality-remote-unknown-evidence-recovery-v1"].get("status") == "next",
-        "remote unknown evidence recovery must remain the next measured quality residual",
+        nodes["quality-remote-unknown-evidence-recovery-v1"].get("status") == "current",
+        "remote unknown evidence recovery must be the current measured quality residual",
     )
     require(
         nodes["quality-human-reviewed-lexical-seed-v1"].get("status") == "blocked",

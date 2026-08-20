@@ -15,5 +15,10 @@ let package = Package(
             name: "MurmurMarkCLI",
             path: "Sources/MurmurMarkCLI"
         ),
+        .testTarget(
+            name: "MurmurMarkCLITests",
+            dependencies: ["MurmurMarkCLI"],
+            path: "Tests/MurmurMarkCLITests"
+        ),
     ]
 )

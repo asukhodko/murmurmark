@@ -9,6 +9,7 @@ if [[ -z "${MURMURMARK_PYTHON:-}" && -x "$repo_root/.venv/bin/python" ]]; then
 fi
 
 swift build
+swift test --filter CaptureRestartCoordinatorTests
 swiftlint lint --quiet
 "$python_bin" -m py_compile scripts/*.py
 "$python_bin" scripts/check-transcript-dedupe.py
@@ -108,6 +109,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-audio-review-clip-parallelism.py
 "$python_bin" scripts/check-stronger-audio-judge.py
 "$python_bin" scripts/check-capture-continuity.py
+"$python_bin" scripts/check-capture-continuity-loss-closure-v1.py
 "$python_bin" scripts/check-independent-me-evidence.py
 "$python_bin" scripts/check-authoritative-boundary.py
 "$python_bin" scripts/check-residual-me-evidence.py

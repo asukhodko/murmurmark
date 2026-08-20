@@ -627,20 +627,42 @@ For live-vs-batch evidence, record once with `--experiment live-shadow-v1`; both
 same raw session.
 If ScreenCaptureKit stops before `Ctrl-C`, MurmurMark tries to restart the capture stream and keep
 recording into the same session. A successful restart is written to `events.jsonl` as
-`capture.restarted`.
+`capture.restarted`. Only one restart may be in flight: repeated stop/stall signals join it, while
+meeting shutdown cancels and awaits it before writers close. For `stream_stopped`, MurmurMark does
+not stop the already stopped stream and does not add the former fixed `500ms` delay.
 
-During `process`, `audit-capture-continuity.py` inspects only short raw-PCM windows around those
-restart events. The resulting `capture_continuity_report.json` is shown by `status` and `outcome`:
+New captures persist exact writer-observed gaps in `session.json.health.capture_gaps`. Inserted
+silence preserves timestamps but has `captured_audio=false`; it cannot hide missing speech. Restart
+provenance in `events.jsonl` separates MurmurMark software idle, ScreenCaptureKit start latency,
+first mic/remote callbacks and first committed PCM. During `process`, the continuity audit uses
+these native rows. Old sessions use the bounded raw-PCM scan. The report is shown by `status` and
+`outcome`:
 
 ```bash
-jq '{status, screen_capture_restart_count, observed_gap_count, observed_gap_seconds,
-     max_observed_gap_seconds, partial_recommended}' \
+jq '{status, capture_complete, terminal_completeness_gate,
+     screen_capture_restart_count, observed_gap_count, observed_gap_seconds,
+     restart_provenance_status, restart_latency, partial_recommended}' \
   "$SESSION/derived/audit/capture-continuity/capture_continuity_report.json"
 ```
 
-`warning` means small measured gaps remain explicit while the batch transcript is usable.
-`partial_recommended: true` means continuity loss may hide speech and the transcript must stay
-behind review. The audit never repairs, truncates or rewrites raw CAF.
+`capture_complete: false` means at least one source interval was not captured. Even a short gap
+keeps the batch transcript usable as a partial artifact but blocks terminal completeness and adds a
+warning to `murmurmark transcript --cat`. `partial_recommended: true` is the separate severe-loss
+threshold. `restart_provenance_status: incomplete` is never interpreted as proof of continuity.
+The audit never repairs, truncates or rewrites raw CAF.
+
+For development-only restart evidence:
+
+```bash
+MURMURMARK_TEST_CAPTURE_RESTART_AFTER_SEC=8 murmurmark record \
+  --out sessions/_capture-continuity-controlled \
+  --target-bundle system \
+  --duration 25
+
+scripts/audit-capture-continuity.py sessions/_capture-continuity-controlled
+```
+
+Do not set `MURMURMARK_TEST_CAPTURE_RESTART_AFTER_SEC` for a real meeting.
 
 ScreenCaptureKit can omit audio buffers during silence or source inactivity. MurmurMark preserves
 the wall-clock timeline by inserting silence for timestamp gaps in the raw CAF tracks. If no

@@ -21,7 +21,7 @@ else:
 
 
 SCHEMA = "murmurmark.capture_continuity/v1"
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.2.0"
 DEFAULT_OUT = Path("derived/audit/capture-continuity")
 
 
@@ -83,6 +83,13 @@ def safe_float(value: Any, default: float = 0.0) -> float:
     return number if math.isfinite(number) else default
 
 
+def safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def track_paths(session: Path, manifest: dict[str, Any]) -> dict[str, Path]:
     paths: dict[str, Path] = {}
     files = manifest.get("files") if isinstance(manifest.get("files"), dict) else {}
@@ -107,12 +114,161 @@ def restart_events(session: Path, manifest: dict[str, Any]) -> list[dict[str, An
         rows.append(
             {
                 "restart_count": int(event.get("restart_count") or len(rows) + 1),
+                "attempt_id": safe_int(event.get("attempt_id"), 0) or None,
                 "reason": str(event.get("reason") or "unknown"),
                 "timestamp": event.get("t"),
                 "offset_sec": round(max(0.0, offset), 6) if offset is not None else None,
             }
         )
     return rows
+
+
+def restart_provenance(session: Path) -> tuple[str, list[dict[str, Any]]]:
+    grouped: dict[int, list[dict[str, Any]]] = {}
+    for event in read_jsonl(session / "events.jsonl"):
+        if event.get("type") != "capture.restart_provenance":
+            continue
+        attempt_id = safe_int(event.get("attempt_id"), 0)
+        if attempt_id <= 0:
+            continue
+        grouped.setdefault(attempt_id, []).append(event)
+
+    if not grouped:
+        return "legacy_unavailable", []
+
+    attempts: list[dict[str, Any]] = []
+    for attempt_id, rows in sorted(grouped.items()):
+        monotonic_values = [safe_int(row.get("monotonic_ns"), -1) for row in rows]
+        monotonic = all(
+            left >= 0 and right > left
+            for left, right in zip(monotonic_values, monotonic_values[1:])
+        )
+        indexed: dict[tuple[str, str | None], list[dict[str, Any]]] = {}
+        for row in rows:
+            phase = str(row.get("phase") or "")
+            source = str(row.get("source")) if row.get("source") is not None else None
+            indexed.setdefault((phase, source), []).append(row)
+
+        def first(phase: str, source: str | None = None) -> dict[str, Any] | None:
+            values = indexed.get((phase, source)) or []
+            return values[0] if values else None
+
+        def elapsed_ms(start: dict[str, Any] | None, end: dict[str, Any] | None) -> float | None:
+            if start is None or end is None:
+                return None
+            start_ns = safe_int(start.get("monotonic_ns"), -1)
+            end_ns = safe_int(end.get("monotonic_ns"), -1)
+            if start_ns < 0 or end_ns < start_ns:
+                return None
+            return round((end_ns - start_ns) / 1_000_000.0, 3)
+
+        requested = first("requested")
+        expected_sources = [
+            str(value)
+            for value in ((requested or {}).get("expected_sources") or ["mic", "remote"])
+            if str(value) in {"mic", "remote"}
+        ]
+        if not expected_sources:
+            expected_sources = ["mic", "remote"]
+        old_stop_anchor = (
+            first("old_stream_already_stopped")
+            or first("old_stream_stop_completed")
+            or first("old_stream_stop_failed")
+            or requested
+        )
+        start_requested = first("start_requested")
+        start_completed = first("start_completed")
+        terminal_rows = indexed.get(("terminal", None)) or []
+        terminal = terminal_rows[0] if terminal_rows else None
+        source_evidence: dict[str, Any] = {}
+        for source in ("mic", "remote"):
+            callback = first("first_callback", source)
+            committed = first("first_committed_pcm", source)
+            source_evidence[source] = {
+                "first_callback_ms_from_request": elapsed_ms(requested, callback),
+                "first_committed_pcm_ms_from_request": elapsed_ms(requested, committed),
+                "delivery_after_start_ms": elapsed_ms(start_completed, callback),
+                "callback_to_commit_ms": elapsed_ms(callback, committed),
+                "gap_frames": safe_int((committed or {}).get("gap_frames"), 0),
+                "captured_audio": (committed or {}).get("captured_audio") is True,
+            }
+
+        terminal_status = str((terminal or {}).get("terminal_status") or "") or None
+        requires_pcm = terminal_status == "started"
+        complete = all(
+            (
+                requested is not None,
+                start_requested is not None,
+                start_completed is not None,
+                len(terminal_rows) == 1,
+                monotonic,
+                not requires_pcm
+                or all(first("first_callback", source) is not None for source in expected_sources),
+                not requires_pcm
+                or all(first("first_committed_pcm", source) is not None for source in expected_sources),
+            )
+        )
+        first_committed = [
+            row
+            for row in (
+                first("first_committed_pcm", "mic"),
+                first("first_committed_pcm", "remote"),
+            )
+            if row is not None
+        ]
+        last_committed = max(
+            first_committed,
+            key=lambda row: safe_int(row.get("monotonic_ns"), -1),
+            default=None,
+        )
+        attempts.append(
+            {
+                "attempt_id": attempt_id,
+                "reason": str((requested or rows[0]).get("reason") or "unknown"),
+                "session_offset_sec": (
+                    round(safe_float(requested.get("session_offset_sec")), 6)
+                    if requested and requested.get("session_offset_sec") is not None
+                    else None
+                ),
+                "terminal_status": terminal_status,
+                "provenance_complete": complete,
+                "strictly_monotonic": monotonic,
+                "terminal_event_count": len(terminal_rows),
+                "event_count": len(rows),
+                "expected_sources": expected_sources,
+                "software_idle_ms": elapsed_ms(old_stop_anchor, start_requested),
+                "start_api_ms": elapsed_ms(start_requested, start_completed),
+                "request_to_first_committed_pcm_ms": elapsed_ms(
+                    requested,
+                    min(
+                        first_committed,
+                        key=lambda row: safe_int(row.get("monotonic_ns"), -1),
+                        default=None,
+                    ),
+                ),
+                "request_to_all_sources_committed_ms": elapsed_ms(requested, last_committed),
+                "sources": source_evidence,
+                "events": [
+                    {
+                        "sequence": safe_int(row.get("sequence"), 0) or None,
+                        "phase": row.get("phase"),
+                        "source": row.get("source"),
+                        "terminal_status": row.get("terminal_status"),
+                        "monotonic_ns": safe_int(row.get("monotonic_ns"), 0),
+                        "elapsed_from_request_ms": row.get("elapsed_from_request_ms"),
+                    }
+                    for row in rows
+                ],
+            }
+        )
+
+    status = "complete" if all(row["provenance_complete"] for row in attempts) else "incomplete"
+    return status, attempts
+
+
+def optional_max(values: list[Any]) -> float | None:
+    numbers = [safe_float(value) for value in values if value is not None]
+    return round(max(numbers), 3) if numbers else None
 
 
 def zero_runs(mask: np.ndarray, base_frame: int, sample_rate: float, min_frames: int) -> list[dict[str, Any]]:
@@ -181,7 +337,74 @@ def nearest_zero_run(
 def manifest_gap_rows(manifest: dict[str, Any]) -> list[dict[str, Any]]:
     health = manifest.get("health") if isinstance(manifest.get("health"), dict) else {}
     rows = health.get("capture_gaps") if isinstance(health.get("capture_gaps"), list) else []
-    return [dict(row) for row in rows if isinstance(row, dict)]
+    normalized: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        normalized.append(
+            {
+                **row,
+                "start_sec": round(safe_float(row.get("start_sec")), 6),
+                "end_sec": round(safe_float(row.get("end_sec")), 6),
+                "duration_sec": round(safe_float(row.get("duration_sec")), 6),
+                "sources": sorted(str(value) for value in (row.get("sources") or [])),
+                "evidence": str(row.get("evidence") or "session_manifest"),
+                "captured_audio": row.get("captured_audio") is True,
+                "confidence": "high",
+            }
+        )
+    return normalized
+
+
+def correlate_gaps_with_restarts(
+    gaps: list[dict[str, Any]],
+    attempts: list[dict[str, Any]],
+    legacy_events: list[dict[str, Any]],
+) -> None:
+    candidates = [
+        {
+            "attempt_id": row.get("attempt_id"),
+            "restart_count": None,
+            "reason": row.get("reason"),
+            "offset_sec": row.get("session_offset_sec"),
+        }
+        for row in attempts
+        if row.get("session_offset_sec") is not None
+    ]
+    if not candidates:
+        candidates.extend(
+            {
+                "attempt_id": row.get("attempt_id"),
+                "restart_count": row.get("restart_count"),
+                "reason": row.get("reason"),
+                "offset_sec": row.get("offset_sec"),
+            }
+            for row in legacy_events
+            if row.get("offset_sec") is not None
+        )
+    for gap in gaps:
+        start = safe_float(gap.get("start_sec"))
+        end = safe_float(gap.get("end_sec"))
+        if not candidates:
+            continue
+        nearest = min(
+            candidates,
+            key=lambda row: min(
+                abs(safe_float(row.get("offset_sec")) - start),
+                abs(safe_float(row.get("offset_sec")) - end),
+            ),
+        )
+        offset = safe_float(nearest.get("offset_sec"))
+        distance = 0.0 if start <= offset <= end else min(abs(offset - start), abs(offset - end))
+        if distance > 5.0:
+            continue
+        gap.setdefault("attempt_id", nearest.get("attempt_id"))
+        gap.setdefault("restart_count", nearest.get("restart_count"))
+        gap.setdefault("reason", nearest.get("reason"))
+        gap["restart_request_offset_sec"] = round(offset, 6)
+        gap["restart_distance_sec"] = round(distance, 6)
+        gap["loss_before_restart_request_sec"] = round(max(0.0, min(end, offset) - start), 6)
+        gap["loss_after_restart_request_sec"] = round(max(0.0, end - max(start, offset)), 6)
 
 
 def analyze(args: argparse.Namespace) -> dict[str, Any]:
@@ -189,6 +412,7 @@ def analyze(args: argparse.Namespace) -> dict[str, Any]:
     manifest = read_json(session / "session.json") or {}
     duration = safe_float((manifest.get("health") or {}).get("actual_duration_sec"), 0.0)
     events = restart_events(session, manifest)
+    provenance_status, provenance_attempts = restart_provenance(session)
     tracks = track_paths(session, manifest)
     native_gaps = manifest_gap_rows(manifest)
     gaps: list[dict[str, Any]] = []
@@ -226,19 +450,38 @@ def analyze(args: argparse.Namespace) -> dict[str, Any]:
                     "duration_sec": round(safe_float(canonical.get("duration_sec")), 6),
                     "sources": sorted(evidence),
                     "confidence": "high" if "mic" in evidence else "medium",
+                    "evidence": "restart_bounded_exact_zero_pcm_scan",
+                    "captured_audio": False,
                     "track_evidence": evidence,
                 }
             )
+
+    correlate_gaps_with_restarts(gaps, provenance_attempts, events)
 
     total = sum(safe_float(row.get("duration_sec")) for row in gaps)
     maximum = max((safe_float(row.get("duration_sec")) for row in gaps), default=0.0)
     ratio = total / duration if duration > 0 else 0.0
     partial_recommended = maximum >= 2.0 or total >= 5.0 or ratio >= 0.005
+    successful_restart_count = max(
+        len(events),
+        safe_int((manifest.get("health") or {}).get("screen_capture_restart_count"), 0),
+    )
+    health = manifest.get("health") if isinstance(manifest.get("health"), dict) else {}
+    native_capture_complete = health.get("capture_complete")
+    capture_complete = bool(
+        not gaps
+        and native_capture_complete is not False
+        and provenance_status != "incomplete"
+    )
     if partial_recommended:
         status = "partial_recommended"
     elif gaps:
-        status = "warning"
-    elif events:
+        status = "capture_incomplete"
+    elif native_capture_complete is False:
+        status = "capture_incomplete_unbounded"
+    elif provenance_status == "incomplete":
+        status = "provenance_incomplete"
+    elif events or provenance_attempts:
         status = "restart_without_detectable_pcm_gap"
     else:
         status = "ok"
@@ -249,12 +492,37 @@ def analyze(args: argparse.Namespace) -> dict[str, Any]:
         "status": status,
         "source": source,
         "capture_duration_sec": round(duration, 3),
-        "screen_capture_restart_count": len(events),
+        "capture_complete": capture_complete,
+        "terminal_completeness_gate": "pass" if capture_complete else "review",
+        "screen_capture_restart_count": successful_restart_count,
+        "restart_attempt_count": len(provenance_attempts) if provenance_attempts else len(events),
         "observed_gap_count": len(gaps),
         "observed_gap_seconds": round(total, 6),
         "max_observed_gap_seconds": round(maximum, 6),
         "observed_gap_ratio": round(ratio, 9),
         "partial_recommended": partial_recommended,
+        "restart_provenance_status": (
+            "not_applicable"
+            if successful_restart_count == 0 and not provenance_attempts
+            else provenance_status
+        ),
+        "restart_provenance": provenance_attempts,
+        "restart_latency": {
+            "max_software_idle_ms": optional_max(
+                [row.get("software_idle_ms") for row in provenance_attempts]
+            ),
+            "max_start_api_ms": optional_max(
+                [row.get("start_api_ms") for row in provenance_attempts]
+            ),
+            "max_request_to_all_sources_committed_ms": optional_max(
+                [row.get("request_to_all_sources_committed_ms") for row in provenance_attempts]
+            ),
+            "software_delay_removed": all(
+                row.get("software_idle_ms") is not None
+                and safe_float(row.get("software_idle_ms")) <= 50.0
+                for row in provenance_attempts
+            ) if provenance_attempts else None,
+        },
         "thresholds": {
             "partial_max_gap_sec": 2.0,
             "partial_total_gap_sec": 5.0,
@@ -274,10 +542,13 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         "# Capture Continuity",
         "",
         f"- Status: `{report['status']}`",
+        f"- Capture complete: `{str(report['capture_complete']).lower()}`",
+        f"- Terminal completeness gate: `{report['terminal_completeness_gate']}`",
         f"- ScreenCaptureKit restarts: `{report['screen_capture_restart_count']}`",
         f"- Observed PCM gaps: `{report['observed_gap_count']}` / `{report['observed_gap_seconds']:.3f}s`",
         f"- Largest gap: `{report['max_observed_gap_seconds']:.3f}s`",
         f"- Partial recommended: `{str(report['partial_recommended']).lower()}`",
+        f"- Restart provenance: `{report['restart_provenance_status']}`",
         "",
         "## Gaps",
         "",
@@ -290,6 +561,17 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             f"`{safe_float(row.get('start_sec')):.3f}..{safe_float(row.get('end_sec')):.3f}` "
             f"(`{safe_float(row.get('duration_sec')):.3f}s`, {', '.join(row.get('sources') or [])})"
         )
+    attempts = report.get("restart_provenance") or []
+    if attempts:
+        lines.extend(["", "## Restart Latency", ""])
+        for row in attempts:
+            lines.append(
+                f"- attempt `{row.get('attempt_id')}` / `{row.get('reason')}`: "
+                f"software idle `{safe_float(row.get('software_idle_ms')):.3f}ms`, "
+                f"start API `{safe_float(row.get('start_api_ms')):.3f}ms`, "
+                f"all sources committed `{safe_float(row.get('request_to_all_sources_committed_ms')):.3f}ms`, "
+                f"provenance complete `{str(row.get('provenance_complete') is True).lower()}`"
+            )
     path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
@@ -307,6 +589,7 @@ def main() -> int:
     write_json(out_dir / "capture_continuity_report.json", report)
     write_markdown(out_dir / "capture_continuity_report.md", report)
     print(f"capture_continuity: {report['status']}")
+    print(f"capture_complete: {str(report['capture_complete']).lower()}")
     print(f"restarts: {report['screen_capture_restart_count']}")
     print(f"gaps: {report['observed_gap_count']} / {report['observed_gap_seconds']:.3f}s")
     print(f"report: {out_dir / 'capture_continuity_report.json'}")

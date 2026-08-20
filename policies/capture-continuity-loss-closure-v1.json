@@ -1,0 +1,25 @@
+{
+  "schema": "murmurmark.capture_continuity_loss_closure_policy/v1",
+  "version": 1,
+  "frozen_case": {
+    "session": "sessions/2026-08-19_14-12-32",
+    "restart_count": 3,
+    "gap_count": 3,
+    "gap_seconds": 2.268542,
+    "minimum_gap_seconds": 0.724646,
+    "maximum_gap_seconds": 0.785979,
+    "evidence": "high_confidence_mic_and_remote_exact_zero_pcm"
+  },
+  "thresholds": {
+    "maximum_software_idle_ms": 50.0,
+    "maximum_terminal_events_per_attempt": 1,
+    "required_no_restart_gap_seconds": 0.0,
+    "minimum_soak_duration_sec": 600.0
+  },
+  "safety": {
+    "frozen_inputs_read_only": true,
+    "raw_caf_read_only": true,
+    "production_transcripts_read_only": true,
+    "any_measured_gap_blocks_terminal_completeness": true
+  }
+}

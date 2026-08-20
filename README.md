@@ -18,8 +18,8 @@ For a supported macOS setup, MurmurMark produces one of these outcomes:
 - `review_first`: the result is useful, but explicit review is required before guarded export;
 - `blocked`: capture or transcript evidence is insufficient for safe use.
 
-Raw `audio/mic/*.caf` and `audio/remote/*.caf` files are immutable processing inputs. Derived
-profiles are isolated and selected only after no-regression gates pass.
+Raw `audio/mic/*.caf` and `audio/remote/*.caf` files are immutable processing inputs; the writer records every post-start in-stream timestamp discontinuity where ScreenCaptureKit supplied no PCM.
+Inserted silence keeps the timeline aligned but remains explicit `captured_audio=false` evidence: any measured gap blocks completeness in `status`, `outcome` and `transcript --cat`; derived profiles remain isolated behind no-regression gates.
 
 ## Install
 
@@ -323,14 +323,13 @@ Disjoint truth v2 is complete: 72 primary + 12 repeats, consistency `1.0` and by
 one-shot ERes2NetV2 qualification kept Coverage v3; Cluster Purity Reference v1 found 10 remote
 voices compressed into four acoustic clusters, purity `89.8106%` and minority recall `0`. Transcript
 Integrity v1 repaired 10/19 proven duplicate/repetition candidates. Frozen Boundary and
-Minority-Voice Segmentation v1 kept Coverage v3. Post-Segmentation Transcript Rebaseline v1 is done:
-6/6 fresh sessions, coherent surfaces and exact conservation; current: **Capture Continuity Loss Closure v1** after three measured restart gaps totalling `2.268542s`.
+Minority-Voice Segmentation v1 kept Coverage v3. Post-Segmentation Transcript Rebaseline v1 passed 6/6 fresh sessions with exact conservation. Capture Continuity Loss Closure v1 closed `EVIDENCE_BOUND`: fixed `500ms` delay removed, controlled restart software idle `2.362ms`, source gap `0.468729s`, no-restart soak `600.434s` with zero gaps. Current: **Remote Unknown Evidence Recovery v1** over frozen `397.543570s` / 547 strict unknown words.
 The remaining critical path is:
 ```text
 Coverage v3 + Transcript Integrity v1 -> Boundary Segmentation v1 (KEEP_COVERAGE_V3)
 -> Post-Segmentation Transcript Rebaseline v1 (REBASELINE_ESTABLISHED)
--> Capture Continuity Loss Closure v1 (current)
--> Remote Unknown Evidence Recovery v1 (next) -> Human-Reviewed Lexical Seed v1 (external evidence)
+-> Capture Continuity Loss Closure v1 (EVIDENCE_BOUND)
+-> Remote Unknown Evidence Recovery v1 (current) -> Human-Reviewed Lexical Seed v1 (external evidence)
 -> Session-Scoped Lexical Context v1
 -> Speaker-Resolved Transcript Terminal Gate v1
 ```

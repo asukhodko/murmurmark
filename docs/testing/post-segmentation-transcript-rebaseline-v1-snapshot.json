@@ -49,13 +49,13 @@
       "words": 547
     },
     "lexical_evidence": {
-      "review_rows": 93,
-      "review_seconds": 372.77,
+      "review_rows": 92,
+      "review_seconds": 372.2,
       "status": "partial_no_fresh_independent_truth"
     },
     "overlap_and_chronology": {
       "chronology_seconds": 47.7,
-      "overlap_review_seconds": 12.66,
+      "overlap_review_seconds": 12.25,
       "status": "measured"
     },
     "read_surface_coherence": {
@@ -67,8 +67,8 @@
       "status": "measured_without_human_count_truth"
     },
     "review_burden": {
-      "remaining_rows": 107,
-      "remaining_seconds": 398.92,
+      "remaining_rows": 105,
+      "remaining_seconds": 397.94,
       "status": "measured"
     },
     "timestamp_and_role_conservation": {
@@ -138,11 +138,11 @@
       "evidence": "current_review_progress",
       "hard_regression": false,
       "item_unit": "review_rows",
-      "items": 107,
+      "items": 105,
       "rank": 3,
       "reason": "current session use still requires unresolved review decisions",
-      "seconds": 398.92,
-      "sessions": 6
+      "seconds": 397.94,
+      "sessions": 5
     },
     {
       "actionable": true,
@@ -162,11 +162,11 @@
       "evidence": "machine_review_queue_without_independent_truth",
       "hard_regression": false,
       "item_unit": "review_rows",
-      "items": 93,
+      "items": 92,
       "rank": 5,
       "reason": "text uncertainty is measured, but fresh independent lexical truth is absent",
-      "seconds": 372.77,
-      "sessions": 6
+      "seconds": 372.2,
+      "sessions": 5
     },
     {
       "actionable": false,

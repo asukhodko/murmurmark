@@ -1,0 +1,188 @@
+{
+  "batch_authoritative": true,
+  "controlled_restart": {
+    "artifacts": {
+      "continuity_report": {
+        "bytes": 5325,
+        "exists": true,
+        "path": "sessions/_capture-continuity-controlled-v1-final/derived/audit/capture-continuity/capture_continuity_report.json",
+        "sha256": "6de0971ad372945922c53111d80ba32194d0a1449a7a0f740a9bbba06a40749f"
+      },
+      "events": {
+        "bytes": 4677,
+        "exists": true,
+        "path": "sessions/_capture-continuity-controlled-v1-final/events.jsonl",
+        "sha256": "8d8bfcdb2cfb7113c475ecb8209b33e198d288dae97a7bac1f66f6da464c02bb"
+      },
+      "mic_raw": {
+        "bytes": 4872692,
+        "exists": true,
+        "path": "sessions/_capture-continuity-controlled-v1-final/audio/mic/000001.caf",
+        "sha256": "d9059ad69d63435b0e6fc6ae35c696afda616cbf912966c70cf344fd06d0fea0"
+      },
+      "remote_raw": {
+        "bytes": 9741288,
+        "exists": true,
+        "path": "sessions/_capture-continuity-controlled-v1-final/audio/remote/000001.caf",
+        "sha256": "3f604b12fb57063edada03724250fcc11b2c8bb73c0e63345c6bb22c55ed0389"
+      },
+      "session_manifest": {
+        "bytes": 2793,
+        "exists": true,
+        "path": "sessions/_capture-continuity-controlled-v1-final/session.json",
+        "sha256": "95848d8c1496d70a9d9c606379a0de155f03d19a51dff9747e1f583aa9112f99"
+      }
+    },
+    "capture_complete": false,
+    "capture_status": "partial_recommended",
+    "duration_sec": 25.357,
+    "gap_count": 1,
+    "gap_seconds": 0.468729,
+    "gates": {
+      "manifest_written_once": true,
+      "no_writer_failure": true,
+      "provenance_complete": true,
+      "raw_tracks_exist": true,
+      "recording_lock_released_once": true,
+      "restart_observed": true,
+      "single_capture_stop": true,
+      "software_idle_bounded": true,
+      "terminal_unique": true
+    },
+    "max_restart_to_pcm_ms": 194.706,
+    "max_software_idle_ms": 2.362,
+    "max_start_api_ms": 178.563,
+    "mode": "controlled_restart",
+    "restart_attempt_count": 1,
+    "restart_provenance_status": "complete",
+    "session": "sessions/_capture-continuity-controlled-v1-final",
+    "status": "passed"
+  },
+  "decision": "EVIDENCE_BOUND",
+  "frozen_evidence": {
+    "files": [
+      {
+        "bytes": 2874,
+        "exists": true,
+        "path": "sessions/2026-08-19_14-12-32/session.json",
+        "sha256": "2275ebd4ebc05859c5abb45622274d6434fee46ffef83df552e2d400314de626",
+        "valid": true
+      },
+      {
+        "bytes": 1541,
+        "exists": true,
+        "path": "sessions/2026-08-19_14-12-32/events.jsonl",
+        "sha256": "9f2a8b781a6a621083faecc61a086ba5392b248c5ade382ed27e97ad85e8ec16",
+        "valid": true
+      },
+      {
+        "bytes": 596169456,
+        "exists": true,
+        "path": "sessions/2026-08-19_14-12-32/audio/mic/000001.caf",
+        "sha256": "3dd30eb351c5440db310bd3482d56e2891827990c22bcc753476ed0d71fbaab9",
+        "valid": true
+      },
+      {
+        "bytes": 1192342984,
+        "exists": true,
+        "path": "sessions/2026-08-19_14-12-32/audio/remote/000001.caf",
+        "sha256": "8edbefbc733382640ddeaec0c833c82eacab329a5bd00a605a3bc281e2bd4a72",
+        "valid": true
+      },
+      {
+        "bytes": 3940,
+        "exists": true,
+        "path": "sessions/2026-08-19_14-12-32/derived/audit/capture-continuity/capture_continuity_report.json",
+        "sha256": "284a581dfaec38f2ba3419a99a445043a941b4bd9445d243cd4b5a505a92d710",
+        "valid": true
+      },
+      {
+        "bytes": 19624,
+        "exists": true,
+        "path": "sessions/_reports/post-segmentation-transcript-rebaseline-v1/post_segmentation_rebaseline_report.json",
+        "sha256": "1764c0b4b569effcbb6db27d67b2f718f15cf554356eb3942a7581d7c51ee145",
+        "valid": true
+      },
+      {
+        "bytes": 6129,
+        "exists": true,
+        "path": "docs/testing/post-segmentation-transcript-rebaseline-v1-snapshot.json",
+        "sha256": "fa95baf75796f41fed54820844b70f240f85bd259791f3fb444cced27b7f70ff",
+        "valid": true
+      }
+    ],
+    "frozen_metrics_valid": true,
+    "gap_count": 3,
+    "gap_seconds": 2.268542,
+    "restart_count": 3,
+    "status": "passed"
+  },
+  "generator": {
+    "name": "report-capture-continuity-loss-closure-v1",
+    "version": "0.1.0"
+  },
+  "global_safety": {
+    "recording_lock_available": true
+  },
+  "no_restart_soak": {
+    "artifacts": {
+      "continuity_report": {
+        "bytes": 1400,
+        "exists": true,
+        "path": "sessions/_capture-continuity-no-restart-soak-v1/derived/audit/capture-continuity/capture_continuity_report.json",
+        "sha256": "80d794df1f98793069121d2d34730a1bb725d2ba4361ed6feeb06191e3feb976"
+      },
+      "events": {
+        "bytes": 1694,
+        "exists": true,
+        "path": "sessions/_capture-continuity-no-restart-soak-v1/events.jsonl",
+        "sha256": "9f645c5256fefe9a889fdf1b1b17bcdd6095bc8c6219a829175dbe96cfcdfea9"
+      },
+      "mic_raw": {
+        "bytes": 115287400,
+        "exists": true,
+        "path": "sessions/_capture-continuity-no-restart-soak-v1/audio/mic/000001.caf",
+        "sha256": "d1eaa61276e5e65afe867e772f3cd8a04ac45cff0728ae5a453cd73b66217f4c"
+      },
+      "remote_raw": {
+        "bytes": 230570704,
+        "exists": true,
+        "path": "sessions/_capture-continuity-no-restart-soak-v1/audio/remote/000001.caf",
+        "sha256": "37546c1b4b86f8048bde235202cf48384f4f94605b08b235f2d224f2284f7dac"
+      },
+      "session_manifest": {
+        "bytes": 2373,
+        "exists": true,
+        "path": "sessions/_capture-continuity-no-restart-soak-v1/session.json",
+        "sha256": "731729005144896ad0a0ac2601f4a14680cb4dc29e0373db0847cc2b5b9936db"
+      }
+    },
+    "capture_complete": true,
+    "capture_status": "ok",
+    "duration_sec": 600.434,
+    "gap_count": 0,
+    "gap_seconds": 0.0,
+    "gates": {
+      "capture_complete": true,
+      "manifest_written_once": true,
+      "minimum_duration": true,
+      "no_writer_failure": true,
+      "raw_tracks_exist": true,
+      "recording_lock_released_once": true,
+      "single_capture_stop": true,
+      "zero_gap_seconds": true
+    },
+    "max_restart_to_pcm_ms": null,
+    "max_software_idle_ms": null,
+    "max_start_api_ms": null,
+    "mode": "no_restart_soak",
+    "restart_attempt_count": 0,
+    "restart_provenance_status": "not_applicable",
+    "session": "sessions/_capture-continuity-no-restart-soak-v1",
+    "status": "passed"
+  },
+  "production_transcript_profiles_changed": false,
+  "schema": "murmurmark.capture_continuity_loss_closure_report/v1",
+  "software_delay_removed": true,
+  "terminal_completeness_policy": "any_measured_gap_requires_review"
+}

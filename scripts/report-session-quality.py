@@ -2501,22 +2501,22 @@ def use_gate_reasons(row: dict[str, Any]) -> list[dict[str, Any]]:
                     "value": round(guarded_seconds, 3),
                 }
             )
-    if row.get("capture_continuity_partial_recommended") is True:
+    if row.get("capture_continuity_complete") is False:
         reasons.append(
             {
-                "id": "capture_continuity_partial",
+                "id": "capture_continuity_incomplete",
                 "severity": "review",
-                "message": "Capture continuity gaps are large enough that the transcript may be incomplete.",
+                "message": "Capture has measured uncaptured PCM intervals; the transcript may omit speech.",
                 "value": row.get("capture_continuity_gap_seconds"),
             }
         )
-    elif row.get("capture_continuity_status") == "warning":
+    elif row.get("capture_continuity_status") == "provenance_incomplete":
         reasons.append(
             {
-                "id": "capture_continuity_warning",
+                "id": "capture_restart_provenance_incomplete",
                 "severity": "warning",
-                "message": "Small restart-correlated PCM gaps were measured; the transcript remains usable.",
-                "value": row.get("capture_continuity_gap_seconds"),
+                "message": "Capture restart provenance is incomplete.",
+                "value": row.get("capture_continuity_restart_provenance_status"),
             }
         )
     if (
@@ -2686,22 +2686,46 @@ def capture_continuity_metrics(session: Path, manifest: dict[str, Any]) -> dict[
     if not isinstance(report, dict) or report.get("schema") != "murmurmark.capture_continuity/v1":
         return {
             "capture_continuity_status": "missing",
+            "capture_continuity_complete": None,
+            "capture_continuity_terminal_gate": None,
             "capture_continuity_restart_count": restart_count,
+            "capture_continuity_restart_attempt_count": None,
             "capture_continuity_gap_count": None,
             "capture_continuity_gap_seconds": None,
             "capture_continuity_max_gap_seconds": None,
             "capture_continuity_gap_ratio": None,
             "capture_continuity_partial_recommended": None,
+            "capture_continuity_restart_provenance_status": None,
+            "capture_continuity_max_software_idle_ms": None,
+            "capture_continuity_max_start_api_ms": None,
+            "capture_continuity_max_restart_to_pcm_ms": None,
             "capture_continuity_source": None,
         }
+    latency = report.get("restart_latency") if isinstance(report.get("restart_latency"), dict) else {}
+    observed_gap_count = safe_int(report.get("observed_gap_count"))
+    raw_complete = report.get("capture_complete")
+    capture_complete = raw_complete if isinstance(raw_complete, bool) else observed_gap_count == 0
     return {
         "capture_continuity_status": report.get("status"),
+        "capture_continuity_complete": capture_complete,
+        "capture_continuity_terminal_gate": report.get("terminal_completeness_gate"),
         "capture_continuity_restart_count": safe_int(report.get("screen_capture_restart_count")),
-        "capture_continuity_gap_count": safe_int(report.get("observed_gap_count")),
+        "capture_continuity_restart_attempt_count": safe_int(report.get("restart_attempt_count")),
+        "capture_continuity_gap_count": observed_gap_count,
         "capture_continuity_gap_seconds": round_or_none(report.get("observed_gap_seconds"), 6),
         "capture_continuity_max_gap_seconds": round_or_none(report.get("max_observed_gap_seconds"), 6),
         "capture_continuity_gap_ratio": round_or_none(report.get("observed_gap_ratio"), 9),
         "capture_continuity_partial_recommended": report.get("partial_recommended") is True,
+        "capture_continuity_restart_provenance_status": report.get("restart_provenance_status"),
+        "capture_continuity_max_software_idle_ms": round_or_none(
+            latency.get("max_software_idle_ms"), 3
+        ),
+        "capture_continuity_max_start_api_ms": round_or_none(
+            latency.get("max_start_api_ms"), 3
+        ),
+        "capture_continuity_max_restart_to_pcm_ms": round_or_none(
+            latency.get("max_request_to_all_sources_committed_ms"), 3
+        ),
         "capture_continuity_source": report.get("source"),
     }
 
@@ -3241,11 +3265,18 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "suggested_closure_manual_remaining_rows",
         "suggested_closure_manual_remaining_seconds",
         "capture_continuity_status",
+        "capture_continuity_complete",
+        "capture_continuity_terminal_gate",
         "capture_continuity_restart_count",
+        "capture_continuity_restart_attempt_count",
         "capture_continuity_gap_count",
         "capture_continuity_gap_seconds",
         "capture_continuity_max_gap_seconds",
         "capture_continuity_partial_recommended",
+        "capture_continuity_restart_provenance_status",
+        "capture_continuity_max_software_idle_ms",
+        "capture_continuity_max_start_api_ms",
+        "capture_continuity_max_restart_to_pcm_ms",
         "echo_reduction_db",
         "pre_asr_echo_active_status",
         "pre_asr_echo_active_profile",
@@ -3961,12 +3992,29 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
             "remote_forbidden_local_word_recall_delta": row.get("remote_forbidden_local_word_recall_delta"),
             "remote_duplicate_in_me_seconds": row.get("remote_duplicate_in_me_seconds"),
             "capture_continuity_status": row.get("capture_continuity_status"),
+            "capture_continuity_complete": row.get("capture_continuity_complete"),
+            "capture_continuity_terminal_gate": row.get("capture_continuity_terminal_gate"),
             "capture_continuity_restart_count": row.get("capture_continuity_restart_count"),
+            "capture_continuity_restart_attempt_count": row.get(
+                "capture_continuity_restart_attempt_count"
+            ),
             "capture_continuity_gap_count": row.get("capture_continuity_gap_count"),
             "capture_continuity_gap_seconds": row.get("capture_continuity_gap_seconds"),
             "capture_continuity_max_gap_seconds": row.get("capture_continuity_max_gap_seconds"),
             "capture_continuity_gap_ratio": row.get("capture_continuity_gap_ratio"),
             "capture_continuity_partial_recommended": row.get("capture_continuity_partial_recommended"),
+            "capture_continuity_restart_provenance_status": row.get(
+                "capture_continuity_restart_provenance_status"
+            ),
+            "capture_continuity_max_software_idle_ms": row.get(
+                "capture_continuity_max_software_idle_ms"
+            ),
+            "capture_continuity_max_start_api_ms": row.get(
+                "capture_continuity_max_start_api_ms"
+            ),
+            "capture_continuity_max_restart_to_pcm_ms": row.get(
+                "capture_continuity_max_restart_to_pcm_ms"
+            ),
             "capture_continuity_source": row.get("capture_continuity_source"),
             "pre_asr_echo_active_status": row.get("pre_asr_echo_active_status"),
             "pre_asr_echo_active_reason": row.get("pre_asr_echo_active_reason"),

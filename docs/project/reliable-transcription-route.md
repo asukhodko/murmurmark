@@ -31,8 +31,9 @@ closed without promotion. Disjoint Truth v2 and Cluster Purity Reference v1 loca
 topology defect to mixed boundaries and minority turns. Boundary and Minority-Voice Segmentation v1
 then kept Coverage v3 after weak real precision, speaker-count and minority gates. Post-Segmentation
 Transcript Rebaseline v1 passed on six fresh sessions and selected measured raw continuity loss as
-the first hard residual. Capture Continuity Loss Closure v1 is current. Notes, retrieval and work
-proposals remain optional derivatives.
+the first hard residual. Capture Continuity Loss Closure v1 then removed the fixed restart delay,
+made unavoidable source gaps native and terminal, and closed `EVIDENCE_BOUND`. Remote Unknown
+Evidence Recovery v1 is current. Notes, retrieval and work proposals remain optional derivatives.
 Date: 2026-08-20
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
@@ -509,10 +510,10 @@ is selected only while every source/output hash and the qualified algorithm hash
 ## Current Executable Goal
 
 ```text
-Capture Continuity Loss Closure v1: на завершённом fresh rebaseline воспроизвести три
-restart-bounded PCM gap / 2.268542s, отделить macOS outage от программной restart latency,
-устранить лишнюю паузу и сделать любой неизбежный source loss точным и видимым во всех
-пользовательских поверхностях.
+Remote Unknown Evidence Recovery v1: заморозить 397.543570s / 547 слов explicit unknown из
+strict Coverage v3, разложить их по отсутствию embedding, конфликтам frame-speakers, margin,
+overlap и boundary context; восстанавливать session-local speaker label только при независимом
+воспроизводимом evidence, сохраняя production abstention gates и exact aggregate fallback.
 ```
 
 Remote Speaker Attribution Error Decomposition v1 завершён
@@ -527,8 +528,8 @@ Local mic multi-speaker остаётся условной веткой и отк
 
 ## Dependent Milestones
 
-1. **Remote Unknown Evidence Recovery v1** follows capture closure and targets supported attribution
-   only; explicit unknown remains valid abstention.
+1. **Remote Unknown Evidence Recovery v1** is current and targets supported attribution only;
+   explicit unknown remains valid abstention.
 2. **Human-Reviewed Lexical Seed v1** remains blocked on exact real-meeting word truth covering
    1x1/group, both roles and two acoustic modes.
 3. **Session-Scoped Lexical Context v1** compiles only a compact meeting-specific prompt or hotword

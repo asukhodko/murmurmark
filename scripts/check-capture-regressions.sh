@@ -112,6 +112,34 @@ file_bytes() {
 
 assert_static_capture_contract() {
   [[ -f "$source_file" ]] || fail "missing $source_file"
+  [[ -f Sources/MurmurMarkCLI/CaptureRestartCoordinator.swift ]] \
+    || fail "capture restart coordinator is missing"
+
+  grep -q 'private let restartCoordinator = CaptureRestartCoordinator()' "$source_file" \
+    || fail "capture restart requests must be serialized"
+
+  grep -q 'type: "capture.restart_provenance"' "$source_file" \
+    || fail "capture restart provenance events are missing"
+
+  grep -q 'old_stream_already_stopped' "$source_file" \
+    || fail "streamStopped recovery must skip redundant stopCapture"
+
+  grep -q 'MURMURMARK_TEST_CAPTURE_RESTART_AFTER_SEC' "$source_file" \
+    || fail "deterministic capture restart injection is missing"
+
+  grep -q 'writer_inserted_timeline_silence' "$source_file" \
+    || fail "writer-inserted silence must be disclosed as uncaptured audio"
+
+  grep -q 'type: "capture.write_failed"' "$source_file" \
+    || fail "raw writer failure must be a structured capture event"
+
+  grep -q 'if gapStartFrame > 0' "$source_file" \
+    || fail "pre-first-callback startup padding must not be reported as an in-capture gap"
+
+  if sed -n '/private func performScreenCaptureRestart/,/private func stopScreenCaptureStream/p' "$source_file" \
+    | grep -q 'Task.sleep(nanoseconds: 500_000_000)'; then
+    fail "capture restart must not contain the old unconditional 500ms sleep"
+  fi
 
   if grep -Eq 'config\.excludesCurrentProcessAudio[[:space:]]*=[[:space:]]*true' "$source_file"; then
     fail "ScreenCaptureKit system-audio capture must not exclude current-process audio"

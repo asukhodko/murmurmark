@@ -58,6 +58,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--snapshot", type=Path, default=DEFAULT_SNAPSHOT)
     parser.add_argument("--refresh", action="store_true", help="Replace the private frozen input manifest.")
     parser.add_argument(
+        "--refresh-frozen-artifacts",
+        action="store_true",
+        help="Keep frozen session membership and refresh only each session's current artifact identities.",
+    )
+    parser.add_argument(
         "--verify-existing",
         action="store_true",
         help="Rebuild in memory and require byte-identical existing public outputs.",
@@ -252,6 +257,33 @@ def manifest_path(out_dir: Path) -> Path:
 
 def load_or_freeze_inputs(args: argparse.Namespace, policy: dict[str, Any]) -> dict[str, Any]:
     path = manifest_path(args.out_dir)
+    if args.refresh and args.refresh_frozen_artifacts:
+        raise RebaselineError("refresh_modes_are_mutually_exclusive")
+    if args.refresh_frozen_artifacts:
+        if args.verify_existing or not path.is_file():
+            raise RebaselineError("refresh_frozen_artifacts_requires_existing_manifest")
+        manifest = read_json(path)
+        if manifest.get("schema") != INPUT_SCHEMA:
+            raise RebaselineError(f"unsupported_input_schema:{manifest.get('schema')}")
+        refreshed_sessions: list[dict[str, Any]] = []
+        for entry in manifest.get("sessions") or []:
+            if not isinstance(entry, dict):
+                raise RebaselineError("invalid_frozen_session_entry")
+            session = Path(str(entry.get("session_path") or "")).expanduser().resolve()
+            selection = read_json(session / SELECTION)
+            refreshed_sessions.append(
+                {
+                    **entry,
+                    "session_name": session.name,
+                    "session_path": str(session),
+                    "semantic_fingerprint": selection.get("semantic_fingerprint"),
+                    "selected_profile": selection.get("selected_profile"),
+                    "artifacts": session_artifacts(session, selection),
+                }
+            )
+        manifest = {**manifest, "sessions": refreshed_sessions}
+        atomic_write(path, canonical_json(manifest))
+        return manifest
     if args.refresh or not path.is_file():
         if args.verify_existing:
             raise RebaselineError("verify_existing_requires_frozen_input_manifest")

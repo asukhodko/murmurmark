@@ -214,29 +214,68 @@ derived/audit/capture-continuity/
   capture_continuity_report.md
 ```
 
-The JSON schema is `murmurmark.capture_continuity/v1`. It records ScreenCaptureKit restart events
-and exact-zero PCM runs found in bounded raw mic/remote windows around those events:
+The JSON schema remains `murmurmark.capture_continuity/v1`. Recorder `0.2.0+` writes native
+`session.json.health.capture_gaps` from silence inserted by the durable raw writer when the capture
+timeline advances without an audio callback. Native rows have `captured_audio=false` and take
+precedence over the legacy bounded exact-zero scan. The scan remains a read-only fallback for old
+sessions.
+
+Every new restart also writes ordered `capture.restart_provenance` events with `sequence` and
+`monotonic_ns`: `requested`, old-stream disposition, `start_requested`, `start_completed`, first
+callback and first committed PCM for mic/remote, and exactly one terminal outcome. Callbacks may
+arrive before the `startCapture` completion callback; the report therefore preserves each timestamp
+instead of assuming callback order. The `requested` row lists `expected_sources`; completeness waits
+only for tracks actually captured by ScreenCaptureKit, so mixed capture backends do not fail falsely.
 
 ```json
 {
   "schema": "murmurmark.capture_continuity/v1",
-  "status": "warning",
-  "source": "restart_bounded_pcm_scan",
-  "screen_capture_restart_count": 3,
-  "observed_gap_count": 3,
-  "observed_gap_seconds": 2.466,
-  "max_observed_gap_seconds": 0.910,
-  "observed_gap_ratio": 0.000710,
-  "partial_recommended": false,
-  "gaps": []
+  "status": "partial_recommended",
+  "source": "session_manifest",
+  "capture_complete": false,
+  "terminal_completeness_gate": "review",
+  "screen_capture_restart_count": 1,
+  "restart_attempt_count": 1,
+  "observed_gap_count": 1,
+  "observed_gap_seconds": 0.468729,
+  "max_observed_gap_seconds": 0.468729,
+  "restart_provenance_status": "complete",
+  "restart_latency": {
+    "max_software_idle_ms": 2.362,
+    "max_start_api_ms": 178.563,
+    "max_request_to_all_sources_committed_ms": 194.706,
+    "software_delay_removed": true
+  },
+  "partial_recommended": true,
+  "gaps": [
+    {
+      "start_sec": 8.566313,
+      "end_sec": 9.035042,
+      "duration_sec": 0.468729,
+      "sources": ["mic", "remote"],
+      "evidence": "writer_inserted_timeline_silence",
+      "captured_audio": false
+    }
+  ]
 }
 ```
 
-Native future `session.json.health.capture_gaps` rows take precedence; otherwise the bounded scan is
-the reproducible fallback. `partial_recommended` becomes true when a gap is at least `2s`, total
-gaps reach `5s`, or they occupy at least `0.5%` of capture. A smaller measured gap is a non-blocking
-warning. Missing evidence stays explicit and must not be interpreted as gap-free capture. Raw CAF
-is read-only. Derived compaction retains the JSON report with the selected transcript and outcome.
+`software_idle_ms` measures MurmurMark-controlled delay between old-stream disposition and the next
+start request. `start_api_ms`, callback delivery and callback-to-commit remain separate. The old
+unconditional `500ms` restart sleep is forbidden. Concurrent stop signals join one in-flight
+restart; meeting shutdown cancels and awaits it before closing writers.
+
+`partial_recommended` still identifies severe loss: a gap at least `2s`, total gaps at least `5s`,
+or at least `0.5%` of capture. It no longer controls completeness. **Any measured uncaptured gap**
+sets `capture_complete=false`, blocks the terminal completeness gate and adds a warning to
+`murmurmark transcript --cat`; the transcript remains a usable partial artifact when its other gates
+pass. Missing continuity evidence remains unknown, never gap-free. Raw CAF is read-only. Derived
+compaction retains this report with the selected transcript and outcome.
+
+The closure-level evidence is governed by
+`policies/capture-continuity-loss-closure-v1.json`. Its frozen manifest and public result live in
+`docs/testing/capture-continuity-loss-closure-v1-*.json`; private controlled-capture reports stay
+under `sessions/_reports/capture-continuity-loss-closure-v1/`.
 
 `recommended_next`, `next_commands` and `open_commands` are also copied to
 `synthesis_manifest.json`. This makes synthesis a machine-readable handoff: CLI wrappers and agents
@@ -8822,8 +8861,9 @@ remote_duplicate_in_me_seconds
 
 The legacy `pre_asr_echo_selection_*` fields remain aliases for the advanced personalized selector.
 They can be `missing` while `pre_asr_echo_active_*` validly identifies
-`local_fir_role_masked`. Readiness also carries `capture_continuity_*` status, restart, gap, ratio
-and partial-recommendation fields from `murmurmark.capture_continuity/v1`.
+`local_fir_role_masked`. Readiness also carries `capture_continuity_*` completeness, terminal gate,
+restart/provenance, gap, ratio and latency fields from `murmurmark.capture_continuity/v1`. Any
+positive gap blocks only the terminal completeness gate; severity thresholds remain separate.
 
 `outcome.json` exposes `harmful_remote_in_me_seconds` and
 `harmful_remote_in_me_coverage`. The value is the maximum available duration from current-profile

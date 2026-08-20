@@ -799,27 +799,26 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-post-segmentation-transcript-rebaseline-v1]
-    status: current
+    status: done
     effort: 8
     notes: |
-      Заморозить подтверждённый случай трёх ScreenCaptureKit restart-gap, разложить stop -> restart ->
-      first committed PCM latency, устранить лишнюю программную паузу и покрыть restart state machine
-      детерминированным fault injection. Если macOS не отдаёт PCM во время outage, не подменять потерю
-      тишиной: источник должен оставаться usable partial с точными интервалами и явным предупреждением.
-      Production ASR, Echo Guard, Coverage v3 и сохранённые raw не менять.
+      Завершено EVIDENCE_BOUND. Удалены fixed 500ms sleep и redundant stopCapture; concurrent signals
+      join один restart. Controlled gap сократился до 0.468729s при software idle 2.362ms, оставшийся
+      ScreenCaptureKit outage точно записывается captured_audio=false и блокирует completeness.
+      No-restart soak 600.434s дал zero gaps; frozen raw и production transcripts неизменны.
 
   quality-remote-unknown-evidence-recovery-v1:
     title: "Remote Unknown Evidence Recovery v1"
     kind: task
     parent: murmurmark-cli
     deps: [quality-capture-continuity-loss-closure-v1]
-    status: next
+    status: current
     effort: 10
     notes: |
-      После source continuity разобрать 397.543570s / 547 strict Coverage v3 unknown words и
-      provisional fallback отдельно по similarity, embedding availability, conflicting frames,
-      overlap и margin causes. Восстанавливать speaker label только по независимому evidence;
-      unknown остаётся корректным исходом, production thresholds не ослабляются по одному корпусу.
+      Заморозить 397.543570s / 547 strict Coverage v3 unknown words и разложить их по embedding
+      availability, conflicting frame speakers, overlap, boundary context, similarity и margin.
+      Восстанавливать session-local speaker label только по независимому evidence; unknown остаётся
+      корректным исходом, production thresholds и exact aggregate fallback не ослабляются.
 
   quality-human-reviewed-lexical-seed-v1:
     title: "Human-Reviewed Lexical Seed v1"
@@ -1098,8 +1097,8 @@ x:
   exec:
     program:
       nearest_goal: >-
-        Capture Continuity Loss Closure v1: зафиксировав завершённый Post-Segmentation Transcript Rebaseline v1 и неизменные production transcript profiles, воспроизвести три restart-bounded PCM gap общей длиной 2.268542s, измерить stop-to-first-committed-PCM latency, устранить доказанную программную задержку либо выпустить точный EVIDENCE_BOUND для macOS outage, сделать loss явным в lifecycle/readiness, добавить fault-injection, soak и no-regression тесты, синхронизировать документацию и планы, затем закоммитить и отправить изменения в origin/main.
-      success_by_next_sync: "Restart state machine воспроизводится тестом; устранимая задержка закрыта, а неизбежная потеря PCM точно измеряется и никогда не маскируется как полная запись."
+        Remote Unknown Evidence Recovery v1: опираясь на завершённые Post-Segmentation Transcript Rebaseline v1 и Capture Continuity Loss Closure v1, заморозить 397.543570s / 547 слов explicit unknown из strict Coverage v3, разложить их по причинам отсутствия embedding, конфликтующим frame-speakers, слабому margin, overlap и boundary context, восстанавливать session-local speaker label только при независимом воспроизводимом evidence и без ослабления production abstention gates, сохранить точные words/roles/timestamps/aggregate fallback, выпустить PROMOTE либо точный EVIDENCE_BOUND, обновить тесты, документацию и планы, затем закоммитить и отправить результат в origin/main.
+      success_by_next_sync: "Каждое strict unknown слово имеет воспроизводимую причину; безопасно поддержанные labels восстановлены отдельным shadow-кандидатом, а остальной предел explicit unknown доказан без false identity regression."
     defaults:
       status_progress:
         done: 1.0
@@ -1120,13 +1119,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle и batch transcript работают; Transcript Integrity v1 promoted 10 proven repairs with exact fallback."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Capture Continuity Loss Closure v1"
-        scope_nodes: [quality-capture-continuity-loss-closure-v1]
+        title: "Remote Unknown Evidence Recovery v1"
+        scope_nodes: [quality-remote-unknown-evidence-recovery-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Fresh rebaseline завершён: surfaces и conservation прошли, но одна сессия потеряла 2.268542s PCM на трёх ScreenCaptureKit restarts."
-          next_sync_goal: "Устранить программную restart latency и сделать неизбежный source loss точным и видимым."
+          sync_note: "Capture closure завершён EVIDENCE_BOUND; fresh rebaseline оставляет 397.543570s / 547 strict unknown words следующим крупнейшим измеренным остатком."
+          next_sync_goal: "Разложить unknown по причинам и восстановить только labels с независимым evidence."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -1168,8 +1167,8 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Speaker-resolved handoff и fresh rebaseline готовы; hard capture loss закрывается до следующей speaker/lexical гипотезы."
-          next_sync_goal: "Вернуться к remote unknown evidence после закрытия source continuity."
+          sync_note: "Speaker-resolved handoff, fresh rebaseline и capture EVIDENCE_BOUND готовы; current focus вернулся к доказательной remote attribution."
+          next_sync_goal: "Снизить supported unknown без ослабления abstention и exact fallback."
     edges:
       - from: working-now
         to: current-quality

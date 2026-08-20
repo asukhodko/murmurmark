@@ -5,5 +5,8 @@ disabled_rules:
   - trailing_comma
   - type_body_length
 
+excluded:
+  - .build
+
 line_length:
   warning: 150

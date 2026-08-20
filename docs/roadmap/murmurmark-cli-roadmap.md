@@ -56,7 +56,7 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 
 | Область | Состояние | Доказанный результат |
 |---|---|---|
-| Capture и lifecycle | `current hardening` | Durable writer работает; 3 restart-gap / `2.268542s` требуют closure |
+| Capture и lifecycle | `done / EVIDENCE_BOUND` | Software restart idle `2.362ms`; controlled source gap `0.468729s` видим, no-restart soak `600.434s` без gaps |
 | Echo / Target-Me | `done` | v2.17: safe personalized plateau, exact fallback |
 | Сильнее разделить mic | `done` | `DO_NOT_ADVANCE`: нет надёжного Target-Me presence gate |
 | Transcript / handoff | `done` | Authoritative batch, Evidence Handoff v2, guarded export |
@@ -93,8 +93,8 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Boundary and minority-voice segmentation v1 | `done` | `KEEP_COVERAGE_V3`: exact words, but real precision `0.044688`, speaker ratio `0.5`, minority recall `0.017161` |
 | Enrichment transaction and cache coherence v1 | `done` | Idempotent downstream refresh, review history, decode reuse and one canonical queue |
 | Post-segmentation transcript rebaseline v1 | `done` | 6/6 fresh, coherent surfaces; next hard defect selected by evidence |
-| Capture continuity loss closure v1 | `current` | Remove software restart latency or publish exact external-outage boundary |
-| Remote unknown evidence recovery v1 | `next` | Attribute only with independent evidence; keep unsupported speech unknown |
+| Capture continuity loss closure v1 | `done` | `EVIDENCE_BOUND`: fixed delay removed, native source-loss intervals block completeness |
+| Remote unknown evidence recovery v1 | `current` | Разобрать 547 unknown words и атрибутировать только по независимому evidence |
 | Human-reviewed lexical seed v1 | `blocked` | Exact real-meeting word truth is still external evidence |
 | Session-scoped lexical context v1 | `later` | Compact per-meeting prompt/hotwords, never a broad static glossary |
 | Speaker-resolved transcript terminal gate v1 | `later` | One measurable product-level North Star gate |
@@ -135,8 +135,8 @@ flowchart LR
     BM["Done: KEEP COVERAGE V3<br/>Remote Speaker Boundary and<br/>Minority-Voice Segmentation v1"]
     EC["Done<br/>Enrichment Transaction and<br/>Cache Coherence v1"]
     RB["Done: REBASELINE ESTABLISHED<br/>Post-Segmentation<br/>Transcript Rebaseline v1"]
-    CC["Current<br/>Capture Continuity<br/>Loss Closure v1"]
-    RU["Next<br/>Remote Unknown<br/>Evidence Recovery v1"]
+    CC["Done: EVIDENCE BOUND<br/>Capture Continuity<br/>Loss Closure v1"]
+    RU["Current<br/>Remote Unknown<br/>Evidence Recovery v1"]
     HL["Blocked<br/>Human-Reviewed<br/>Lexical Seed v1"]
     LC["Later<br/>Session-Scoped<br/>Lexical Context v1"]
     TG["Later<br/>Speaker-Resolved Transcript<br/>Terminal Gate v1"]
@@ -273,11 +273,12 @@ raw and `reviewed_v1` hashes unchanged, preserved 47 archived decisions and conv
 `REBASELINE_ESTABLISHED`: 6/6 fingerprint-bound sessions, 5 strict rich + 1 warned provisional,
 exact words/roles/timestamps/fallback. Strict unknown is `5.0562%` versus frozen `6.0688%`. Three
 restart gaps / `2.268542s` became the first hard residual; replay is byte-exact and privacy-safe.
-### 33. Capture Continuity Loss Closure v1 — `current`
-Разложить ScreenCaptureKit restart latency, убрать программную паузу и покрыть state machine fault
-injection. Неизбежный macOS outage должен иметь точные интервалы и никогда не выглядеть полной записью.
-### 34. Remote Unknown Evidence Recovery v1 — `next`
-После source continuity разобрать `397.543570s` / 547 strict unknown words по cause и прямому evidence, не ослабляя abstention gates.
+### 33. Capture Continuity Loss Closure v1 — `done`
+`EVIDENCE_BOUND`: fixed `500ms` pause и redundant stop удалены, concurrent signals соединяются в
+один restart. Software idle `2.362ms`; source gap `0.468729s`; soak `600.434s` без gaps. Native loss и disclaimer блокируют ложную completeness.
+### 34. Remote Unknown Evidence Recovery v1 — `current`
+Заморозить `397.543570s` / 547 strict unknown words, разложить их по cause и восстанавливать
+session-local label только по независимому evidence, не ослабляя abstention gates и exact fallback.
 ### 35. Human-Reviewed Lexical Seed v1 — `blocked`
 Получить точную ручную разметку слов минимум для двух реальных встреч: 1x1/group, обе роли и два
 акустических режима. Машинное согласие остаётся диагностикой.
