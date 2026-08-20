@@ -767,26 +767,27 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-remote-speaker-usability-gate-error-decomposition-v1, quality-residual-transcript-integrity-hardening-v1]
-    status: current
+    status: done
     effort: 14
     notes: |
-      Построить label-independent session-local boundary candidate, который сохраняет каждое слово,
-      отделяет короткие minority turns и оставляет слабые/open-set intervals explicit unknown.
-      Candidate и thresholds заморозить до нового disjoint terminal set. Выпустить только
-      PROMOTE_SEGMENTATION, KEEP_COVERAGE_V3 либо EVIDENCE_BOUND; никакой forced identity и никаких
-      изменений Coverage v3 до прохождения conservation, boundary, minority, stability и safety gates.
+      Завершено KEEP_COVERAGE_V3. Frozen candidate сохранил 100% слов, но на real diagnostic получил
+      boundary precision 0.044688, speaker-count ratio 0.5, minority-speaker recall 0.017161 и
+      timing-shift partition ARI 0.289387. Controlled-hard B-cubed F1 0.529176. Replay byte-exact,
+      production guards неизменны; простые spectral boundaries и текущая кластеризация закрыты без
+      post-terminal tuning.
 
   quality-post-segmentation-transcript-rebaseline-v1:
     title: "Post-Segmentation Transcript Rebaseline v1"
     kind: task
     parent: murmurmark-cli
     deps: [quality-remote-speaker-boundary-minority-segmentation-v1]
-    status: next
+    status: current
     effort: 10
     notes: |
-      Зафиксировать любой terminal outcome boundary/minority candidate, обновить fresh-session
-      evidence и заново ранжировать speaker topology, explicit unknown, overlap, chronology и lexical
-      residuals. Следующую ветку выбирать из измеренного корпуса, а не из одного нового примера.
+      Зафиксировать KEEP_COVERAGE_V3 outcome boundary/minority candidate, обновить fresh-session
+      evidence и заново ранжировать speaker topology, explicit unknown, overlap, chronology, lexical
+      residuals и пользовательские rich/provisional/aggregate surfaces. Следующую ветку выбрать по
+      измеренному corpus-wide вреду, доступной truth и проверяемости, а не по одному новому примеру.
 
   quality-human-reviewed-lexical-seed-v1:
     title: "Human-Reviewed Lexical Seed v1"
@@ -861,12 +862,9 @@ views:
     lanes:
       working:
         title: "Готовая основа"
-        nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1, quality-residual-transcript-integrity-hardening-v1]
+        nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1, quality-residual-transcript-integrity-hardening-v1, quality-remote-speaker-boundary-minority-segmentation-v1]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-remote-speaker-boundary-minority-segmentation-v1]
-      next:
-        title: "Следующая разблокированная цель"
         nodes: [quality-post-segmentation-transcript-rebaseline-v1]
       blocked:
         title: "Внешняя lexical truth"
@@ -973,11 +971,11 @@ views:
         title: "Доказанная speaker evidence"
         nodes: [research-remote-diarization, research-rich-transcript, quality-remote-speaker-diarization-v2]
       current:
-        title: "Текущая speaker topology"
-        nodes: [quality-remote-speaker-boundary-minority-segmentation-v1]
-      next:
         title: "Повторное измерение"
         nodes: [quality-post-segmentation-transcript-rebaseline-v1]
+      boundary-result:
+        title: "Отклонённый boundary candidate"
+        nodes: [quality-remote-speaker-boundary-minority-segmentation-v1]
       lexical:
         title: "Lexical evidence и context"
         nodes: [quality-human-reviewed-lexical-seed-v1, quality-session-scoped-lexical-context-v1]
@@ -1058,8 +1056,8 @@ x:
   exec:
     program:
       nearest_goal: >-
-        Remote Speaker Boundary and Minority-Voice Segmentation v1: сохранив Coverage v3, selected transcript artifacts и диагностический Cluster Purity Reference v1 неизменными, построить session-local boundary detector для разделения смешанных remote-интервалов и восстановления редких голосов; заморозить candidate до нового disjoint terminal set, запрещать forced identity и выпускать только PROMOTE_SEGMENTATION, KEEP_COVERAGE_V3 либо EVIDENCE_BOUND с exact replay, privacy-safe отчётом, тестами, документацией, коммитом и push.
-      success_by_next_sync: "Boundary candidate заморожен до нового terminal set, minority recall измерен отдельно, а production изменён только при полном прохождении safety и conservation gates."
+        Post-Segmentation Transcript Rebaseline v1: зафиксировав terminal outcome KEEP_COVERAGE_V3 и неизменный production Coverage v3, пересобрать свежий корпус speaker-resolved транскрибаций, проверить selected/provisional/aggregate surfaces и ранжировать остаточные topology, unknown, overlap, chronology и lexical defects; выпустить один evidence-backed приоритет следующего улучшения с frozen inputs, exact replay, no-regression gates, privacy-safe отчётом, тестами, документацией, коммитом и push.
+      success_by_next_sync: "Есть fingerprint-bound fresh-session rebaseline без production mutations, раздельные метрики всех residual axes и один доказанный следующий технический приоритет."
     defaults:
       status_progress:
         done: 1.0
@@ -1080,13 +1078,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle и batch transcript работают; Transcript Integrity v1 promoted 10 proven repairs with exact fallback."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Remote Speaker Boundary and Minority-Voice Segmentation v1"
-        scope_nodes: [quality-remote-speaker-boundary-minority-segmentation-v1]
+        title: "Post-Segmentation Transcript Rebaseline v1"
+        scope_nodes: [quality-post-segmentation-transcript-rebaseline-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Cluster Purity Reference дал ADVANCE_SEGMENTATION: 10 reference voices против 4 clusters, purity 0.898106 и minority recall 0.0."
-          next_sync_goal: "Заморозить boundary/minority candidate до нового disjoint terminal set и сохранить exact word conservation."
+          sync_note: "Boundary/minority v1 закрыт KEEP_COVERAGE_V3: real precision 0.044688, speaker-count ratio 0.5 и minority recall 0.017161 при exact words."
+          next_sync_goal: "Пересобрать fresh corpus на неизменном Coverage v3 и выбрать следующий axis по измеренному вреду."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -1126,8 +1124,8 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Speaker-resolved handoff готов; после boundary outcome следует fresh rebaseline, затем human lexical truth и session-scoped context."
-          next_sync_goal: "Сохранить Coverage v3, завершить boundary candidate и открыть rebaseline без преждевременного ASR tuning."
+          sync_note: "Speaker-resolved handoff готов; boundary candidate не прошёл, поэтому fresh rebaseline предшествует следующей модели или ASR tuning."
+          next_sync_goal: "Сохранить Coverage v3 и ранжировать topology, unknown, overlap, chronology и lexical residuals единым корпусом."
     edges:
       - from: working-now
         to: current-quality
@@ -1143,7 +1141,7 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: purity evidence выбрал segmentation; текущий фокус — границы и редкие remote-голоса без forced identity."
+        caption: "Короткая карта: boundary candidate сохранён как KEEP_COVERAGE_V3; текущий фокус — единый fresh-session rebaseline и выбор следующего axis."
         blocks:
           - working-now
           - current-quality

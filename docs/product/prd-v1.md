@@ -167,8 +167,11 @@ promotion. Disjoint Truth v2 then completed 72 primary + 12 repeat decisions. Fr
 closed `KEEP_COVERAGE_V3`: 12/21 correct identities, precision `0.631579`, seven unsafe special
 accepts and two lost truth-v1 controls. Cluster Purity Reference v1 then measured 10 reference
 remote voices against four published acoustic clusters, weighted purity `0.898106` and minority
-recall `0`, closing `ADVANCE_SEGMENTATION`. Current work improves boundary and minority-voice
-segmentation; production remains Coverage v3.
+recall `0`, closing `ADVANCE_SEGMENTATION` and opening a bounded boundary experiment.
+Frozen Boundary and Minority-Voice Segmentation v1 subsequently closed `KEEP_COVERAGE_V3`: real
+boundary precision `0.044688`, speaker-count ratio `0.5`, minority recall `0.017161`, exact word
+conservation and byte-exact replay. Current work rebaselines fresh speaker-resolved sessions before
+choosing another model or heuristic.
 Notes, external writes and UI remain optional.
 
 Detailed experiment metrics through 2026-07-19 are preserved under `docs/history/`.

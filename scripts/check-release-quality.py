@@ -71,9 +71,11 @@ for relative in [
     "scripts/configure-remote-speaker-roster.py",
     "scripts/review_profile_lineage.py",
     "scripts/report-remote-speaker-cluster-purity-reference-v1.py",
+    "scripts/evaluate-remote-speaker-boundary-minority-v1.py",
     "scripts/apply-transcript-integrity.py",
     "scripts/report-transcript-integrity-corpus.py",
     "policies/remote-speaker-cluster-purity-reference-v1.json",
+    "policies/remote-speaker-boundary-minority-v1.json",
     "policies/transcript-integrity-v1.json",
 ]:
     path = ROOT / relative
@@ -110,9 +112,11 @@ with tempfile.TemporaryDirectory(prefix="murmurmark-release-unit-") as temporary
         "scripts/configure-remote-speaker-roster.py",
         "scripts/review_profile_lineage.py",
         "scripts/report-remote-speaker-cluster-purity-reference-v1.py",
+        "scripts/evaluate-remote-speaker-boundary-minority-v1.py",
         "scripts/apply-transcript-integrity.py",
         "scripts/report-transcript-integrity-corpus.py",
         "policies/remote-speaker-cluster-purity-reference-v1.json",
+        "policies/remote-speaker-boundary-minority-v1.json",
         "policies/transcript-integrity-v1.json",
     ]:
         destination = bundle / relative

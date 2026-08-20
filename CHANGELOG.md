@@ -5,6 +5,9 @@ public release tag exists; development builds also carry the source commit in th
 
 ## Unreleased
 
+- Added a frozen remote-speaker boundary and minority-voice evaluation. It preserves every word,
+  reports explicit unknown and timing-shift stability, and keeps Coverage v3 after failing terminal
+  precision, speaker-count and minority-recall gates.
 - Added a corpus-qualified `transcript_integrity_v1` profile that removes only proven adjacent
   duplicates, internal decoder repeats and unsupported repetition loops, with exact lineage,
   current-hash selection and fail-open local audio judging.

@@ -122,10 +122,10 @@ met, unless an explicit product decision changes the priority.
 
 1. **Transcript Perfection Corpus v1:** maintain the frozen benchmark for text,
    chronology, roles, speakers, overlap, acoustic modes and known residual defects.
-2. **Remote Speaker Boundary and Minority-Voice Segmentation v1:** split mixed remote intervals and
-   preserve short rare voices before anonymous identity assignment.
-3. **Post-Segmentation Transcript Rebaseline v1:** freeze either terminal outcome, rerun the corpus
-   on fresh sessions and rank the remaining speaker, overlap, chronology and lexical errors.
+2. **Remote Speaker Boundary and Minority-Voice Segmentation v1:** completed `KEEP_COVERAGE_V3`;
+   exact words survived, but boundary precision, speaker-count and minority gates failed.
+3. **Post-Segmentation Transcript Rebaseline v1:** current; rerun one comparable fresh corpus and
+   rank speaker topology, unknown, overlap, chronology, lexical and read-surface errors.
 4. **Human-Reviewed Lexical Seed v1:** collect exact real-meeting word truth before tuning ASR;
    agreement between local recognizers is diagnostic evidence only.
 5. **Session-Scoped Lexical Context v1:** compile a short topic-specific prompt or hotword set and

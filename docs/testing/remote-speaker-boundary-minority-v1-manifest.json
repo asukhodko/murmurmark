@@ -1,0 +1,15 @@
+{
+  "candidate_sha256": "d47a46ea533cc35a0de4b3c5a00e3727e1f169aefb58b8c8ed8ce7581706f9c7",
+  "decision": "KEEP_COVERAGE_V3",
+  "freeze_sha256": "b262bcd900ca8aa198f37f6946da487b10194d335329b0f8a0687e8c8f0f7f91",
+  "implementation": {
+    "bytes": 72953,
+    "path": "scripts/evaluate-remote-speaker-boundary-minority-v1.py",
+    "sha256": "b98fbbe76881a01a8b2117752b79f71f6c54472b59df2ac3dd9ab16c2b061183"
+  },
+  "policy_sha256": "a439dfed74931fd9b1bd5cc250d0bc8994b281bdac664ff47c33bd282844b9e7",
+  "production_mutations": 0,
+  "report_sha256": "04af3e039ec10471f2fefe5f91990ef734cf55298ba1ff3fabb42f71d55ba17e",
+  "schema": "murmurmark.remote_speaker_boundary_minority_manifest/v1",
+  "version": "0.1.0"
+}

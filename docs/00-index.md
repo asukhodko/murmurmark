@@ -174,10 +174,14 @@ Read in this order:
 170. [Transcript Integrity v1 contract](contracts/transcript-integrity-v1.md)
 171. [Transcript Integrity v1 runbook](runbooks/transcript-integrity-v1.md)
 172. [Transcript Integrity v1 qualification](testing/2026-08-17-transcript-integrity-v1.md)
+173. [Remote Speaker Boundary and Minority-Voice Segmentation v1 contract](contracts/remote-speaker-boundary-minority-v1.md)
+174. [Remote Speaker Boundary and Minority-Voice Segmentation v1 runbook](runbooks/remote-speaker-boundary-minority-v1.md)
+175. [Remote Speaker Boundary and Minority-Voice Segmentation v1 result](testing/2026-08-20-remote-speaker-boundary-minority-v1.md)
+176. [Remote Speaker Boundary and Minority-Voice Segmentation v1 manifest](testing/remote-speaker-boundary-minority-v1-manifest.json)
 
 ## Current Planning Entry Points
 
-Planning snapshot: 2026-08-19. Durable capture, authoritative batch transcription, guarded review,
+Planning snapshot: 2026-08-20. Durable capture, authoritative batch transcription, guarded review,
 optional extractive notes/export and Speaker-Preserving Neural Echo v2.17 remain production. The bounded
 pre-ASR frontier is closed: SepFormer could assign present Target-Me stems but failed reliable
 presence/absence separation before dev. Anonymous rich transcript, explicit reviewed naming and
@@ -237,10 +241,12 @@ ERes2NetV2 closed `KEEP_COVERAGE_V3`: 12/21 correct identities, precision `0.631
 Reference v1 then closed `ADVANCE_SEGMENTATION`: a private independent-machine reference aligned
 `92.8157%` of remote words and exposed 10 reference voices compressed into four clusters, weighted
 purity `89.8106%` and minority recall `0`. Transcript Integrity v1 then repaired 10/19 proven
-duplicate/repetition candidates while leaving nine ambiguous cases explicit. The current goal
-improves speaker boundaries and rare-voice preservation before another identity decision. It is
-followed by a fresh transcript rebaseline, a human-reviewed lexical seed, session-scoped lexical
-context and a product-level terminal gate. Domain glossaries remain private inputs and are not yet
+duplicate/repetition candidates while leaving nine ambiguous cases explicit. The Boundary and
+Minority-Voice candidate then closed `KEEP_COVERAGE_V3`: all words survived, but real
+boundary precision was `0.044688`, speaker-count ratio `0.5`, minority recall `0.017161` and
+timing-shift partition ARI `0.289387`. The current goal is a fresh transcript rebaseline, followed
+by a human-reviewed lexical seed, session-scoped lexical context and a product-level terminal gate.
+Domain glossaries remain private inputs and are not yet
 compiled into production ASR prompts. Notes and retrieval remain parked.
 
 - Start with [README](../README.md) for the current command-line workflow and product boundary.

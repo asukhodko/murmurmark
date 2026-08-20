@@ -120,6 +120,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-remote-speaker-disjoint-truth-v2.py
 "$python_bin" scripts/check-disjoint-remote-speaker-model-qualification-v1.py
 "$python_bin" scripts/check-remote-speaker-cluster-purity-reference-v1.py
+"$python_bin" scripts/check-remote-speaker-boundary-minority-v1.py
 "$python_bin" scripts/check-provisional-speaker-transcript.py
 "$python_bin" scripts/check-release-quality.py
 MURMURMARK_BIN="$repo_root/.build/debug/murmurmark" \

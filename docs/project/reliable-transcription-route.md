@@ -28,9 +28,11 @@ then kept Coverage v3 after 3 correct gains, 2 lost correct controls and unsafe 
 Enrollment Purity and Abstention Hardening v2 kept Coverage v3: 7/14 profiles qualified and no
 identity was added. Homogeneous enrollment, stronger representations and temporal clustering then
 closed without promotion. Disjoint Truth v2 and Cluster Purity Reference v1 localized the remaining
-topology defect to mixed boundaries and minority turns. Remote Speaker Boundary and Minority-Voice
-Segmentation v1 is current. Notes, retrieval and work proposals remain optional derivatives.
-Date: 2026-08-19
+topology defect to mixed boundaries and minority turns. Boundary and Minority-Voice Segmentation v1
+then kept Coverage v3 after weak real precision, speaker-count and minority gates. A unified
+Post-Segmentation Transcript Rebaseline v1 is current. Notes, retrieval and work proposals remain
+optional derivatives.
+Date: 2026-08-20
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
 corpus-calibrated gates and explicit review burden before broader repair. Outcome Contract v1,
@@ -506,10 +508,10 @@ is selected only while every source/output hash and the qualified algorithm hash
 ## Current Executable Goal
 
 ```text
-Remote Speaker Boundary and Minority-Voice Segmentation v1: сохранив Coverage v3 и selected
-artifacts неизменными, построить label-independent границы remote-речи, отделять короткие редкие
-голоса и оставлять слабое evidence explicit unknown; candidate открывать только на новом disjoint
-terminal set.
+Post-Segmentation Transcript Rebaseline v1: зафиксировать KEEP_COVERAGE_V3, пересобрать свежий
+speaker-resolved corpus на неизменном production и раздельно ранжировать topology, unknown,
+overlap, chronology, lexical и read-surface residuals; выбрать один следующий axis по измеренному
+вреду и доступной truth.
 ```
 
 Remote Speaker Attribution Error Decomposition v1 завершён
@@ -524,15 +526,13 @@ Local mic multi-speaker остаётся условной веткой и отк
 
 ## Dependent Milestones
 
-1. **Post-Segmentation Transcript Rebaseline v1** freezes either current terminal outcome, refreshes
-   fresh-session evidence and reranks speaker, overlap, chronology and lexical residuals.
-2. **Human-Reviewed Lexical Seed v1** remains blocked on exact real-meeting word truth covering
+1. **Human-Reviewed Lexical Seed v1** remains blocked on exact real-meeting word truth covering
    1x1/group, both roles and two acoustic modes.
-3. **Session-Scoped Lexical Context v1** compiles only a compact meeting-specific prompt or hotword
+2. **Session-Scoped Lexical Context v1** compiles only a compact meeting-specific prompt or hotword
    set and requires a frozen multi-session no-regression A/B.
-4. **Speaker-Resolved Transcript Terminal Gate v1** measures the North Star across capture, local
+3. **Speaker-Resolved Transcript Terminal Gate v1** measures the North Star across capture, local
    preservation, words, order, roles, anonymous speakers, explicit unknown and exact fallback.
-5. **Local Mic Multi-Speaker Diarization v1** and heavier local ASR validators remain conditional
+4. **Local Mic Multi-Speaker Diarization v1** and heavier local ASR validators remain conditional
    branches after the terminal gate and labelled evidence.
 
 ## Current Evidence Boundary
@@ -587,3 +587,7 @@ reference remote voices с четырьмя опубликованными acous
 вопрос в границах и сохранении редких голосов до identity assignment. Имена и item-level alignment
 остаются private; ordinary speaker IDs остаются session-local acoustic clusters, а exact aggregate
 handoff доступен через `murmurmark transcript SESSION --aggregate`.
+
+Frozen Boundary and Minority-Voice Segmentation v1 затем сохранил все слова, но получил real
+boundary precision `0.044688`, speaker-count ratio `0.5`, minority recall `0.017161` и timing-shift
+partition ARI `0.289387`. Итог `KEEP_COVERAGE_V3` закрывает это семейство без post-terminal tuning.

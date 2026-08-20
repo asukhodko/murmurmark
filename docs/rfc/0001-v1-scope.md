@@ -17,7 +17,7 @@ v1 proves:
 - speaker attribution and evidence-backed quality review;
 - privacy and retention controls.
 
-Current implementation status, 2026-08-19:
+Current implementation status, 2026-08-20:
 
 - capture, session packaging, Echo Guard preprocessing, resumable local `whisper.cpp` transcription,
   quality verdict, evidence-backed extractive notes, guarded export and retention are implemented;
@@ -55,7 +55,7 @@ Current implementation status, 2026-08-19:
   identity as the dominant error axis. ECAPA passed synthetic hard-v4 but failed real-session
   promotion; interval, enrollment, representation and temporal variants also did not advance.
   Disjoint Truth v2 and Cluster Purity Reference v1 localized the remaining topology defect to mixed
-  boundaries and minority voices. Boundary/minority segmentation is current; fresh rebaseline,
+  boundaries and minority voices. Boundary/minority segmentation kept Coverage v3; fresh rebaseline is current,
   human-reviewed lexical truth, session-scoped lexical context and a terminal product gate follow.
   Production remains Coverage v3. Cross-session identity, summaries, cloud/external writes and UI
   remain future or optional;
@@ -193,7 +193,8 @@ Current M5+ status:
 - rich anonymous speaker artifacts are stable; ordinary reading prefers verified attribution, then a
   disclaimer-bearing provisional view, while exact aggregate remains explicit and strict;
 - direct-truth and disjoint model qualification kept Coverage v3; private cluster-purity evidence
-  routed current work to remote boundaries and minority-voice preservation before identity;
+  routed a bounded experiment to remote boundaries and minority preservation; it kept Coverage v3,
+  so current work rebaselines the complete speaker-resolved result before another identity candidate;
 - local multi-speaker mic remains conditional.
 
 ### M6: Evidence-Backed Synthesis

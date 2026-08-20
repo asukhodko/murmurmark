@@ -1,5 +1,5 @@
 # MurmurMark CLI Roadmap
-Updated: 2026-08-19
+Updated: 2026-08-20
 Это читаемое представление активного плана OpsKarta v3:
 
 - `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`
@@ -90,8 +90,8 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Disjoint model qualification v1 | `done` | `KEEP_COVERAGE_V3`: ERes2NetV2 unsafe on 7 special real-session items |
 | Remote speaker cluster purity reference v1 | `done` | `ADVANCE_SEGMENTATION`: 10 reference voices / 4 clusters, purity `0.898106`, minority recall `0` |
 | Residual transcript integrity v1 | `done` | `PROMOTE`: 10/19 proven duplicate/repetition repairs, nine explicit review cases |
-| Boundary and minority-voice segmentation v1 | `current` | Split mixed remote intervals and preserve rare voices before identity assignment |
-| Post-segmentation transcript rebaseline v1 | `next` | Freeze the outcome, refresh fresh-session corpus and rerank residuals |
+| Boundary and minority-voice segmentation v1 | `done` | `KEEP_COVERAGE_V3`: exact words, but real precision `0.044688`, speaker ratio `0.5`, minority recall `0.017161` |
+| Post-segmentation transcript rebaseline v1 | `current` | Refresh one comparable corpus and rank the remaining quality axes |
 | Human-reviewed lexical seed v1 | `blocked` | Exact real-meeting word truth is still external evidence |
 | Session-scoped lexical context v1 | `later` | Compact per-meeting prompt/hotwords, never a broad static glossary |
 | Speaker-resolved transcript terminal gate v1 | `later` | One measurable product-level North Star gate |
@@ -129,8 +129,8 @@ flowchart LR
     MQ["Done: KEEP COVERAGE V3<br/>Disjoint Remote Speaker<br/>Model Qualification v1"]
     UG["Done: ADVANCE SEGMENTATION<br/>Remote Speaker Cluster Purity<br/>Reference v1"]
     RI["Done: PROMOTE<br/>Residual Transcript<br/>Integrity v1"]
-    BM["Current<br/>Remote Speaker Boundary and<br/>Minority-Voice Segmentation v1"]
-    RB["Next<br/>Post-Segmentation<br/>Transcript Rebaseline v1"]
+    BM["Done: KEEP COVERAGE V3<br/>Remote Speaker Boundary and<br/>Minority-Voice Segmentation v1"]
+    RB["Current<br/>Post-Segmentation<br/>Transcript Rebaseline v1"]
     HL["Blocked<br/>Human-Reviewed<br/>Lexical Seed v1"]
     LC["Later<br/>Session-Scoped<br/>Lexical Context v1"]
     TG["Later<br/>Speaker-Resolved Transcript<br/>Terminal Gate v1"]
@@ -251,14 +251,15 @@ private. Coverage v3 и selected transcript artifacts неизменны; CLI я
 от подтверждённой личности и предоставляет exact aggregate fallback.
 ### 29. Residual Transcript Integrity Hardening v1 — `done`
 `PROMOTE`: 19 candidates on three sessions, 10 evidence-backed repairs, nine explicit review cases; raw, roles, timestamps, lineage and speaker evidence preserved with exact fallback.
-### 30. Remote Speaker Boundary and Minority-Voice Segmentation v1 — `current`
-Построить label-independent boundary candidate, сохранить каждое слово, отдельно измерить короткие
-minority turns и оставить слабые/open-set intervals `unknown`. Candidate замораживается до нового
-disjoint terminal set; допустимы только `PROMOTE_SEGMENTATION`, `KEEP_COVERAGE_V3` или
-`EVIDENCE_BOUND`.
-### 31. Post-Segmentation Transcript Rebaseline v1 — `next`
-Зафиксировать любой terminal outcome, проверить свежие реальные сессии и заново ранжировать
-speaker topology, unknown, overlap, chronology и lexical residuals без смены production по инерции.
+### 30. Remote Speaker Boundary and Minority-Voice Segmentation v1 — `done`
+`KEEP_COVERAGE_V3`: candidate заморожен до terminal truth и сохранил все слова, но на real
+diagnostic получил boundary precision `0.044688`, recall `0.670886`, speaker-count ratio `0.5`,
+minority recall `0.017161` и timing-shift partition ARI `0.289387`. Controlled-hard B-cubed F1
+`0.529176`. Replay byte-exact, production unchanged; post-terminal tuning запрещён.
+### 31. Post-Segmentation Transcript Rebaseline v1 — `current`
+Зафиксировать `KEEP_COVERAGE_V3`, проверить свежие реальные сессии единым способом и заново
+ранжировать speaker topology, unknown, overlap, chronology, lexical residuals и
+rich/provisional/aggregate surfaces без смены production по инерции.
 ### 32. Human-Reviewed Lexical Seed v1 — `blocked`
 Получить точную ручную разметку слов минимум для двух реальных встреч: 1x1/group, обе роли и два
 акустических режима. Машинное согласие остаётся диагностикой.

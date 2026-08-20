@@ -533,12 +533,12 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
     )
     require(
         nodes["quality-remote-speaker-boundary-minority-segmentation-v1"].get("status")
-        == "current",
-        "remote-speaker boundary and minority segmentation must be the current quality goal",
+        == "done",
+        "remote-speaker boundary and minority segmentation must remain completed",
     )
     require(
-        nodes["quality-post-segmentation-transcript-rebaseline-v1"].get("status") == "next",
-        "post-segmentation transcript rebaseline must be the next unlocked goal",
+        nodes["quality-post-segmentation-transcript-rebaseline-v1"].get("status") == "current",
+        "post-segmentation transcript rebaseline must be the current quality goal",
     )
     require(
         nodes["quality-human-reviewed-lexical-seed-v1"].get("status") == "blocked",

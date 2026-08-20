@@ -1,0 +1,112 @@
+{
+  "schema": "murmurmark.remote_speaker_boundary_minority_policy/v1",
+  "version": 1,
+  "state": "development_then_frozen_terminal_evaluation",
+  "candidate": {
+    "id": "spectral_word_boundary_change_v1",
+    "features": [
+      "word_gap",
+      "speech_band_spectral_cosine",
+      "local_neighbor_stability",
+      "boundary_energy_valley",
+      "local_energy_vad",
+      "utterance_boundary"
+    ],
+    "context_words": 1,
+    "minimum_word_audio_sec": 0.18,
+    "maximum_word_audio_sec": 1.6,
+    "maximum_adjacent_gap_sec": 4.0,
+    "frequency_low_hz": 120.0,
+    "frequency_high_hz": 7600.0,
+    "spectrum_bands": 32,
+    "frame_sec": 0.025,
+    "hop_sec": 0.01,
+    "threshold_search": {
+      "minimum_change_distance": [0.03, 0.05, 0.08, 0.12, 0.16, 0.22, 0.3],
+      "minimum_change_contrast": [-0.04, 0.0, 0.03, 0.06, 0.1],
+      "strong_pause_sec": [0.18, 0.3, 0.45, 0.7],
+      "minimum_development_precision": 0.9
+    },
+    "cluster_distance_threshold_search": [0.12, 0.16, 0.2, 0.24, 0.3, 0.38],
+    "adaptive_cluster_calibration": {
+      "enabled": true,
+      "quantile_search": [0.5, 0.75, 0.9],
+      "margin_search": [0.02, 0.05, 0.1],
+      "maximum_threshold_search": [0.35, 0.45, 0.55],
+      "minimum_half_sec": 1.2
+    },
+    "minimum_cluster_segments": 2,
+    "truth_identity_used_by_inference": false,
+    "human_names_used_by_inference": false,
+    "text_used_by_inference": false,
+    "post_freeze_tuning_allowed": false
+  },
+  "sources": {
+    "controlled_truth_manifest": {
+      "path": "sessions/_reports/controlled-remote-speaker-truth-lab-v1/private/frozen_manifest.json",
+      "sha256": "26074894aeb311b75eedb42f1833db4e0be147e4378a9ff5c6bbe520b453ab6a"
+    },
+    "controlled_truth_report": {
+      "path": "sessions/_reports/controlled-remote-speaker-truth-lab-v1/controlled_remote_speaker_truth_lab_report.json",
+      "sha256": "4c84af18d37a97fe1d3464103470068b9890c5dbbe6d10fda3f051cab9049533"
+    },
+    "real_reference_registry": {
+      "path": "sessions/_reports/remote-speaker-cluster-purity-reference-v1/private/registry.json",
+      "sha256": "e84bc12afb5ccf2a29a63bd86f0c571cb5a2bf3ae580a9c93457653def1331d5"
+    },
+    "terminal_real_reference_parsed_sha256": "bd7f82d7e59157433d9e47db4e25cd81d489cf630bc19ce79867fb312e970235"
+  },
+  "development": {
+    "controlled_splits": ["train", "dev"],
+    "threshold_selection_split": "dev",
+    "terminal_data_read_before_freeze": false
+  },
+  "terminal": {
+    "controlled_split": "hard",
+    "real_reference_trust_grade": "independent_machine",
+    "boundary_tolerance_sec": 1.5,
+    "minority_max_word_share": 0.08
+  },
+  "gates": {
+    "minimum_hard_boundary_precision": 0.9,
+    "minimum_hard_boundary_recall": 0.85,
+    "minimum_hard_bcubed_f1": 0.9,
+    "minimum_hard_pairwise_precision": 0.95,
+    "minimum_hard_minority_recall": 0.8,
+    "minimum_hard_timing_shift_boundary_agreement": 0.9,
+    "minimum_hard_timing_shift_partition_adjusted_rand": 0.75,
+    "maximum_hard_unknown_word_ratio": 0.35,
+    "minimum_real_boundary_precision": 0.55,
+    "minimum_real_boundary_recall": 0.55,
+    "minimum_real_minor_boundary_recall": 0.45,
+    "minimum_real_speaker_count_ratio": 0.7,
+    "maximum_real_speaker_count_ratio": 1.5,
+    "minimum_real_timing_shift_boundary_agreement": 0.9,
+    "minimum_real_timing_shift_partition_adjusted_rand": 0.75,
+    "maximum_real_unknown_word_ratio": 0.35,
+    "required_word_conservation": 1.0,
+    "required_production_mutations": 0
+  },
+  "decision": {
+    "allowed_outcomes": [
+      "PROMOTE_SEGMENTATION",
+      "KEEP_COVERAGE_V3",
+      "EVIDENCE_BOUND"
+    ],
+    "promotion_requires_human_reviewed_real_boundary_truth": true
+  },
+  "safety": {
+    "shadow_only": true,
+    "coverage_v3_mutation": false,
+    "selected_transcript_mutation": false,
+    "raw_audio_mutation": false,
+    "primary_asr_mutation": false,
+    "echo_guard_mutation": false,
+    "forced_identity": false,
+    "cloud_inference": false,
+    "public_session_ids": false,
+    "public_speech_text": false,
+    "public_speaker_names": false,
+    "public_absolute_paths": false
+  }
+}

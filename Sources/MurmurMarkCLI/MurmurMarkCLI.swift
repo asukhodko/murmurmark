@@ -1299,6 +1299,7 @@ enum DoctorChecks {
             "scripts/eres2netv2-speaker-embedding-worker.py",
             "scripts/report-lexical-accuracy-reference-corpus.py",
             "scripts/report-remote-speaker-cluster-purity-reference-v1.py",
+            "scripts/evaluate-remote-speaker-boundary-minority-v1.py",
             "scripts/report-speaker-resolved-transcript-default-corpus.py",
             "scripts/transcribe-simple-whispercpp.py",
             "scripts/check-asr-chunk-cache.py",
@@ -8148,6 +8149,18 @@ enum CorpusCommands {
                     + forwarded
                     + ["--sessions-root", sessionsRoot.path]
             )
+        case "remote-boundary-minority-v1", "remote_boundary_minority_v1":
+            if forwarded.isEmpty || ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(
+                    try PythonRuntime.resolve(),
+                    [try script("evaluate-remote-speaker-boundary-minority-v1.py").path, "--help"]
+                )
+                return
+            }
+            try Tooling.runPath(
+                try PythonRuntime.resolve(),
+                [try script("evaluate-remote-speaker-boundary-minority-v1.py").path] + forwarded
+            )
         case "remote-coverage", "remote_coverage":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 try Tooling.runPath(
@@ -8921,6 +8934,9 @@ enum CorpusHelp {
                                       [--trust-grade independent_machine] [--local-speaker NAME]
           murmurmark corpus remote-cluster-purity-v1 evaluate|replay|status
                                       [--write-manifest docs/testing/remote-speaker-cluster-purity-reference-v1-manifest.json]
+          murmurmark corpus remote-boundary-minority-v1 prepare|freeze|evaluate|replay|status|all
+                                      [--policy policies/remote-speaker-boundary-minority-v1.json]
+                                      [--write-manifest docs/testing/remote-speaker-boundary-minority-v1-manifest.json]
           murmurmark corpus lifecycle [all|latest|./session...] [--freeze-inputs]
                                       [--require-frozen-inputs] [--require-passing-gates]
                                       [--sessions-root ./sessions]
