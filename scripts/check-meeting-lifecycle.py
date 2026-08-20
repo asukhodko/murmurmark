@@ -268,6 +268,16 @@ if command == "review" and "preview" in args:
 if command == "review" and "apply" in args:
     (session / "fixture-applied").write_text("yes\n", encoding="utf-8")
     artifacts(session, ready=True, auto_rows=0)
+    decisions = session / "derived/readiness/review-plan/review_decisions.jsonl"
+    decisions.write_text(
+        json.dumps({
+            "schema": "murmurmark.review_decision/v1",
+            "source_audit_id": "fixture_1",
+            "status": "reviewed",
+            "decision": "keep_me",
+        }) + "\n",
+        encoding="utf-8",
+    )
     write(
         session / "derived/readiness/review-plan/review_workspace_apply_report.json",
         {
@@ -275,7 +285,8 @@ if command == "review" and "apply" in args:
             "generated_at": str(time.time_ns()),
             "dry_run": False,
             "answers_source": "suggested",
-            "suggested_closure": {"closed_by_suggestions": {"rows": 1}},
+            # A fixed-point apply persists its final no-more-work iteration here.
+            "suggested_closure": {"closed_by_suggestions": {"rows": 0}},
         },
     )
     raise SystemExit(0)

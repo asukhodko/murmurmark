@@ -538,6 +538,8 @@ class MeetingLifecycle:
             action_state["review_apply_report_before"] = self.file_identity(
                 self.review_apply_report_path()
             )
+            if action == "review_suggested_apply":
+                action_state["reviewed_decisions_before"] = self.reviewed_decision_count()
         elif action in {"refresh_after_enrich", "refresh_after_review"}:
             action_state["outcome_before"] = self.file_identity(self.outcome_path())
             action_state["readiness_before"] = self.file_identity(self.readiness_path())
@@ -800,7 +802,13 @@ class MeetingLifecycle:
                     if isinstance(closure.get("closed_by_suggestions"), dict)
                     else {}
                 )
-                if int(closed.get("rows") or 0) <= 0:
+                action_state = self.state["actions"][action]
+                reviewed_before = int(action_state.get("reviewed_decisions_before") or 0)
+                reviewed_after = self.reviewed_decision_count()
+                action_state["reviewed_decisions_after"] = reviewed_after
+                if reviewed_after < reviewed_before:
+                    raise LifecycleError("suggested review removed previously reviewed decisions")
+                if int(closed.get("rows") or 0) <= 0 and reviewed_after <= reviewed_before:
                     raise LifecycleError("suggested review apply closed no safe rows")
         elif action in {"refresh_after_enrich", "refresh_after_review"}:
             outcome = read_json(self.outcome_path())
@@ -1081,6 +1089,19 @@ class MeetingLifecycle:
 
     def review_decisions_path(self) -> Path:
         return self.session / "derived" / "readiness" / "review-plan" / "review_decisions.jsonl"
+
+    def reviewed_decision_count(self) -> int:
+        try:
+            decisions = read_jsonl(self.review_decisions_path())
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            return 0
+        return sum(
+            1
+            for decision in decisions
+            if str(decision.get("status") or "").strip().lower() == "reviewed"
+            and str(decision.get("decision") or "").strip().lower()
+            not in {"", "todo", "skip", "needs_review"}
+        )
 
     def review_decisions_template_path(self) -> Path:
         return self.session / "derived" / "readiness" / "review-plan" / "review_decisions.template.jsonl"
