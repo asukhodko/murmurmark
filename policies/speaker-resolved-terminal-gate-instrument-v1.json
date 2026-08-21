@@ -1,0 +1,95 @@
+{
+  "schema": "murmurmark.speaker_resolved_terminal_gate_policy/v1",
+  "version": 1,
+  "state": "read_only_fingerprint_bound_terminal_instrument",
+  "sources": [
+    {
+      "id": "post_segmentation_rebaseline",
+      "path": "sessions/_reports/post-segmentation-transcript-rebaseline-v1/post_segmentation_rebaseline_report.json",
+      "schema": "murmurmark.post_segmentation_transcript_rebaseline_report/v1"
+    },
+    {
+      "id": "capture_continuity_closure",
+      "path": "sessions/_reports/capture-continuity-loss-closure-v1/capture_continuity_loss_closure_report.json",
+      "schema": "murmurmark.capture_continuity_loss_closure_report/v1"
+    },
+    {
+      "id": "speaker_preserving_echo",
+      "path": "sessions/_reports/speaker-preserving-neural-echo-v2-17-corpus/corpus_report.json",
+      "schema": "murmurmark.speaker_preserving_neural_echo_corpus_report/v2.17"
+    },
+    {
+      "id": "residual_local_recall",
+      "path": "sessions/_reports/residual-local-recall-v1/residual_local_recall_corpus_report.json",
+      "schema": "murmurmark.residual_local_recall_corpus_report/v1"
+    },
+    {
+      "id": "human_lexical_seed",
+      "path": "sessions/_reports/human-reviewed-lexical-seed-v1/human_reviewed_lexical_seed_report.json",
+      "schema": "murmurmark.human_reviewed_lexical_seed_report/v1"
+    },
+    {
+      "id": "remote_direct_truth",
+      "path": "sessions/_reports/remote-speaker-disjoint-truth-expansion-v2/remote_speaker_disjoint_truth_report.json",
+      "schema": "murmurmark.remote_speaker_disjoint_truth_report/v2"
+    },
+    {
+      "id": "remote_unknown_recovery",
+      "path": "sessions/_reports/remote-unknown-evidence-recovery-v1/remote_unknown_evidence_recovery_corpus_report.json",
+      "schema": "murmurmark.remote_unknown_evidence_recovery_corpus_report/v1"
+    },
+    {
+      "id": "speaker_resolved_publication",
+      "path": "sessions/_reports/speaker-resolved-transcript-default-v1/report.json",
+      "schema": "murmurmark.speaker_resolved_transcript_default_corpus/v1"
+    }
+  ],
+  "dimensions": [
+    "durable_capture",
+    "target_me_preservation",
+    "lexical_accuracy",
+    "chronology_and_conservation",
+    "remote_speaker_attribution",
+    "explicit_unknown",
+    "review_burden",
+    "speaker_resolved_publication"
+  ],
+  "thresholds": {
+    "maximum_capture_gap_seconds": 0.0,
+    "maximum_remaining_local_recall_seconds": 0.0,
+    "maximum_wer": 0.15,
+    "maximum_cer": 0.08,
+    "minimum_domain_term_accuracy": 0.9,
+    "maximum_chronology_review_seconds": 0.0,
+    "maximum_unknown_word_ratio": 0.05,
+    "maximum_unknown_seconds_ratio": 0.05,
+    "maximum_review_burden_ratio": 0.03,
+    "minimum_fresh_sessions": 6
+  },
+  "required_decisions": {
+    "post_segmentation_rebaseline": "REBASELINE_ESTABLISHED",
+    "speaker_preserving_echo": "PROMOTE_SPEAKER_PRESERVING_NEURAL_ECHO_V2",
+    "residual_local_recall": "PROMOTE_RESIDUAL_LOCAL_RECALL_V1",
+    "human_lexical_seed": "REFERENCE_READY",
+    "remote_direct_truth": "DIRECT_TRUTH_V2_READY",
+    "speaker_resolved_publication": "PROMOTE"
+  },
+  "privacy": {
+    "public_session_ids": false,
+    "public_absolute_paths": false,
+    "public_speech_text": false,
+    "public_speaker_names": false,
+    "private_manifest_under_sessions": true
+  },
+  "safety": {
+    "read_only_sources": true,
+    "raw_audio_mutation": false,
+    "selected_transcript_mutation": false,
+    "coverage_v3_mutation": false,
+    "primary_asr_mutation": false,
+    "echo_guard_mutation": false,
+    "human_answer_mutation": false,
+    "aggregate_quality_score": false,
+    "cloud_inference": false
+  }
+}

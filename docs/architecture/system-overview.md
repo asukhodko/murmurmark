@@ -165,8 +165,8 @@ stale deferred-stage errors after recovery. Open Truth v2 is development evidenc
 requires a new frozen terminal set. Notes remain optional.
 
 The dependent route has completed boundary segmentation, fresh rebaseline, capture closure and
-remote unknown recovery. A human-reviewed lexical seed is current; session-scoped lexical context
-and a product-level terminal gate follow. The
+remote unknown recovery. A terminal-gate instrument is current; human lexical truth remains a
+separate blocked input before session-scoped context and the final product gate. The
 domain glossary is not currently compiled into ASR input; broad static prompts remain disabled.
 Local mic multi-speaker diarization and heavier local ASR validators are conditional later branches.
 

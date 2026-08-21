@@ -92,6 +92,7 @@ CRITICAL_PATH = (
     "quality-post-segmentation-transcript-rebaseline-v1",
     "quality-capture-continuity-loss-closure-v1",
     "quality-remote-unknown-evidence-recovery-v1",
+    "product-speaker-resolved-transcript-terminal-gate-instrument-v1",
     "quality-human-reviewed-lexical-seed-v1",
     "quality-session-scoped-lexical-context-v1",
     "product-speaker-resolved-transcript-terminal-gate-v1",
@@ -561,24 +562,30 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
         "remote unknown evidence recovery must remain completed",
     )
     require(
-        nodes["quality-human-reviewed-lexical-seed-v1"].get("status") == "current",
-        "human-reviewed lexical seed must be the current direct-evidence goal",
+        nodes["product-speaker-resolved-transcript-terminal-gate-instrument-v1"].get("status")
+        == "current",
+        "terminal-gate instrumentation must be the current executable goal",
+    )
+    require(
+        "quality-remote-unknown-evidence-recovery-v1"
+        in nodes["product-speaker-resolved-transcript-terminal-gate-instrument-v1"].get("deps", []),
+        "terminal-gate instrumentation must follow remote unknown evidence recovery",
+    )
+    require(
+        nodes["quality-human-reviewed-lexical-seed-v1"].get("status") == "blocked",
+        "human-reviewed lexical seed must remain an explicit external evidence blocker",
     )
     require(
         nodes["quality-session-scoped-lexical-context-v1"].get("status") == "blocked",
         "session-scoped lexical context must remain blocked on direct lexical truth",
     )
     require(
-        nodes["product-speaker-resolved-transcript-terminal-gate-v1"].get("status") == "later",
-        "speaker-resolved terminal gate must remain a dependent milestone",
+        nodes["product-speaker-resolved-transcript-terminal-gate-v1"].get("status") == "blocked",
+        "speaker-resolved product terminal gate must remain blocked on its evidence dependencies",
     )
     require(
         nodes["quality-local-multi-speaker-diarization-v1"].get("status") == "idea",
         "local multi-speaker diarization must remain a conditional idea",
-    )
-    require(
-        nodes["research-heavy-local-asr-validator-v1"].get("status") == "idea",
-        "heavy local ASR validator must remain a conditional research idea",
     )
     require("parked-ui" not in nodes, "UI must not occupy the active CLI roadmap")
 

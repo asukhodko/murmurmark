@@ -5,6 +5,10 @@
 The refresh is offline and CPU-intensive. It runs WavLM with `nice=20`, then builds the deterministic
 consensus shadow and both direct-truth comparisons.
 
+The configured held-out session is excluded from the frozen slice even if a later rebaseline also
+contains it. Sessions without a current Coverage v3 artifact remain absent and make the historical
+exact-corpus gates fail closed.
+
 ```bash
 cd /path/to/murmurmark
 source .venv/bin/activate

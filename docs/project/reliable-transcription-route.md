@@ -34,8 +34,8 @@ Transcript Rebaseline v1 passed on six fresh sessions and selected measured raw 
 the first hard residual. Capture Continuity Loss Closure v1 then removed the fixed restart delay,
 made unavoidable source gaps native and terminal, and closed `EVIDENCE_BOUND`. Remote Unknown
 Evidence Recovery v1 then classified all 547 words but safely recovered only 10 / `4.682812s`, so it
-closed `EVIDENCE_BOUND`. Human-Reviewed Lexical Seed v1 is current. Notes, retrieval and work
-proposals remain optional derivatives. Date: 2026-08-21
+closed `EVIDENCE_BOUND`. Speaker-Resolved Transcript Terminal Gate Instrumentation v1 is current;
+Human-Reviewed Lexical Seed remains blocked at 0/28. Notes and work proposals remain optional. Date: 2026-08-21
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
 corpus-calibrated gates and explicit review burden before broader repair. Outcome Contract v1,
@@ -511,14 +511,13 @@ is selected only while every source/output hash and the qualified algorithm hash
 ## Current Executable Goal
 
 ```text
-Human-Reviewed Lexical Seed v1: заморозить минимум две реальные встречи — 1x1 и group в разных
-акустических режимах — материализовать приватную word-level review queue для Me и remote, получить
-прямую human truth и измерить WER/CER/domain-term accuracy до любых ASR context experiments.
+Speaker-Resolved Transcript Terminal Gate Instrumentation v1: заморозить канонические reports и
+выдать восемь независимых product gates, отделив готовность измерителя от готовности продукта и
+запретив aggregate score или pass на stale evidence.
 ```
 
-Queue materialization is complete: 24 primary intervals plus four blind repeats cover both roles and
-acoustic modes. The frozen public state is `REVIEW_REQUIRED`; no lexical claim is available before
-the 28 direct human answers.
+The real result is `TERMINAL_GATE_INSTRUMENT_READY` and product `NOT_READY`: publication and review
+burden pass, five dimensions remain bounded, and lexical accuracy is blocked by 0/28 direct answers.
 
 Remote Speaker Attribution Error Decomposition v1 завершён
 `ADVANCE_STRONGER_SPEAKER_IDENTITY` на 393 words и 64 boundaries.
@@ -534,13 +533,13 @@ Local mic multi-speaker остаётся условной веткой и отк
 
 1. **Remote Unknown Evidence Recovery v1** is complete with `EVIDENCE_BOUND`; Coverage v3 remains
    authoritative and explicit unknown remains valid abstention.
-2. **Human-Reviewed Lexical Seed v1** is current; its queue is frozen and awaits exact real-meeting
-   word truth covering 1x1/group, both roles and different acoustic modes.
-3. **Session-Scoped Lexical Context v1** stays blocked, then compiles only a compact meeting-specific prompt or hotword
+2. **Terminal Gate Instrumentation v1** is current and materializes the independent evidence map.
+3. **Human-Reviewed Lexical Seed v1** stays blocked at 0/28 direct answers.
+4. **Session-Scoped Lexical Context v1** stays blocked, then compiles only a compact meeting-specific prompt or hotword
    set and requires a frozen multi-session no-regression A/B.
-4. **Speaker-Resolved Transcript Terminal Gate v1** measures the North Star across capture, local
+5. **Speaker-Resolved Transcript Terminal Gate v1** requires the North Star across capture, local
    preservation, words, order, roles, anonymous speakers, explicit unknown and exact fallback.
-5. **Local Mic Multi-Speaker Diarization v1** and heavier local ASR validators remain conditional
+6. **Local Mic Multi-Speaker Diarization v1** and heavier local ASR validators remain conditional
    branches after the terminal gate and labelled evidence.
 
 ## Current Evidence Boundary

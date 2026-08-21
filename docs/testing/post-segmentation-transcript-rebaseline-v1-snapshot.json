@@ -8,67 +8,67 @@
   "decision": "REBASELINE_ESTABLISHED",
   "dimensions": {
     "capture_completeness": {
-      "gap_seconds": 2.268542,
+      "gap_seconds": 1.223687,
       "status": "failed"
     },
     "explicit_unknown": {
       "causes": [
         {
-          "cause": "similarity_below_threshold",
-          "seconds": 136.457975,
-          "sessions": 3,
-          "words": 119
-        },
-        {
           "cause": "embedding_unavailable",
-          "seconds": 108.0,
-          "sessions": 5,
-          "words": 146
+          "seconds": 206.709674,
+          "sessions": 4,
+          "words": 112
         },
         {
-          "cause": "conflicting_frame_speakers",
-          "seconds": 74.067191,
+          "cause": "similarity_below_threshold",
+          "seconds": 126.794734,
           "sessions": 3,
-          "words": 147
+          "words": 93
         },
         {
           "cause": "protected_remote_overlap",
-          "seconds": 43.21859,
-          "sessions": 4,
-          "words": 50
+          "seconds": 76.878187,
+          "sessions": 2,
+          "words": 35
+        },
+        {
+          "cause": "conflicting_frame_speakers",
+          "seconds": 26.085946,
+          "sessions": 1,
+          "words": 39
         },
         {
           "cause": "margin_below_threshold",
-          "seconds": 35.799814,
-          "sessions": 3,
-          "words": 85
+          "seconds": 15.221966,
+          "sessions": 1,
+          "words": 16
         }
       ],
-      "seconds": 397.54357,
+      "seconds": 451.690506,
       "status": "measured_abstention_not_correctness",
-      "words": 547
+      "words": 295
     },
     "lexical_evidence": {
-      "review_rows": 92,
-      "review_seconds": 372.2,
+      "review_rows": 45,
+      "review_seconds": 74.36,
       "status": "partial_no_fresh_independent_truth"
     },
     "overlap_and_chronology": {
-      "chronology_seconds": 47.7,
-      "overlap_review_seconds": 12.25,
+      "chronology_seconds": 345.94,
+      "overlap_review_seconds": 3.82,
       "status": "measured"
     },
     "read_surface_coherence": {
       "status": "passed"
     },
     "remote_speaker_topology": {
-      "internal_change_utterances": 49,
-      "published_speakers": 12,
+      "internal_change_utterances": 17,
+      "published_speakers": 7,
       "status": "measured_without_human_count_truth"
     },
     "review_burden": {
-      "remaining_rows": 105,
-      "remaining_seconds": 397.94,
+      "remaining_rows": 51,
+      "remaining_seconds": 83.27,
       "status": "measured"
     },
     "timestamp_and_role_conservation": {
@@ -114,11 +114,11 @@
       "evidence": "restart_bounded_pcm_scan",
       "hard_regression": true,
       "item_unit": "capture_gaps",
-      "items": 3,
+      "items": 4,
       "rank": 1,
       "reason": "recorded tracks contain restart-bounded intervals with no captured PCM",
-      "seconds": 2.268542,
-      "sessions": 1
+      "seconds": 1.223687,
+      "sessions": 4
     },
     {
       "actionable": true,
@@ -126,23 +126,11 @@
       "evidence": "explicit_coverage_abstention",
       "hard_regression": false,
       "item_unit": "words",
-      "items": 547,
+      "items": 295,
       "rank": 2,
       "reason": "remote speech is preserved but lacks supported speaker attribution",
-      "seconds": 1037.62357,
+      "seconds": 1163.530506,
       "sessions": 6
-    },
-    {
-      "actionable": true,
-      "axis": "manual_review_burden",
-      "evidence": "current_review_progress",
-      "hard_regression": false,
-      "item_unit": "review_rows",
-      "items": 105,
-      "rank": 3,
-      "reason": "current session use still requires unresolved review decisions",
-      "seconds": 397.94,
-      "sessions": 5
     },
     {
       "actionable": true,
@@ -150,11 +138,23 @@
       "evidence": "current_order_audit",
       "hard_regression": false,
       "item_unit": "review_rows",
-      "items": 7,
-      "rank": 4,
+      "items": 52,
+      "rank": 3,
       "reason": "speaker-bounded order risk remains explicit",
-      "seconds": 47.7,
-      "sessions": 1
+      "seconds": 345.94,
+      "sessions": 4
+    },
+    {
+      "actionable": true,
+      "axis": "manual_review_burden",
+      "evidence": "current_review_progress",
+      "hard_regression": false,
+      "item_unit": "review_rows",
+      "items": 51,
+      "rank": 4,
+      "reason": "current session use still requires unresolved review decisions",
+      "seconds": 83.27,
+      "sessions": 4
     },
     {
       "actionable": false,
@@ -162,11 +162,11 @@
       "evidence": "machine_review_queue_without_independent_truth",
       "hard_regression": false,
       "item_unit": "review_rows",
-      "items": 92,
+      "items": 45,
       "rank": 5,
       "reason": "text uncertainty is measured, but fresh independent lexical truth is absent",
-      "seconds": 372.2,
-      "sessions": 5
+      "seconds": 74.36,
+      "sessions": 4
     },
     {
       "actionable": false,
@@ -174,11 +174,11 @@
       "evidence": "selected_provisional_aggregate_contract",
       "hard_regression": false,
       "item_unit": "sessions",
-      "items": 1,
+      "items": 2,
       "rank": 6,
       "reason": "strict fallback or provisional output is visible on the ordinary read surface",
       "seconds": null,
-      "sessions": 1
+      "sessions": 2
     }
   ],
   "safety": {
@@ -191,7 +191,7 @@
   "summary": {
     "aggregate_only_sessions": 0,
     "aggregate_quality_score": null,
-    "capture_seconds": 13936.399,
+    "capture_seconds": 14423.865,
     "excluded_sessions": 0,
     "frozen_baseline_unknown_seconds_ratio": 0.060688,
     "frozen_sessions": 6,
@@ -200,13 +200,13 @@
       "group",
       "one_to_one"
     ],
-    "provisional_sessions": 1,
-    "remote_speech_seconds_coverage_v3": 7862.44,
-    "remote_words_coverage_v3": 15332,
-    "strict_rich_sessions": 5,
-    "unknown_remote_seconds_coverage_v3": 397.54357,
-    "unknown_remote_seconds_ratio": 0.050562,
-    "unknown_remote_words_coverage_v3": 547,
-    "unknown_remote_words_ratio": 0.035677
+    "provisional_sessions": 2,
+    "remote_speech_seconds_coverage_v3": 5329.84,
+    "remote_words_coverage_v3": 7789,
+    "strict_rich_sessions": 4,
+    "unknown_remote_seconds_coverage_v3": 451.690506,
+    "unknown_remote_seconds_ratio": 0.084747,
+    "unknown_remote_words_coverage_v3": 295,
+    "unknown_remote_words_ratio": 0.037874
   }
 }

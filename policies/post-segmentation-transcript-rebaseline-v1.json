@@ -31,7 +31,7 @@
     {
       "id": "provisional_materializer",
       "path": "scripts/materialize-provisional-speaker-transcript.py",
-      "sha256": "a3c5c2e67566b8b3c3cd89402af90565653607422cb0a776eba61de937470035"
+      "sha256": "3a1dd1c19e71a4395b32a93f0c3e3f145caddd5879a8cb66d16fc683d9e692e1"
     },
     {
       "id": "boundary_minority_policy",

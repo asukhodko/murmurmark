@@ -95,9 +95,10 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Post-segmentation transcript rebaseline v1 | `done` | 6/6 fresh, coherent surfaces; next hard defect selected by evidence |
 | Capture continuity loss closure v1 | `done` | `EVIDENCE_BOUND`: fixed delay removed, native source-loss intervals block completeness |
 | Remote unknown evidence recovery v1 | `done` | `EVIDENCE_BOUND`: 10/547 words passed consensus; Coverage v3 remains selected |
-| Human-reviewed lexical seed v1 | `current` | Build direct word truth for 1x1/group before ASR tuning |
+| Speaker-Resolved Transcript Terminal Gate Instrumentation v1 | `current` | Eight fingerprint-bound gates; instrument ready, product not ready |
+| Human-reviewed lexical seed v1 | `blocked` | Frozen 0/28 queue waits for direct human text |
 | Session-scoped lexical context v1 | `blocked` | Compact per-meeting context waits for direct lexical truth |
-| Speaker-resolved transcript terminal gate v1 | `later` | One measurable product-level North Star gate |
+| Speaker-resolved transcript terminal gate v1 | `blocked` | Final product pass waits for instrument and lexical context |
 | Local mic multi-speaker diarization v1 | `idea` | Opens only after a real scenario and labelled evidence |
 ## Актуальная Цепочка
 ```mermaid
@@ -271,24 +272,22 @@ raw and `reviewed_v1` hashes unchanged, preserved 47 archived decisions and conv
 `111.35s` in progress, readiness and outcome. Maintenance `2026-08-21`: current workspace excludes stale lanes; canonical evidence survives partial refresh; bounded review and interrupted faster-whisper are resumable.
 On `2026-08-20_17-47-20`, rows grew `35 -> 41`, manual burden stayed `20 / 29.70s`, raw CAF exact.
 ### 32. Post-Segmentation Transcript Rebaseline v1 — `done`
-`REBASELINE_ESTABLISHED`: 6/6 fingerprint-bound sessions, 5 strict rich + 1 warned provisional,
-exact words/roles/timestamps/fallback. Strict unknown is `5.0562%` versus frozen `6.0688%`. Three
-restart gaps / `2.268542s` became the first hard residual; replay is byte-exact and privacy-safe.
+`REBASELINE_ESTABLISHED`: 6/6 sessions, 4 strict + 2 provisional, exact words/roles/timestamps/fallback.
+Current unknown is `8.4747%` seconds / `3.7874%` words; 4 gaps / `1.223687s`; replay byte-exact.
 ### 33. Capture Continuity Loss Closure v1 — `done`
 `EVIDENCE_BOUND`: fixed `500ms` pause и redundant stop удалены, concurrent signals соединяются в
 один restart. Software idle `2.362ms`; source gap `0.468729s`; soak `600.434s` без gaps. Native loss и disclaimer блокируют ложную completeness.
 ### 34. Remote Unknown Evidence Recovery v1 — `done`
 `EVIDENCE_BOUND`: все 547 слов классифицированы; WavLM предложил 59, но отдельный structural
 evidence подтвердил только 10 слов / `4.682812s`. Held-out дал 1/166, direct-truth overlap — 0/105; Coverage v3 остаётся authoritative, новый shadow всегда fail-open.
-### 35. Human-Reviewed Lexical Seed v1 — `current`
-Fingerprint-bound очередь уже заморожена: две реальные встречи, 24 primary intervals, четыре blind repeats, 1x1/group, обе роли и low-leak/speaker playback.
-Результат `REVIEW_REQUIRED` (`0/28`); машинное согласие и cloud transcript — только диагностика.
-### 36. Session-Scoped Lexical Context v1 — `blocked`
-Собирать короткий контекст конкретной встречи из локального domain pack. Broad static prompt
-запрещён; кандидат проходит term gain, общий WER/CER, role/speaker conservation и exact replay.
-### 37. Speaker-Resolved Transcript Terminal Gate v1 — `later`
-Свести North Star в один составной, но не усреднённый набор обязательных ворот: capture, Me,
-words, order, roles, remote speakers, explicit unknown, review burden и exact fallback.
+### 35. Speaker-Resolved Transcript Terminal Gate Instrumentation v1 — `current`
+`TERMINAL_GATE_INSTRUMENT_READY`, product `NOT_READY`: восемь gates без общего score; два pass, пять bounded, lexical blocked. Direct и transitive stale evidence fail closed только для зависимых gates.
+### 36. Human-Reviewed Lexical Seed v1 — `blocked`
+Две реальные встречи, 24 primary + 4 repeats; `REVIEW_REQUIRED` (`0/28`), machine/cloud — только диагностика.
+### 37. Session-Scoped Lexical Context v1 — `blocked`
+Короткий context конкретной встречи; broad prompt запрещён, нужны WER/CER и conservation gates.
+### 38. Speaker-Resolved Transcript Terminal Gate v1 — `blocked`
+`READY` требует pass всех восьми ворот; одна ось не компенсирует другую.
 ## Закрытые И Отложенные Треки
 - Local mic multi-speaker diarization и тяжёлый local ASR validator открываются после terminal gate
   только при реальном сценарии и размеченном evidence.

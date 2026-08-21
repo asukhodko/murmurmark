@@ -23,6 +23,7 @@ REAL_REPORT = (
     / "sessions/_reports/remote-unknown-evidence-recovery-v1"
     / "remote_unknown_evidence_recovery_corpus_report.json"
 )
+REAL_INPUT_MANIFEST = REAL_REPORT.parent / "private/input_manifest.json"
 
 
 def load(path: Path, name: str) -> Any:
@@ -45,6 +46,18 @@ def read_json(path: Path) -> dict[str, Any]:
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+
+
+def frozen_artifact_current(row: Any) -> bool:
+    if not isinstance(row, dict) or not row.get("path") or not row.get("sha256"):
+        return False
+    path = Path(str(row["path"])).expanduser()
+    path = path.resolve() if path.is_absolute() else (ROOT / path).resolve()
+    return bool(
+        path.is_file()
+        and int(row.get("bytes") or -1) == path.stat().st_size
+        and row.get("sha256") == RECOVERY.sha256(path)
+    )
 
 
 def run(args: list[str], expected: int = 0) -> subprocess.CompletedProcess[str]:
@@ -187,7 +200,9 @@ def check_snapshot() -> None:
     assert snapshot["summary"]["frozen"]["baseline_unknown_words"] == 547
     assert snapshot["summary"]["held_out"]["baseline_unknown_words"] == 166
     assert snapshot["truth_evaluation"]["combined"]["wrong_speaker"] == 0
-    if REAL_REPORT.is_file():
+    if REAL_REPORT.is_file() and REAL_INPUT_MANIFEST.is_file() and frozen_artifact_current(
+        read_json(REAL_INPUT_MANIFEST).get("rebaseline_manifest")
+    ):
         run([str(CORPUS), "all", "--verify-existing"])
 
 

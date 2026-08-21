@@ -387,8 +387,11 @@ def build(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, Any], dic
     policy = read_json(policy_path)
     if policy.get("schema") != "murmurmark.remote_unknown_evidence_recovery_policy/v1":
         raise CorpusError("policy_schema_invalid")
-    frozen = frozen_sessions()
     held_session = args.held_out_session.expanduser().resolve()
+    frozen = [
+        row for row in frozen_sessions()
+        if row["session"].resolve() != held_session
+    ]
     held = {
         "alias": "held_out_control",
         "session_id": held_session.name,

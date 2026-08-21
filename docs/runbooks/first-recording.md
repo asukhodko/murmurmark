@@ -664,6 +664,18 @@ scripts/audit-capture-continuity.py sessions/_capture-continuity-controlled
 
 Do not set `MURMURMARK_TEST_CAPTURE_RESTART_AFTER_SEC` for a real meeting.
 
+Maintainers can inspect the product-level convergence map without rerunning meetings or mutating
+their artifacts:
+
+```bash
+murmurmark corpus terminal-gate-v1 status
+murmurmark corpus terminal-gate-v1 replay --write-snapshot
+```
+
+`TERMINAL_GATE_INSTRUMENT_READY` means the eight dimensions are reproducibly measurable. Check
+`product_decision` separately; `NOT_READY` is an expected honest result while any row is bounded or
+blocked. Use `all --refresh` only when intentionally freezing a new set of canonical reports.
+
 ScreenCaptureKit can omit audio buffers during silence or source inactivity. MurmurMark preserves
 the wall-clock timeline by inserting silence for timestamp gaps in the raw CAF tracks. If no
 ScreenCaptureKit audio samples arrive at the start of recording, MurmurMark tries short restarts and

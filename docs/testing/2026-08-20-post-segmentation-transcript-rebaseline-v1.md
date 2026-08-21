@@ -1,6 +1,6 @@
 # Post-Segmentation Transcript Rebaseline v1
 
-Date: 2026-08-20
+Date: 2026-08-20; current controls requalified 2026-08-21
 
 Decision: `REBASELINE_ESTABLISHED`.
 
@@ -8,7 +8,7 @@ Decision: `REBASELINE_ESTABLISHED`.
 
 Six fresh real sessions were frozen behind private aliases and artifact SHA-256 identities. The
 public report contains no session identifiers, paths, speech text or names. The corpus includes
-1x1 and group meetings, five strict Coverage v3 read surfaces and one disclaimer-bearing provisional
+1x1 and group meetings, four strict Coverage v3 read surfaces and two disclaimer-bearing provisional
 surface.
 
 No session artifact was rebuilt. Coverage v3, selected dialogue, ASR, Echo Guard and raw CAF stayed
@@ -19,29 +19,30 @@ unchanged. Exact in-memory replay matches every public output byte-for-byte.
 | Dimension | Result |
 |---|---|
 | Frozen sessions | 6/6 current |
-| Capture duration | `13936.399s` |
-| Strict rich / provisional | 5 / 1 |
+| Capture duration | `14423.865s` |
+| Strict rich / provisional | 4 / 2 |
 | Word, role and timestamp conservation | passed |
 | Read-surface coherence | passed |
-| Strict Coverage v3 remote speech | `7862.440s`, 15332 words |
-| Strict explicit unknown | `397.543570s`, 547 words |
-| Unknown seconds ratio | `5.0562%` versus frozen `6.0688%` |
+| Current remote speech | `5329.840s`, 7789 words |
+| Current explicit unknown | `451.690506s`, 295 words |
+| Unknown seconds / word ratio | `8.4747%` / `3.7874%` |
 | Fresh lexical truth | unavailable; machine review queue only |
-| Capture continuity | failed: 3 gaps / `2.268542s` |
+| Capture continuity | failed: 4 gaps / `1.223687s` |
 
-The rebaseline evidence is complete, while the product no-regression gate is false. One session has
-three high-confidence restart-bounded intervals without captured mic and remote PCM. Each interval
-is shorter than one second, but downstream ASR cannot recover speech that was never recorded.
+The rebaseline evidence is complete, while the product no-regression gate is false. Four sessions
+contain bounded intervals without captured PCM. Downstream ASR cannot recover speech that was never
+recorded. The provisional materializer control now includes qualified cohesive secondary clusters;
+it changes only the warned read view and preserves words, roles, timestamps and aggregate fallback.
 
 ## Ranked Direction
 
-1. `capture_continuity`: hard source regression, 3 gaps / `2.268542s`.
-2. `remote_unknown_evidence`: the largest downstream residual; strict Coverage v3 leaves
-   `397.543570s` and the selected provisional surface adds further explicit unknown.
-3. remaining review, chronology and lexical-evidence debt.
+1. `capture_continuity`: hard source regression, 4 gaps / `1.223687s`.
+2. `remote_unknown_evidence`: current read surfaces leave `451.690506s` explicit unknown.
+3. chronology, review and missing direct lexical evidence remain separate residuals.
 
-The next executable goal is **Capture Continuity Loss Closure v1**. Remote Unknown Evidence Recovery
-v1 follows it. This ordering comes from source irreversibility, not from an aggregate quality score.
+Capture Continuity Loss Closure and Remote Unknown Evidence Recovery have since completed
+`EVIDENCE_BOUND`. Terminal Gate Instrumentation owns the current cross-dimension view; this report
+remains its fresh transcript-surface input rather than selecting a new goal by itself.
 
 ## Replay
 

@@ -85,8 +85,8 @@ promotion gates. Disjoint Truth v2 and the cluster-purity audit then localized t
 defect: dominant clusters absorb short minority voices. The first frozen boundary candidate kept
 Coverage v3 after failing precision, speaker-count and minority-recall gates. Fresh rebaseline and
 capture closure then isolated the remaining explicit unknown. WavLM plus structural evidence safely
-recovered only 10/547 words and closed `EVIDENCE_BOUND`. The current step is direct human lexical
-truth for live meetings. Deferred
+recovered only 10/547 words and closed `EVIDENCE_BOUND`. The current step is a fingerprint-bound
+terminal-gate instrument; direct human lexical truth remains an explicit blocked input. Deferred
 enrichment now ends in one idempotent state-reconciliation transaction, so stale review or
 attribution reports cannot distort that comparison.
 
@@ -137,13 +137,15 @@ met, unless an explicit product decision changes the priority.
    removed and every remaining external source outage is exact and blocks completeness.
 6. **Remote Unknown Evidence Recovery v1:** completed `EVIDENCE_BOUND`; all 547 words have cause and
    provenance, while only 10 words passed independent consensus and none had direct-truth overlap.
-7. **Human-Reviewed Lexical Seed v1:** current; collect exact real-meeting word truth before tuning ASR;
-   agreement between local recognizers is diagnostic evidence only.
-8. **Session-Scoped Lexical Context v1:** compile a short topic-specific prompt or hotword set and
+7. **Speaker-Resolved Transcript Terminal Gate Instrumentation v1:** current; expose eight separate
+   evidence gates, exact blockers and instrument/product readiness without an aggregate score.
+8. **Human-Reviewed Lexical Seed v1:** blocked at 0/28 until direct text is entered; machine agreement
+   remains diagnostic evidence only.
+9. **Session-Scoped Lexical Context v1:** compile a short topic-specific prompt or hotword set and
    promote it only after multi-session no-regression A/B. A broad static glossary is not an ASR prompt.
-9. **Speaker-Resolved Transcript Terminal Gate v1:** make the product North Star measurable across
-   capture, words, chronology, roles, remote speakers, explicit unknown and exact fallback.
-10. **Local Mic Multi-Speaker Diarization v1:** a conditional branch opened only by a real
+10. **Speaker-Resolved Transcript Terminal Gate v1:** require every measured gate to pass before the
+   product North Star is declared ready.
+11. **Local Mic Multi-Speaker Diarization v1:** a conditional branch opened only by a real
    multi-person local scenario and labelled corpus.
 
 ## Long-Term Direction

@@ -1301,6 +1301,7 @@ enum DoctorChecks {
             "scripts/eres2netv2-speaker-embedding-worker.py",
             "scripts/report-lexical-accuracy-reference-corpus.py",
             "scripts/build-human-reviewed-lexical-seed-v1.py",
+            "scripts/report-speaker-resolved-terminal-gate-v1.py",
             "scripts/report-remote-speaker-cluster-purity-reference-v1.py",
             "scripts/evaluate-remote-speaker-boundary-minority-v1.py",
             "scripts/report-speaker-resolved-transcript-default-corpus.py",
@@ -8206,6 +8207,26 @@ enum CorpusCommands {
                     + forwarded
                     + ["--sessions-root", sessionsRoot.path]
             )
+        case "terminal-gate-v1", "terminal_gate_v1":
+            if forwarded.isEmpty || ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(
+                    try PythonRuntime.resolve(),
+                    [try script("report-speaker-resolved-terminal-gate-v1.py").path, "--help"]
+                )
+                return
+            }
+            guard let action = forwarded.first, [
+                "preflight", "freeze", "evaluate", "status", "replay", "all",
+            ].contains(action) else {
+                throw CLIError(
+                    "terminal-gate-v1 requires preflight, freeze, evaluate, status, replay, or all"
+                )
+            }
+            _ = try Tooling.runPathAllowingExitCodes(
+                try PythonRuntime.resolve(),
+                [try script("report-speaker-resolved-terminal-gate-v1.py").path] + forwarded,
+                allowedExitCodes: [0, 2]
+            )
         case "lexical", "lexical-accuracy", "lexical_accuracy":
             if forwarded.isEmpty || ArgumentEditing.hasHelpFlag(forwarded) {
                 try Tooling.runPath(
@@ -9042,6 +9063,9 @@ enum CorpusHelp {
                                         [--manifest docs/testing/transcript-perfection-corpus-v1-manifest.json]
           murmurmark corpus post-segmentation-rebaseline all [--refresh] [--verify-existing]
                                         [--write-snapshot]
+          murmurmark corpus terminal-gate-v1 preflight|freeze|evaluate|status|replay|all
+                                      [--policy policies/speaker-resolved-terminal-gate-instrument-v1.json]
+                                      [--refresh] [--write-snapshot]
           murmurmark corpus lexical import SESSION SOURCE --source-id ID
                                       --meeting-mode 1x1|group --acoustic-mode MODE
                                       [--trust-grade independent_machine] [--local-speaker NAME]

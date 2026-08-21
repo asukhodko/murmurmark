@@ -1,0 +1,216 @@
+{
+  "aggregate_quality_score": null,
+  "blockers": [
+    {
+      "dimension": "durable_capture",
+      "next_command": null,
+      "reason": "controlled restart or current corpus still contains measured source gaps",
+      "state": "bounded"
+    },
+    {
+      "dimension": "target_me_preservation",
+      "next_command": null,
+      "reason": "local speech preservation is promoted, but a bounded local-recall residual remains",
+      "state": "bounded"
+    },
+    {
+      "dimension": "lexical_accuracy",
+      "next_command": "murmurmark corpus lexical-seed-v1 review",
+      "reason": "direct human lexical truth is incomplete; WER/CER cannot be claimed",
+      "state": "blocked"
+    },
+    {
+      "dimension": "chronology_and_conservation",
+      "next_command": null,
+      "reason": "word and role conservation pass, but chronology review remains",
+      "state": "bounded"
+    },
+    {
+      "dimension": "remote_speaker_attribution",
+      "next_command": null,
+      "reason": "speaker publication works, but current-corpus speaker-count correctness lacks direct truth",
+      "state": "bounded"
+    },
+    {
+      "dimension": "explicit_unknown",
+      "next_command": null,
+      "reason": "explicit unknown speech exceeds the product-level seconds bound",
+      "state": "bounded"
+    }
+  ],
+  "decision": "TERMINAL_GATE_INSTRUMENT_READY",
+  "dimensions": [
+    {
+      "blockers": [
+        "controlled restart or current corpus still contains measured source gaps"
+      ],
+      "evidence": [
+        "capture_continuity_closure",
+        "post_segmentation_rebaseline"
+      ],
+      "id": "durable_capture",
+      "metrics": {
+        "controlled_restart_complete": false,
+        "current_corpus_gap_seconds": 1.223687,
+        "maximum_gap_seconds": 0.0,
+        "no_restart_soak_complete": true
+      },
+      "next_command": null,
+      "state": "bounded"
+    },
+    {
+      "blockers": [
+        "local speech preservation is promoted, but a bounded local-recall residual remains"
+      ],
+      "evidence": [
+        "speaker_preserving_echo",
+        "residual_local_recall"
+      ],
+      "id": "target_me_preservation",
+      "metrics": {
+        "candidate_local_exact": true,
+        "fallbacks_exact": true,
+        "remaining_local_recall_items": 4,
+        "remaining_local_recall_seconds": 21.12
+      },
+      "next_command": null,
+      "state": "bounded"
+    },
+    {
+      "blockers": [
+        "direct human lexical truth is incomplete; WER/CER cannot be claimed"
+      ],
+      "evidence": [
+        "human_lexical_seed"
+      ],
+      "id": "lexical_accuracy",
+      "metrics": {
+        "answered_slots": 0,
+        "cer": null,
+        "decision": "REVIEW_REQUIRED",
+        "domain_term_accuracy": null,
+        "maximum_cer": 0.08,
+        "maximum_wer": 0.15,
+        "minimum_domain_term_accuracy": 0.9,
+        "reference_words": 0,
+        "remaining_slots": 28,
+        "wer": null
+      },
+      "next_command": "murmurmark corpus lexical-seed-v1 review",
+      "state": "blocked"
+    },
+    {
+      "blockers": [
+        "word and role conservation pass, but chronology review remains"
+      ],
+      "evidence": [
+        "post_segmentation_rebaseline"
+      ],
+      "id": "chronology_and_conservation",
+      "metrics": {
+        "chronology_review_seconds": 345.94,
+        "maximum_chronology_review_seconds": 0.0,
+        "word_order_role_conserved": true
+      },
+      "next_command": null,
+      "state": "bounded"
+    },
+    {
+      "blockers": [
+        "speaker publication works, but current-corpus speaker-count correctness lacks direct truth"
+      ],
+      "evidence": [
+        "remote_direct_truth",
+        "post_segmentation_rebaseline"
+      ],
+      "id": "remote_speaker_attribution",
+      "metrics": {
+        "current_topology_evidence": "measured_without_human_count_truth",
+        "direct_truth_decision": "DIRECT_TRUTH_V2_READY",
+        "direct_truth_repeat_consistency": true,
+        "published_speakers": 7
+      },
+      "next_command": null,
+      "state": "bounded"
+    },
+    {
+      "blockers": [
+        "explicit unknown speech exceeds the product-level seconds bound"
+      ],
+      "evidence": [
+        "post_segmentation_rebaseline",
+        "remote_unknown_recovery"
+      ],
+      "id": "explicit_unknown",
+      "metrics": {
+        "maximum_unknown_seconds_ratio": 0.05,
+        "maximum_unknown_word_ratio": 0.05,
+        "recovery_frozen_remaining_words": 129,
+        "unknown_seconds": 451.690506,
+        "unknown_seconds_ratio": 0.084747,
+        "unknown_word_ratio": 0.037874,
+        "unknown_words": 295
+      },
+      "next_command": null,
+      "state": "bounded"
+    },
+    {
+      "blockers": [],
+      "evidence": [
+        "post_segmentation_rebaseline"
+      ],
+      "id": "review_burden",
+      "metrics": {
+        "capture_seconds": 14423.865,
+        "maximum_ratio": 0.03,
+        "ratio": 0.005773,
+        "remaining_rows": 51,
+        "remaining_seconds": 83.27
+      },
+      "next_command": null,
+      "state": "pass"
+    },
+    {
+      "blockers": [],
+      "evidence": [
+        "speaker_resolved_publication",
+        "post_segmentation_rebaseline"
+      ],
+      "id": "speaker_resolved_publication",
+      "metrics": {
+        "aggregate_only_sessions": 0,
+        "exact_fallback": true,
+        "fresh_sessions": 6,
+        "minimum_fresh_sessions": 6,
+        "provisional_sessions": 2,
+        "publication_decision": "PROMOTE",
+        "read_surfaces_coherent": true,
+        "strict_rich_sessions": 4
+      },
+      "next_command": null,
+      "state": "pass"
+    }
+  ],
+  "gates": {
+    "aggregate_quality_score_disabled": true,
+    "all_dimensions_explicit": true,
+    "frozen_inputs_current": true,
+    "instrument_ready": true,
+    "product_ready": false
+  },
+  "instrument_status": "ready",
+  "product_decision": "NOT_READY",
+  "safety": {
+    "aggregate_quality_score": false,
+    "cloud_inference": false,
+    "coverage_v3_mutation": false,
+    "echo_guard_mutation": false,
+    "human_answer_mutation": false,
+    "primary_asr_mutation": false,
+    "raw_audio_mutation": false,
+    "read_only_sources": true,
+    "selected_transcript_mutation": false
+  },
+  "schema": "murmurmark.speaker_resolved_terminal_gate_snapshot/v1",
+  "version": 1
+}
