@@ -424,6 +424,41 @@ def main() -> int:
         assert time.monotonic() - started < 8
         assert MODULE.handoff_fingerprint_matches(updated, session)
 
+        graceful_marker = session / "derived/pipeline-run/graceful-interrupt.txt"
+        graceful_code = "\n".join(
+            [
+                "import gc",
+                "import multiprocessing as mp",
+                "import pathlib",
+                "import time",
+                "semaphore = mp.Semaphore(1)",
+                "try:",
+                "    time.sleep(30)",
+                "except KeyboardInterrupt:",
+                f"    pathlib.Path({str(graceful_marker)!r}).write_text('checkpointed\\n')",
+                "    del semaphore",
+                "    gc.collect()",
+            ]
+        )
+        graceful = MODULE.run_step(
+            MODULE.step(
+                "graceful_interrupt",
+                [sys.executable, "-c", graceful_code],
+                phase=MODULE.DEFERRED_PHASE,
+            ),
+            REPO_ROOT,
+            False,
+            progress_interval_sec=0,
+            session=session,
+            report_path=report,
+            pipeline_started_at="2026-07-17T00:00:00+00:00",
+            pipeline_phase=MODULE.DEFERRED_PHASE,
+            timeout_sec=1,
+        )
+        assert graceful["status"] == "failed", graceful
+        assert graceful_marker.read_text(encoding="utf-8") == "checkpointed\n"
+        assert "resource_tracker" not in graceful.get("stderr_tail", ""), graceful
+
         transcript.write_text("mutated\n", encoding="utf-8")
         assert not MODULE.handoff_fingerprint_matches(updated, session)
 

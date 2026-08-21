@@ -1,6 +1,6 @@
 # Current Goal
 
-Updated: 2026-08-20
+Updated: 2026-08-21
 
 This document expands the single executable goal from
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`.
@@ -20,6 +20,13 @@ Capture Continuity Loss Closure v1 завершён `EVIDENCE_BOUND`. Удале
 Fresh rebaseline снова byte-exact на той же шестёрке: strict unknown составляет `397.543570s` и
 547 слов. Это крупнейший следующий измеренный остаток на пути к надёжной атрибутированной
 транскрибации.
+
+Перед возвратом к unknown закрыт инфраструктурный долг stronger-audio judge. Версия `0.3.0`
+сопоставляет review lanes с каноническими pack items до synthetic fallback, сохраняет полный набор
+строк при целевых проходах, пишет `interrupted_checkpointed` при мягкой остановке и показывает
+selected/cached/computed/pending. На `2026-08-20_17-47-20` evidence вырос монотонно
+`35 -> 39 -> 40 -> 41`, актуальный workspace исключил закрытые lanes, manual remainder остался
+`20 rows / 29.70s`, raw CAF не изменились. Этот долг больше не отвлекает текущую цель.
 
 ## Objective
 

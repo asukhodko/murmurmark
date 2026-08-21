@@ -2050,36 +2050,69 @@ def read_tail(path: Path, limit: int = 4000) -> str:
     return data[-limit:]
 
 
-def terminate_process_group(process: subprocess.Popen[str], *, timeout_sec: float = 5.0) -> None:
+def process_group_exists(process_group_id: int) -> bool:
+    try:
+        os.killpg(process_group_id, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return False
+    return True
+
+
+def wait_for_process_group_exit(process_group_id: int, timeout_sec: float) -> bool:
+    deadline = time.monotonic() + max(0.0, timeout_sec)
+    while process_group_exists(process_group_id):
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.05)
+    return True
+
+
+def terminate_process_group(
+    process: subprocess.Popen[str],
+    *,
+    interrupt_timeout_sec: float = 8.0,
+    terminate_timeout_sec: float = 1.5,
+) -> None:
     if process.poll() is not None:
+        if not process_group_exists(process.pid):
+            return
+    # Give the Python worker a chance to persist its current checkpoint and
+    # release faster-whisper multiprocessing resources. Signal the leader, not
+    # the whole group: its children should be reaped by their owner.
+    try:
+        os.kill(process.pid, signal.SIGINT)
+    except ProcessLookupError:
+        pass
+    except OSError:
+        try:
+            process.send_signal(signal.SIGINT)
+        except ProcessLookupError:
+            pass
+    try:
+        process.wait(timeout=max(0.0, interrupt_timeout_sec))
+    except subprocess.TimeoutExpired:
+        pass
+    if not process_group_exists(process.pid):
         return
     try:
         os.killpg(process.pid, signal.SIGTERM)
     except ProcessLookupError:
         return
     except OSError:
-        process.terminate()
-    try:
-        process.wait(timeout=timeout_sec)
-    except subprocess.TimeoutExpired:
-        pass
-    # The group leader may exit on SIGTERM while children keep running. Probe
-    # the process group itself before declaring the step stopped.
-    try:
-        os.killpg(process.pid, 0)
-    except ProcessLookupError:
+        if process.poll() is None:
+            process.terminate()
+    if wait_for_process_group_exit(process.pid, terminate_timeout_sec):
         return
-    except OSError:
-        if process.poll() is not None:
-            return
     try:
         os.killpg(process.pid, signal.SIGKILL)
     except ProcessLookupError:
         return
     except OSError:
-        process.kill()
-    if process.poll() is None:
-        process.wait(timeout=timeout_sec)
+        if process.poll() is None:
+            process.kill()
+    wait_for_process_group_exit(process.pid, terminate_timeout_sec)
 
 
 def run_step(

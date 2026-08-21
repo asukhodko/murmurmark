@@ -1714,8 +1714,13 @@ written with `status: in_progress` until the selected batch finishes. A lifecycl
 Ctrl-C therefore leaves reusable, fingerprint-bound evidence instead of discarding the completed
 part of a long local run. A resumed targeted run preserves unrelated cached rows and computes only
 missing items. A normal terminal result is `completed`; a bounded run with selected work still
-pending is `completed_partial`; an unavailable local model is `skipped` and preserves any still-valid
-cached rows instead of replacing them with an empty result.
+pending is `completed_partial`; a cooperatively stopped run is `interrupted_checkpointed`; an
+unavailable local model is `skipped` and preserves any still-valid cached rows instead of replacing
+them with an empty result. The summary records `selected_items`, `cached_items`, `computed_items`,
+`pending_selected_items_before_cap`, `pending_selected_items_after_cap` and a resume command when
+interrupted. A lane selector is resolved against canonical `review_pack_items.jsonl` by utterance
+identity before any synthetic lane clip is considered. Synthetic source IDs are fallback identities
+only. Targeted or partial refresh must never replace unrelated full-session rows.
 An interval-weighted `speaker_state` veto prevents `confirm_me` when at least `80%` of a well-covered
 interval is `remote_only`, local-active coverage is at most `10%`, independent local support is
 weak and mic ASR follows remote. The result is `uncertain / needs_review`; speaker state and audio
@@ -3530,13 +3535,17 @@ The stable identity uses session, source kind, utterance IDs, interval and label
 `cluster_id` and `source_audit_id` remain provenance, but must not reopen an otherwise identical
 review row when either identifier changes during report refresh.
 
-`review suggested` is cached-first for expensive local model evidence. It consumes existing
-`faster_whisper_judge.jsonl` and Target-Me rows when building lane suggestions. Target-Me rows can
+`review suggested` is bounded for expensive local model evidence. It consumes existing
+`faster_whisper_judge.jsonl` and Target-Me rows, then computes at most four missing current-workspace
+items by default. `MURMURMARK_TARGETED_JUDGE_COMPUTE=0` makes the command cache-only and
+`MURMURMARK_TARGETED_JUDGE_MAX_COMPUTED` changes the cap. The meeting lifecycle forces its own
+post-budget suggested-review actions to cache-only; the earlier bounded enrichment action owns any
+heavy model work. Only lane manifests named by the fresh `review_workspace.json` participate;
+leftover files in `lane-packs/` are ignored. Target-Me rows can
 close `keep_me` only when local-speaker evidence is high-confidence and no stronger drop evidence
 conflicts. `drop_me` from Target-Me remains stricter: it requires absent/remote-like evidence,
 existing remote/noise evidence, allowed `drop_me`, short non-protected `Me` text and no
-high-confidence stronger-audio keep evidence. New faster-whisper decodes during suggested review are
-opt-in through `MURMURMARK_TARGETED_JUDGE_COMPUTE=1`. Target-Me refresh is enabled by default and
+high-confidence stronger-audio keep evidence. Target-Me refresh is enabled by default and
 can be disabled with `MURMURMARK_REVIEW_TARGET_ME_REFRESH=0`. It consumes every current lane pack
 with `--skip-build-pack`, creates exact speaker-bounded mic/remote clips for each `Me` utterance and
 reuses a cached row only when the lane item identity, text and source provenance still match.

@@ -9,7 +9,7 @@ if [[ -z "${MURMURMARK_PYTHON:-}" && -x "$repo_root/.venv/bin/python" ]]; then
 fi
 
 swift build
-swift test --filter CaptureRestartCoordinatorTests
+swift test
 swiftlint lint --quiet
 "$python_bin" -m py_compile scripts/*.py
 "$python_bin" scripts/check-transcript-dedupe.py

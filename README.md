@@ -215,6 +215,7 @@ JSON/Markdown provenance. Raw CAF and rebuildable media are deleted. Use
 audio-algorithm debugging. Low-level export and retention commands are documented in the
 [Retention Policy](docs/contracts/retention-policy.md).
 
+Standalone `review suggested` reuses compatible stronger-audio rows and computes at most four missing current-lane items; set `MURMURMARK_TARGETED_JUDGE_COMPUTE=0` for cache-only or `MURMURMARK_TARGETED_JUDGE_MAX_COMPUTED=N` for another cap. The meeting lifecycle keeps post-budget review cache-only. `status` shows selected/cached/computed/pending.
 ### Compact Old Sessions
 Keep raw CAF but remove rebuildable media:
 ```bash
@@ -323,7 +324,7 @@ Disjoint truth v2 is complete: 72 primary + 12 repeats, consistency `1.0` and by
 one-shot ERes2NetV2 qualification kept Coverage v3; Cluster Purity Reference v1 found 10 remote
 voices compressed into four acoustic clusters, purity `89.8106%` and minority recall `0`. Transcript
 Integrity v1 repaired 10/19 proven duplicate/repetition candidates. Frozen Boundary and
-Minority-Voice Segmentation v1 kept Coverage v3. Post-Segmentation Transcript Rebaseline v1 passed 6/6 fresh sessions with exact conservation. Capture Continuity Loss Closure v1 closed `EVIDENCE_BOUND`: fixed `500ms` delay removed, controlled restart software idle `2.362ms`, source gap `0.468729s`, no-restart soak `600.434s` with zero gaps. Current: **Remote Unknown Evidence Recovery v1** over frozen `397.543570s` / 547 strict unknown words.
+Minority-Voice Segmentation v1 kept Coverage v3. Post-Segmentation Transcript Rebaseline v1 passed 6/6 fresh sessions with exact conservation. Capture Continuity Loss Closure v1 closed `EVIDENCE_BOUND`: fixed `500ms` delay removed, controlled restart software idle `2.362ms`, source gap `0.468729s`, no-restart soak `600.434s` with zero gaps. Stronger-audio recovery v0.3 now preserves canonical evidence across targeted refresh, checkpoints interrupted local inference and ignores stale lane files. Current: **Remote Unknown Evidence Recovery v1** over frozen `397.543570s` / 547 strict unknown words.
 The remaining critical path is:
 ```text
 Coverage v3 + Transcript Integrity v1 -> Boundary Segmentation v1 (KEEP_COVERAGE_V3)

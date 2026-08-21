@@ -362,6 +362,61 @@ def main() -> int:
         assert module.final_run_status(0, ["missing"], []) == "completed_partial"
         assert module.final_run_status(0, [], ["missing.json"]) == "completed_partial"
 
+        lane_pack = out_dir / "lane-pack.json"
+        module.write_json(
+            lane_pack,
+            {
+                "items": [
+                    {
+                        "source_audit_id": "local_recall_0013",
+                        "utterance_ids": ["utt_target", "utt_remote"],
+                        "me_utterance_ids": ["utt_target"],
+                        "remote_utterance_ids": ["utt_remote"],
+                    }
+                ]
+            },
+        )
+        target_args = SimpleNamespace(pack_item_id=[], review_lane_pack=[lane_pack])
+        canonical_target = {
+            "id": "arp_000036",
+            "utterance_ids": ["utt_target"],
+            "utterances": [],
+        }
+        synthetic_collision = {
+            "id": "local_recall_0013",
+            "utterance_ids": ["utt_target", "utt_remote"],
+            "utterances": [],
+        }
+        resolved_items, target_ids, missing_files, _selector_keys = module.resolve_target_items(
+            target_args,
+            [canonical_target],
+            [synthetic_collision],
+        )
+        assert target_ids == ["arp_000036"], target_ids
+        assert [item["id"] for item in resolved_items] == ["arp_000036", "local_recall_0013"]
+        assert missing_files == []
+
+        interrupted_rows, interrupted_summary = module.write_incremental_checkpoint(
+            out_dir,
+            checkpoint_items,
+            checkpoint_rows,
+            model_path=Path("model"),
+            pack_summary={},
+            selected_items=2,
+            cached_items=1,
+            computed_items=1,
+            pending_items=1,
+            pending_items_before_cap=2,
+            sources=("mic_clean", "remote"),
+            status="interrupted_checkpointed",
+            resume_command="murmurmark audit stronger-audio-judge fixture",
+        )
+        assert len(interrupted_rows) == 1
+        assert interrupted_summary["status"] == "interrupted_checkpointed"
+        assert interrupted_summary["pending_selected_items_before_cap"] == 2
+        assert interrupted_summary["pending_selected_items_after_cap"] == 1
+        assert interrupted_summary["resume_command"].startswith("murmurmark audit")
+
         cached_item = {
             "id": "arp_cached",
             "session_id": "fixture",

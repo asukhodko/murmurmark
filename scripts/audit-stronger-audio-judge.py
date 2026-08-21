@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import argparse
+import gc
 import hashlib
 import json
 import math
 import os
 import re
+import signal
 import shlex
 import subprocess
 import wave
@@ -18,7 +20,7 @@ from typing import Any
 
 SCHEMA_ROW = "murmurmark.faster_whisper_judge/v1"
 SCHEMA_SUMMARY = "murmurmark.faster_whisper_judge_summary/v1"
-SCRIPT_VERSION = "0.2.0"
+SCRIPT_VERSION = "0.3.0"
 DECODE_CACHE_SCHEMA = "murmurmark.faster_whisper_decode_cache/v1"
 DEFAULT_MODEL = Path.home() / ".local/share/murmurmark/models/faster-whisper/large-v3"
 DEFAULT_MAX_ITEMS = 80
@@ -71,6 +73,10 @@ KNOWN_HALLUCINATION_RE = re.compile(
     r"^(?:редактор субтитров|продолжение следует|спасибо за просмотр|субтитры.*)$",
     re.IGNORECASE,
 )
+
+
+def raise_keyboard_interrupt(_signum: int, _frame: Any) -> None:
+    raise KeyboardInterrupt
 
 
 def parse_args() -> argparse.Namespace:
@@ -570,6 +576,22 @@ def target_item_ids(args: argparse.Namespace, items: list[dict[str, Any]]) -> tu
             ids.extend(str(value) for value in selector.get("source_ids") or [] if value)
     ids = explicit_ids + matched_selector_ids + ids
     return list(dict.fromkeys(ids)), missing_pack_files, [",".join(selector.get("utterance_ids") or []) for selector in selectors]
+
+
+def resolve_target_items(
+    args: argparse.Namespace,
+    canonical_items: list[dict[str, Any]],
+    synthetic_items: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[str], list[str], list[str]]:
+    target_ids, missing_pack_files, selector_keys = target_item_ids(args, canonical_items)
+    items = list(canonical_items)
+    existing_ids = {str(item.get("id") or "") for item in items}
+    items.extend(
+        item
+        for item in synthetic_items
+        if str(item.get("id") or "") and str(item.get("id") or "") not in existing_ids
+    )
+    return items, target_ids, missing_pack_files, selector_keys
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -1956,21 +1978,31 @@ def write_incremental_checkpoint(
     computed_items: int,
     pending_items: int,
     sources: tuple[str, ...],
-) -> None:
+    status: str = "in_progress",
+    pending_items_before_cap: int | None = None,
+    resume_command: str | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     rows = ordered_rows_for_items(items, rows_by_pack_id)
     write_jsonl(out_dir / "faster_whisper_judge.jsonl", rows)
     summary = summarize(rows, model_path=model_path, pack_summary=pack_summary)
     summary.update(
         {
-            "status": "in_progress",
+            "status": status,
             "cached_items": max(0, cached_items),
             "computed_items": max(0, computed_items),
             "selected_items": selected_items,
+            "pending_selected_items_before_cap": max(
+                0,
+                pending_items if pending_items_before_cap is None else pending_items_before_cap,
+            ),
             "pending_selected_items_after_cap": max(0, pending_items),
             "sources": list(sources),
         }
     )
+    if resume_command:
+        summary["resume_command"] = resume_command
     write_json(out_dir / "faster_whisper_judge_summary.json", summary)
+    return rows, summary
 
 
 def final_run_status(
@@ -2040,14 +2072,23 @@ def write_report(path: Path, summary: dict[str, Any], rows: list[dict[str, Any]]
 
 def main() -> int:
     args = parse_args()
+    # SIGTERM is used only after a cooperative SIGINT grace period. Treat it as
+    # an interrupt too so the latest completed item is never lost.
+    signal.signal(signal.SIGTERM, raise_keyboard_interrupt)
     session = args.session.expanduser()
     pack_dir = args.pack_dir or session / "derived/audit/audio-review-pack"
     out_dir = args.out_dir or pack_dir
-    items = read_jsonl(pack_dir / "review_pack_items.jsonl")
+    canonical_items = read_jsonl(pack_dir / "review_pack_items.jsonl")
     lane_items, lane_missing_files = synthetic_lane_pack_items(args, session, out_dir)
-    if lane_items:
-        existing_ids = {str(item.get("id") or "") for item in items}
-        items.extend(item for item in lane_items if str(item.get("id") or "") not in existing_ids)
+    # Resolve lane selectors against the canonical review pack first. A lane's
+    # source_audit_id is not the identity of an existing arp_* item even when a
+    # synthetic clip happens to reuse that id. Synthetic items are a fallback
+    # only for selectors that have no canonical semantic match.
+    items, requested_target_ids, missing_lane_pack_files, lane_pack_selector_keys = resolve_target_items(
+        args,
+        canonical_items,
+        lane_items,
+    )
     audio_review_rows = audit_by_id(read_jsonl(pack_dir / "audio_review_audit.jsonl"))
     speaker_state_rows = read_jsonl(session / "derived/preprocess/echo/speaker_state.jsonl")
     pack_summary = read_json(pack_dir / "review_pack_summary.json")
@@ -2092,7 +2133,6 @@ def main() -> int:
         for item in items
         if (row := audio_review_rows.get(str(item.get("id") or ""))) and audit_row_matches_item(row, item)
     }
-    requested_target_ids, missing_lane_pack_files, lane_pack_selector_keys = target_item_ids(args, items)
     missing_lane_pack_files = list(dict.fromkeys(missing_lane_pack_files + lane_missing_files))
     selected = selected_items(items, matched_audio_review_rows, args.max_items, target_ids=requested_target_ids)
     missing_target_ids = [item_id for item_id in requested_target_ids if item_id not in {str(item.get("id") or "") for item in items}]
@@ -2136,32 +2176,70 @@ def main() -> int:
                 f"sources={','.join(sources)}"
             ),
         )
-        requires_model = any(
-            not item_decode_cache_ready(item, sources, decode_cache) for item in missing_items
+        write_incremental_checkpoint(
+            out_dir,
+            items,
+            checkpoint_by_pack_id,
+            model_path=model_path,
+            pack_summary=pack_summary,
+            selected_items=len(selected),
+            cached_items=cached_count,
+            computed_items=0,
+            pending_items=pending_selected_count,
+            pending_items_before_cap=pending_selected_count,
+            sources=sources,
         )
+        requires_model = any(not item_decode_cache_ready(item, sources, decode_cache) for item in missing_items)
         model = None
-        if requires_model:
-            progress(args, f"loading faster-whisper model: {model_path}")
-            model = load_model(model_path, args)
-            progress(args, "model loaded")
-        else:
-            progress(args, "all required clip decodes are content-cache hits")
         new_by_pack_id: dict[str, dict[str, Any]] = {}
-        for index, item in enumerate(missing_items, start=1):
-            item_id = str(item.get("id") or "")
-            duration = safe_float((item.get("interval") or {}).get("duration_sec"), 0.0)
-            progress(args, f"decode {index}/{len(missing_items)} {item_id} ({duration:.2f}s)")
-            new_by_pack_id[item_id] = audit_item(
-                model,
-                item,
-                matched_audio_review_rows.get(item_id),
-                args,
-                speaker_state_rows,
-                decode_cache,
-            )
-            new_by_pack_id[item_id]["classification_policy_version"] = SCRIPT_VERSION
-            checkpoint_by_pack_id[item_id] = new_by_pack_id[item_id]
-            write_incremental_checkpoint(
+        computed_count = 0
+        try:
+            if requires_model:
+                progress(args, f"loading faster-whisper model: {model_path}")
+                model = load_model(model_path, args)
+                progress(args, "model loaded")
+            else:
+                progress(args, "all required clip decodes are content-cache hits")
+            for index, item in enumerate(missing_items, start=1):
+                item_id = str(item.get("id") or "")
+                duration = safe_float((item.get("interval") or {}).get("duration_sec"), 0.0)
+                progress(args, f"decode {index}/{len(missing_items)} {item_id} ({duration:.2f}s)")
+                new_by_pack_id[item_id] = audit_item(
+                    model,
+                    item,
+                    matched_audio_review_rows.get(item_id),
+                    args,
+                    speaker_state_rows,
+                    decode_cache,
+                )
+                new_by_pack_id[item_id]["classification_policy_version"] = SCRIPT_VERSION
+                checkpoint_by_pack_id[item_id] = new_by_pack_id[item_id]
+                computed_count = index
+                write_incremental_checkpoint(
+                    out_dir,
+                    items,
+                    checkpoint_by_pack_id,
+                    model_path=model_path,
+                    pack_summary=pack_summary,
+                    selected_items=len(selected),
+                    cached_items=cached_count,
+                    computed_items=index,
+                    pending_items=pending_selected_count - index,
+                    pending_items_before_cap=pending_selected_count,
+                    sources=sources,
+                )
+                classification = new_by_pack_id[item_id].get("classification") or {}
+                progress(
+                    args,
+                    (
+                        f"done {index}/{len(missing_items)} {item_id}: "
+                        f"{classification.get('label')} -> {classification.get('suggested_decision')} "
+                        f"confidence={classification.get('confidence')}"
+                    ),
+                )
+        except KeyboardInterrupt:
+            resume_command = f"murmurmark audit stronger-audio-judge {session} --profile {args.profile}"
+            rows, summary = write_incremental_checkpoint(
                 out_dir,
                 items,
                 checkpoint_by_pack_id,
@@ -2169,19 +2247,22 @@ def main() -> int:
                 pack_summary=pack_summary,
                 selected_items=len(selected),
                 cached_items=cached_count,
-                computed_items=index,
-                pending_items=pending_selected_count - index,
+                computed_items=computed_count,
+                pending_items=pending_selected_count - computed_count,
+                pending_items_before_cap=pending_selected_count,
                 sources=sources,
+                status="interrupted_checkpointed",
+                resume_command=resume_command,
             )
-            classification = new_by_pack_id[item_id].get("classification") or {}
+            write_report(out_dir / "faster_whisper_judge_report.md", summary, rows)
             progress(
                 args,
-                (
-                    f"done {index}/{len(missing_items)} {item_id}: "
-                    f"{classification.get('label')} -> {classification.get('suggested_decision')} "
-                    f"confidence={classification.get('confidence')}"
-                ),
+                f"interrupted after {computed_count}/{len(missing_items)} new items; checkpoint saved",
             )
+            return 130
+        finally:
+            model = None
+            gc.collect()
     else:
         progress(args, f"all selected items are cached ({cached_count}/{len(selected)})")
         new_by_pack_id = {}

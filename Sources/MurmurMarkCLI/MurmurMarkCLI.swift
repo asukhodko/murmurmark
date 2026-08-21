@@ -3609,8 +3609,9 @@ enum ReviewSuggestedCommand {
 
         Builds all session-local review lanes, applies generated suggested answers in preview
         mode and shows the exact manual remainder. It refreshes lane suggestions from cached
-        stronger-audio-judge and Target-Me evidence. New faster-whisper decode is opt-in via
-        MURMURMARK_TARGETED_JUDGE_COMPUTE=1. `apply` writes only reviewed suggested rows, keeps
+        stronger-audio-judge and Target-Me evidence. By default it computes at most four missing
+        stronger-audio items; set MURMURMARK_TARGETED_JUDGE_COMPUTE=0 to use cache only. `apply`
+        writes only reviewed suggested rows, keeps
         dots/todo as manual review, then refreshes reviewed_v1 readiness unless --no-materialize is passed.
 
         Common:
@@ -3785,7 +3786,7 @@ enum ReviewSuggestedCommand {
             if !needsFullMicSources {
                 judgeArgs.append("--quick")
             }
-            if envBool("MURMURMARK_TARGETED_JUDGE_COMPUTE", defaultValue: false) {
+            if envBool("MURMURMARK_TARGETED_JUDGE_COMPUTE", defaultValue: true) {
                 judgeArgs += [
                     "--max-computed-items",
                     envValue("MURMURMARK_TARGETED_JUDGE_MAX_COMPUTED", defaultValue: "4"),
@@ -3822,8 +3823,22 @@ enum ReviewSuggestedCommand {
         }
     }
 
-    private static func reviewLanePacks(for session: URL) -> [URL] {
+    static func reviewLanePacks(for session: URL) -> [URL] {
         let directory = session.appendingPathComponent("derived/readiness/review-plan/lane-packs")
+        let workspace = session.appendingPathComponent("derived/readiness/review-plan/review_workspace.json")
+        if let payload = try? JSONFiles.object(workspace),
+           let lanes = payload["lanes"] as? [[String: Any]] {
+            let current = lanes.compactMap { lane -> URL? in
+                guard let manifest = lane["manifest"] as? String, !manifest.isEmpty else {
+                    return nil
+                }
+                let url = PathURLs.fileURL(manifest)
+                return FileManager.default.fileExists(atPath: url.path) ? url : nil
+            }
+            if !current.isEmpty {
+                return current.sorted { $0.lastPathComponent < $1.lastPathComponent }
+            }
+        }
         let urls = (try? FileManager.default.contentsOfDirectory(
             at: directory,
             includingPropertiesForKeys: nil,
@@ -5149,6 +5164,10 @@ enum AuditPrinter {
         let payload = try JSONFiles.object(summaryURL)
         let keepSeconds = double(payload["suggested_keep_me_seconds"])
         let dropSeconds = double(payload["suggested_drop_me_seconds"])
+        let selectedItems = int(payload["selected_items"])
+        let cachedItems = int(payload["cached_items"])
+        let computedItems = int(payload["computed_items"])
+        let pendingItems = int(payload["pending_selected_items_after_cap"])
 
         print("")
         print("audit:")
@@ -5156,6 +5175,10 @@ enum AuditPrinter {
         print("  report: \(PathDisplay.display(outDir.appendingPathComponent("faster_whisper_judge_report.md")))")
         print("  status: \(string(payload["status"]) ?? "legacy_unknown")")
         print("  items: \(int(payload["items"]))")
+        print("  selected: \(selectedItems)")
+        print("  cached: \(cachedItems)")
+        print("  computed: \(computedItems)")
+        print("  pending: \(pendingItems)")
         print(String(format: "  suggested_keep_me: %.2fs", keepSeconds))
         print(String(format: "  suggested_drop_me: %.2fs", dropSeconds))
         if let skipped = string(payload["skipped_reason"]), !skipped.isEmpty {
@@ -17643,11 +17666,21 @@ enum ReadinessPrinter {
             return
         }
         let items = int(payload["items"]) ?? 0
+        let selectedItems = int(payload["selected_items"]) ?? 0
+        let cachedItems = int(payload["cached_items"]) ?? 0
+        let computedItems = int(payload["computed_items"]) ?? 0
+        let pendingItems = int(payload["pending_selected_items_after_cap"]) ?? 0
         let keepSeconds = double(payload["suggested_keep_me_seconds"]) ?? 0.0
         let dropSeconds = double(payload["suggested_drop_me_seconds"]) ?? 0.0
         print("  stronger_audio_judge:")
         print("    status: \(string(payload["status"]) ?? "legacy_unknown")")
         print("    items: \(items)")
+        if selectedItems > 0 || cachedItems > 0 || computedItems > 0 || pendingItems > 0 {
+            print("    selected: \(selectedItems)")
+            print("    cached: \(cachedItems)")
+            print("    computed: \(computedItems)")
+            print("    pending: \(pendingItems)")
+        }
         print(String(format: "    suggested_keep_me: %.2f min", keepSeconds / 60.0))
         print(String(format: "    suggested_drop_me: %.2f min", dropSeconds / 60.0))
         if let skipped = string(payload["skipped_reason"]), !skipped.isEmpty {

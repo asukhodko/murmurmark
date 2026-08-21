@@ -251,6 +251,11 @@ if command in {"outcome", "report"}:
     auto_rows = 1 if scenario in {"ready", "stale_finish", "archived_finish"} and not applied else 0
     artifacts(session, ready=applied, auto_rows=auto_rows, blocked=scenario == "blocked")
     raise SystemExit(0)
+if command == "review":
+    write(
+        session / "fake-review-env.json",
+        {"targeted_judge_compute": os.environ.get("MURMURMARK_TARGETED_JUDGE_COMPUTE")},
+    )
 if command == "review" and "preview" in args:
     auto_rows = 1 if scenario in {"ready", "stale_finish", "archived_finish"} else 0
     # Preview is fresher than readiness; the lifecycle must use its closure directly.
@@ -861,6 +866,8 @@ def main() -> None:
         enrich_env = json.loads((optional_session / "fake-enrich-env.json").read_text())
         assert enrich_env["bounded"] == "1", enrich_env
         assert float(enrich_env["budget_sec"]) > 0, enrich_env
+        review_env = json.loads((optional_session / "fake-review-env.json").read_text())
+        assert review_env["targeted_judge_compute"] == "0", review_env
 
         budget_skip_session = write_session(root, "budget-skip")
         budget_skip_run = run_supervisor(

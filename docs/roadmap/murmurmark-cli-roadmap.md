@@ -1,5 +1,5 @@
 # MurmurMark CLI Roadmap
-Updated: 2026-08-20
+Updated: 2026-08-21
 Это читаемое представление активного плана OpsKarta v3:
 
 - `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`
@@ -91,7 +91,7 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Remote speaker cluster purity reference v1 | `done` | `ADVANCE_SEGMENTATION`: 10 reference voices / 4 clusters, purity `0.898106`, minority recall `0` |
 | Residual transcript integrity v1 | `done` | `PROMOTE`: 10/19 proven duplicate/repetition repairs, nine explicit review cases |
 | Boundary and minority-voice segmentation v1 | `done` | `KEEP_COVERAGE_V3`: exact words, but real precision `0.044688`, speaker ratio `0.5`, minority recall `0.017161` |
-| Enrichment transaction and cache coherence v1 | `done` | Idempotent downstream refresh, review history, decode reuse and one canonical queue |
+| Enrichment transaction and cache coherence v1 | `done` | Idempotent refresh; stronger-audio v0.3 has canonical lane identity, monotonic checkpoints and truthful pending status |
 | Post-segmentation transcript rebaseline v1 | `done` | 6/6 fresh, coherent surfaces; next hard defect selected by evidence |
 | Capture continuity loss closure v1 | `done` | `EVIDENCE_BOUND`: fixed delay removed, native source-loss intervals block completeness |
 | Remote unknown evidence recovery v1 | `current` | Разобрать 547 unknown words и атрибутировать только по независимому evidence |
@@ -268,7 +268,8 @@ speaker surfaces before publication. Compatible review decisions survive a profi
 history remains auditable, and content-identical faster-whisper clips reuse local decodes. The final
 reconciler rejects mixed profiles or queue counts. On `2026-08-20_11-31-56`, two repeated runs kept
 raw and `reviewed_v1` hashes unchanged, preserved 47 archived decisions and converged to 20 rows /
-`111.35s` in progress, readiness and outcome.
+`111.35s` in progress, readiness and outcome. Maintenance `2026-08-21`: current workspace excludes stale lanes; canonical evidence survives partial refresh; bounded review and interrupted faster-whisper are resumable.
+On `2026-08-20_17-47-20`, rows grew `35 -> 41`, manual burden stayed `20 / 29.70s`, raw CAF exact.
 ### 32. Post-Segmentation Transcript Rebaseline v1 — `done`
 `REBASELINE_ESTABLISHED`: 6/6 fingerprint-bound sessions, 5 strict rich + 1 warned provisional,
 exact words/roles/timestamps/fallback. Strict unknown is `5.0562%` versus frozen `6.0688%`. Three

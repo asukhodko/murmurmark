@@ -578,6 +578,11 @@ class MeetingLifecycle:
                         "MURMURMARK_DEFERRED_BOUNDED": "1",
                         "MURMURMARK_DEFERRED_BUDGET_SEC": f"{timeout_sec:.6f}",
                     }
+                elif action in {"review_suggested_preview", "review_suggested_apply"}:
+                    # The lifecycle already spent its bounded enrichment window.
+                    # Keep automatic review refresh cache-only so a new local
+                    # faster-whisper batch cannot silently extend post-stop time.
+                    extra_env = {"MURMURMARK_TARGETED_JUDGE_COMPUTE": "0"}
                 return_code, interrupted, timed_out = self.run_command(
                     command,
                     timeout_sec=timeout_sec,

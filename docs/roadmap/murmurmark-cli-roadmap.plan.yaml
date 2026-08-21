@@ -75,7 +75,11 @@ nodes:
       Enrichment Transaction and Cache Coherence v1 завершён внутри lifecycle: deferred Echo/review
       изменения пересобирают зависимые outputs, review history сохраняется, stronger-audio decode
       переиспользуется по content identity, explicit resume повторяет budget-deferred enrich, а
-      reconciliation сводит profile и manual queue во всех user-facing reports.
+      reconciliation сводит profile и manual queue во всех user-facing reports. Maintenance
+      checkpoint 2026-08-21 перевёл stronger-audio judge на canonical-first lane identity,
+      монотонное сохранение полного evidence, cooperative interruption и truthful
+      selected/cached/computed/pending status. Standalone suggested review досчитывает не более
+      четырёх current-workspace items; lifecycle после budget остаётся cache-only.
 
   corpus-regression:
     title: "Corpus regression и evidence store"
@@ -1116,7 +1120,7 @@ x:
         kind: main
         mgmt:
           health: green
-          sync_note: "Durable capture, one-command lifecycle и batch transcript работают; Transcript Integrity v1 promoted 10 proven repairs with exact fallback."
+          sync_note: "Durable capture, one-command lifecycle и batch transcript работают; stronger-audio v0.3 сохраняет canonical evidence и безопасно возобновляется после interruption."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
         title: "Remote Unknown Evidence Recovery v1"

@@ -1176,8 +1176,10 @@ with `--quick --max-items 5 --max-computed-items 5`; for the normal full session
 default broader budget so suggested review can close order/timing rows before asking for manual
 listening. Each completed item is checkpointed atomically, so interrupting or timing out a long run
 does not throw away already decoded clips; rerun the same command to compute the remainder. The
-summary distinguishes `in_progress`, `completed`, `completed_partial` and `skipped`; a missing model
-does not erase still-valid cached rows. Review
+summary distinguishes `in_progress`, `interrupted_checkpointed`, `completed`, `completed_partial`
+and `skipped`; a missing model does not erase still-valid cached rows. A targeted refresh resolves
+the current lane against canonical pack items before creating synthetic fallback clips, preserves
+unrelated rows and reports selected/cached/computed/pending counts. Review
 lane packs use those rows only for safer suggested answers: `confirm_me` and
 `confirm_timing_or_doubletalk` suggest `keep_me` when allowed; `confirm_remote_duplicate` and
 `confirm_asr_noise` suggest `drop_me` only when the lane and safety gates allow that decision.
@@ -1855,15 +1857,24 @@ and keeps unresolved rows visible. It does not change capture, Echo Guard, ASR c
 tracks. If all generated suggested sheets contain only dots or `needs_review`, it writes no new
 decisions and points to the first manual lane.
 
-By default `review suggested` is cached-first: it reads existing `faster_whisper_judge.jsonl` and
-Target-Me rows but does not start a long new faster-whisper decode. To compute a small targeted batch
-inside the suggested flow intentionally:
+By default standalone `review suggested` reads existing `faster_whisper_judge.jsonl` and Target-Me
+rows, then computes at most four missing items from lane manifests listed by the current
+`review_workspace.json`. Stale files left in `lane-packs/` are ignored. To change the cap:
 
 ```bash
-MURMURMARK_TARGETED_JUDGE_COMPUTE=1 \
 MURMURMARK_TARGETED_JUDGE_MAX_COMPUTED=4 \
 murmurmark review suggested apply "$SESSION"
 ```
+
+For a deliberately cache-only diagnostic run:
+
+```bash
+MURMURMARK_TARGETED_JUDGE_COMPUTE=0 murmurmark review suggested "$SESSION"
+```
+
+The automatic one-command meeting lifecycle forces its review preview/apply actions to cache-only
+after the enrichment budget has ended. This prevents a fresh local model batch from silently
+extending post-stop latency; `murmurmark enrich "$SESSION"` resumes incomplete bounded enrichment.
 
 Target-Me evidence is refreshed by default for current review lanes. Disable it only for a
 deliberately cache-only diagnostic run:
