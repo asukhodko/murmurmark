@@ -86,6 +86,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-post-segmentation-transcript-rebaseline-v1.py
 "$python_bin" scripts/check-speaker-resolved-terminal-gate-v1.py
 "$python_bin" scripts/check-speaker-bounded-chronology-arbitration-v1.py
+"$python_bin" scripts/check-word-level-chronology-localization-v1.py
 "$python_bin" scripts/check-anonymous-rich-transcript.py
 "$python_bin" scripts/check-reviewed-remote-speaker-naming.py
 "$python_bin" scripts/check-reviewed-speaker-memory.py

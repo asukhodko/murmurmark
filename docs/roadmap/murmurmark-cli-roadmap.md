@@ -95,8 +95,9 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Post-segmentation transcript rebaseline v1 | `done` | 6/6 fresh, coherent surfaces; next hard defect selected by evidence |
 | Capture continuity loss closure v1 | `done` | `EVIDENCE_BOUND`: fixed delay removed, native source-loss intervals block completeness |
 | Remote unknown evidence recovery v1 | `done` | `EVIDENCE_BOUND`: 10/547 words passed consensus; Coverage v3 remains selected |
-| Speaker-Resolved Transcript Terminal Gate Instrumentation v1 | `done` | Eight dimensions from nine fingerprint-bound sources; instrument ready, product not ready |
-| Speaker-Bounded Chronology Evidence Arbitration v1 | `current` | 38/52 rows and 255.97/345.94s closed; 14 rows / 89.97s remain explicit |
+| Speaker-Resolved Transcript Terminal Gate Instrumentation v1 | `done` | Eight dimensions from 10 fingerprint-bound sources; instrument ready, product not ready |
+| Speaker-Bounded Chronology Evidence Arbitration v1 | `done` | 38/52 rows and 255.97/345.94s closed; 14 rows / 89.97s passed downstream |
+| Word-Level Chronology Localization v1 | `current` | 9/14 residual rows and 52.83/89.97s closed; final bound 5 rows / 37.14s |
 | Human-reviewed lexical seed v1 | `blocked` | Frozen 0/28 queue waits for direct human text |
 | Session-scoped lexical context v1 | `blocked` | Compact per-meeting context waits for direct lexical truth |
 | Speaker-resolved transcript terminal gate v1 | `blocked` | Final product pass waits for instrument and lexical context |
@@ -140,12 +141,13 @@ flowchart LR
     CC["Done: EVIDENCE BOUND<br/>Capture Continuity<br/>Loss Closure v1"]
     RU["Done: EVIDENCE BOUND<br/>Remote Unknown<br/>Evidence Recovery v1"]
     TI["Done: INSTRUMENT READY<br/>Speaker-Resolved<br/>Terminal Instrument v1"]
-    CH["Current: PROMOTE<br/>Speaker-Bounded Chronology<br/>Evidence Arbitration v1"]
+    CH["Done: PROMOTE<br/>Speaker-Bounded Chronology<br/>Evidence Arbitration v1"]
+    WL["Current: PROMOTE<br/>Word-Level Chronology<br/>Localization v1"]
     HL["Blocked<br/>Human-Reviewed<br/>Lexical Seed v1"]
     LC["Blocked<br/>Session-Scoped<br/>Lexical Context v1"]
     TG["Later<br/>Speaker-Resolved Transcript<br/>Terminal Gate v1"]
     O["Optional<br/>Notes, retrieval,<br/>work proposals"]
-    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> W --> X --> Y --> RC --> SR --> TD --> M --> MQ --> UG --> RI --> BM --> EC --> RB --> CC --> RU --> TI --> CH --> HL --> LC --> TG
+    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> W --> X --> Y --> RC --> SR --> TD --> M --> MQ --> UG --> RI --> BM --> EC --> RB --> CC --> RU --> TI --> CH --> WL --> HL --> LC --> TG
     F --> D
     L -.-> O
 ```
@@ -250,11 +252,7 @@ fail-closed unsafe accepts 8 -> 13. Net gain 1/8 не прошёл material gate
 ### 27. Disjoint Remote Speaker Model Qualification v1 — `done`
 `KEEP_COVERAGE_V3`: frozen ERes2NetV2 дал 12/21 correct, precision `0.631579` и 7 unsafe special accepts; controlled hard perfect, replay exact, production неизменён.
 ### 28. Remote Speaker Cluster Purity Reference v1 — `done`
-`ADVANCE_SEGMENTATION`: приватный independent-machine reference дал lexical alignment `0.928157`.
-В нём 10 remote voices против 4 published session-local clusters; weighted purity `0.898106`,
-девять merged reference speakers и minority recall `0`. Имена, текст и item-level alignment остались
-private. Coverage v3 и selected transcript artifacts неизменны; CLI явно отличает acoustic cluster
-от подтверждённой личности и предоставляет exact aggregate fallback.
+`ADVANCE_SEGMENTATION`: private reference дал lexical alignment `0.928157`; 10 voices против 4 clusters, purity `0.898106`, девять merged speakers и minority recall `0`. Private evidence и production остались неизменны; CLI отличает cluster от личности и даёт exact aggregate fallback.
 ### 29. Residual Transcript Integrity Hardening v1 — `done`
 `PROMOTE`: 19 candidates on three sessions, 10 evidence-backed repairs, nine explicit review cases; raw, roles, timestamps, lineage and speaker evidence preserved with exact fallback.
 ### 30. Remote Speaker Boundary and Minority-Voice Segmentation v1 — `done`
@@ -281,13 +279,15 @@ Current unknown is `8.4747%` seconds / `3.7874%` words; 4 gaps / `1.223687s`; re
 evidence подтвердил только 10 слов / `4.682812s`. Held-out дал 1/166, direct-truth overlap — 0/105; Coverage v3 остаётся authoritative, новый shadow всегда fail-open.
 ### 35. Speaker-Resolved Transcript Terminal Gate Instrumentation v1 — `done`
 `TERMINAL_GATE_INSTRUMENT_READY`, product `NOT_READY`: восемь gates без общего score; два pass, пять bounded, lexical blocked. Direct и transitive stale evidence fail closed только для зависимых gates.
-### 36. Speaker-Bounded Chronology Evidence Arbitration v1 — `current`
+### 36. Speaker-Bounded Chronology Evidence Arbitration v1 — `done`
 `PROMOTE_CHRONOLOGY_EVIDENCE_ARBITRATION_V1`: все 52 строки имеют outcome; 34 benign boundaries и четыре double-talk закрыли `255.97s`, а 14 строк / `89.97s` остались явными. Transcript не изменён, replay byte-exact.
-### 37. Human-Reviewed Lexical Seed v1 — `blocked`
+### 37. Word-Level Chronology Localization v1 — `current`
+`PROMOTE_WORD_LEVEL_CHRONOLOGY_LOCALIZATION_V1`: independent mic/remote word timestamps закрыли шесть sequential boundaries, два double-talk и один remote-only transfer, всего 9 строк / `52.83s`; 5 строк / `37.14s` остались явным evidence bound.
+### 38. Human-Reviewed Lexical Seed v1 — `blocked`
 Две реальные встречи, 24 primary + 4 repeats; `REVIEW_REQUIRED` (`0/28`), machine/cloud — только диагностика.
-### 38. Session-Scoped Lexical Context v1 — `blocked`
+### 39. Session-Scoped Lexical Context v1 — `blocked`
 Короткий context конкретной встречи; broad prompt запрещён, нужны WER/CER и conservation gates.
-### 39. Speaker-Resolved Transcript Terminal Gate v1 — `blocked`
+### 40. Speaker-Resolved Transcript Terminal Gate v1 — `blocked`
 `READY` требует pass всех восьми ворот; одна ось не компенсирует другую.
 ## Закрытые И Отложенные Треки
 - Local mic multi-speaker diarization и тяжёлый local ASR validator открываются после terminal gate

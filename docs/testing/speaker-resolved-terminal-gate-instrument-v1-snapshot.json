@@ -105,14 +105,17 @@
       ],
       "evidence": [
         "post_segmentation_rebaseline",
-        "chronology_arbitration"
+        "chronology_arbitration",
+        "chronology_localization"
       ],
       "id": "chronology_and_conservation",
       "metrics": {
-        "chronology_review_seconds": 89.97,
-        "closed_chronology_review_seconds": 255.97,
+        "chronology_review_seconds": 37.14,
+        "closed_chronology_review_seconds": 308.8,
         "initial_chronology_review_seconds": 345.94,
         "maximum_chronology_review_seconds": 0.0,
+        "speaker_bounded_closed_seconds": 255.97,
+        "word_level_closed_seconds": 52.83,
         "word_order_role_conserved": true
       },
       "next_command": null,

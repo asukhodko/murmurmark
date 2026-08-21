@@ -166,7 +166,8 @@ requires a new frozen terminal set. Notes remain optional.
 
 The dependent route has completed boundary segmentation, fresh rebaseline, capture closure,
 remote unknown recovery and terminal-gate instrumentation. Speaker-Bounded Chronology Evidence
-Arbitration v1 is current: it reduced the measured chronology residual from `345.94s` to `89.97s`
+Arbitration v1 is complete and Word-Level Chronology Localization v1 is current: together they
+reduced the measured chronology residual from `345.94s` to `37.14s`
 without changing a transcript. Human lexical truth remains a separate blocked input before
 session-scoped context and the final product gate. The
 domain glossary is not currently compiled into ASR input; broad static prompts remain disabled.

@@ -6,67 +6,64 @@ This document expands the single executable goal from
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`.
 `scripts/check-planning-consistency.py` keeps the README, roadmap and OpsKarta wording aligned.
 
-## Speaker-Bounded Chronology Evidence Arbitration v1
+## Word-Level Chronology Localization v1
 
-OpsKarta nearest goal: Speaker-Bounded Chronology Evidence Arbitration v1: доказательно разобрать 52 blocking chronology rows / 345.94s свежего шестисессионного корпуса по уже сохранённым локальным audio, speaker-state, group-overlap и stronger-audio evidence; заморозить входы и SHA-256, присвоить каждой строке стабильный outcome, закрывать только независимо подтверждённые benign turn boundaries и real double-talk, сохранить remote leak, ASR segmentation, true chronology risk и insufficient evidence явным остатком; не менять raw, ASR, текст, роли, timestamps или selected transcripts; закрыть не менее 50% строк и секунд либо выпустить точный EVIDENCE_BOUND; встроить остаток в terminal gate, обновить тесты, документы и OpsKarta, затем закоммитить и отправить результат в origin/main.
+OpsKarta nearest goal: Word-Level Chronology Localization v1: на замороженных 14 chronology rows /
+89.97s выполнить локальный второй проход faster-whisper large-v3 с word timestamps отдельно для
+mic-clean и remote, привязать слова к исходным utterance IDs и определить фактические речевые
+интервалы внутри широких ASR-сегментов; закрывать только доказанную последовательную границу,
+реальный double-talk или доказанный перенос remote leak/segmentation, а слабое или конфликтующее
+выравнивание оставить явным; не менять raw, ASR, текст, роли, опубликованные timestamps или selected
+transcripts; закрыть не менее 50% строк и секунд либо выпустить точный EVIDENCE_BOUND; встроить
+остаток в terminal gate, обновить тесты, документы и OpsKarta, затем закоммитить и отправить результат
+в origin/main.
 
 ## Why Now
 
-Speaker-Resolved Transcript Terminal Gate Instrumentation v1 показал `345.94s` хронологического
-review, но эта сумма смешивала реальные риски порядка с обычными границами соседних реплик и
-настоящим double-talk. Все 52 строки уже имеют group-overlap evidence, а 44 строки дополнительно
-имеют локальное faster-whisper evidence. Новая запись и ручная разметка для первого безопасного
-разделения не нужны.
-
-## Objective
-
-Превратить грубый chronology blocker в воспроизводимый остаток. Автоматический слой может закрыть
-только строки, для которых временные, акустические и speaker-state доказательства независимо
-показывают нормальную границу реплик или реальный double-talk. Всё остальное остаётся видимым.
+Предыдущий слой сократил chronology blocker с 52 строк / `345.94s` до 14 / `89.97s`, но использовал
+таймкоды целых ASR-сегментов. Реальный пробный decode показал, что широкий overlap может содержать
+последовательную речь с паузой. Все нужные клипы и локальная модель уже доступны, ручная разметка и
+новая запись не требуются.
 
 ## Required Work
 
-1. Заморозить rebaseline, очередь, policy, реализацию и все входные артефакты по SHA-256.
-2. Сопоставить order rows с group-overlap и stronger-audio evidence без чтения облачных данных.
-3. Выдать для каждой строки один outcome: `benign_turn_boundary`, `confirmed_double_talk`,
-   `remote_leak_or_asr_segmentation`, `true_chronology_risk` или `insufficient_evidence`.
-4. Считать закрытыми только первые два outcome; отсутствие optional judge должно давать
-   `insufficient_evidence`, а не ошибочный pass.
-5. Выпустить privacy-safe JSON/Markdown report, private provenance и byte-exact replay.
-6. Передать initial, closed и remaining chronology seconds в terminal gate как отдельный источник.
-7. Добавить CLI, fixture, stale-input, privacy, no-mutation и replay tests.
+1. Заморозить upstream reports, residual rows, clips, model, policy и implementation по SHA-256.
+2. Получить offline word timestamps отдельно для `mic_clean` и `remote` с воспроизводимым кэшем.
+3. Выравнивать только содержательные слова исходных `Me`/remote utterances с независимыми дорожками.
+4. Закрывать только доказанные sequential boundary, independent double-talk и remote-only transfer.
+5. Оставлять missing, weak и conflicting alignment явным остатком.
+6. Передать Terminal Gate полный initial/upstream/word-level/final счётчик chronology seconds.
+7. Добавить CLI, fixture, stale-input, privacy, no-mutation и byte-exact replay checks.
 8. Согласовать README, contracts, runbook, roadmap и OpsKarta; выполнить полный набор проверок,
    commit и push.
 
 ## Acceptance Gates
 
-- все 52 строки имеют стабильный outcome и явную причину;
-- безопасно закрыты не менее 50% строк и 50% секунд либо выпущен воспроизводимый evidence bound;
-- ни одна строка не закрывается по одному similarity score или одному текстовому совпадению;
-- raw CAF, Echo Guard, primary ASR, текст, роли, timestamps и selected transcripts неизменны;
-- public artifacts не содержат session IDs, речь, имена или абсолютные пути;
-- missing/stale evidence fail closed, повторный запуск byte-exact;
-- terminal gate показывает исходные, закрытые и оставшиеся chronology seconds;
+- все 14 строк имеют стабильный outcome и явную причину;
+- закрыто не менее 50% строк и секунд либо опубликован точный evidence bound;
+- ни один blocker не закрывается только по широкому segment timestamp или сходству дорожек;
+- отсутствие модели или артефакта оставляет строку открытой;
+- raw, ASR, текст, роли, timestamps и selected transcripts неизменны;
+- public artifacts не содержат session IDs, речь или абсолютные пути;
+- повторный запуск byte exact, Terminal Gate проверяет транзитивную provenance;
 - код, тесты, документы и планы находятся в `origin/main`.
 
 ## Current Evidence
 
-Реальный frozen run завершён с `PROMOTE_CHRONOLOGY_EVIDENCE_ARBITRATION_V1`. Закрыты 38 из 52
-строк (`73.08%`) и `255.97s` из `345.94s` (`73.99%`): 34 benign turn boundaries и четыре
-подтверждённых double-talk. Явный остаток составляет 14 строк / `89.97s`: 10 insufficient,
-два remote leak или ASR segmentation и два настоящих chronology risks. Terminal gate остаётся
-`NOT_READY`, но его chronology blocker теперь измеряет этот остаток, а не всю исходную очередь.
+Цель достигла `PROMOTE_WORD_LEVEL_CHRONOLOGY_LOCALIZATION_V1`. Закрыты 9/14 строк и `52.83s`:
+шесть последовательных границ, два double-talk и один remote-only перенос. Пять строк / `37.14s`
+остались `insufficient_word_alignment`. Общая chronology closure теперь `308.8/345.94s`.
+Terminal Gate читает 10 fingerprint-bound источников и остаётся `NOT_READY` с точным остатком.
 
 ## Commands
 
 ```bash
-murmurmark corpus chronology-arbitration-v1 all --refresh --write-snapshot
-murmurmark corpus chronology-arbitration-v1 status
-murmurmark corpus chronology-arbitration-v1 replay --write-snapshot
-murmurmark corpus terminal-gate-v1 all --refresh --write-snapshot
+murmurmark corpus chronology-localization-v1 status
+murmurmark corpus chronology-localization-v1 replay --write-snapshot
+murmurmark corpus terminal-gate-v1 status
 ```
 
 ## Out Of Scope
 
-Transcript mutation, retiming, role reassignment, capture/Echo/ASR tuning, cloud inference,
+Transcript mutation, retiming, role reassignment, capture/Echo/primary-ASR tuning, cloud inference,
 speaker naming, filling the Human-Reviewed Lexical Seed and summaries.

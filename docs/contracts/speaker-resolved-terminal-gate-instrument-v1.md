@@ -14,7 +14,7 @@ report a product that is not ready. No aggregate quality score is allowed.
 
 ## Inputs
 
-`policies/speaker-resolved-terminal-gate-instrument-v1.json` names nine canonical reports:
+`policies/speaker-resolved-terminal-gate-instrument-v1.json` names 10 canonical reports:
 
 - fresh post-segmentation rebaseline;
 - capture continuity closure;
@@ -24,6 +24,7 @@ report a product that is not ready. No aggregate quality score is allowed.
 - remote direct truth v2;
 - remote unknown recovery;
 - speaker-bounded chronology arbitration;
+- word-level chronology localization;
 - speaker-resolved publication corpus.
 
 `freeze` records the policy, implementation and each report's schema, size and SHA-256 under
@@ -33,8 +34,8 @@ produces `EVIDENCE_INCOMPLETE`. Only dimensions depending on the stale source be
 `not_measured`; independent dimensions retain their measured state. For Remote Unknown Recovery,
 the instrument also verifies the report-to-private-manifest SHA and that manifest's frozen
 rebaseline fingerprint, so a current report file cannot mask stale transitive evidence. The same
-transitive check covers the chronology arbitration policy, implementation and all frozen audio,
-timeline and judge artifacts.
+transitive check covers chronology arbitration and word-level localization policy, implementation,
+model files, word decodes, upstream manifests and all frozen audio, timeline and judge artifacts.
 
 ## Outputs
 

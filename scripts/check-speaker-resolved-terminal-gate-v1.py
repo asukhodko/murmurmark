@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -110,6 +111,68 @@ def fixtures(root: Path, ready: bool) -> tuple[Path, Path, Path]:
             ],
         },
     )
+    localization_input = reports / "localization-private/input_manifest.json"
+    localization_source = reports / "localization-source.json"
+    localization_frozen = reports / "localization-private/frozen_items.jsonl"
+    localization_clip = reports / "localization-private/clip.wav"
+    localization_model = reports / "localization-private/model_identity.json"
+    localization_model_dir = reports / "localization-private/model"
+    localization_decodes = reports / "localization-private/word_decodes.jsonl"
+    write_json(localization_source, {"schema": "fixture.localization_source/v1"})
+    localization_frozen.parent.mkdir(parents=True, exist_ok=True)
+    localization_frozen.write_bytes(b"")
+    localization_clip.write_bytes(b"audio")
+    localization_decodes.write_bytes(b"")
+    localization_model_dir.mkdir()
+    model_file = localization_model_dir / "model.bin"
+    model_file.write_bytes(b"model")
+    write_json(
+        localization_model,
+        {
+            "schema": "fixture.model_identity/v1",
+            "sha256": "model",
+            "signature": [
+                {
+                    "path": "model.bin",
+                    "bytes": model_file.stat().st_size,
+                    "mtime_ns": model_file.stat().st_mtime_ns,
+                }
+            ],
+        },
+    )
+
+    def artifact(path: Path) -> dict[str, Any]:
+        return {
+            "path": str(path), "exists": True, "bytes": path.stat().st_size,
+            "sha256": sha256(path),
+        }
+
+    write_json(
+        localization_input,
+        {
+            "schema": "murmurmark.word_level_chronology_localization_input/v1",
+            "policy": artifact(localization_source),
+            "implementation": artifact(localization_source),
+            "frozen_items": artifact(localization_frozen),
+            "upstream": {
+                "upstream_report": artifact(localization_source),
+                "upstream_private_items": artifact(localization_frozen),
+                "upstream_input_manifest": artifact(chronology_input),
+            },
+            "model": {
+                "path": str(localization_model_dir),
+                "available": True,
+                "sha256": "model",
+                "identity": artifact(localization_model),
+            },
+            "clip_identities": [
+                {
+                    "alias": "session_01", "item_id": "order_0001",
+                    "clips": {"mic_clean": artifact(localization_clip), "remote": artifact(localization_clip)},
+                }
+            ],
+        },
+    )
     values = {
         "post": {
             "schema": "murmurmark.post_segmentation_transcript_rebaseline_report/v1",
@@ -192,6 +255,28 @@ def fixtures(root: Path, ready: bool) -> tuple[Path, Path, Path]:
                 "manifest_sha256": sha256(chronology_input),
             },
         },
+        "localization": {
+            "schema": "murmurmark.word_level_chronology_localization_report/v1",
+            "decision": "PROMOTE_WORD_LEVEL_CHRONOLOGY_LOCALIZATION_V1",
+            "summary": {
+                "frozen_items": 2,
+                "frozen_seconds": 1.0,
+                "closed_items": 2 if ready else 1,
+                "closed_seconds": 1.0 if ready else 0.5,
+                "remaining_items": 0 if ready else 1,
+                "remaining_seconds": 0.0 if ready else 0.5,
+            },
+            "chronology": {
+                "final_remaining_items": 0 if ready else 1,
+                "final_remaining_seconds": 0.0 if ready else 0.5,
+            },
+            "inputs": {
+                "manifest": "localization-private/input_manifest.json",
+                "manifest_sha256": sha256(localization_input),
+                "word_decodes": "localization-private/word_decodes.jsonl",
+                "word_decodes_sha256": sha256(localization_decodes),
+            },
+        },
         "publication": {
             "schema": "murmurmark.speaker_resolved_transcript_default_corpus/v1",
             "decision": "PROMOTE",
@@ -209,6 +294,7 @@ def fixtures(root: Path, ready: bool) -> tuple[Path, Path, Path]:
         ("remote_direct_truth", "truth", values["truth"]["schema"]),
         ("remote_unknown_recovery", "unknown", values["unknown"]["schema"]),
         ("chronology_arbitration", "chronology", values["chronology"]["schema"]),
+        ("chronology_localization", "localization", values["localization"]["schema"]),
         ("speaker_resolved_publication", "publication", values["publication"]["schema"]),
     ]
     policy = {
@@ -301,6 +387,34 @@ def exercise(root: Path, ready: bool) -> None:
         for blocker in states["explicit_unknown"]["blockers"]
     )
     rebaseline_input.write_bytes(original_rebaseline)
+    run(["evaluate", *base])
+
+    localization_decodes = root / "reports/localization-private/word_decodes.jsonl"
+    original_decodes = localization_decodes.read_bytes()
+    localization_decodes.write_bytes(b"stale")
+    run(["evaluate", *base], expected=2)
+    decode_stale = read_json(report_path)
+    chronology = next(
+        item for item in decode_stale["dimensions"] if item["id"] == "chronology_and_conservation"
+    )
+    assert chronology["state"] == "not_measured"
+    assert any("word_decodes_stale" in blocker for blocker in chronology["blockers"])
+    localization_decodes.write_bytes(original_decodes)
+    run(["evaluate", *base])
+
+    model_file = root / "reports/localization-private/model/model.bin"
+    model_bytes = model_file.read_bytes()
+    model_stat = model_file.stat()
+    model_file.write_bytes(b"changed-model")
+    run(["evaluate", *base], expected=2)
+    model_stale = read_json(report_path)
+    chronology = next(
+        item for item in model_stale["dimensions"] if item["id"] == "chronology_and_conservation"
+    )
+    assert chronology["state"] == "not_measured"
+    assert any("model_files_stale" in blocker for blocker in chronology["blockers"])
+    model_file.write_bytes(model_bytes)
+    os.utime(model_file, ns=(model_stat.st_atime_ns, model_stat.st_mtime_ns))
     run(["evaluate", *base])
 
     source = root / "reports/post.json"

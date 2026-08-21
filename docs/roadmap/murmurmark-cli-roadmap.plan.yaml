@@ -832,7 +832,7 @@ nodes:
     status: done
     effort: 8
     notes: |
-      Fingerprint-bound прибор объединяет девять канонических evidence reports в восемь dimensions,
+      Fingerprint-bound прибор объединяет десять канонических evidence reports в восемь dimensions,
       но сохраняет их
       отдельными gates без aggregate score. Реальный baseline: TERMINAL_GATE_INSTRUMENT_READY,
       product NOT_READY; publication и review burden проходят, пять dimensions bounded, lexical
@@ -844,7 +844,7 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [product-speaker-resolved-transcript-terminal-gate-instrument-v1]
-    status: current
+    status: done
     effort: 8
     notes: |
       Завершён frozen read-only run с PROMOTE_CHRONOLOGY_EVIDENCE_ARBITRATION_V1. Все 52 order rows /
@@ -853,11 +853,26 @@ nodes:
       insufficient evidence, remote leak/ASR segmentation или true chronology risk. Raw, ASR,
       selected text, roles и timestamps неизменны; replay byte-exact, terminal gate читает остаток.
 
+  quality-word-level-chronology-localization-v1:
+    title: "Word-Level Chronology Localization v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-speaker-bounded-chronology-arbitration-v1]
+    status: current
+    effort: 8
+    notes: |
+      Завершён frozen read-only run с PROMOTE_WORD_LEVEL_CHRONOLOGY_LOCALIZATION_V1. Локальный
+      faster-whisper large-v3 независимо локализовал слова mic-clean и remote во всех 14 остаточных
+      rows / 89.97s. Шесть sequential boundaries, два real double-talk и один remote-only transfer
+      закрыли 9 rows / 52.83s; пять rows / 37.14s остались insufficient_word_alignment. Raw, ASR,
+      текст, роли, timestamps и selected transcripts неизменны; replay byte-exact, Terminal Gate
+      читает транзитивную provenance и точный остаток.
+
   quality-human-reviewed-lexical-seed-v1:
     title: "Human-Reviewed Lexical Seed v1"
     kind: task
     parent: murmurmark-cli
-    deps: [quality-speaker-bounded-chronology-arbitration-v1]
+    deps: [quality-word-level-chronology-localization-v1]
     status: blocked
     effort: 8
     notes: |
@@ -916,10 +931,10 @@ views:
     lanes:
       working:
         title: "Готовая основа"
-        nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1, quality-residual-transcript-integrity-hardening-v1, quality-remote-speaker-boundary-minority-segmentation-v1, quality-post-segmentation-transcript-rebaseline-v1, quality-capture-continuity-loss-closure-v1, quality-remote-unknown-evidence-recovery-v1, product-speaker-resolved-transcript-terminal-gate-instrument-v1, product-one-command-meeting-lifecycle-v1]
+        nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1, quality-residual-transcript-integrity-hardening-v1, quality-remote-speaker-boundary-minority-segmentation-v1, quality-post-segmentation-transcript-rebaseline-v1, quality-capture-continuity-loss-closure-v1, quality-remote-unknown-evidence-recovery-v1, product-speaker-resolved-transcript-terminal-gate-instrument-v1, quality-speaker-bounded-chronology-arbitration-v1, product-one-command-meeting-lifecycle-v1]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-speaker-bounded-chronology-arbitration-v1]
+        nodes: [quality-word-level-chronology-localization-v1]
       blocked:
         title: "Зависит от direct truth"
         nodes: [quality-human-reviewed-lexical-seed-v1, quality-session-scoped-lexical-context-v1, product-speaker-resolved-transcript-terminal-gate-v1]
@@ -986,6 +1001,7 @@ views:
           - quality-remote-unknown-evidence-recovery-v1
           - product-speaker-resolved-transcript-terminal-gate-instrument-v1
           - quality-speaker-bounded-chronology-arbitration-v1
+          - quality-word-level-chronology-localization-v1
           - quality-human-reviewed-lexical-seed-v1
           - quality-session-scoped-lexical-context-v1
           - product-speaker-resolved-transcript-terminal-gate-v1
@@ -1028,8 +1044,8 @@ views:
         title: "Доказанная speaker evidence"
         nodes: [research-remote-diarization, research-rich-transcript, quality-remote-speaker-diarization-v2]
       current:
-        title: "Chronology evidence arbitration"
-        nodes: [quality-speaker-bounded-chronology-arbitration-v1]
+        title: "Word-level chronology localization"
+        nodes: [quality-word-level-chronology-localization-v1]
       unknown:
         title: "Доказанный attribution bound"
         nodes: [quality-capture-continuity-loss-closure-v1, quality-remote-unknown-evidence-recovery-v1]
@@ -1044,7 +1060,7 @@ views:
         nodes: [quality-transcript-perfection-corpus-v1, quality-lexical-accuracy-reference-corpus-v1, quality-residual-transcript-integrity-hardening-v1]
       release:
         title: "Основной speaker-resolved result"
-        nodes: [product-speaker-resolved-transcript-default-v1, product-speaker-resolved-transcript-terminal-gate-instrument-v1, quality-speaker-bounded-chronology-arbitration-v1, product-speaker-resolved-transcript-terminal-gate-v1]
+        nodes: [product-speaker-resolved-transcript-default-v1, product-speaker-resolved-transcript-terminal-gate-instrument-v1, quality-speaker-bounded-chronology-arbitration-v1, quality-word-level-chronology-localization-v1, product-speaker-resolved-transcript-terminal-gate-v1]
 
   deps-map:
     title: "Зависимости активного плана"
@@ -1110,6 +1126,7 @@ views:
           - quality-remote-unknown-evidence-recovery-v1
           - product-speaker-resolved-transcript-terminal-gate-instrument-v1
           - quality-speaker-bounded-chronology-arbitration-v1
+          - quality-word-level-chronology-localization-v1
           - quality-human-reviewed-lexical-seed-v1
           - quality-session-scoped-lexical-context-v1
           - product-speaker-resolved-transcript-terminal-gate-v1
@@ -1119,8 +1136,8 @@ x:
   exec:
     program:
       nearest_goal: >-
-        Speaker-Bounded Chronology Evidence Arbitration v1: доказательно разобрать 52 blocking chronology rows / 345.94s свежего шестисессионного корпуса по уже сохранённым локальным audio, speaker-state, group-overlap и stronger-audio evidence; заморозить входы и SHA-256, присвоить каждой строке стабильный outcome, закрывать только независимо подтверждённые benign turn boundaries и real double-talk, сохранить remote leak, ASR segmentation, true chronology risk и insufficient evidence явным остатком; не менять raw, ASR, текст, роли, timestamps или selected transcripts; закрыть не менее 50% строк и секунд либо выпустить точный EVIDENCE_BOUND; встроить остаток в terminal gate, обновить тесты, документы и OpsKarta, затем закоммитить и отправить результат в origin/main.
-      success_by_next_sync: "Все 52 chronology rows имеют воспроизводимый outcome; безопасно закрыты 38 rows / 255.97s, а terminal gate показывает явный остаток 14 rows / 89.97s."
+        Word-Level Chronology Localization v1: на замороженных 14 chronology rows / 89.97s выполнить локальный второй проход faster-whisper large-v3 с word timestamps отдельно для mic-clean и remote, привязать слова к исходным utterance IDs и определить фактические речевые интервалы внутри широких ASR-сегментов; закрывать только доказанную последовательную границу, реальный double-talk или доказанный перенос remote leak/segmentation, а слабое или конфликтующее выравнивание оставить явным; не менять raw, ASR, текст, роли, опубликованные timestamps или selected transcripts; закрыть не менее 50% строк и секунд либо выпустить точный EVIDENCE_BOUND; встроить остаток в terminal gate, обновить тесты, документы и OpsKarta, затем закоммитить и отправить результат в origin/main.
+      success_by_next_sync: "Все 14 rows получили стабильный outcome; безопасно закрыты 9 rows / 52.83s, а Terminal Gate показывает явный остаток 5 rows / 37.14s."
     defaults:
       status_progress:
         done: 1.0
@@ -1141,13 +1158,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle и batch transcript работают; stronger-audio v0.3 сохраняет canonical evidence и безопасно возобновляется после interruption."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Chronology Evidence Arbitration v1"
-        scope_nodes: [quality-speaker-bounded-chronology-arbitration-v1]
+        title: "Word-Level Chronology Localization v1"
+        scope_nodes: [quality-word-level-chronology-localization-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "38/52 chronology rows и 255.97/345.94s закрыты локальными независимыми доказательствами; transcript неизменён, 89.97s остаются bounded."
-          next_sync_goal: "Сохранить byte-exact arbitration snapshot и передать terminal gate только доказанный остаток."
+          sync_note: "9/14 residual chronology rows и 52.83/89.97s закрыты независимыми word-level доказательствами; transcript неизменён, 37.14s остаются bounded."
+          next_sync_goal: "Сохранить byte-exact localization snapshot и передать Terminal Gate только доказанный остаток."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -1185,13 +1202,14 @@ x:
           - quality-remote-unknown-evidence-recovery-v1
           - product-speaker-resolved-transcript-terminal-gate-instrument-v1
           - quality-speaker-bounded-chronology-arbitration-v1
+          - quality-word-level-chronology-localization-v1
           - quality-human-reviewed-lexical-seed-v1
           - quality-session-scoped-lexical-context-v1
           - product-speaker-resolved-transcript-terminal-gate-v1
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Terminal instrument отделяет независимые blockers; chronology arbitration сократил эту ось до 89.97s без transcript mutation."
+          sync_note: "Terminal instrument отделяет независимые blockers; word-level localization сократил chronology-ось до 37.14s без transcript mutation."
           next_sync_goal: "Закрывать оставшиеся evidence axes независимо; lexical context ждёт 28 human answers."
     edges:
       - from: working-now
@@ -1208,7 +1226,7 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: chronology arbitration сократил доказанный остаток до 89.97s; terminal product пока NOT_READY."
+        caption: "Короткая карта: word-level localization сократил доказанный chronology-остаток до 37.14s; terminal product пока NOT_READY."
         blocks:
           - working-now
           - current-quality

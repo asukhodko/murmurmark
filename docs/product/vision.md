@@ -138,16 +138,18 @@ met, unless an explicit product decision changes the priority.
 6. **Remote Unknown Evidence Recovery v1:** completed `EVIDENCE_BOUND`; all 547 words have cause and
    provenance, while only 10 words passed independent consensus and none had direct-truth overlap.
 7. **Speaker-Resolved Transcript Terminal Gate Instrumentation v1:** completed; exposes eight
-   separate gates from nine fingerprint-bound sources without an aggregate score.
-8. **Speaker-Bounded Chronology Evidence Arbitration v1:** current; 38/52 rows and `255.97s` are
-   closed by independent local evidence, while 14 rows / `89.97s` remain explicit.
-9. **Human-Reviewed Lexical Seed v1:** blocked at 0/28 until direct text is entered; machine agreement
+   separate gates from 10 fingerprint-bound sources without an aggregate score.
+8. **Speaker-Bounded Chronology Evidence Arbitration v1:** done; 38/52 rows and `255.97s` are
+   closed by independent local evidence.
+9. **Word-Level Chronology Localization v1:** current and promoted; 9/14 residual rows and `52.83s`
+   are closed from actual role-word spans, while 5 rows / `37.14s` remain explicit.
+10. **Human-Reviewed Lexical Seed v1:** blocked at 0/28 until direct text is entered; machine agreement
    remains diagnostic evidence only.
-10. **Session-Scoped Lexical Context v1:** compile a short topic-specific prompt or hotword set and
+11. **Session-Scoped Lexical Context v1:** compile a short topic-specific prompt or hotword set and
    promote it only after multi-session no-regression A/B. A broad static glossary is not an ASR prompt.
-11. **Speaker-Resolved Transcript Terminal Gate v1:** require every measured gate to pass before the
+12. **Speaker-Resolved Transcript Terminal Gate v1:** require every measured gate to pass before the
    product North Star is declared ready.
-12. **Local Mic Multi-Speaker Diarization v1:** a conditional branch opened only by a real
+13. **Local Mic Multi-Speaker Diarization v1:** a conditional branch opened only by a real
    multi-person local scenario and labelled corpus.
 
 ## Long-Term Direction

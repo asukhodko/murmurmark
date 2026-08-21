@@ -1,0 +1,55 @@
+{
+  "chronology": {
+    "final_remaining_items": 5,
+    "final_remaining_seconds": 37.14,
+    "initial_items": 52,
+    "initial_seconds": 345.94,
+    "upstream_closed_items": 38,
+    "upstream_closed_seconds": 255.97,
+    "word_level_closed_items": 9,
+    "word_level_closed_seconds": 52.83
+  },
+  "decision": "PROMOTE_WORD_LEVEL_CHRONOLOGY_LOCALIZATION_V1",
+  "gates": {
+    "all_rows_have_stable_outcome": true,
+    "local_only_offline_evidence": true,
+    "minimum_item_closure": true,
+    "minimum_seconds_closure": true,
+    "public_report_privacy_safe": true,
+    "raw_audio_unchanged": true,
+    "selected_text_roles_timestamps_unchanged": true,
+    "word_timestamps_enabled": true
+  },
+  "schema": "murmurmark.word_level_chronology_localization_snapshot/v1",
+  "summary": {
+    "by_outcome": {
+      "insufficient_word_alignment": {
+        "items": 5,
+        "seconds": 37.14
+      },
+      "localized_double_talk": {
+        "items": 2,
+        "seconds": 5.68
+      },
+      "localized_sequential_boundary": {
+        "items": 6,
+        "seconds": 46.2
+      },
+      "transferred_remote_leak_or_segmentation": {
+        "items": 1,
+        "seconds": 0.95
+      }
+    },
+    "closed_item_ratio": 0.642857,
+    "closed_items": 9,
+    "closed_seconds": 52.83,
+    "closed_seconds_ratio": 0.587196,
+    "frozen_items": 14,
+    "frozen_seconds": 89.97,
+    "minimum_closed_item_ratio": 0.5,
+    "minimum_closed_seconds_ratio": 0.5,
+    "remaining_items": 5,
+    "remaining_seconds": 37.14
+  },
+  "version": 1
+}

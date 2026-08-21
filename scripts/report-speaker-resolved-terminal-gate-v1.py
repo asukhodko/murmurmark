@@ -31,6 +31,7 @@ REQUIRED_SOURCE_IDS = {
     "remote_direct_truth",
     "remote_unknown_recovery",
     "chronology_arbitration",
+    "chronology_localization",
     "speaker_resolved_publication",
 }
 REQUIRED_DIMENSIONS = {
@@ -62,6 +63,7 @@ DIMENSION_SOURCES = {
     "chronology_and_conservation": {
         "post_segmentation_rebaseline",
         "chronology_arbitration",
+        "chronology_localization",
     },
     "remote_speaker_attribution": {"post_segmentation_rebaseline", "remote_direct_truth"},
     "explicit_unknown": {"post_segmentation_rebaseline", "remote_unknown_recovery"},
@@ -78,6 +80,9 @@ SOURCE_REMEDIATION_COMMANDS = {
     ),
     "chronology_arbitration": (
         "murmurmark corpus chronology-arbitration-v1 all --refresh"
+    ),
+    "chronology_localization": (
+        "murmurmark corpus chronology-localization-v1 all --refresh"
     ),
 }
 
@@ -185,7 +190,9 @@ def source_provenance_issues(
     source_id: str, report_path: Path, payload: dict[str, Any]
 ) -> list[str]:
     """Validate source-specific transitive fingerprints without publishing private paths."""
-    if source_id not in {"remote_unknown_recovery", "chronology_arbitration"}:
+    if source_id not in {
+        "remote_unknown_recovery", "chronology_arbitration", "chronology_localization",
+    }:
         return []
     inputs = payload.get("inputs") or {}
     manifest_name = inputs.get("manifest")
@@ -201,13 +208,66 @@ def source_provenance_issues(
         manifest = read_json(manifest_path)
     except TerminalGateError:
         return ["provenance_manifest_invalid"]
+    issues: list[str] = []
+    if source_id == "chronology_localization":
+        decode_name = inputs.get("word_decodes")
+        expected_decode_sha = inputs.get("word_decodes_sha256")
+        if not isinstance(decode_name, str) or not expected_decode_sha:
+            issues.append("chronology_localization_word_decodes_not_declared")
+        else:
+            decode_path = (report_path.parent / decode_name).resolve()
+            if not decode_path.is_file() or sha256_file(decode_path) != str(expected_decode_sha):
+                issues.append("chronology_localization_word_decodes_stale")
+        for name in ("policy", "implementation", "frozen_items"):
+            row = manifest.get(name)
+            path = resolve_artifact_path(row)
+            if path is None or not identity_current(row, path):
+                issues.append(f"chronology_localization_{name}_stale")
+        for name, row in (manifest.get("upstream") or {}).items():
+            path = resolve_artifact_path(row)
+            if path is None or not identity_current(row, path):
+                issues.append(f"chronology_localization_upstream_{name}_stale")
+        model = manifest.get("model") or {}
+        model_identity = model.get("identity")
+        model_identity_path = resolve_artifact_path(model_identity)
+        if model_identity_path is None or not identity_current(model_identity, model_identity_path):
+            issues.append("chronology_localization_model_identity_stale")
+        else:
+            try:
+                model_payload = read_json(model_identity_path)
+            except TerminalGateError:
+                issues.append("chronology_localization_model_identity_invalid")
+            else:
+                model_path = Path(str(model.get("path") or "")).expanduser().resolve()
+                signature = [
+                    {
+                        "path": str(path.relative_to(model_path)),
+                        "bytes": path.stat().st_size,
+                        "mtime_ns": path.stat().st_mtime_ns,
+                    }
+                    for path in sorted(
+                        path for path in model_path.rglob("*")
+                        if path.is_file() and ".cache" not in path.relative_to(model_path).parts
+                    )
+                ] if model_path.is_dir() else None
+                if signature != model_payload.get("signature"):
+                    issues.append("chronology_localization_model_files_stale")
+        for item in manifest.get("clip_identities") or []:
+            alias = str(item.get("alias") or "unknown")
+            item_id = str(item.get("item_id") or "unknown")
+            for source, row in (item.get("clips") or {}).items():
+                path = resolve_artifact_path(row)
+                if path is None or not identity_current(row, path):
+                    issues.append(
+                        f"chronology_localization_{alias}_{item_id}_{source}_stale"
+                    )
+        return issues
     upstream = manifest.get("rebaseline_manifest")
     upstream_path = resolve_artifact_path(upstream)
     if upstream_path is None or not identity_current(upstream, upstream_path):
         return ["upstream_rebaseline_manifest_stale"]
     if source_id == "remote_unknown_recovery":
         return []
-    issues: list[str] = []
     for name in ("policy", "implementation"):
         row = manifest.get(name)
         path = resolve_artifact_path(row)
@@ -435,6 +495,7 @@ def build_dimensions(
     direct = payloads.get("remote_direct_truth", {})
     unknown = payloads.get("remote_unknown_recovery", {})
     chronology = payloads.get("chronology_arbitration", {})
+    chronology_localization = payloads.get("chronology_localization", {})
     publication = payloads.get("speaker_resolved_publication", {})
 
     baseline_ready = (
@@ -500,11 +561,19 @@ def build_dimensions(
     initial_chronology_seconds = number(
         nested(rebaseline, "dimensions", "overlap_and_chronology", "chronology_seconds")
     )
-    chronology_seconds = number(nested(chronology, "summary", "remaining_seconds"))
-    chronology_evidence_ready = chronology.get("decision") in {
-        "PROMOTE_CHRONOLOGY_EVIDENCE_ARBITRATION_V1",
-        "EVIDENCE_BOUND",
-    }
+    chronology_seconds = number(
+        nested(chronology_localization, "chronology", "final_remaining_seconds")
+    )
+    chronology_evidence_ready = bool(
+        chronology.get("decision") in {
+            "PROMOTE_CHRONOLOGY_EVIDENCE_ARBITRATION_V1",
+            "EVIDENCE_BOUND",
+        }
+        and chronology_localization.get("decision") in {
+            "PROMOTE_WORD_LEVEL_CHRONOLOGY_LOCALIZATION_V1",
+            "EVIDENCE_BOUND",
+        }
+    )
     chronology_ok = bool(
         baseline_ready
         and chronology_evidence_ready
@@ -589,12 +658,21 @@ def build_dimensions(
                 "word_order_role_conserved": conservation.get("word_order_role_conserved") is True,
                 "initial_chronology_review_seconds": round(initial_chronology_seconds, 6),
                 "closed_chronology_review_seconds": round(
+                    initial_chronology_seconds - chronology_seconds, 6
+                ),
+                "speaker_bounded_closed_seconds": round(
                     number(nested(chronology, "summary", "closed_seconds")), 6
+                ),
+                "word_level_closed_seconds": round(
+                    number(nested(chronology_localization, "summary", "closed_seconds")), 6
                 ),
                 "chronology_review_seconds": round(chronology_seconds, 6),
                 "maximum_chronology_review_seconds": thresholds["maximum_chronology_review_seconds"],
             },
-            ["post_segmentation_rebaseline", "chronology_arbitration"], [] if chronology_ok else [
+            [
+                "post_segmentation_rebaseline", "chronology_arbitration",
+                "chronology_localization",
+            ], [] if chronology_ok else [
                 "word and role conservation pass, but chronology review remains"
             ],
         ),

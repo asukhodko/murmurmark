@@ -360,6 +360,8 @@ struct MurmurMark {
           murmurmark corpus lexical-seed-v1 preflight|freeze|next|grade|review|progress|evaluate|status|replay|all
           murmurmark corpus chronology-arbitration-v1 preflight|freeze|evaluate|status|replay|all
                                       [--policy policies/speaker-bounded-chronology-arbitration-v1.json]
+          murmurmark corpus chronology-localization-v1 preflight|freeze|decode|evaluate|status|replay|all
+                                      [--policy policies/word-level-chronology-localization-v1.json]
           murmurmark corpus echo-supervision build|replay|status [--sessions-root ./sessions]
           murmurmark corpus live [all|latest|./session...] [--refresh] [--target-live-sessions 3] [--sessions-root ./sessions]
           murmurmark corpus lifecycle [all|latest|./session...] [--freeze-inputs] [--require-passing-gates]
@@ -1304,6 +1306,7 @@ enum DoctorChecks {
             "scripts/report-lexical-accuracy-reference-corpus.py",
             "scripts/build-human-reviewed-lexical-seed-v1.py",
             "scripts/report-speaker-bounded-chronology-arbitration-v1.py",
+            "scripts/report-word-level-chronology-localization-v1.py",
             "scripts/report-speaker-resolved-terminal-gate-v1.py",
             "scripts/report-remote-speaker-cluster-purity-reference-v1.py",
             "scripts/evaluate-remote-speaker-boundary-minority-v1.py",
@@ -8230,6 +8233,27 @@ enum CorpusCommands {
                 [try script("report-speaker-bounded-chronology-arbitration-v1.py").path] + forwarded,
                 allowedExitCodes: [0, 2]
             )
+        case "chronology-localization-v1", "chronology_localization_v1":
+            if forwarded.isEmpty || ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(
+                    try PythonRuntime.resolve(),
+                    [try script("report-word-level-chronology-localization-v1.py").path, "--help"]
+                )
+                return
+            }
+            guard let action = forwarded.first, [
+                "preflight", "freeze", "decode", "evaluate", "status", "replay", "all",
+            ].contains(action) else {
+                throw CLIError(
+                    "chronology-localization-v1 requires preflight, freeze, decode, evaluate, "
+                        + "status, replay, or all"
+                )
+            }
+            _ = try Tooling.runPathAllowingExitCodes(
+                try PythonRuntime.resolve(),
+                [try script("report-word-level-chronology-localization-v1.py").path] + forwarded,
+                allowedExitCodes: [0, 2]
+            )
         case "terminal-gate-v1", "terminal_gate_v1":
             if forwarded.isEmpty || ArgumentEditing.hasHelpFlag(forwarded) {
                 try Tooling.runPath(
@@ -9088,6 +9112,9 @@ enum CorpusHelp {
                                         [--write-snapshot]
           murmurmark corpus chronology-arbitration-v1 preflight|freeze|evaluate|status|replay|all
                                       [--policy policies/speaker-bounded-chronology-arbitration-v1.json]
+                                      [--refresh] [--write-snapshot]
+          murmurmark corpus chronology-localization-v1 preflight|freeze|decode|evaluate|status|replay|all
+                                      [--policy policies/word-level-chronology-localization-v1.json]
                                       [--refresh] [--write-snapshot]
           murmurmark corpus terminal-gate-v1 preflight|freeze|evaluate|status|replay|all
                                       [--policy policies/speaker-resolved-terminal-gate-instrument-v1.json]

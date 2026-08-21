@@ -1,0 +1,49 @@
+{
+  "schema": "murmurmark.word_level_chronology_localization_policy/v1",
+  "version": 1,
+  "state": "read_only_fingerprint_bound_word_timestamp_localization",
+  "upstream_report": "sessions/_reports/speaker-bounded-chronology-arbitration-v1/speaker_bounded_chronology_arbitration_report.json",
+  "upstream_private_items": "sessions/_reports/speaker-bounded-chronology-arbitration-v1/private/arbitration_items.jsonl",
+  "upstream_input_manifest": "sessions/_reports/speaker-bounded-chronology-arbitration-v1/private/input_manifest.json",
+  "model": {
+    "default_path": "~/.local/share/murmurmark/models/faster-whisper/large-v3",
+    "environment_override": "MURMURMARK_FASTER_WHISPER_MODEL",
+    "device": "cpu",
+    "compute_type": "int8",
+    "language": "ru",
+    "beam_size": 1,
+    "vad_filter": false,
+    "condition_on_previous_text": false,
+    "word_timestamps": true
+  },
+  "thresholds": {
+    "expected_residual_items": 14,
+    "expected_residual_seconds": 89.97,
+    "minimum_closed_item_ratio": 0.5,
+    "minimum_closed_seconds_ratio": 0.5,
+    "minimum_alignment_score": 0.6,
+    "minimum_alignment_containment": 0.5,
+    "minimum_word_probability": 0.2,
+    "minimum_independent_local_margin": 0.12,
+    "maximum_sequential_overlap_sec": 0.35,
+    "minimum_double_talk_overlap_sec": 0.5,
+    "minimum_remote_only_ratio": 0.8,
+    "maximum_remote_only_local_active_ratio": 0.1,
+    "maximum_remote_only_local_evidence": 20
+  },
+  "safety": {
+    "read_only": true,
+    "raw_audio_mutation": false,
+    "selected_transcript_mutation": false,
+    "role_mutation": false,
+    "timestamp_mutation": false,
+    "primary_asr_mutation": false,
+    "cloud_inference": false
+  },
+  "privacy": {
+    "public_session_ids": false,
+    "public_absolute_paths": false,
+    "public_speech_text": false,
+    "private_provenance_under_sessions": true
+  }
+}
