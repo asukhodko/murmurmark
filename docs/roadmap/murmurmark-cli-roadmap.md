@@ -281,8 +281,8 @@ restart gaps / `2.268542s` became the first hard residual; replay is byte-exact 
 `EVIDENCE_BOUND`: все 547 слов классифицированы; WavLM предложил 59, но отдельный structural
 evidence подтвердил только 10 слов / `4.682812s`. Held-out дал 1/166, direct-truth overlap — 0/105; Coverage v3 остаётся authoritative, новый shadow всегда fail-open.
 ### 35. Human-Reviewed Lexical Seed v1 — `current`
-Получить прямую ручную word truth минимум для двух реальных встреч: 1x1/group, обе роли и разные
-акустические режимы. Машинное согласие и cloud transcript остаются только диагностикой.
+Fingerprint-bound очередь уже заморожена: две реальные встречи, 24 primary intervals, четыре blind repeats, 1x1/group, обе роли и low-leak/speaker playback.
+Результат `REVIEW_REQUIRED` (`0/28`); машинное согласие и cloud transcript — только диагностика.
 ### 36. Session-Scoped Lexical Context v1 — `blocked`
 Собирать короткий контекст конкретной встречи из локального domain pack. Broad static prompt
 запрещён; кандидат проходит term gain, общий WER/CER, role/speaker conservation и exact replay.

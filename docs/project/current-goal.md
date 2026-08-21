@@ -61,10 +61,16 @@ ASR-контекста оценивались по фактам, а не по в
 ## First Commands
 
 ```bash
-murmurmark corpus lexical status
-murmurmark corpus lexical replay \
-  --write-manifest docs/testing/lexical-accuracy-reference-corpus-v1-manifest.json
-jq '.decision, .summary, .limitations' \
-  sessions/_reports/lexical-accuracy-reference-corpus-v1/lexical_accuracy_reference_corpus_report.json
-scripts/check.sh
+murmurmark corpus lexical-seed-v1 progress
+murmurmark corpus lexical-seed-v1 review
+
+murmurmark corpus lexical-seed-v1 evaluate \
+  --write-snapshot docs/testing/human-reviewed-lexical-seed-v1-snapshot.json
+murmurmark corpus lexical-seed-v1 replay \
+  --write-snapshot docs/testing/human-reviewed-lexical-seed-v1-snapshot.json
 ```
+
+Implementation status: the fingerprint-bound queue is frozen from two real sessions. It contains
+24 primary intervals and four blind repeats across both roles, 1x1/group and low-leak/speaker
+playback modes. Current decision is `REVIEW_REQUIRED` with `0/28` answers; production remains
+unchanged.

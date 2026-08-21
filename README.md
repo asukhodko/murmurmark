@@ -307,8 +307,8 @@ keeps every frozen source explicit and never collapses unlike quality dimensions
 Lexical Accuracy Reference Corpus v1 measures its exact 67-word digital subset at WER/CER `0` and
 keeps real-meeting lexical correctness blocked by missing human-reviewed evidence:
 ```bash
-murmurmark corpus lexical status
-murmurmark corpus lexical replay --write-manifest docs/testing/lexical-accuracy-reference-corpus-v1-manifest.json
+murmurmark corpus lexical status && murmurmark corpus lexical replay --write-manifest docs/testing/lexical-accuracy-reference-corpus-v1-manifest.json
+murmurmark corpus lexical-seed-v1 progress
 murmurmark corpus perfection all --verify-existing
 murmurmark corpus post-segmentation-rebaseline all --verify-existing
 murmurmark corpus remote-truth-seed-v2 status && murmurmark corpus remote-truth-seed-v2 replay && murmurmark corpus remote-model-disjoint-v1 status && murmurmark corpus remote-model-disjoint-v1 replay && murmurmark corpus remote-cluster-purity-v1 status && murmurmark corpus remote-cluster-purity-v1 replay
@@ -324,7 +324,7 @@ Disjoint truth v2 is complete: 72 primary + 12 repeats, consistency `1.0` and by
 one-shot ERes2NetV2 qualification kept Coverage v3; Cluster Purity Reference v1 found 10 remote
 voices compressed into four acoustic clusters, purity `89.8106%` and minority recall `0`. Transcript
 Integrity v1 repaired 10/19 proven duplicate/repetition candidates. Frozen Boundary and
-Remote Unknown Evidence Recovery v1 then closed `EVIDENCE_BOUND`: all 547 strict unknown words are classified, WavLM plus independent structure safely supports only 10 words / `4.682812s`, held-out supports 1/166, and no candidate overlaps 105 direct-truth items. Coverage v3 remains selected. Current: **Human-Reviewed Lexical Seed v1**.
+Remote Unknown Evidence Recovery v1 then closed `EVIDENCE_BOUND`: all 547 strict unknown words are classified, WavLM plus independent structure safely supports only 10 words / `4.682812s`, held-out supports 1/166, and no candidate overlaps 105 direct-truth items. Coverage v3 remains selected. Current: **Human-Reviewed Lexical Seed v1**; its blind 28-slot real-meeting queue is frozen and awaits `murmurmark corpus lexical-seed-v1 review`.
 The remaining critical path is:
 ```text
 Coverage v3 + Transcript Integrity v1 -> Boundary Segmentation v1 (KEEP_COVERAGE_V3)

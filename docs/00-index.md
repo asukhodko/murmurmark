@@ -184,6 +184,9 @@ Read in this order:
 180. [Remote Unknown Evidence Recovery v1 contract](contracts/remote-unknown-evidence-recovery-v1.md)
 181. [Remote Unknown Evidence Recovery v1 runbook](runbooks/remote-unknown-evidence-recovery-v1.md)
 182. [Remote Unknown Evidence Recovery v1 result](testing/2026-08-21-remote-unknown-evidence-recovery-v1.md)
+183. [Human-Reviewed Lexical Seed v1 contract](contracts/human-reviewed-lexical-seed-v1.md)
+184. [Human-Reviewed Lexical Seed v1 runbook](runbooks/human-reviewed-lexical-seed-v1.md)
+185. [Human-Reviewed Lexical Seed v1 frozen queue](testing/2026-08-21-human-reviewed-lexical-seed-v1.md)
 
 ## Current Planning Entry Points
 
@@ -254,7 +257,9 @@ timing-shift partition ARI `0.289387`. The fresh rebaseline then passed on six f
 sessions and found three restart-bounded PCM gaps / `2.268542s`. Capture Continuity Loss Closure v1
 closed `EVIDENCE_BOUND`. Remote Unknown Evidence Recovery v1 then classified all 547 strict unknown
 words but safely recovered only 10 / `4.682812s`; its `EVIDENCE_BOUND` keeps Coverage v3 selected.
-Human-Reviewed Lexical Seed v1 is now current; session-scoped context follows direct lexical truth.
+Human-Reviewed Lexical Seed v1 is current. Its 24 primary slots and four blind repeats are frozen;
+the public decision is `REVIEW_REQUIRED` until direct human text is entered. Session-scoped context
+follows direct lexical truth.
 Before the rebaseline, Enrichment Transaction and Cache Coherence v1 closed stale-state risk:
 deferred profile changes now reconcile review history, speaker evidence, readiness and outcome, and
 identical stronger-audio clips reuse content-addressed local decodes.

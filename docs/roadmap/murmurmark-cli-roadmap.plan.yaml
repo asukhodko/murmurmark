@@ -832,10 +832,11 @@ nodes:
     status: current
     effort: 8
     notes: |
-      Заморозить минимум две реальные встречи: 1x1 и group, Me и remote, разные acoustic modes.
-      Материализовать короткую приватную word-level review queue и получить прямую human truth для
+      Fingerprint-bound очередь заморожена из двух реальных встреч: 1x1/group, Me/remote,
+      headphones_or_low_leak/speaker_playback. Материализованы 24 primary intervals и четыре blind
+      repeats; текущий результат REVIEW_REQUIRED, 0/28. Следующий шаг — прямая human truth для
       WER/CER/domain terms. Machine agreement и cloud transcript не являются reference evidence;
-      private text не попадает в tracked artifacts, production ASR пока не меняется.
+      private text не попадает в tracked artifacts, production ASR не меняется.
 
   quality-session-scoped-lexical-context-v1:
     title: "Session-Scoped Lexical Context v1"
@@ -1126,8 +1127,8 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Remote unknown recovery завершён EVIDENCE_BOUND: безопасный intersection дал 10/547 слов и не имеет direct-truth overlap; Coverage v3 остаётся authoritative."
-          next_sync_goal: "Получить прямую human word truth и измерить lexical accuracy реальных встреч."
+          sync_note: "Blind lexical queue заморожена: две реальные встречи, 24 primary slots и четыре repeats; текущее решение REVIEW_REQUIRED, 0/28."
+          next_sync_goal: "Завершить 28 прямых human answers и выпустить REFERENCE_READY либо точный EVIDENCE_BOUND."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:

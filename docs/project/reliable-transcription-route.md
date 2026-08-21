@@ -516,6 +516,10 @@ Human-Reviewed Lexical Seed v1: заморозить минимум две ре�
 прямую human truth и измерить WER/CER/domain-term accuracy до любых ASR context experiments.
 ```
 
+Queue materialization is complete: 24 primary intervals plus four blind repeats cover both roles and
+acoustic modes. The frozen public state is `REVIEW_REQUIRED`; no lexical claim is available before
+the 28 direct human answers.
+
 Remote Speaker Attribution Error Decomposition v1 завершён
 `ADVANCE_STRONGER_SPEAKER_IDENTITY` на 393 words и 64 boundaries.
 Speaker-Resolved Transcript Default v1 завершён `PROMOTE`: strict handoff/export выбирают v3 либо
@@ -530,8 +534,8 @@ Local mic multi-speaker остаётся условной веткой и отк
 
 1. **Remote Unknown Evidence Recovery v1** is complete with `EVIDENCE_BOUND`; Coverage v3 remains
    authoritative and explicit unknown remains valid abstention.
-2. **Human-Reviewed Lexical Seed v1** is current and collects exact real-meeting word truth covering
-   1x1/group, both roles and different acoustic modes.
+2. **Human-Reviewed Lexical Seed v1** is current; its queue is frozen and awaits exact real-meeting
+   word truth covering 1x1/group, both roles and different acoustic modes.
 3. **Session-Scoped Lexical Context v1** stays blocked, then compiles only a compact meeting-specific prompt or hotword
    set and requires a frozen multi-session no-regression A/B.
 4. **Speaker-Resolved Transcript Terminal Gate v1** measures the North Star across capture, local

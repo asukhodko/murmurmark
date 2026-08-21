@@ -357,6 +357,7 @@ struct MurmurMark {
           murmurmark corpus remote-identity-shadow-v1 preflight|freeze|evaluate|status|replay|finalize|all
           murmurmark corpus remote-temporal-diarization-v1 preflight|prepare|freeze|evaluate|replay|finalize|status|all
           murmurmark corpus remote-model-disjoint-v1 preflight|prepare|freeze|evaluate|replay|finalize|status|all
+          murmurmark corpus lexical-seed-v1 preflight|freeze|next|grade|review|progress|evaluate|status|replay|all
           murmurmark corpus echo-supervision build|replay|status [--sessions-root ./sessions]
           murmurmark corpus live [all|latest|./session...] [--refresh] [--target-live-sessions 3] [--sessions-root ./sessions]
           murmurmark corpus lifecycle [all|latest|./session...] [--freeze-inputs] [--require-passing-gates]
@@ -1299,6 +1300,7 @@ enum DoctorChecks {
             "scripts/setup-disjoint-remote-speaker-model-v1.py",
             "scripts/eres2netv2-speaker-embedding-worker.py",
             "scripts/report-lexical-accuracy-reference-corpus.py",
+            "scripts/build-human-reviewed-lexical-seed-v1.py",
             "scripts/report-remote-speaker-cluster-purity-reference-v1.py",
             "scripts/evaluate-remote-speaker-boundary-minority-v1.py",
             "scripts/report-speaker-resolved-transcript-default-corpus.py",
@@ -8218,6 +8220,36 @@ enum CorpusCommands {
                     "--sessions-root", sessionsRoot.path,
                 ]
             )
+        case "lexical-seed-v1", "lexical_seed_v1":
+            if forwarded.isEmpty || ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(
+                    try PythonRuntime.resolve(),
+                    [try script("build-human-reviewed-lexical-seed-v1.py").path, "--help"]
+                )
+                return
+            }
+            guard let action = forwarded.first, [
+                "preflight", "freeze", "next", "grade", "review", "progress",
+                "evaluate", "status", "replay", "all",
+            ].contains(action) else {
+                throw CLIError(
+                    "lexical-seed-v1 requires preflight, freeze, next, grade, review, "
+                        + "progress, evaluate, status, replay, or all"
+                )
+            }
+            let python = try PythonRuntime.resolve()
+            let arguments = [try script("build-human-reviewed-lexical-seed-v1.py").path]
+                + forwarded
+                + ["--sessions-root", sessionsRoot.path]
+            if action == "review" {
+                try Tooling.replaceCurrentProcess(python, arguments)
+            } else {
+                _ = try Tooling.runPathAllowingExitCodes(
+                    python,
+                    arguments,
+                    allowedExitCodes: [0, 2]
+                )
+            }
         case "remote-cluster-purity-v1", "remote_cluster_purity_v1":
             if forwarded.isEmpty || ArgumentEditing.hasHelpFlag(forwarded) {
                 try Tooling.runPath(
@@ -9015,6 +9047,8 @@ enum CorpusHelp {
                                       [--trust-grade independent_machine] [--local-speaker NAME]
           murmurmark corpus lexical build|replay|status
                                       [--write-manifest docs/testing/lexical-accuracy-reference-corpus-v1-manifest.json]
+          murmurmark corpus lexical-seed-v1 preflight|freeze|next|grade|review|progress|evaluate|status|replay|all
+                                      [--policy policies/human-reviewed-lexical-seed-v1.json]
           murmurmark corpus remote-cluster-purity-v1 import SESSION SOURCE --source-id ID
                                       [--trust-grade independent_machine] [--local-speaker NAME]
           murmurmark corpus remote-cluster-purity-v1 evaluate|replay|status

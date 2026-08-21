@@ -81,6 +81,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-stronger-local-remote-speaker-representation-v1.py
 "$python_bin" scripts/check-temporal-end-to-end-remote-diarization-v1.py
 "$python_bin" scripts/check-lexical-accuracy-reference-corpus.py
+"$python_bin" scripts/check-human-reviewed-lexical-seed-v1.py
 "$python_bin" scripts/check-transcript-perfection-corpus.py
 "$python_bin" scripts/check-post-segmentation-transcript-rebaseline-v1.py
 "$python_bin" scripts/check-anonymous-rich-transcript.py

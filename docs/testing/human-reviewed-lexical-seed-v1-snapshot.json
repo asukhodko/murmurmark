@@ -1,0 +1,58 @@
+{
+  "decision": "REVIEW_REQUIRED",
+  "failed_gates": [
+    "all_review_slots_answered",
+    "required_roles",
+    "minimum_primary_exact_slots_per_session_role",
+    "minimum_reference_words",
+    "repeat_consistency"
+  ],
+  "gates": {
+    "all_review_slots_answered": false,
+    "frozen_sources_current": true,
+    "minimum_primary_exact_slots_per_session_role": false,
+    "minimum_reference_words": false,
+    "minimum_sessions": true,
+    "production_unchanged": true,
+    "repeat_consistency": false,
+    "required_acoustic_modes": true,
+    "required_meeting_modes": true,
+    "required_roles": false
+  },
+  "metrics": {},
+  "provenance": {
+    "answers_sha256": null,
+    "freeze_sha256": "e1f99db7ea8975776536945da29ca08f06639c1626466c1b54ae02453ba956e2",
+    "implementation_sha256": "ce1cd3368ba0ab9dd54bbf82114d56deefabe45b39a2d970469ca1709d7b478b",
+    "policy_sha256": "da5ec37a1ba44867a0d528ba0c223f2d86a2c836b8798ecc3d0d84d3566abd02",
+    "private_evaluation_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "repeat_review": {
+    "compared": 0,
+    "consistency": null,
+    "consistent": 0,
+    "repeat_slots": 4,
+    "unresolved": 4
+  },
+  "schema": "murmurmark.human_reviewed_lexical_seed_snapshot/v1",
+  "summary": {
+    "acoustic_modes": [
+      "headphones_or_low_leak",
+      "speaker_playback"
+    ],
+    "answered_slots": 0,
+    "meeting_modes": [
+      "1x1",
+      "group"
+    ],
+    "outcomes": {},
+    "primary_exact_slots": 0,
+    "primary_slots": 24,
+    "queue_slots": 28,
+    "reference_words": 0,
+    "remaining_slots": 28,
+    "repeat_slots": 4,
+    "roles": [],
+    "sessions": 2
+  }
+}

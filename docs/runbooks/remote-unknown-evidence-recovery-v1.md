@@ -6,7 +6,7 @@ The refresh is offline and CPU-intensive. It runs WavLM with `nice=20`, then bui
 consensus shadow and both direct-truth comparisons.
 
 ```bash
-cd ~/dalamar81/murmurmark
+cd /path/to/murmurmark
 source .venv/bin/activate
 
 HF_HUB_OFFLINE=1 .venv/bin/python \

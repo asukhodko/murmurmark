@@ -1,0 +1,66 @@
+{
+  "schema": "murmurmark.human_reviewed_lexical_seed_policy/v1",
+  "version": "1.0.0",
+  "state": "collecting_human_truth",
+  "selection": {
+    "salt": "murmurmark-human-reviewed-lexical-seed-v1",
+    "primary_slots_per_session_role": 6,
+    "repeat_slots_per_session_role": 1,
+    "minimum_duration_sec": 2.0,
+    "maximum_duration_sec": 12.0,
+    "minimum_hypothesis_words": 4,
+    "maximum_hypothesis_words": 35,
+    "minimum_role_confidence": 0.8,
+    "clip_padding_sec": 0.2
+  },
+  "sessions": [
+    {
+      "alias": "group_low_leak",
+      "session_id": "2026-08-10_15-59-07",
+      "meeting_mode": "group",
+      "acoustic_mode": "headphones_or_low_leak"
+    },
+    {
+      "alias": "one_to_one_speaker_playback",
+      "session_id": "2026-08-20_15-16-30",
+      "meeting_mode": "1x1",
+      "acoustic_mode": "speaker_playback"
+    }
+  ],
+  "acoustic_validation": {
+    "maximum_low_leak_similarity": 0.06,
+    "minimum_speaker_playback_similarity": 0.08
+  },
+  "domain_terms": [
+    "SRE",
+    "GitLab",
+    "Kubernetes",
+    "Vault",
+    "Spirit",
+    "кластер",
+    "репозиторий",
+    "сервис",
+    "релиз",
+    "алерт",
+    "инцидент"
+  ],
+  "gates": {
+    "minimum_sessions": 2,
+    "minimum_primary_exact_slots_per_session_role": 4,
+    "minimum_reference_words": 180,
+    "required_meeting_modes": [
+      "1x1",
+      "group"
+    ],
+    "required_acoustic_modes": [
+      "headphones_or_low_leak",
+      "speaker_playback"
+    ],
+    "required_roles": [
+      "me",
+      "remote"
+    ],
+    "minimum_repeat_consistency": 1.0
+  },
+  "production_changes_allowed": false
+}
