@@ -22,7 +22,6 @@ Raw `audio/mic/*.caf` and `audio/remote/*.caf` files are immutable processing in
 Inserted silence keeps the timeline aligned but remains explicit `captured_audio=false` evidence: any measured gap blocks completeness in `status`, `outcome` and `transcript --cat`; derived profiles remain isolated behind no-regression gates.
 
 ## Install
-
 Supported release environment:
 
 - macOS 15 or newer on Apple Silicon with Screen and System Audio Recording and microphone
