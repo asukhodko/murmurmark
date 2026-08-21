@@ -59,6 +59,9 @@ For `murmurmark transcript SESSION` with profile `auto`:
 3. If the strict selector falls back, rerun only the current fingerprint-bound v1 evidence with the
    global coverage floor removed. Per-cluster duration, span, cohesion and per-utterance
    similarity/margin gates remain unchanged.
+   A fail-open v1 row retains its acoustic `cluster` as non-published provenance, so a failed
+   session-wide stability or coverage gate cannot erase otherwise locally supported provisional
+   assignments.
 4. Return a disclaimer-bearing provisional Markdown when at least one locally supported cluster is
    available. Unsupported utterances are labelled `remote_speaker_unknown`.
 5. If no compatible current evidence exists, return an explicit `unavailable` Markdown in which

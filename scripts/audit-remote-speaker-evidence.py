@@ -1227,6 +1227,7 @@ def build_assignments(
             "utterance_id": utterance_id,
             "start": round(float(utterance.get("start", 0)), 6),
             "end": round(float(utterance.get("end", 0)), 6),
+            "cluster": assignment.get("cluster"),
             "speaker_id": assignment.get("speaker_id"),
             "speaker_label": assignment.get("speaker_id") or "Colleagues",
             "status": assignment["status"],

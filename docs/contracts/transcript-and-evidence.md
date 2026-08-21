@@ -6275,6 +6275,10 @@ Published speaker IDs use `remote_speaker_NN`, are ordered by first confident in
 session-local scope. They are not identities and cannot be compared across sessions. An attribution
 with insufficient model, cluster, margin, overlap or stability evidence has `speaker_id: null`,
 `speaker_label: Colleagues`, `status: aggregate` and a machine-readable `reason`.
+When an embedding was computed, `cluster` remains present even if a session-wide publication gate
+fails. This is diagnostic provenance, not a published speaker claim; it lets the disclaimer-bearing
+provisional read view reuse only clusters that still pass its local duration, span, cohesion and
+assignment gates. Rows without usable voice evidence keep `cluster: null`.
 
 The v1 promotion scope is `optional_anonymous_remote_speaker_evidence`. It does not change the
 selected transcript, Evidence Handoff v2, notes, verdict or guarded export. Consumers must verify

@@ -350,6 +350,21 @@ def main() -> int:
             (failed_gate / "derived/audit/remote-speaker-evidence-v1/speaker_map.json").read_text()
         )
         assert failed_map["speakers"] == [], failed_map
+        failed_attributions = [
+            json.loads(line)
+            for line in (
+                failed_gate
+                / "derived/audit/remote-speaker-evidence-v1/utterance_attribution.jsonl"
+            ).read_text().splitlines()
+        ]
+        clustered_fail_open = [
+            row for row in failed_attributions if row["reason"] == "session_publish_gate_failed"
+        ]
+        assert clustered_fail_open, failed_attributions
+        assert all(isinstance(row.get("cluster"), int) for row in clustered_fail_open), (
+            clustered_fail_open
+        )
+        assert all(row["speaker_id"] is None for row in clustered_fail_open), clustered_fail_open
 
         roster_merge = build_roster_merge_session(root, "roster-merge", ambiguous=False)
         roster_report = run_audit(
