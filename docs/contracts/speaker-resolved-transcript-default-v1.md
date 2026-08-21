@@ -47,8 +47,8 @@ derived/transcript-rich/speaker-resolved-default-v1/
 
 The provisional selection uses `murmurmark.provisional_speaker_transcript_selection/v1`; its rich
 payload uses `murmurmark.provisional_speaker_transcript/v1`. It records `provisional` or
-`unavailable`, strict failure reasons, attributed duration/count, stable anonymous clusters, exact
-input/output identities and the materializer fingerprint.
+`unavailable`, strict failure reasons, attributed duration/count, stable and secondary provisional
+anonymous clusters, exact input/output identities and the materializer fingerprint.
 
 ## Default Read Rule
 
@@ -57,13 +57,16 @@ For `murmurmark transcript SESSION` with profile `auto`:
 1. Validate or materialize the selector.
 2. Return the v3 Markdown when state is `selected`.
 3. If the strict selector falls back, rerun only the current fingerprint-bound v1 evidence with the
-   global coverage floor removed. Per-cluster duration, span, cohesion and per-utterance
-   similarity/margin gates remain unchanged.
+   global coverage floor removed. Strict clusters keep their original gates. The read-only
+   provisional view may also expose a secondary cluster when a strict cluster already anchors the
+   session and the candidate reaches at least 80% of the strict unit and speech-duration floors,
+   the full strict span floor, and cohesion `>= max(strict floor, 0.90)`.
    A fail-open v1 row retains its acoustic `cluster` as non-published provenance, so a failed
    session-wide stability or coverage gate cannot erase otherwise locally supported provisional
    assignments.
 4. Return a disclaimer-bearing provisional Markdown when at least one locally supported cluster is
-   available. Unsupported utterances are labelled `remote_speaker_unknown`.
+   available. The header reports how many secondary clusters are below the strict publication gate.
+   Unsupported utterances are labelled `remote_speaker_unknown`.
 5. If no compatible current evidence exists, return an explicit `unavailable` Markdown in which
    every remote utterance is `remote_speaker_unknown`. It must never look like one real person.
 
@@ -111,7 +114,9 @@ profiles.
 
 - Capture, Echo Guard, audio selection, primary ASR and selected dialogue are unchanged.
 - No unsupported word receives a speaker ID; it is marked `remote_speaker_unknown`.
-- Removing the provisional global coverage floor never removes local cluster or assignment gates.
+- Strict publication gates never change. A secondary provisional cluster is read-only, explicitly
+  counted in the disclaimer, requires a strict anchor cluster, and cannot enter Evidence Handoff or
+  guarded export.
 - No human name is inferred from voice.
 - No local mic multi-speaker or cross-session identity claim is introduced.
 - Aggregate fallback is byte-identical through transcript, handoff and export.

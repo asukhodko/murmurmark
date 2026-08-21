@@ -86,10 +86,12 @@ speaker_attribution_coverage: 32.71%
 speaker_fallback_reason: coverage_not_publishable:published_speech_ratio
 ```
 
-The transcript header is mandatory: it reports strict failure reason, attributed coverage and warns
-that anonymous labels can merge or split people. `remote_speaker_unknown` is genuinely unattributed
-speech, not one participant. If no current compatible evidence exists, state becomes `unavailable`
-and all remote speech receives that unknown label.
+The transcript header is mandatory: it reports strict failure reason, attributed coverage, the
+number of secondary clusters below the strict publication gate, and warns that anonymous labels can
+merge or split people. Secondary clusters are long-lived, cohesive, read-only evidence near the
+strict floor; they cannot enter Evidence Handoff or guarded export. `remote_speaker_unknown` is
+genuinely unattributed speech, not one participant. If no current compatible evidence exists, state
+becomes `unavailable` and all remote speech receives that unknown label.
 
 Do not bypass stale hashes. Rebuild strict evidence with `audit speaker-default`; ordinary
 `murmurmark transcript` materializes the provisional view automatically. Use the exact role-only

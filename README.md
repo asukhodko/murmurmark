@@ -79,8 +79,9 @@ time budget: severe speaker playback prioritizes advanced Echo; other modes reta
 Explicit resume retries budget-deferred work. Enrichment, review and `report` finish through one
 reconciliation step that preserves compatible decisions and synchronizes profile, speaker evidence and
 the canonical review queue. When
-the strict publication gate misses, the ordinary read path keeps compatible local clusters as a
-disclaimer-bearing `provisional` attribution and marks the rest `remote_speaker_unknown`; the exact
+the strict publication gate misses, the ordinary read path keeps compatible local clusters and
+long-lived cohesive secondary clusters as disclaimer-bearing `provisional` attribution, and marks
+the rest `remote_speaker_unknown`; the exact
 role-only transcript remains available through `--aggregate`. `status` and `outcome` print the
 provisional coverage and strict failure reason. A known group roster can repair one
 acoustically split anonymous voice; see the speaker-resolved runbook. It never maps names to voices.

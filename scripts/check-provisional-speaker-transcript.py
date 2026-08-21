@@ -131,11 +131,19 @@ def main() -> int:
                     },
                     {
                         "cluster": 8,
-                        "unit_count": 10,
-                        "speech_sec": 60.0,
-                        "span_sec": 60.0,
-                        "cohesion_median": 0.88,
+                        "unit_count": 9,
+                        "speech_sec": 50.0,
+                        "span_sec": 300.0,
+                        "cohesion_median": 0.92,
                         "first_start": 71.0,
+                    },
+                    {
+                        "cluster": 9,
+                        "unit_count": 7,
+                        "speech_sec": 47.0,
+                        "span_sec": 300.0,
+                        "cohesion_median": 0.96,
+                        "first_start": 87.0,
                     },
                 ],
             },
@@ -145,7 +153,11 @@ def main() -> int:
             [
                 {"utterance_id": "utt_1", "cluster": 7, "reason": "session_publish_gate_failed"},
                 {"utterance_id": "utt_2", "cluster": 8, "reason": "session_publish_gate_failed"},
-                {"utterance_id": "utt_3", "reason": "too_short_for_voice_evidence"},
+                {
+                    "utterance_id": "utt_3",
+                    "cluster": 9,
+                    "reason": "minor_or_unstable_cluster",
+                },
             ],
         )
         write_json(
@@ -170,6 +182,9 @@ def main() -> int:
         assert selection["state"] == "provisional"
         assert selection["selected_speaker_profile"] == "remote_speaker_provisional_v1"
         assert selection["summary"]["speaker_clusters"] == 2
+        assert selection["summary"]["stable_clusters"] == 1
+        assert selection["summary"]["provisional_secondary_clusters"] == 1
+        assert "provisional_secondary_cluster_evidence" in selection["warnings"]
         assert "Speaker attribution is provisional" in markdown
         assert "## 00:00 remote_speaker_01" in markdown
         assert "## 01:11 remote_speaker_02" in markdown
@@ -177,6 +192,10 @@ def main() -> int:
         assert "## 01:29 Me" in markdown
         assert rich["utterances"][0]["text"] == utterances[0]["text"]
         assert rich["utterances"][1]["speaker_id"] == "remote_speaker_02"
+        assert (
+            rich["utterances"][1]["speaker_attribution"]["tier"]
+            == "provisional_secondary_cluster"
+        )
         assert aggregate.read_bytes() == aggregate_before
 
         first_selection = (out / "selection.json").read_bytes()

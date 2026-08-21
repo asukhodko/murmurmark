@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import subprocess
@@ -15,7 +16,7 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 SELECTION_SCHEMA = "murmurmark.provisional_speaker_transcript_selection/v1"
 TRANSCRIPT_SCHEMA = "murmurmark.provisional_speaker_transcript/v1"
 READINESS_SCHEMA = "murmurmark.session_readiness/v1"
@@ -32,6 +33,9 @@ DISALLOWED_ASSIGNMENT_REASONS = {
     "possible_remote_double_talk",
     "input_changed_during_run",
 }
+PROVISIONAL_SECONDARY_UNIT_RATIO = 0.8
+PROVISIONAL_SECONDARY_SPEECH_RATIO = 0.8
+PROVISIONAL_SECONDARY_MIN_COHESION = 0.9
 
 
 class ProvisionalSpeakerError(RuntimeError):
@@ -368,6 +372,26 @@ def strict_major_cluster(cluster: dict[str, Any], parameters: dict[str, Any]) ->
     )
 
 
+def provisional_secondary_cluster(
+    cluster: dict[str, Any], parameters: dict[str, Any]
+) -> bool:
+    min_units = integer(parameters.get("min_cluster_units") or 10)
+    min_speech_sec = number(parameters.get("min_cluster_sec") or 60.0)
+    min_span_sec = number(parameters.get("min_cluster_span_sec") or 60.0)
+    min_cohesion = number(parameters.get("min_cluster_cohesion") or 0.85)
+    return bool(
+        not cluster.get("speaker_id")
+        and not strict_major_cluster(cluster, parameters)
+        and integer(cluster.get("unit_count"))
+        >= math.ceil(min_units * PROVISIONAL_SECONDARY_UNIT_RATIO)
+        and number(cluster.get("speech_sec"))
+        >= min_speech_sec * PROVISIONAL_SECONDARY_SPEECH_RATIO
+        and number(cluster.get("span_sec")) >= min_span_sec
+        and number(cluster.get("cohesion_median"))
+        >= max(min_cohesion, PROVISIONAL_SECONDARY_MIN_COHESION)
+    )
+
+
 def speaker_candidates(report: dict[str, Any]) -> tuple[dict[int, dict[str, Any]], list[dict[str, Any]]]:
     parameters = report.get("parameters") if isinstance(report.get("parameters"), dict) else {}
     clusters = [row for row in report.get("clusters") or [] if isinstance(row, dict)]
@@ -377,11 +401,20 @@ def speaker_candidates(report: dict[str, Any]) -> tuple[dict[int, dict[str, Any]
             stable.append(cluster)
         elif strict_major_cluster(cluster, parameters):
             stable.append(cluster)
+    secondary = [
+        cluster
+        for cluster in clusters
+        if stable and provisional_secondary_cluster(cluster, parameters)
+    ]
     stable.sort(key=lambda row: (number(row.get("first_start")), integer(row.get("cluster"))))
+    secondary.sort(key=lambda row: (number(row.get("first_start")), integer(row.get("cluster"))))
     mapping: dict[int, dict[str, Any]] = {}
     used: set[str] = set()
     next_index = 1
-    for tier, rows in (("stable_cluster", stable),):
+    for tier, rows in (
+        ("stable_cluster", stable),
+        ("provisional_secondary_cluster", secondary),
+    ):
         for cluster in rows:
             existing = str(cluster.get("speaker_id") or "").strip()
             if existing:
@@ -467,6 +500,10 @@ def render_markdown(
             "> Attributed remote speech: "
             f"`{number(summary.get('attributed_remote_speech_ratio')) * 100:.1f}%`; "
             f"anonymous clusters shown: `{integer(summary.get('speaker_clusters'))}`."
+        ),
+        (
+            "> Secondary clusters below the strict publication gate: "
+            f"`{integer(summary.get('provisional_secondary_clusters'))}`."
         ),
         "> The text, roles and timestamps come from the authoritative batch transcript.",
         "",
@@ -611,6 +648,8 @@ def materialize(args: argparse.Namespace) -> dict[str, Any]:
             if isinstance(row.get("speaker_id"), str) and row.get("speaker_id")
         }
         speaker_rows = [row for row in speaker_rows if row["speaker_id"] in used_speakers]
+        if any(row["tier"] == "provisional_secondary_cluster" for row in speaker_rows):
+            warnings.append("provisional_secondary_cluster_evidence")
         warnings.extend(str(value) for value in report.get("reasons") or [])
 
     remote = [row for row in utterances if isinstance(row, dict) and row.get("role") == "remote"]
@@ -639,6 +678,9 @@ def materialize(args: argparse.Namespace) -> dict[str, Any]:
         else 0.0,
         "speaker_clusters": len(speaker_rows),
         "stable_clusters": sum(row["tier"] == "stable_cluster" for row in speaker_rows),
+        "provisional_secondary_clusters": sum(
+            row["tier"] == "provisional_secondary_cluster" for row in speaker_rows
+        ),
     }
     normalized_attributions: dict[str, dict[str, Any]] = {}
     output_utterances: list[dict[str, Any]] = []
