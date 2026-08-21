@@ -39,6 +39,11 @@
       "schema": "murmurmark.remote_unknown_evidence_recovery_corpus_report/v1"
     },
     {
+      "id": "chronology_arbitration",
+      "path": "sessions/_reports/speaker-bounded-chronology-arbitration-v1/speaker_bounded_chronology_arbitration_report.json",
+      "schema": "murmurmark.speaker_bounded_chronology_arbitration_report/v1"
+    },
+    {
       "id": "speaker_resolved_publication",
       "path": "sessions/_reports/speaker-resolved-transcript-default-v1/report.json",
       "schema": "murmurmark.speaker_resolved_transcript_default_corpus/v1"

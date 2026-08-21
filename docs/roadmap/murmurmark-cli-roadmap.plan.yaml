@@ -829,20 +829,35 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-remote-unknown-evidence-recovery-v1]
-    status: current
+    status: done
     effort: 8
     notes: |
-      Fingerprint-bound прибор объединяет восемь канонических evidence reports, но сохраняет их
+      Fingerprint-bound прибор объединяет девять канонических evidence reports в восемь dimensions,
+      но сохраняет их
       отдельными gates без aggregate score. Реальный baseline: TERMINAL_GATE_INSTRUMENT_READY,
       product NOT_READY; publication и review burden проходят, пять dimensions bounded, lexical
       accuracy blocked. Missing/stale и transitive-stale evidence даёт EVIDENCE_INCOMPLETE только
       зависимым dimensions; replay byte-exact.
 
+  quality-speaker-bounded-chronology-arbitration-v1:
+    title: "Speaker-Bounded Chronology Evidence Arbitration v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [product-speaker-resolved-transcript-terminal-gate-instrument-v1]
+    status: current
+    effort: 8
+    notes: |
+      Завершён frozen read-only run с PROMOTE_CHRONOLOGY_EVIDENCE_ARBITRATION_V1. Все 52 order rows /
+      345.94s получили стабильный outcome; 34 benign turn boundaries и четыре independently
+      confirmed double-talk закрыли 38 rows / 255.97s. Остаток 14 rows / 89.97s сохранён как
+      insufficient evidence, remote leak/ASR segmentation или true chronology risk. Raw, ASR,
+      selected text, roles и timestamps неизменны; replay byte-exact, terminal gate читает остаток.
+
   quality-human-reviewed-lexical-seed-v1:
     title: "Human-Reviewed Lexical Seed v1"
     kind: task
     parent: murmurmark-cli
-    deps: [product-speaker-resolved-transcript-terminal-gate-instrument-v1]
+    deps: [quality-speaker-bounded-chronology-arbitration-v1]
     status: blocked
     effort: 8
     notes: |
@@ -901,10 +916,10 @@ views:
     lanes:
       working:
         title: "Готовая основа"
-        nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1, quality-residual-transcript-integrity-hardening-v1, quality-remote-speaker-boundary-minority-segmentation-v1, quality-post-segmentation-transcript-rebaseline-v1, quality-capture-continuity-loss-closure-v1, quality-remote-unknown-evidence-recovery-v1, product-one-command-meeting-lifecycle-v1]
+        nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1, quality-residual-transcript-integrity-hardening-v1, quality-remote-speaker-boundary-minority-segmentation-v1, quality-post-segmentation-transcript-rebaseline-v1, quality-capture-continuity-loss-closure-v1, quality-remote-unknown-evidence-recovery-v1, product-speaker-resolved-transcript-terminal-gate-instrument-v1, product-one-command-meeting-lifecycle-v1]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [product-speaker-resolved-transcript-terminal-gate-instrument-v1]
+        nodes: [quality-speaker-bounded-chronology-arbitration-v1]
       blocked:
         title: "Зависит от direct truth"
         nodes: [quality-human-reviewed-lexical-seed-v1, quality-session-scoped-lexical-context-v1, product-speaker-resolved-transcript-terminal-gate-v1]
@@ -970,6 +985,7 @@ views:
           - quality-capture-continuity-loss-closure-v1
           - quality-remote-unknown-evidence-recovery-v1
           - product-speaker-resolved-transcript-terminal-gate-instrument-v1
+          - quality-speaker-bounded-chronology-arbitration-v1
           - quality-human-reviewed-lexical-seed-v1
           - quality-session-scoped-lexical-context-v1
           - product-speaker-resolved-transcript-terminal-gate-v1
@@ -1012,8 +1028,8 @@ views:
         title: "Доказанная speaker evidence"
         nodes: [research-remote-diarization, research-rich-transcript, quality-remote-speaker-diarization-v2]
       current:
-        title: "Terminal gate instrument"
-        nodes: [product-speaker-resolved-transcript-terminal-gate-instrument-v1]
+        title: "Chronology evidence arbitration"
+        nodes: [quality-speaker-bounded-chronology-arbitration-v1]
       unknown:
         title: "Доказанный attribution bound"
         nodes: [quality-capture-continuity-loss-closure-v1, quality-remote-unknown-evidence-recovery-v1]
@@ -1028,7 +1044,7 @@ views:
         nodes: [quality-transcript-perfection-corpus-v1, quality-lexical-accuracy-reference-corpus-v1, quality-residual-transcript-integrity-hardening-v1]
       release:
         title: "Основной speaker-resolved result"
-        nodes: [product-speaker-resolved-transcript-default-v1, product-speaker-resolved-transcript-terminal-gate-instrument-v1, product-speaker-resolved-transcript-terminal-gate-v1]
+        nodes: [product-speaker-resolved-transcript-default-v1, product-speaker-resolved-transcript-terminal-gate-instrument-v1, quality-speaker-bounded-chronology-arbitration-v1, product-speaker-resolved-transcript-terminal-gate-v1]
 
   deps-map:
     title: "Зависимости активного плана"
@@ -1093,6 +1109,7 @@ views:
           - quality-capture-continuity-loss-closure-v1
           - quality-remote-unknown-evidence-recovery-v1
           - product-speaker-resolved-transcript-terminal-gate-instrument-v1
+          - quality-speaker-bounded-chronology-arbitration-v1
           - quality-human-reviewed-lexical-seed-v1
           - quality-session-scoped-lexical-context-v1
           - product-speaker-resolved-transcript-terminal-gate-v1
@@ -1102,8 +1119,8 @@ x:
   exec:
     program:
       nearest_goal: >-
-        Speaker-Resolved Transcript Terminal Gate Instrumentation v1: материализовать независимый fingerprint-bound прибор North Star на свежем шестисессионном корпусе; раздельно измерять durable capture, Target-Me preservation, lexical accuracy, chronology and conservation, remote speaker attribution, explicit unknown, mandatory review burden и speaker-resolved publication с exact aggregate fallback; запретить усреднённый quality score и ложный pass при missing/stale evidence; сохранить Human-Reviewed Lexical Seed v1 отдельным blocked evidence node; выпустить TERMINAL_GATE_INSTRUMENT_READY либо EVIDENCE_INCOMPLETE с точными блокерами, детерминированным replay и privacy-safe snapshot, не меняя production audio/transcript, затем обновить тесты, документы и OpsKarta, закоммитить и отправить результат в origin/main.
-      success_by_next_sync: "Восемь North Star gates воспроизводимо измеряются одной командой; готовность прибора отделена от готовности продукта, а каждый остаток имеет точный evidence state."
+        Speaker-Bounded Chronology Evidence Arbitration v1: доказательно разобрать 52 blocking chronology rows / 345.94s свежего шестисессионного корпуса по уже сохранённым локальным audio, speaker-state, group-overlap и stronger-audio evidence; заморозить входы и SHA-256, присвоить каждой строке стабильный outcome, закрывать только независимо подтверждённые benign turn boundaries и real double-talk, сохранить remote leak, ASR segmentation, true chronology risk и insufficient evidence явным остатком; не менять raw, ASR, текст, роли, timestamps или selected transcripts; закрыть не менее 50% строк и секунд либо выпустить точный EVIDENCE_BOUND; встроить остаток в terminal gate, обновить тесты, документы и OpsKarta, затем закоммитить и отправить результат в origin/main.
+      success_by_next_sync: "Все 52 chronology rows имеют воспроизводимый outcome; безопасно закрыты 38 rows / 255.97s, а terminal gate показывает явный остаток 14 rows / 89.97s."
     defaults:
       status_progress:
         done: 1.0
@@ -1124,13 +1141,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle и batch transcript работают; stronger-audio v0.3 сохраняет canonical evidence и безопасно возобновляется после interruption."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Terminal Gate Instrumentation v1"
-        scope_nodes: [product-speaker-resolved-transcript-terminal-gate-instrument-v1]
+        title: "Chronology Evidence Arbitration v1"
+        scope_nodes: [quality-speaker-bounded-chronology-arbitration-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Восемь gates собраны fingerprint-bound: instrument ready, product not ready; два gates pass, пять bounded, lexical blocked."
-          next_sync_goal: "Зафиксировать byte-exact public snapshot и точные независимые product blockers без изменения production."
+          sync_note: "38/52 chronology rows и 255.97/345.94s закрыты локальными независимыми доказательствами; transcript неизменён, 89.97s остаются bounded."
+          next_sync_goal: "Сохранить byte-exact arbitration snapshot и передать terminal gate только доказанный остаток."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -1166,14 +1183,16 @@ x:
           - quality-post-segmentation-transcript-rebaseline-v1
           - quality-capture-continuity-loss-closure-v1
           - quality-remote-unknown-evidence-recovery-v1
+          - product-speaker-resolved-transcript-terminal-gate-instrument-v1
+          - quality-speaker-bounded-chronology-arbitration-v1
           - quality-human-reviewed-lexical-seed-v1
           - quality-session-scoped-lexical-context-v1
           - product-speaker-resolved-transcript-terminal-gate-v1
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Terminal instrument отделяет доказанные publication/review gates от continuity, Target-Me, chronology, attribution, unknown и lexical blockers."
-          next_sync_goal: "После instrument handoff закрывать измеренные blockers независимо; lexical context ждёт 28 human answers."
+          sync_note: "Terminal instrument отделяет независимые blockers; chronology arbitration сократил эту ось до 89.97s без transcript mutation."
+          next_sync_goal: "Закрывать оставшиеся evidence axes независимо; lexical context ждёт 28 human answers."
     edges:
       - from: working-now
         to: current-quality
@@ -1189,7 +1208,7 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: terminal instrument измеряет восемь независимых North Star gates; product пока NOT_READY."
+        caption: "Короткая карта: chronology arbitration сократил доказанный остаток до 89.97s; terminal product пока NOT_READY."
         blocks:
           - working-now
           - current-quality

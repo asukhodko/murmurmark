@@ -40,3 +40,11 @@ requalifying that isolated report before creating a new terminal freeze:
 HF_HUB_OFFLINE=1 .venv/bin/python \
   scripts/report-remote-unknown-evidence-recovery-v1-corpus.py all --refresh
 ```
+
+Chronology uses the read-only arbitration remainder rather than the raw order-audit total. Refresh
+that source first when its fingerprints drift:
+
+```bash
+murmurmark corpus chronology-arbitration-v1 all --refresh --write-snapshot
+murmurmark corpus terminal-gate-v1 all --refresh --write-snapshot
+```

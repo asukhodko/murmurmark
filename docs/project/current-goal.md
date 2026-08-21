@@ -4,62 +4,69 @@ Updated: 2026-08-21
 
 This document expands the single executable goal from
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`.
+`scripts/check-planning-consistency.py` keeps the README, roadmap and OpsKarta wording aligned.
 
-## Speaker-Resolved Transcript Terminal Gate Instrumentation v1
+## Speaker-Bounded Chronology Evidence Arbitration v1
 
-OpsKarta nearest goal: Speaker-Resolved Transcript Terminal Gate Instrumentation v1: материализовать независимый fingerprint-bound прибор North Star на свежем шестисессионном корпусе; раздельно измерять durable capture, Target-Me preservation, lexical accuracy, chronology and conservation, remote speaker attribution, explicit unknown, mandatory review burden и speaker-resolved publication с exact aggregate fallback; запретить усреднённый quality score и ложный pass при missing/stale evidence; сохранить Human-Reviewed Lexical Seed v1 отдельным blocked evidence node; выпустить TERMINAL_GATE_INSTRUMENT_READY либо EVIDENCE_INCOMPLETE с точными блокерами, детерминированным replay и privacy-safe snapshot, не меняя production audio/transcript, затем обновить тесты, документы и OpsKarta, закоммитить и отправить результат в origin/main.
+OpsKarta nearest goal: Speaker-Bounded Chronology Evidence Arbitration v1: доказательно разобрать 52 blocking chronology rows / 345.94s свежего шестисессионного корпуса по уже сохранённым локальным audio, speaker-state, group-overlap и stronger-audio evidence; заморозить входы и SHA-256, присвоить каждой строке стабильный outcome, закрывать только независимо подтверждённые benign turn boundaries и real double-talk, сохранить remote leak, ASR segmentation, true chronology risk и insufficient evidence явным остатком; не менять raw, ASR, текст, роли, timestamps или selected transcripts; закрыть не менее 50% строк и секунд либо выпустить точный EVIDENCE_BOUND; встроить остаток в terminal gate, обновить тесты, документы и OpsKarta, затем закоммитить и отправить результат в origin/main.
 
 ## Why Now
 
-Предыдущие исследования доказали отдельные свойства, но не отвечали одной командой, какие части
-North Star уже пройдены и что именно мешает назвать результат готовым. Human-Reviewed Lexical Seed
-заморожен, но требует 28 прямых человеческих ответов. Этот внешний долг не должен мешать измерить
-все остальные границы и подготовить честную карту сходимости.
+Speaker-Resolved Transcript Terminal Gate Instrumentation v1 показал `345.94s` хронологического
+review, но эта сумма смешивала реальные риски порядка с обычными границами соседних реплик и
+настоящим double-talk. Все 52 строки уже имеют group-overlap evidence, а 44 строки дополнительно
+имеют локальное faster-whisper evidence. Новая запись и ручная разметка для первого безопасного
+разделения не нужны.
 
 ## Objective
 
-Создать воспроизводимый измерительный слой над существующими каноническими отчётами. Готовность
-прибора и готовность продукта должны быть независимыми решениями: `TERMINAL_GATE_INSTRUMENT_READY`
-может сопровождаться `product_decision=NOT_READY`.
+Превратить грубый chronology blocker в воспроизводимый остаток. Автоматический слой может закрыть
+только строки, для которых временные, акустические и speaker-state доказательства независимо
+показывают нормальную границу реплик или реальный double-talk. Всё остальное остаётся видимым.
 
 ## Required Work
 
-1. Переквалифицировать текущий provisional materializer и восстановить byte-exact fresh rebaseline.
-2. Заморозить схемы, SHA-256 и решения всех восьми источников в приватном manifest.
-3. Выдать отдельный `pass|bounded|blocked|not_measured` для каждого измерения без общего score.
-4. Fail closed при отсутствующем, изменённом или несовместимом источнике.
-5. Добавить CLI `murmurmark corpus terminal-gate-v1 ...`, JSON/Markdown report и tracked snapshot.
-6. Проверить privacy, stale evidence, product-ready fixture, byte-exact replay и отсутствие мутаций.
-7. Согласовать README, contracts, runbook, roadmap и OpsKarta; commit и push.
+1. Заморозить rebaseline, очередь, policy, реализацию и все входные артефакты по SHA-256.
+2. Сопоставить order rows с group-overlap и stronger-audio evidence без чтения облачных данных.
+3. Выдать для каждой строки один outcome: `benign_turn_boundary`, `confirmed_double_talk`,
+   `remote_leak_or_asr_segmentation`, `true_chronology_risk` или `insufficient_evidence`.
+4. Считать закрытыми только первые два outcome; отсутствие optional judge должно давать
+   `insufficient_evidence`, а не ошибочный pass.
+5. Выпустить privacy-safe JSON/Markdown report, private provenance и byte-exact replay.
+6. Передать initial, closed и remaining chronology seconds в terminal gate как отдельный источник.
+7. Добавить CLI, fixture, stale-input, privacy, no-mutation и replay tests.
+8. Согласовать README, contracts, runbook, roadmap и OpsKarta; выполнить полный набор проверок,
+   commit и push.
 
 ## Acceptance Gates
 
-- все восемь измерений явны и имеют собственное состояние, метрики, evidence и blocker;
-- instrument readiness не зависит от того, прошёл ли продукт все quality gates;
-- WER/CER остаются `null`, пока Human-Reviewed Lexical Seed не стал `REFERENCE_READY`;
-- public artifacts не содержат session IDs, речь, имена, абсолютные пути или private manifest;
-- stale source переводит прибор в `EVIDENCE_INCOMPLETE`, а replay сравнивает байты;
-- raw CAF, Echo Guard, ASR, Coverage v3, selected transcripts и human answers неизменны;
-- полный набор проверок проходит, изменения находятся в `origin/main`.
+- все 52 строки имеют стабильный outcome и явную причину;
+- безопасно закрыты не менее 50% строк и 50% секунд либо выпущен воспроизводимый evidence bound;
+- ни одна строка не закрывается по одному similarity score или одному текстовому совпадению;
+- raw CAF, Echo Guard, primary ASR, текст, роли, timestamps и selected transcripts неизменны;
+- public artifacts не содержат session IDs, речь, имена или абсолютные пути;
+- missing/stale evidence fail closed, повторный запуск byte-exact;
+- terminal gate показывает исходные, закрытые и оставшиеся chronology seconds;
+- код, тесты, документы и планы находятся в `origin/main`.
 
 ## Current Evidence
 
-Реальный baseline уже даёт `TERMINAL_GATE_INSTRUMENT_READY` и `product_decision=NOT_READY`.
-`review_burden` и `speaker_resolved_publication` проходят. Continuity, Target-Me residual,
-chronology, current-corpus speaker-count truth и unknown-duration ограничены доказательствами;
-lexical accuracy заблокирована очередью `0/28`. Полный прогон дополнительно выявил и устранил
-устаревшую transitive-ссылку Remote Unknown Recovery; отдельный regression теперь проверяет этот
-случай покомпонентно.
+Реальный frozen run завершён с `PROMOTE_CHRONOLOGY_EVIDENCE_ARBITRATION_V1`. Закрыты 38 из 52
+строк (`73.08%`) и `255.97s` из `345.94s` (`73.99%`): 34 benign turn boundaries и четыре
+подтверждённых double-talk. Явный остаток составляет 14 строк / `89.97s`: 10 insufficient,
+два remote leak или ASR segmentation и два настоящих chronology risks. Terminal gate остаётся
+`NOT_READY`, но его chronology blocker теперь измеряет этот остаток, а не всю исходную очередь.
 
 ## Commands
 
 ```bash
+murmurmark corpus chronology-arbitration-v1 all --refresh --write-snapshot
+murmurmark corpus chronology-arbitration-v1 status
+murmurmark corpus chronology-arbitration-v1 replay --write-snapshot
 murmurmark corpus terminal-gate-v1 all --refresh --write-snapshot
-murmurmark corpus terminal-gate-v1 status
-murmurmark corpus terminal-gate-v1 replay --write-snapshot
 ```
 
 ## Out Of Scope
 
-Capture/Echo/ASR tuning, transcript mutation, forced speaker labels, cloud inference, summaries,
-exports, UI and filling human lexical answers on behalf of the user.
+Transcript mutation, retiming, role reassignment, capture/Echo/ASR tuning, cloud inference,
+speaker naming, filling the Human-Reviewed Lexical Seed and summaries.

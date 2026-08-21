@@ -190,6 +190,9 @@ Read in this order:
 186. [Speaker-Resolved Terminal Gate instrument contract](contracts/speaker-resolved-terminal-gate-instrument-v1.md)
 187. [Speaker-Resolved Terminal Gate instrument runbook](runbooks/speaker-resolved-terminal-gate-instrument-v1.md)
 188. [Speaker-Resolved Terminal Gate instrument result](testing/2026-08-21-speaker-resolved-terminal-gate-instrument-v1.md)
+189. [Speaker-Bounded Chronology Evidence Arbitration v1 contract](contracts/speaker-bounded-chronology-arbitration-v1.md)
+190. [Speaker-Bounded Chronology Evidence Arbitration v1 runbook](runbooks/speaker-bounded-chronology-arbitration-v1.md)
+191. [Speaker-Bounded Chronology Evidence Arbitration v1 result](testing/2026-08-21-speaker-bounded-chronology-arbitration-v1.md)
 
 ## Current Planning Entry Points
 
@@ -260,9 +263,11 @@ timing-shift partition ARI `0.289387`. The fresh rebaseline then passed on six f
 sessions and found three restart-bounded PCM gaps / `2.268542s`. Capture Continuity Loss Closure v1
 closed `EVIDENCE_BOUND`. Remote Unknown Evidence Recovery v1 then classified all 547 strict unknown
 words but safely recovered only 10 / `4.682812s`; its `EVIDENCE_BOUND` keeps Coverage v3 selected.
-Speaker-Resolved Transcript Terminal Gate Instrumentation v1 is current. Its eight fingerprint-bound
-gates are measurable: publication and review burden pass; five dimensions are bounded and lexical
-accuracy is blocked by the unchanged 0/28 human queue. Session-scoped context follows direct truth.
+Speaker-Resolved Transcript Terminal Gate Instrumentation v1 is complete. Its eight dimensions from
+nine fingerprint-bound sources are measurable. Speaker-Bounded Chronology Evidence Arbitration v1
+is current: it safely closed 38/52 rows / `255.97s` and left 14 rows / `89.97s` explicit.
+Publication and review burden pass; lexical accuracy remains blocked by the unchanged 0/28 human
+queue. Session-scoped context follows direct truth.
 Before the rebaseline, Enrichment Transaction and Cache Coherence v1 closed stale-state risk:
 deferred profile changes now reconcile review history, speaker evidence, readiness and outcome, and
 identical stronger-audio clips reuse content-addressed local decodes.

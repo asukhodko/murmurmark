@@ -104,11 +104,14 @@
         "word and role conservation pass, but chronology review remains"
       ],
       "evidence": [
-        "post_segmentation_rebaseline"
+        "post_segmentation_rebaseline",
+        "chronology_arbitration"
       ],
       "id": "chronology_and_conservation",
       "metrics": {
-        "chronology_review_seconds": 345.94,
+        "chronology_review_seconds": 89.97,
+        "closed_chronology_review_seconds": 255.97,
+        "initial_chronology_review_seconds": 345.94,
         "maximum_chronology_review_seconds": 0.0,
         "word_order_role_conserved": true
       },

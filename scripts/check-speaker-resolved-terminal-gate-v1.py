@@ -68,6 +68,48 @@ def fixtures(root: Path, ready: bool) -> tuple[Path, Path, Path]:
             },
         },
     )
+    chronology_input = reports / "chronology-private/input_manifest.json"
+    chronology_source = reports / "chronology-source.json"
+    chronology_empty = reports / "chronology-empty.jsonl"
+    write_json(chronology_source, {"schema": "fixture.chronology_source/v1"})
+    chronology_empty.write_bytes(b"")
+    write_json(
+        chronology_input,
+        {
+            "schema": "murmurmark.speaker_bounded_chronology_arbitration_input/v1",
+            "policy": {
+                "path": str(chronology_source),
+                "exists": True,
+                "bytes": chronology_source.stat().st_size,
+                "sha256": sha256(chronology_source),
+            },
+            "implementation": {
+                "path": str(chronology_source),
+                "exists": True,
+                "bytes": chronology_source.stat().st_size,
+                "sha256": sha256(chronology_source),
+            },
+            "rebaseline_manifest": {
+                "path": str(rebaseline_input),
+                "exists": True,
+                "bytes": rebaseline_input.stat().st_size,
+                "sha256": sha256(rebaseline_input),
+            },
+            "sessions": [
+                {
+                    "alias": "session_01",
+                    "artifacts": {
+                        "order_items": {
+                            "path": str(chronology_empty),
+                            "exists": True,
+                            "bytes": 0,
+                            "sha256": sha256(chronology_empty),
+                        }
+                    },
+                }
+            ],
+        },
+    )
     values = {
         "post": {
             "schema": "murmurmark.post_segmentation_transcript_rebaseline_report/v1",
@@ -134,6 +176,22 @@ def fixtures(root: Path, ready: bool) -> tuple[Path, Path, Path]:
                 "manifest_sha256": sha256(unknown_input),
             },
         },
+        "chronology": {
+            "schema": "murmurmark.speaker_bounded_chronology_arbitration_report/v1",
+            "decision": "PROMOTE_CHRONOLOGY_EVIDENCE_ARBITRATION_V1",
+            "summary": {
+                "frozen_items": 4,
+                "frozen_seconds": 2.0,
+                "closed_items": 4 if ready else 2,
+                "closed_seconds": 2.0 if ready else 1.0,
+                "remaining_items": 0 if ready else 2,
+                "remaining_seconds": 0.0 if ready else 1.0,
+            },
+            "inputs": {
+                "manifest": "chronology-private/input_manifest.json",
+                "manifest_sha256": sha256(chronology_input),
+            },
+        },
         "publication": {
             "schema": "murmurmark.speaker_resolved_transcript_default_corpus/v1",
             "decision": "PROMOTE",
@@ -150,6 +208,7 @@ def fixtures(root: Path, ready: bool) -> tuple[Path, Path, Path]:
         ("human_lexical_seed", "lexical", values["lexical"]["schema"]),
         ("remote_direct_truth", "truth", values["truth"]["schema"]),
         ("remote_unknown_recovery", "unknown", values["unknown"]["schema"]),
+        ("chronology_arbitration", "chronology", values["chronology"]["schema"]),
         ("speaker_resolved_publication", "publication", values["publication"]["schema"]),
     ]
     policy = {

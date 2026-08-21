@@ -93,6 +93,7 @@ CRITICAL_PATH = (
     "quality-capture-continuity-loss-closure-v1",
     "quality-remote-unknown-evidence-recovery-v1",
     "product-speaker-resolved-transcript-terminal-gate-instrument-v1",
+    "quality-speaker-bounded-chronology-arbitration-v1",
     "quality-human-reviewed-lexical-seed-v1",
     "quality-session-scoped-lexical-context-v1",
     "product-speaker-resolved-transcript-terminal-gate-v1",
@@ -172,7 +173,7 @@ def validate_statuses_and_goal(plan: dict) -> tuple[dict, str]:
     require(isinstance(statuses, dict), "plan.statuses must be a mapping")
     require(set(statuses) == EXPECTED_STATUSES, "plan status set does not match the planning contract")
     require(isinstance(nodes, dict) and nodes, "plan.nodes must be a non-empty mapping")
-    require(len(nodes) <= 62, f"active plan is too large: {len(nodes)} nodes, expected at most 62")
+    require(len(nodes) <= 63, f"active plan is too large: {len(nodes)} nodes, expected at most 63")
 
     current = [(node_id, node) for node_id, node in nodes.items() if node.get("status") == "current"]
     current_tasks = [(node_id, node) for node_id, node in current if node.get("kind") == "task"]
@@ -563,8 +564,8 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
     )
     require(
         nodes["product-speaker-resolved-transcript-terminal-gate-instrument-v1"].get("status")
-        == "current",
-        "terminal-gate instrumentation must be the current executable goal",
+        == "done",
+        "terminal-gate instrumentation must remain a completed checkpoint",
     )
     require(
         "quality-remote-unknown-evidence-recovery-v1"
@@ -572,8 +573,22 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
         "terminal-gate instrumentation must follow remote unknown evidence recovery",
     )
     require(
+        nodes["quality-speaker-bounded-chronology-arbitration-v1"].get("status") == "current",
+        "speaker-bounded chronology arbitration must be the current executable goal",
+    )
+    require(
+        "product-speaker-resolved-transcript-terminal-gate-instrument-v1"
+        in nodes["quality-speaker-bounded-chronology-arbitration-v1"].get("deps", []),
+        "chronology arbitration must follow terminal-gate instrumentation",
+    )
+    require(
         nodes["quality-human-reviewed-lexical-seed-v1"].get("status") == "blocked",
         "human-reviewed lexical seed must remain an explicit external evidence blocker",
+    )
+    require(
+        "quality-speaker-bounded-chronology-arbitration-v1"
+        in nodes["quality-human-reviewed-lexical-seed-v1"].get("deps", []),
+        "human-reviewed lexical seed must follow chronology arbitration",
     )
     require(
         nodes["quality-session-scoped-lexical-context-v1"].get("status") == "blocked",

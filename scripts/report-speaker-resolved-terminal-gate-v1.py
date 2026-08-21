@@ -30,6 +30,7 @@ REQUIRED_SOURCE_IDS = {
     "human_lexical_seed",
     "remote_direct_truth",
     "remote_unknown_recovery",
+    "chronology_arbitration",
     "speaker_resolved_publication",
 }
 REQUIRED_DIMENSIONS = {
@@ -58,7 +59,10 @@ DIMENSION_SOURCES = {
     "durable_capture": {"post_segmentation_rebaseline", "capture_continuity_closure"},
     "target_me_preservation": {"speaker_preserving_echo", "residual_local_recall"},
     "lexical_accuracy": {"human_lexical_seed"},
-    "chronology_and_conservation": {"post_segmentation_rebaseline"},
+    "chronology_and_conservation": {
+        "post_segmentation_rebaseline",
+        "chronology_arbitration",
+    },
     "remote_speaker_attribution": {"post_segmentation_rebaseline", "remote_direct_truth"},
     "explicit_unknown": {"post_segmentation_rebaseline", "remote_unknown_recovery"},
     "review_burden": {"post_segmentation_rebaseline"},
@@ -71,6 +75,9 @@ SOURCE_REMEDIATION_COMMANDS = {
     "remote_unknown_recovery": (
         "HF_HUB_OFFLINE=1 .venv/bin/python "
         "scripts/report-remote-unknown-evidence-recovery-v1-corpus.py all --refresh"
+    ),
+    "chronology_arbitration": (
+        "murmurmark corpus chronology-arbitration-v1 all --refresh"
     ),
 }
 
@@ -159,8 +166,10 @@ def identity_current(row: Any, path: Path) -> bool:
         return False
     if not path.is_file():
         return True
+    expected_bytes = row.get("bytes")
     return bool(
-        int(row.get("bytes") or -1) == path.stat().st_size
+        expected_bytes is not None
+        and int(expected_bytes) == path.stat().st_size
         and row.get("sha256") == sha256_file(path)
     )
 
@@ -176,7 +185,7 @@ def source_provenance_issues(
     source_id: str, report_path: Path, payload: dict[str, Any]
 ) -> list[str]:
     """Validate source-specific transitive fingerprints without publishing private paths."""
-    if source_id != "remote_unknown_recovery":
+    if source_id not in {"remote_unknown_recovery", "chronology_arbitration"}:
         return []
     inputs = payload.get("inputs") or {}
     manifest_name = inputs.get("manifest")
@@ -196,7 +205,25 @@ def source_provenance_issues(
     upstream_path = resolve_artifact_path(upstream)
     if upstream_path is None or not identity_current(upstream, upstream_path):
         return ["upstream_rebaseline_manifest_stale"]
-    return []
+    if source_id == "remote_unknown_recovery":
+        return []
+    issues: list[str] = []
+    for name in ("policy", "implementation"):
+        row = manifest.get(name)
+        path = resolve_artifact_path(row)
+        if path is None or not identity_current(row, path):
+            issues.append(f"chronology_{name}_stale")
+    for session in manifest.get("sessions") or []:
+        alias = str(session.get("alias") or "unknown")
+        for name, row in (session.get("artifacts") or {}).items():
+            values = row if isinstance(row, list) else [row]
+            if any(
+                (path := resolve_artifact_path(value)) is None
+                or not identity_current(value, path)
+                for value in values
+            ):
+                issues.append(f"chronology_{alias}_{name}_stale")
+    return issues
 
 
 def number(value: Any) -> float:
@@ -407,6 +434,7 @@ def build_dimensions(
     lexical = payloads.get("human_lexical_seed", {})
     direct = payloads.get("remote_direct_truth", {})
     unknown = payloads.get("remote_unknown_recovery", {})
+    chronology = payloads.get("chronology_arbitration", {})
     publication = payloads.get("speaker_resolved_publication", {})
 
     baseline_ready = (
@@ -469,11 +497,17 @@ def build_dimensions(
     }
 
     conservation = rebaseline.get("gates") or {}
-    chronology_seconds = number(
+    initial_chronology_seconds = number(
         nested(rebaseline, "dimensions", "overlap_and_chronology", "chronology_seconds")
     )
+    chronology_seconds = number(nested(chronology, "summary", "remaining_seconds"))
+    chronology_evidence_ready = chronology.get("decision") in {
+        "PROMOTE_CHRONOLOGY_EVIDENCE_ARBITRATION_V1",
+        "EVIDENCE_BOUND",
+    }
     chronology_ok = bool(
         baseline_ready
+        and chronology_evidence_ready
         and conservation.get("word_order_role_conserved") is True
         and chronology_seconds <= number(thresholds["maximum_chronology_review_seconds"])
     )
@@ -553,10 +587,14 @@ def build_dimensions(
             "chronology_and_conservation", "pass" if chronology_ok else "bounded",
             {
                 "word_order_role_conserved": conservation.get("word_order_role_conserved") is True,
+                "initial_chronology_review_seconds": round(initial_chronology_seconds, 6),
+                "closed_chronology_review_seconds": round(
+                    number(nested(chronology, "summary", "closed_seconds")), 6
+                ),
                 "chronology_review_seconds": round(chronology_seconds, 6),
                 "maximum_chronology_review_seconds": thresholds["maximum_chronology_review_seconds"],
             },
-            ["post_segmentation_rebaseline"], [] if chronology_ok else [
+            ["post_segmentation_rebaseline", "chronology_arbitration"], [] if chronology_ok else [
                 "word and role conservation pass, but chronology review remains"
             ],
         ),

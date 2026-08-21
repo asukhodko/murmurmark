@@ -13,7 +13,7 @@ or absolute paths.
 | durable capture | bounded | no-restart soak passes; controlled restart and current corpus retain measured source gaps |
 | Target-Me preservation | bounded | production local preservation/fallback pass; 4 rows / 21.12s remain |
 | lexical accuracy | blocked | Human-Reviewed Lexical Seed is `REVIEW_REQUIRED`, 0/28 |
-| chronology and conservation | bounded | words/roles pass; 345.94s remain in chronology review |
+| chronology and conservation | bounded | words/roles pass; arbitration closed 255.97 of 345.94s, leaving 89.97s |
 | remote speaker attribution | bounded | direct truth v2 passes; fresh corpus lacks direct speaker-count truth |
 | explicit unknown | bounded | 3.7874% words pass the 5% bound; 8.4747% seconds do not |
 | review burden | pass | 83.27s / 14423.865s = 0.5773%, below 3% |
@@ -21,6 +21,11 @@ or absolute paths.
 
 The result does not authorize transcript or audio changes. It turns the remaining work into separate,
 non-compensating product blockers.
+
+The instrument now reads nine fingerprint-bound reports for eight independent dimensions.
+Speaker-Bounded Chronology Evidence Arbitration v1 is a separate source: its promoted result closes
+38/52 false-positive or expected overlap rows without changing the transcript. The 14-row / 89.97s
+remainder stays bounded.
 
 During the full regression run, the instrument exposed a Remote Unknown Recovery report whose file
 was current but whose private manifest referenced the previous rebaseline SHA. The source was

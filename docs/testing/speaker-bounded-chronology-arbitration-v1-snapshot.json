@@ -1,0 +1,48 @@
+{
+  "decision": "PROMOTE_CHRONOLOGY_EVIDENCE_ARBITRATION_V1",
+  "gates": {
+    "all_rows_have_stable_outcome": true,
+    "local_only_offline_evidence": true,
+    "minimum_item_closure": true,
+    "minimum_seconds_closure": true,
+    "public_report_privacy_safe": true,
+    "raw_audio_unchanged": true,
+    "selected_text_roles_timestamps_unchanged": true
+  },
+  "schema": "murmurmark.speaker_bounded_chronology_arbitration_snapshot/v1",
+  "summary": {
+    "by_outcome": {
+      "benign_turn_boundary": {
+        "items": 34,
+        "seconds": 229.52
+      },
+      "confirmed_double_talk": {
+        "items": 4,
+        "seconds": 26.45
+      },
+      "insufficient_evidence": {
+        "items": 10,
+        "seconds": 82.38
+      },
+      "remote_leak_or_asr_segmentation": {
+        "items": 2,
+        "seconds": 4.17
+      },
+      "true_chronology_risk": {
+        "items": 2,
+        "seconds": 3.42
+      }
+    },
+    "closed_item_ratio": 0.730769,
+    "closed_items": 38,
+    "closed_seconds": 255.97,
+    "closed_seconds_ratio": 0.739926,
+    "frozen_items": 52,
+    "frozen_seconds": 345.94,
+    "minimum_closed_item_ratio": 0.5,
+    "minimum_closed_seconds_ratio": 0.5,
+    "remaining_items": 14,
+    "remaining_seconds": 89.97
+  },
+  "version": 1
+}

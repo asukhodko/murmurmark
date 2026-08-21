@@ -272,25 +272,21 @@ murmurmark open "$SESSION" --kind transcript --command-only
 ## Current Development Direction
 The one-command lifecycle, Speaker-Preserving Neural Echo v2.17, Evidence Handoff v2, guarded export,
 bounded resume and incremental ASR are promoted. The normal path is one command plus `Ctrl-C`.
-
 Speaker-Resolved Transcript Default v1 promotes the fingerprint-verified Coverage v3 view into
 ordinary `transcript`, Evidence Handoff and guarded export. It preserves every selected word and
 keeps strict Evidence Handoff/export fallback unchanged. The ordinary transcript read surface adds
 a second tier: compatible but non-promoted acoustic clusters are shown as `provisional`, and truly
 unsupported remote speech is marked `remote_speaker_unknown` under a prominent disclaimer. Refresh
 or verify strict evidence:
-
 ```bash
 murmurmark audit speaker-default "$SESSION"
 murmurmark audit speaker-default "$SESSION" --verify-only
 murmurmark transcript "$SESSION"
 ```
-
 The normal pipeline and every lifecycle readiness refresh run this selector against the current
 selected transcript profile. `status` and `outcome` show the selected speaker profile and fallback
 reason. `--rich` remains a compatible diagnostic view; use
 `audit remote-residual` only for the v4 measured ceiling.
-
 Anonymous Rich Transcript Handoff v1 passed all `1235` references on 6/6 sessions. Reviewed Remote
 Speaker Naming v1 and Reviewed Speaker-Aware Meeting Memory v1 add only explicit session-local
 labels and optional evidence-backed notes/export:
@@ -308,6 +304,7 @@ Lexical Accuracy Reference Corpus v1 measures its exact 67-word digital subset a
 The product-level terminal instrument keeps real-meeting lexical correctness explicitly blocked:
 ```bash
 murmurmark corpus lexical-seed-v1 progress
+murmurmark corpus chronology-arbitration-v1 status
 murmurmark corpus terminal-gate-v1 status
 murmurmark corpus terminal-gate-v1 replay
 ```
@@ -317,25 +314,30 @@ A/B showed that a short topic-specific context can repair difficult terminology,
 static prompt did not help and can bias recognition. Production therefore keeps `prompt_file: null`.
 The planned **Session-Scoped Lexical Context v1** may enable compact meeting-specific context only
 after a human-reviewed lexical seed and multi-session no-regression gates exist.
-
 Disjoint truth v2 is complete: 72 primary + 12 repeats, consistency `1.0` and byte-exact replay. The
 one-shot ERes2NetV2 qualification kept Coverage v3; Cluster Purity Reference v1 found 10 remote
 voices compressed into four acoustic clusters, purity `89.8106%` and minority recall `0`. Transcript
 Integrity v1 repaired 10/19 proven duplicate/repetition candidates. Frozen Boundary and
-Remote Unknown Evidence Recovery v1 closed `EVIDENCE_BOUND`: only 10/547 words passed independent consensus. **Speaker-Resolved Transcript Terminal Gate Instrumentation v1** is current. Its fingerprint-bound eight-gate report is ready; product state is `NOT_READY`. Publication/fallback and review-burden gates pass, while continuity, Target-Me residual, chronology, current speaker-count truth and unknown-duration remain bounded. Lexical accuracy is blocked by the unchanged 0/28 Human-Reviewed Lexical Seed queue.
+Remote Unknown Evidence Recovery v1 closed `EVIDENCE_BOUND`: only 10/547 words passed independent
+consensus. The fingerprint-bound terminal instrument is ready, while product state remains
+`NOT_READY`. **Speaker-Bounded Chronology Evidence Arbitration v1** is current. It classified all
+52 chronology rows and safely closed 38 rows / `255.97s`; 14 rows / `89.97s` remain explicit.
+Publication/fallback and review-burden gates pass. Continuity, Target-Me residual, chronology,
+current speaker-count truth and unknown-duration remain bounded. Lexical accuracy is blocked by the
+unchanged 0/28 Human-Reviewed Lexical Seed queue.
 The remaining critical path is:
 ```text
 Coverage v3 + Transcript Integrity v1 -> Boundary Segmentation v1 (KEEP_COVERAGE_V3)
 -> Post-Segmentation Transcript Rebaseline v1 (REBASELINE_ESTABLISHED)
 -> Capture Continuity Loss Closure v1 (EVIDENCE_BOUND)
--> Remote Unknown Evidence Recovery v1 (EVIDENCE_BOUND) -> Terminal Gate Instrumentation v1 (current)
+-> Remote Unknown Evidence Recovery v1 (EVIDENCE_BOUND) -> Terminal Gate Instrumentation v1
+-> Speaker-Bounded Chronology Evidence Arbitration v1 (current, 89.97s remain)
 -> Human-Reviewed Lexical Seed v1 (blocked on 28 direct answers)
 -> Session-Scoped Lexical Context v1
 -> Speaker-Resolved Transcript Terminal Gate v1
 ```
 See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 ## Scope And Limitations
-
 - Ordinary auto-selected transcripts use `Me` and the best current session-local remote speaker
   evidence. Verified labels are preferred; compatible labels below the strict session gate are
   published as `provisional`, and unsupported speech becomes `remote_speaker_unknown`. The Markdown
@@ -378,10 +380,9 @@ See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](do
 - Domain packs are local inputs. `glossary.yaml` is not yet compiled into production ASR context;
   broad prompts remain disabled until Session-Scoped Lexical Context passes lexical corpus gates.
 ## Documentation
-
 - [Documentation index](docs/00-index.md), [mission](docs/product/vision.md), [requirements](docs/product/prd-v1.md), [current goal](docs/project/current-goal.md), [route](docs/project/reliable-transcription-route.md), [roadmap](docs/roadmap/murmurmark-cli-roadmap.md), [OpsKarta](docs/roadmap/murmurmark-cli-roadmap.plan.yaml)
 - [Meeting lifecycle contract](docs/contracts/meeting-lifecycle.md), [meeting cheat sheet](docs/runbooks/meeting-cheatsheet.md), [transcription runbook](docs/runbooks/transcribe-simple-whispercpp.md), [Transcript Integrity contract](docs/contracts/transcript-integrity-v1.md) and [runbook](docs/runbooks/transcript-integrity-v1.md)
-- [Transcript Perfection Corpus](docs/contracts/transcript-perfection-corpus.md), [Terminal Gate instrument](docs/contracts/speaker-resolved-terminal-gate-instrument-v1.md), [Lexical Accuracy Reference Corpus](docs/contracts/lexical-accuracy-reference-corpus.md), [Remote Speaker Coverage v3](docs/contracts/remote-speaker-coverage-v3.md) and [Residual Evidence v4](docs/contracts/remote-speaker-residual-evidence-v4.md)
+- [Transcript Perfection Corpus](docs/contracts/transcript-perfection-corpus.md), [Terminal Gate instrument](docs/contracts/speaker-resolved-terminal-gate-instrument-v1.md), [Chronology Evidence Arbitration](docs/contracts/speaker-bounded-chronology-arbitration-v1.md), [Lexical Accuracy Reference Corpus](docs/contracts/lexical-accuracy-reference-corpus.md), [Remote Speaker Coverage v3](docs/contracts/remote-speaker-coverage-v3.md) and [Residual Evidence v4](docs/contracts/remote-speaker-residual-evidence-v4.md)
 - [Domain pack and lexical-context boundary](docs/contracts/domain-pack.md)
 - [Independent evidence](docs/contracts/independent-remote-speaker-evidence-v1.md), [Remote Unknown Recovery](docs/contracts/remote-unknown-evidence-recovery-v1.md), [Controlled Truth Lab](docs/contracts/controlled-remote-speaker-truth-lab-v1.md), [Cluster Purity Reference](docs/contracts/remote-speaker-cluster-purity-reference-v1.md), and [Boundary result](docs/testing/2026-08-20-remote-speaker-boundary-minority-v1.md)
 - [Speaker-Resolved Default](docs/contracts/speaker-resolved-transcript-default-v1.md) and [roster-constrained evidence](docs/contracts/roster-constrained-remote-speaker-evidence-v1.md)
@@ -395,5 +396,5 @@ murmurmark corpus remote-coverage all --verify-existing && murmurmark corpus rem
 murmurmark corpus remote-independent all --verify-existing && murmurmark corpus remote-reference replay && murmurmark corpus remote-duration-v2 replay
 murmurmark corpus speaker-default all --verify-existing
 murmurmark corpus remote-identity-v1 replay && murmurmark corpus remote-boundary-minority-v1 replay
-murmurmark corpus post-segmentation-rebaseline all --verify-existing && murmurmark corpus terminal-gate-v1 replay
+murmurmark corpus post-segmentation-rebaseline all --verify-existing && murmurmark corpus chronology-arbitration-v1 replay && murmurmark corpus terminal-gate-v1 replay
 ```

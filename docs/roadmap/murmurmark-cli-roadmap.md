@@ -95,7 +95,8 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Post-segmentation transcript rebaseline v1 | `done` | 6/6 fresh, coherent surfaces; next hard defect selected by evidence |
 | Capture continuity loss closure v1 | `done` | `EVIDENCE_BOUND`: fixed delay removed, native source-loss intervals block completeness |
 | Remote unknown evidence recovery v1 | `done` | `EVIDENCE_BOUND`: 10/547 words passed consensus; Coverage v3 remains selected |
-| Speaker-Resolved Transcript Terminal Gate Instrumentation v1 | `current` | Eight fingerprint-bound gates; instrument ready, product not ready |
+| Speaker-Resolved Transcript Terminal Gate Instrumentation v1 | `done` | Eight dimensions from nine fingerprint-bound sources; instrument ready, product not ready |
+| Speaker-Bounded Chronology Evidence Arbitration v1 | `current` | 38/52 rows and 255.97/345.94s closed; 14 rows / 89.97s remain explicit |
 | Human-reviewed lexical seed v1 | `blocked` | Frozen 0/28 queue waits for direct human text |
 | Session-scoped lexical context v1 | `blocked` | Compact per-meeting context waits for direct lexical truth |
 | Speaker-resolved transcript terminal gate v1 | `blocked` | Final product pass waits for instrument and lexical context |
@@ -138,12 +139,13 @@ flowchart LR
     RB["Done: REBASELINE ESTABLISHED<br/>Post-Segmentation<br/>Transcript Rebaseline v1"]
     CC["Done: EVIDENCE BOUND<br/>Capture Continuity<br/>Loss Closure v1"]
     RU["Done: EVIDENCE BOUND<br/>Remote Unknown<br/>Evidence Recovery v1"]
-    HL["Current<br/>Human-Reviewed<br/>Lexical Seed v1"]
+    TI["Done: INSTRUMENT READY<br/>Speaker-Resolved<br/>Terminal Instrument v1"]
+    CH["Current: PROMOTE<br/>Speaker-Bounded Chronology<br/>Evidence Arbitration v1"]
+    HL["Blocked<br/>Human-Reviewed<br/>Lexical Seed v1"]
     LC["Blocked<br/>Session-Scoped<br/>Lexical Context v1"]
     TG["Later<br/>Speaker-Resolved Transcript<br/>Terminal Gate v1"]
     O["Optional<br/>Notes, retrieval,<br/>work proposals"]
-
-    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> W --> X --> Y --> RC --> SR --> TD --> M --> MQ --> UG --> RI --> BM --> EC --> RB --> CC --> RU --> HL --> LC --> TG
+    B --> D --> P --> R --> V --> H --> L --> I --> C --> Q --> A --> S --> E --> K --> N --> Z --> J --> G --> T --> W --> X --> Y --> RC --> SR --> TD --> M --> MQ --> UG --> RI --> BM --> EC --> RB --> CC --> RU --> TI --> CH --> HL --> LC --> TG
     F --> D
     L -.-> O
 ```
@@ -154,19 +156,16 @@ pairwise precision `0.961675`, exact words and aggregate fallback. Residual v4 m
 safe ceiling and did not promote. Speaker-Resolved Transcript Default v1 exposes Coverage v3 through
 ordinary read/handoff/export; names remain explicit review only. Transcript Perfection Corpus keeps
 unlike quality dimensions separate and guards every later candidate.
-
 ### 7. Lexical Accuracy Reference Corpus v1 — `done`
 Private graded corpus отделил exact generated truth, scripted expected evidence и independent
 machine references. Точный цифровой поднабор содержит 67 слов при WER/CER `0`; weak sources не
 могут считаться truth. Реальная лексическая точность закрыта `REFERENCE_INSUFFICIENT`: нет ни одной
 human-reviewed встречи.
-
 ### 8. Independent Remote Speaker Evidence v1 — `done`
 Pinned local WavLM XVector проверен на frozen six-session Coverage v3 corpus и `598.240s` unknown
 remote speech. Он восстановил 53 слова / `23.357s`: `6.2280%` words и `3.9043%` seconds при gates
 `20%`. B-cubed F1 `0.962171`, pairwise precision `0.961675`, 5/5 boundaries и exact fallback
 сохранены. Ни одно из пяти новых решений в reference session не покрыто прямой truth-меткой.
-
 Результат: воспроизводимый `DO_NOT_PROMOTE`. Повторять WavLM с более мягкими порогами нельзя.
 
 ### 9. Remote Speaker Residual Reference Corpus v1 — `done`
@@ -280,13 +279,15 @@ Current unknown is `8.4747%` seconds / `3.7874%` words; 4 gaps / `1.223687s`; re
 ### 34. Remote Unknown Evidence Recovery v1 — `done`
 `EVIDENCE_BOUND`: все 547 слов классифицированы; WavLM предложил 59, но отдельный structural
 evidence подтвердил только 10 слов / `4.682812s`. Held-out дал 1/166, direct-truth overlap — 0/105; Coverage v3 остаётся authoritative, новый shadow всегда fail-open.
-### 35. Speaker-Resolved Transcript Terminal Gate Instrumentation v1 — `current`
+### 35. Speaker-Resolved Transcript Terminal Gate Instrumentation v1 — `done`
 `TERMINAL_GATE_INSTRUMENT_READY`, product `NOT_READY`: восемь gates без общего score; два pass, пять bounded, lexical blocked. Direct и transitive stale evidence fail closed только для зависимых gates.
-### 36. Human-Reviewed Lexical Seed v1 — `blocked`
+### 36. Speaker-Bounded Chronology Evidence Arbitration v1 — `current`
+`PROMOTE_CHRONOLOGY_EVIDENCE_ARBITRATION_V1`: все 52 строки имеют outcome; 34 benign boundaries и четыре double-talk закрыли `255.97s`, а 14 строк / `89.97s` остались явными. Transcript не изменён, replay byte-exact.
+### 37. Human-Reviewed Lexical Seed v1 — `blocked`
 Две реальные встречи, 24 primary + 4 repeats; `REVIEW_REQUIRED` (`0/28`), machine/cloud — только диагностика.
-### 37. Session-Scoped Lexical Context v1 — `blocked`
+### 38. Session-Scoped Lexical Context v1 — `blocked`
 Короткий context конкретной встречи; broad prompt запрещён, нужны WER/CER и conservation gates.
-### 38. Speaker-Resolved Transcript Terminal Gate v1 — `blocked`
+### 39. Speaker-Resolved Transcript Terminal Gate v1 — `blocked`
 `READY` требует pass всех восьми ворот; одна ось не компенсирует другую.
 ## Закрытые И Отложенные Треки
 - Local mic multi-speaker diarization и тяжёлый local ASR validator открываются после terminal gate

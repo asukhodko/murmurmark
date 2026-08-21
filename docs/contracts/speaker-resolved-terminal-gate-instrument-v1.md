@@ -14,7 +14,7 @@ report a product that is not ready. No aggregate quality score is allowed.
 
 ## Inputs
 
-`policies/speaker-resolved-terminal-gate-instrument-v1.json` names eight canonical reports:
+`policies/speaker-resolved-terminal-gate-instrument-v1.json` names nine canonical reports:
 
 - fresh post-segmentation rebaseline;
 - capture continuity closure;
@@ -23,6 +23,7 @@ report a product that is not ready. No aggregate quality score is allowed.
 - human-reviewed lexical seed;
 - remote direct truth v2;
 - remote unknown recovery;
+- speaker-bounded chronology arbitration;
 - speaker-resolved publication corpus.
 
 `freeze` records the policy, implementation and each report's schema, size and SHA-256 under
@@ -31,7 +32,9 @@ Evaluation never refreshes this manifest implicitly. Missing, changed or incompa
 produces `EVIDENCE_INCOMPLETE`. Only dimensions depending on the stale source become
 `not_measured`; independent dimensions retain their measured state. For Remote Unknown Recovery,
 the instrument also verifies the report-to-private-manifest SHA and that manifest's frozen
-rebaseline fingerprint, so a current report file cannot mask stale transitive evidence.
+rebaseline fingerprint, so a current report file cannot mask stale transitive evidence. The same
+transitive check covers the chronology arbitration policy, implementation and all frozen audio,
+timeline and judge artifacts.
 
 ## Outputs
 
@@ -62,7 +65,8 @@ The eight required dimensions are:
 2. `target_me_preservation`: promoted local preservation and exact fallback with no recall residual.
 3. `lexical_accuracy`: direct human reference is ready, WER <= 15%, CER <= 8% and domain-term
    accuracy >= 90%.
-4. `chronology_and_conservation`: words, roles and order survive; chronology review is zero.
+4. `chronology_and_conservation`: words, roles and order survive; initial, evidence-closed and
+   remaining chronology review are explicit, and the remainder is zero for product readiness.
 5. `remote_speaker_attribution`: direct truth is ready and current topology has direct count truth.
 6. `explicit_unknown`: word and duration ratios stay within explicit bounds.
 7. `review_burden`: unresolved seconds stay below the existing 3% corpus bound.

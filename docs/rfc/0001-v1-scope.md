@@ -59,8 +59,10 @@ Current implementation status, 2026-08-20:
   passed and exposed three restart-bounded capture gaps. Capture continuity closure completed
   `EVIDENCE_BOUND`: software restart latency was removed and every remaining native source gap now
   blocks completeness. Remote Unknown Evidence Recovery also closed `EVIDENCE_BOUND` at 10/547
-  safely supported words. Terminal-gate instrumentation is current; human-reviewed lexical truth
-  remains blocked before session-scoped context and the final product gate.
+  safely supported words. Terminal-gate instrumentation is complete. Speaker-Bounded Chronology
+  Evidence Arbitration v1 reduced the measured order residual from `345.94s` to `89.97s` without
+  transcript mutation; human-reviewed lexical truth remains blocked before session-scoped context
+  and the final product gate.
   Production remains Coverage v3. Cross-session identity, summaries, cloud/external writes and UI
   remain future or optional;
 - local domain glossaries remain private knowledge inputs. They are not compiled into production ASR

@@ -164,9 +164,11 @@ now refreshes speaker selection, ignores cleanup-only harmful metrics on reviewe
 stale deferred-stage errors after recovery. Open Truth v2 is development evidence; future promotion
 requires a new frozen terminal set. Notes remain optional.
 
-The dependent route has completed boundary segmentation, fresh rebaseline, capture closure and
-remote unknown recovery. A terminal-gate instrument is current; human lexical truth remains a
-separate blocked input before session-scoped context and the final product gate. The
+The dependent route has completed boundary segmentation, fresh rebaseline, capture closure,
+remote unknown recovery and terminal-gate instrumentation. Speaker-Bounded Chronology Evidence
+Arbitration v1 is current: it reduced the measured chronology residual from `345.94s` to `89.97s`
+without changing a transcript. Human lexical truth remains a separate blocked input before
+session-scoped context and the final product gate. The
 domain glossary is not currently compiled into ASR input; broad static prompts remain disabled.
 Local mic multi-speaker diarization and heavier local ASR validators are conditional later branches.
 
