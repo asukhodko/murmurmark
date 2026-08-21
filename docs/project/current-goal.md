@@ -6,77 +6,65 @@ This document expands the single executable goal from
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`.
 `scripts/check-planning-consistency.py` keeps the README, roadmap and OpsKarta wording aligned.
 
-## Remote Unknown Evidence Recovery v1
+## Human-Reviewed Lexical Seed v1
 
-OpsKarta nearest goal: Remote Unknown Evidence Recovery v1: опираясь на завершённые Post-Segmentation Transcript Rebaseline v1 и Capture Continuity Loss Closure v1, заморозить 397.543570s / 547 слов explicit unknown из strict Coverage v3, разложить их по причинам отсутствия embedding, конфликтующим frame-speakers, слабому margin, overlap и boundary context, восстанавливать session-local speaker label только при независимом воспроизводимом evidence и без ослабления production abstention gates, сохранить точные words/roles/timestamps/aggregate fallback, выпустить PROMOTE либо точный EVIDENCE_BOUND, обновить тесты, документацию и планы, затем закоммитить и отправить результат в origin/main.
+OpsKarta nearest goal: Human-Reviewed Lexical Seed v1: опираясь на завершённые Post-Segmentation Transcript Rebaseline v1, Capture Continuity Loss Closure v1 и Remote Unknown Evidence Recovery v1, заморозить минимум две репрезентативные реальные встречи — 1x1 и group в разных акустических режимах — материализовать короткую приватную очередь word-level review для Me и remote, получить прямую человеческую truth по словам без использования machine agreement как эталона, измерить WER/CER и domain-term accuracy текущего production transcript, выпустить REFERENCE_READY либо воспроизводимый EVIDENCE_BOUND, обновить тесты, документацию и планы, затем закоммитить и отправить результат в origin/main.
 
 ## Why Now
 
-Capture Continuity Loss Closure v1 завершён `EVIDENCE_BOUND`. Удалены фиксированная `500ms` пауза
-и повторный `stopCapture`; новый controlled restart сократил разрыв до `0.468729s`, программный
-простой до `2.362ms`. Остаток принадлежит ScreenCaptureKit/start delivery, точно записывается как
-`captured_audio=false` и блокирует terminal completeness. Обычный `600.434s` soak дал zero gaps.
+Remote Unknown Evidence Recovery v1 завершён `EVIDENCE_BOUND`. Все 547 strict unknown words имеют
+стабильную причину и provenance. Независимый WavLM предложил 59 слов, но отдельное структурное
+подтверждение осталось только у 10 слов / `4.682812s`; на untuned-сессии — 1 из 166 слов.
+Ни один recovery-кандидат не пересёк 105 direct-truth items. Ослабление speaker gates закрыто,
+Coverage v3 остаётся authoritative.
 
-Fresh rebaseline снова byte-exact на той же шестёрке: strict unknown составляет `397.543570s` и
-547 слов. Это крупнейший следующий измеренный остаток на пути к надёжной атрибутированной
-транскрибации.
-
-Перед возвратом к unknown закрыт инфраструктурный долг stronger-audio judge. Версия `0.3.0`
-сопоставляет review lanes с каноническими pack items до synthetic fallback, сохраняет полный набор
-строк при целевых проходах, пишет `interrupted_checkpointed` при мягкой остановке и показывает
-selected/cached/computed/pending. На `2026-08-20_17-47-20` evidence вырос монотонно
-`35 -> 39 -> 40 -> 41`, актуальный workspace исключил закрытые lanes, manual remainder остался
-`20 rows / 29.70s`, raw CAF не изменились. Этот долг больше не отвлекает текущую цель.
+Следующий неизвестный размер — лексическая точность реальной речи. Цифровой 67-word subset уже
+имеет WER/CER `0`, но это не доказывает качество живых созвонов. Автоматические ASR, облачная
+транскрибация и согласие моделей не являются прямой truth.
 
 ## Objective
 
-Понять, какую часть explicit unknown можно доказательно вернуть существующим участникам сессии.
-Неизвестная речь остаётся корректным результатом, если evidence слабое или конфликтующее.
+Получить небольшой, но достаточный человеческий эталон реальной речи, чтобы дальнейшие изменения
+ASR-контекста оценивались по фактам, а не по впечатлению от отдельных транскриптов.
 
 ## Required Work
 
-1. Заморозить шесть rebaseline-сессий, Coverage v3 inputs, unknown words/intervals и SHA-256 всех
-   используемых speaker artifacts.
-2. Для каждого unknown слова сохранить одну причину верхнего уровня и полную диагностическую
-   provenance: embedding availability, similarity/margin, frame conflicts, overlap, boundary и
-   соседний однородный контекст.
-3. Проверить recovery-кандидаты независимым локальным speaker evidence, не переиспользуя тот же
-   порог как собственное подтверждение.
-4. Разрешать label только при согласии evidence и сохранении speaker purity; mixed/weak/short rows
-   остаются `remote_speaker_unknown`.
-5. Материализовать отдельный shadow profile. Coverage v3 и aggregate transcript остаются точным
-   fallback и не переписываются до corpus-wide promotion.
-6. Сравнить words, roles, timestamps, order, speaker topology, unknown seconds, false identity,
-   review burden и exact fallback на всей замороженной шестёрке.
-7. Выпустить `PROMOTE_REMOTE_UNKNOWN_RECOVERY` либо воспроизводимый `EVIDENCE_BOUND` с точным
-   безопасным потолком.
+1. До просмотра текста заморозить две или больше сессий, выбранные профили, аудио, transcript words,
+   роли, speaker labels и SHA-256 всех входов.
+2. Покрыть 1x1 и group, Me и remote, наушники и/или громкую связь, обычные слова и доменные термины.
+3. Построить короткую приватную review-очередь с точными audio intervals и неизменяемыми slot IDs.
+4. Принимать только прямую человеческую разметку: exact text, inaudible, mixed или unusable.
+5. Не показывать модельные ответы и не использовать облачную расшифровку как эталон.
+6. Посчитать WER, CER, insertions/deletions/substitutions, domain-term accuracy, role/speaker
+   conservation и отдельные результаты по сессиям.
+7. Выпустить `REFERENCE_READY` либо точный `EVIDENCE_BOUND`; production ASR не менять в этой цели.
 8. Обновить README, contracts, runbook, roadmap и OpsKarta; выполнить полный набор проверок,
    commit и push.
 
 ## Acceptance Gates
 
-- frozen capture, ASR, Echo Guard, Coverage v3, selected transcripts и raw CAF неизменны;
-- все 547 unknown слов имеют стабильную cause/provenance;
-- ни один label не назначен только соседством или одним similarity score;
-- direct controls и known-speaker precision не регрессируют;
-- words, roles, timestamps, chronology и aggregate fallback сохраняются точно;
-- false identity не растёт; unsupported speech остаётся explicit unknown;
-- повторный запуск детерминирован и corpus report byte-exact;
+- минимум две fingerprint-bound реальные сессии: 1x1 и group;
+- прямой эталон покрывает Me и remote и не содержит private text в tracked artifacts;
+- все reviewed intervals имеют полный provenance и повторяемые slot IDs;
+- WER/CER и domain-term accuracy считаются воспроизводимо и раздельно по режимам;
+- selected transcript, Coverage v3, ASR cache, Echo Guard и raw CAF неизменны;
+- повторный запуск детерминирован, public report не содержит абсолютных путей или речи;
 - результат документирован, закоммичен и находится в `origin/main`.
 
 ## Out Of Scope
 
-- изменение capture, Echo Guard, основного ASR и restart policy;
-- cross-session identity или имена людей без review;
-- принудительное назначение всех слов известным speakers;
-- local mic multi-speaker diarization, cloud inference, summaries и UI.
+- tuning prompt/hotwords или замена основного ASR;
+- автоматическая «truth» из согласия моделей или облака;
+- изменение speaker attribution, capture и Echo Guard;
+- summaries, exports, work-system updates и UI.
 
 ## First Commands
 
 ```bash
-murmurmark corpus post-segmentation-rebaseline all --verify-existing
-jq '.dimensions.explicit_unknown.causes, .summary.unknown_remote_words_coverage_v3' \
-  sessions/_reports/post-segmentation-transcript-rebaseline-v1/post_segmentation_rebaseline_report.json
-scripts/check-remote-speaker-coverage-v3.py
+murmurmark corpus lexical status
+murmurmark corpus lexical replay \
+  --write-manifest docs/testing/lexical-accuracy-reference-corpus-v1-manifest.json
+jq '.decision, .summary, .limitations' \
+  sessions/_reports/lexical-accuracy-reference-corpus-v1/lexical_accuracy_reference_corpus_report.json
 scripts/check.sh
 ```

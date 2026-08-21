@@ -1,0 +1,70 @@
+{
+  "decision": "EVIDENCE_BOUND",
+  "evidence_bound": {
+    "blocked_by": [
+      "frozen_unknown_word_reduction",
+      "frozen_unknown_second_reduction",
+      "minimum_direct_truth_newly_recovered_items"
+    ],
+    "held_out_seconds": 4.580652,
+    "held_out_words": 1,
+    "reason": "The conservative WavLM-plus-structural intersection is safe but too small and has no direct-truth overlap; Coverage v3 remains authoritative.",
+    "safe_frozen_seconds": 4.682812,
+    "safe_frozen_words": 10
+  },
+  "gates": {
+    "all_frozen_unknown_rows_classified": true,
+    "all_session_invariants": true,
+    "coverage_v3_fallback_preserved": true,
+    "frozen_strict_sessions_exact": true,
+    "frozen_unknown_second_reduction": false,
+    "frozen_unknown_seconds_exact": true,
+    "frozen_unknown_word_reduction": false,
+    "frozen_unknown_words_exact": true,
+    "held_out_session_exact": true,
+    "held_out_unknown_words_exact": true,
+    "minimum_direct_truth_newly_recovered_items": false,
+    "no_direct_truth_fail_closed_acceptance": true,
+    "no_direct_truth_wrong_speaker": true
+  },
+  "input_manifest_sha256": "88ab7c9ddada38a2fa669bd80fdb0779de8367355a80441e9538b066d604d58b",
+  "profile": "remote_unknown_evidence_recovery_v1",
+  "schema": "murmurmark.remote_unknown_evidence_recovery_snapshot/v1",
+  "summary": {
+    "frozen": {
+      "baseline_unknown_seconds": 397.54357,
+      "baseline_unknown_words": 547,
+      "recovered_seconds": 4.682812,
+      "recovered_words": 10,
+      "remaining_unknown_seconds": 392.860758,
+      "remaining_unknown_words": 537,
+      "remote_words": 15332,
+      "sessions": 5,
+      "unknown_seconds_reduction_ratio": 0.011779,
+      "unknown_words_reduction_ratio": 0.018282
+    },
+    "held_out": {
+      "baseline_unknown_seconds": 286.137303,
+      "baseline_unknown_words": 166,
+      "recovered_seconds": 4.580652,
+      "recovered_words": 1,
+      "remaining_unknown_seconds": 281.556651,
+      "remaining_unknown_words": 165,
+      "remote_words": 4512,
+      "sessions": 1,
+      "unknown_seconds_reduction_ratio": 0.016009,
+      "unknown_words_reduction_ratio": 0.006024
+    }
+  },
+  "truth_evaluation": {
+    "combined": {
+      "correct_identity": 0,
+      "fail_closed_acceptance": 0,
+      "newly_recovered_items": 0,
+      "newly_recovered_seconds": 0,
+      "newly_recovered_words": 0,
+      "primary_items": 105,
+      "wrong_speaker": 0
+    }
+  }
+}

@@ -83,8 +83,10 @@ controls and increased fail-closed unsafe accepts from 8 to 13. Purity v2 restor
 but homogeneous enrollment, stronger representations and temporal clustering all failed their
 promotion gates. Disjoint Truth v2 and the cluster-purity audit then localized the remaining topology
 defect: dominant clusters absorb short minority voices. The first frozen boundary candidate kept
-Coverage v3 after failing precision, speaker-count and minority-recall gates. The current step is a
-fresh transcript rebaseline that ranks the remaining axes before another model is chosen. Deferred
+Coverage v3 after failing precision, speaker-count and minority-recall gates. Fresh rebaseline and
+capture closure then isolated the remaining explicit unknown. WavLM plus structural evidence safely
+recovered only 10/547 words and closed `EVIDENCE_BOUND`. The current step is direct human lexical
+truth for live meetings. Deferred
 enrichment now ends in one idempotent state-reconciliation transaction, so stale review or
 attribution reports cannot distort that comparison.
 
@@ -133,9 +135,9 @@ met, unless an explicit product decision changes the priority.
    conservation checks and exposed three restart-bounded PCM gaps.
 5. **Capture Continuity Loss Closure v1:** completed `EVIDENCE_BOUND`; avoidable restart latency is
    removed and every remaining external source outage is exact and blocks completeness.
-6. **Remote Unknown Evidence Recovery v1:** current; explain the frozen strict unknown residual and
-   restore only session-local labels backed by independent reproducible evidence.
-7. **Human-Reviewed Lexical Seed v1:** collect exact real-meeting word truth before tuning ASR;
+6. **Remote Unknown Evidence Recovery v1:** completed `EVIDENCE_BOUND`; all 547 words have cause and
+   provenance, while only 10 words passed independent consensus and none had direct-truth overlap.
+7. **Human-Reviewed Lexical Seed v1:** current; collect exact real-meeting word truth before tuning ASR;
    agreement between local recognizers is diagnostic evidence only.
 8. **Session-Scoped Lexical Context v1:** compile a short topic-specific prompt or hotword set and
    promote it only after multi-session no-regression A/B. A broad static glossary is not an ASR prompt.

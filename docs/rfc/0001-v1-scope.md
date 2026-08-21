@@ -58,8 +58,9 @@ Current implementation status, 2026-08-20:
   boundaries and minority voices. Boundary/minority segmentation kept Coverage v3; fresh rebaseline
   passed and exposed three restart-bounded capture gaps. Capture continuity closure completed
   `EVIDENCE_BOUND`: software restart latency was removed and every remaining native source gap now
-  blocks completeness. Remote Unknown Evidence Recovery is current; human-reviewed lexical truth,
-  session-scoped lexical context and a terminal product gate follow.
+  blocks completeness. Remote Unknown Evidence Recovery also closed `EVIDENCE_BOUND` at 10/547
+  safely supported words. Human-reviewed lexical truth is current; session-scoped lexical context
+  and a terminal product gate follow.
   Production remains Coverage v3. Cross-session identity, summaries, cloud/external writes and UI
   remain future or optional;
 - local domain glossaries remain private knowledge inputs. They are not compiled into production ASR

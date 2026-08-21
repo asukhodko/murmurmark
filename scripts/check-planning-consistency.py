@@ -557,16 +557,16 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
         "remote unknown recovery must follow source continuity closure",
     )
     require(
-        nodes["quality-remote-unknown-evidence-recovery-v1"].get("status") == "current",
-        "remote unknown evidence recovery must be the current measured quality residual",
+        nodes["quality-remote-unknown-evidence-recovery-v1"].get("status") == "done",
+        "remote unknown evidence recovery must remain completed",
     )
     require(
-        nodes["quality-human-reviewed-lexical-seed-v1"].get("status") == "blocked",
-        "human-reviewed lexical seed must remain blocked on external truth",
+        nodes["quality-human-reviewed-lexical-seed-v1"].get("status") == "current",
+        "human-reviewed lexical seed must be the current direct-evidence goal",
     )
     require(
-        nodes["quality-session-scoped-lexical-context-v1"].get("status") == "later",
-        "session-scoped lexical context must follow direct lexical truth",
+        nodes["quality-session-scoped-lexical-context-v1"].get("status") == "blocked",
+        "session-scoped lexical context must remain blocked on direct lexical truth",
     )
     require(
         nodes["product-speaker-resolved-transcript-terminal-gate-v1"].get("status") == "later",

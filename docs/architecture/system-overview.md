@@ -164,8 +164,9 @@ now refreshes speaker selection, ignores cleanup-only harmful metrics on reviewe
 stale deferred-stage errors after recovery. Open Truth v2 is development evidence; future promotion
 requires a new frozen terminal set. Notes remain optional.
 
-The dependent route is boundary/minority segmentation, a fresh transcript rebaseline, a blocked
-human-reviewed lexical seed, session-scoped lexical context and a product-level terminal gate. The
+The dependent route has completed boundary segmentation, fresh rebaseline, capture closure and
+remote unknown recovery. A human-reviewed lexical seed is current; session-scoped lexical context
+and a product-level terminal gate follow. The
 domain glossary is not currently compiled into ASR input; broad static prompts remain disabled.
 Local mic multi-speaker diarization and heavier local ASR validators are conditional later branches.
 

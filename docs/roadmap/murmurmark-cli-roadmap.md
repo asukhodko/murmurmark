@@ -94,9 +94,9 @@ Raw CAF и batch output authoritative. Live Shadow capture-safe, но advisory; 
 | Enrichment transaction and cache coherence v1 | `done` | Idempotent refresh; stronger-audio v0.3 has canonical lane identity, monotonic checkpoints and truthful pending status |
 | Post-segmentation transcript rebaseline v1 | `done` | 6/6 fresh, coherent surfaces; next hard defect selected by evidence |
 | Capture continuity loss closure v1 | `done` | `EVIDENCE_BOUND`: fixed delay removed, native source-loss intervals block completeness |
-| Remote unknown evidence recovery v1 | `current` | Разобрать 547 unknown words и атрибутировать только по независимому evidence |
-| Human-reviewed lexical seed v1 | `blocked` | Exact real-meeting word truth is still external evidence |
-| Session-scoped lexical context v1 | `later` | Compact per-meeting prompt/hotwords, never a broad static glossary |
+| Remote unknown evidence recovery v1 | `done` | `EVIDENCE_BOUND`: 10/547 words passed consensus; Coverage v3 remains selected |
+| Human-reviewed lexical seed v1 | `current` | Build direct word truth for 1x1/group before ASR tuning |
+| Session-scoped lexical context v1 | `blocked` | Compact per-meeting context waits for direct lexical truth |
 | Speaker-resolved transcript terminal gate v1 | `later` | One measurable product-level North Star gate |
 | Local mic multi-speaker diarization v1 | `idea` | Opens only after a real scenario and labelled evidence |
 ## Актуальная Цепочка
@@ -136,9 +136,9 @@ flowchart LR
     EC["Done<br/>Enrichment Transaction and<br/>Cache Coherence v1"]
     RB["Done: REBASELINE ESTABLISHED<br/>Post-Segmentation<br/>Transcript Rebaseline v1"]
     CC["Done: EVIDENCE BOUND<br/>Capture Continuity<br/>Loss Closure v1"]
-    RU["Current<br/>Remote Unknown<br/>Evidence Recovery v1"]
-    HL["Blocked<br/>Human-Reviewed<br/>Lexical Seed v1"]
-    LC["Later<br/>Session-Scoped<br/>Lexical Context v1"]
+    RU["Done: EVIDENCE BOUND<br/>Remote Unknown<br/>Evidence Recovery v1"]
+    HL["Current<br/>Human-Reviewed<br/>Lexical Seed v1"]
+    LC["Blocked<br/>Session-Scoped<br/>Lexical Context v1"]
     TG["Later<br/>Speaker-Resolved Transcript<br/>Terminal Gate v1"]
     O["Optional<br/>Notes, retrieval,<br/>work proposals"]
 
@@ -277,13 +277,13 @@ restart gaps / `2.268542s` became the first hard residual; replay is byte-exact 
 ### 33. Capture Continuity Loss Closure v1 — `done`
 `EVIDENCE_BOUND`: fixed `500ms` pause и redundant stop удалены, concurrent signals соединяются в
 один restart. Software idle `2.362ms`; source gap `0.468729s`; soak `600.434s` без gaps. Native loss и disclaimer блокируют ложную completeness.
-### 34. Remote Unknown Evidence Recovery v1 — `current`
-Заморозить `397.543570s` / 547 strict unknown words, разложить их по cause и восстанавливать
-session-local label только по независимому evidence, не ослабляя abstention gates и exact fallback.
-### 35. Human-Reviewed Lexical Seed v1 — `blocked`
-Получить точную ручную разметку слов минимум для двух реальных встреч: 1x1/group, обе роли и два
-акустических режима. Машинное согласие остаётся диагностикой.
-### 36. Session-Scoped Lexical Context v1 — `later`
+### 34. Remote Unknown Evidence Recovery v1 — `done`
+`EVIDENCE_BOUND`: все 547 слов классифицированы; WavLM предложил 59, но отдельный structural
+evidence подтвердил только 10 слов / `4.682812s`. Held-out дал 1/166, direct-truth overlap — 0/105; Coverage v3 остаётся authoritative, новый shadow всегда fail-open.
+### 35. Human-Reviewed Lexical Seed v1 — `current`
+Получить прямую ручную word truth минимум для двух реальных встреч: 1x1/group, обе роли и разные
+акустические режимы. Машинное согласие и cloud transcript остаются только диагностикой.
+### 36. Session-Scoped Lexical Context v1 — `blocked`
 Собирать короткий контекст конкретной встречи из локального domain pack. Broad static prompt
 запрещён; кандидат проходит term gain, общий WER/CER, role/speaker conservation и exact replay.
 ### 37. Speaker-Resolved Transcript Terminal Gate v1 — `later`

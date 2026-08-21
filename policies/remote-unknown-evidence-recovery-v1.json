@@ -1,0 +1,49 @@
+{
+  "schema": "murmurmark.remote_unknown_evidence_recovery_policy/v1",
+  "version": "1.0.0",
+  "state": "evaluated_evidence_bound",
+  "profile": "remote_unknown_evidence_recovery_v1",
+  "purpose": "Recover strict Coverage v3 unknown words only when independent WavLM evidence agrees with a separate session-local structural anchor.",
+  "decision": {
+    "independent_profile": "wavlm_xvector_independent_residual_v1",
+    "maximum_same_utterance_anchor_gap_sec": 3.0,
+    "maximum_boundary_anchor_gap_sec": 1.0,
+    "minimum_boundary_anchor_count": 2,
+    "protected_causes": [
+      "protected_remote_overlap",
+      "conflicting_frame_speakers"
+    ],
+    "accepted_structural_evidence": [
+      "v1_utterance_attribution",
+      "same_utterance_anchor",
+      "two_sided_boundary_anchors"
+    ],
+    "requires_independent_wavlm_acceptance": true,
+    "requires_no_conflicting_structural_speaker": true,
+    "neighbor_only_assignment_forbidden": true,
+    "single_similarity_assignment_forbidden": true
+  },
+  "promotion": {
+    "required_frozen_strict_sessions": 5,
+    "required_frozen_unknown_words": 547,
+    "required_frozen_unknown_seconds": 397.54357,
+    "required_held_out_session": "2026-08-21_15-58-36",
+    "required_held_out_unknown_words": 166,
+    "minimum_frozen_unknown_word_reduction_ratio": 0.05,
+    "minimum_frozen_unknown_second_reduction_ratio": 0.05,
+    "minimum_direct_truth_newly_recovered_items": 5,
+    "maximum_direct_truth_wrong_speaker_items": 0,
+    "maximum_direct_truth_fail_closed_acceptance_items": 0
+  },
+  "fallback": "remote_speaker_coverage_v3",
+  "production_selection": false,
+  "evaluation": {
+    "decision": "EVIDENCE_BOUND",
+    "report": "sessions/_reports/remote-unknown-evidence-recovery-v1/remote_unknown_evidence_recovery_corpus_report.json",
+    "frozen_recovered_words": 10,
+    "frozen_recovered_seconds": 4.682812,
+    "held_out_recovered_words": 1,
+    "held_out_recovered_seconds": 4.580652,
+    "direct_truth_recovered_items": 0
+  }
+}

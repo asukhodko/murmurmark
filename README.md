@@ -324,13 +324,13 @@ Disjoint truth v2 is complete: 72 primary + 12 repeats, consistency `1.0` and by
 one-shot ERes2NetV2 qualification kept Coverage v3; Cluster Purity Reference v1 found 10 remote
 voices compressed into four acoustic clusters, purity `89.8106%` and minority recall `0`. Transcript
 Integrity v1 repaired 10/19 proven duplicate/repetition candidates. Frozen Boundary and
-Minority-Voice Segmentation v1 kept Coverage v3. Post-Segmentation Transcript Rebaseline v1 passed 6/6 fresh sessions with exact conservation. Capture Continuity Loss Closure v1 closed `EVIDENCE_BOUND`: fixed `500ms` delay removed, controlled restart software idle `2.362ms`, source gap `0.468729s`, no-restart soak `600.434s` with zero gaps. Stronger-audio recovery v0.3 now preserves canonical evidence across targeted refresh, checkpoints interrupted local inference and ignores stale lane files. Current: **Remote Unknown Evidence Recovery v1** over frozen `397.543570s` / 547 strict unknown words.
+Remote Unknown Evidence Recovery v1 then closed `EVIDENCE_BOUND`: all 547 strict unknown words are classified, WavLM plus independent structure safely supports only 10 words / `4.682812s`, held-out supports 1/166, and no candidate overlaps 105 direct-truth items. Coverage v3 remains selected. Current: **Human-Reviewed Lexical Seed v1**.
 The remaining critical path is:
 ```text
 Coverage v3 + Transcript Integrity v1 -> Boundary Segmentation v1 (KEEP_COVERAGE_V3)
 -> Post-Segmentation Transcript Rebaseline v1 (REBASELINE_ESTABLISHED)
 -> Capture Continuity Loss Closure v1 (EVIDENCE_BOUND)
--> Remote Unknown Evidence Recovery v1 (current) -> Human-Reviewed Lexical Seed v1 (external evidence)
+-> Remote Unknown Evidence Recovery v1 (EVIDENCE_BOUND) -> Human-Reviewed Lexical Seed v1 (current)
 -> Session-Scoped Lexical Context v1
 -> Speaker-Resolved Transcript Terminal Gate v1
 ```
@@ -384,7 +384,7 @@ See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](do
 - [Meeting lifecycle contract](docs/contracts/meeting-lifecycle.md), [meeting cheat sheet](docs/runbooks/meeting-cheatsheet.md), [transcription runbook](docs/runbooks/transcribe-simple-whispercpp.md), [Transcript Integrity contract](docs/contracts/transcript-integrity-v1.md) and [runbook](docs/runbooks/transcript-integrity-v1.md)
 - [Transcript Perfection Corpus](docs/contracts/transcript-perfection-corpus.md), [Post-Segmentation Rebaseline](docs/contracts/post-segmentation-transcript-rebaseline-v1.md), [Lexical Accuracy Reference Corpus](docs/contracts/lexical-accuracy-reference-corpus.md), [Remote Speaker Coverage v3](docs/contracts/remote-speaker-coverage-v3.md) and [Residual Evidence v4](docs/contracts/remote-speaker-residual-evidence-v4.md)
 - [Domain pack and lexical-context boundary](docs/contracts/domain-pack.md)
-- [Independent evidence](docs/contracts/independent-remote-speaker-evidence-v1.md), [Controlled Truth Lab](docs/contracts/controlled-remote-speaker-truth-lab-v1.md), [Disjoint ERes2NetV2 result](docs/contracts/disjoint-remote-speaker-model-qualification-v1.md), [Cluster Purity Reference](docs/contracts/remote-speaker-cluster-purity-reference-v1.md), and [Boundary and Minority-Voice result](docs/testing/2026-08-20-remote-speaker-boundary-minority-v1.md)
+- [Independent evidence](docs/contracts/independent-remote-speaker-evidence-v1.md), [Remote Unknown Recovery](docs/contracts/remote-unknown-evidence-recovery-v1.md), [Controlled Truth Lab](docs/contracts/controlled-remote-speaker-truth-lab-v1.md), [Cluster Purity Reference](docs/contracts/remote-speaker-cluster-purity-reference-v1.md), and [Boundary result](docs/testing/2026-08-20-remote-speaker-boundary-minority-v1.md)
 - [Speaker-Resolved Default](docs/contracts/speaker-resolved-transcript-default-v1.md) and [roster-constrained evidence](docs/contracts/roster-constrained-remote-speaker-evidence-v1.md)
 ## Development Checks
 ```bash
@@ -396,5 +396,5 @@ murmurmark corpus remote-coverage all --verify-existing && murmurmark corpus rem
 murmurmark corpus remote-independent all --verify-existing && murmurmark corpus remote-reference replay && murmurmark corpus remote-duration-v2 replay
 murmurmark corpus speaker-default all --verify-existing
 murmurmark corpus remote-identity-v1 replay && murmurmark corpus remote-boundary-minority-v1 replay
-murmurmark corpus perfection all --verify-existing && murmurmark corpus post-segmentation-rebaseline all --verify-existing
+murmurmark corpus perfection all --verify-existing && murmurmark corpus post-segmentation-rebaseline all --verify-existing && .venv/bin/python scripts/report-remote-unknown-evidence-recovery-v1-corpus.py all --verify-existing
 ```

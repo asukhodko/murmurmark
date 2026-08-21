@@ -8996,3 +8996,15 @@ The stronger-audio decode cache is content-addressed by clip SHA-256, every file
 faster-whisper model directory and all transcription settings that affect output. Path or profile
 changes alone do not force inference; any audio, model or setting change does. Cache failure is a
 normal miss and cannot authorize a transcript mutation.
+
+## Remote Unknown Evidence Recovery
+
+`remote_unknown_evidence_recovery_v1` is an isolated shadow over strict Coverage v3. A label needs
+both split-enrollment WavLM acceptance and a separate non-conflicting session-local structural
+anchor. `protected_remote_overlap` and `conflicting_frame_speakers` always remain unknown. Missing
+or stale independent artifacts materialize an exact Coverage v3 fallback.
+
+The completed corpus decision is `EVIDENCE_BOUND`: 10/547 frozen words and 1/166 held-out words
+passed the rule, but no recovery overlapped 105 direct-truth items and both 5% coverage gates failed.
+The profile is not selectable. Schemas, provenance and replay commands are defined in
+[Remote Unknown Evidence Recovery v1](remote-unknown-evidence-recovery-v1.md).

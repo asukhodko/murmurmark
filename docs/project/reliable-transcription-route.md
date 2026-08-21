@@ -33,8 +33,9 @@ then kept Coverage v3 after weak real precision, speaker-count and minority gate
 Transcript Rebaseline v1 passed on six fresh sessions and selected measured raw continuity loss as
 the first hard residual. Capture Continuity Loss Closure v1 then removed the fixed restart delay,
 made unavoidable source gaps native and terminal, and closed `EVIDENCE_BOUND`. Remote Unknown
-Evidence Recovery v1 is current. Notes, retrieval and work proposals remain optional derivatives.
-Date: 2026-08-20
+Evidence Recovery v1 then classified all 547 words but safely recovered only 10 / `4.682812s`, so it
+closed `EVIDENCE_BOUND`. Human-Reviewed Lexical Seed v1 is current. Notes, retrieval and work
+proposals remain optional derivatives. Date: 2026-08-21
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
 corpus-calibrated gates and explicit review burden before broader repair. Outcome Contract v1,
@@ -510,10 +511,9 @@ is selected only while every source/output hash and the qualified algorithm hash
 ## Current Executable Goal
 
 ```text
-Remote Unknown Evidence Recovery v1: заморозить 397.543570s / 547 слов explicit unknown из
-strict Coverage v3, разложить их по отсутствию embedding, конфликтам frame-speakers, margin,
-overlap и boundary context; восстанавливать session-local speaker label только при независимом
-воспроизводимом evidence, сохраняя production abstention gates и exact aggregate fallback.
+Human-Reviewed Lexical Seed v1: заморозить минимум две реальные встречи — 1x1 и group в разных
+акустических режимах — материализовать приватную word-level review queue для Me и remote, получить
+прямую human truth и измерить WER/CER/domain-term accuracy до любых ASR context experiments.
 ```
 
 Remote Speaker Attribution Error Decomposition v1 завершён
@@ -528,11 +528,11 @@ Local mic multi-speaker остаётся условной веткой и отк
 
 ## Dependent Milestones
 
-1. **Remote Unknown Evidence Recovery v1** is current and targets supported attribution only;
-   explicit unknown remains valid abstention.
-2. **Human-Reviewed Lexical Seed v1** remains blocked on exact real-meeting word truth covering
-   1x1/group, both roles and two acoustic modes.
-3. **Session-Scoped Lexical Context v1** compiles only a compact meeting-specific prompt or hotword
+1. **Remote Unknown Evidence Recovery v1** is complete with `EVIDENCE_BOUND`; Coverage v3 remains
+   authoritative and explicit unknown remains valid abstention.
+2. **Human-Reviewed Lexical Seed v1** is current and collects exact real-meeting word truth covering
+   1x1/group, both roles and different acoustic modes.
+3. **Session-Scoped Lexical Context v1** stays blocked, then compiles only a compact meeting-specific prompt or hotword
    set and requires a frozen multi-session no-regression A/B.
 4. **Speaker-Resolved Transcript Terminal Gate v1** measures the North Star across capture, local
    preservation, words, order, roles, anonymous speakers, explicit unknown and exact fallback.

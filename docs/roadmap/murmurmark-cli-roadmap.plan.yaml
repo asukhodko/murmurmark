@@ -816,32 +816,33 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-capture-continuity-loss-closure-v1]
-    status: current
+    status: done
     effort: 10
     notes: |
-      Заморозить 397.543570s / 547 strict Coverage v3 unknown words и разложить их по embedding
-      availability, conflicting frame speakers, overlap, boundary context, similarity и margin.
-      Восстанавливать session-local speaker label только по независимому evidence; unknown остаётся
-      корректным исходом, production thresholds и exact aggregate fallback не ослабляются.
+      Завершено EVIDENCE_BOUND. Все 547 strict unknown words классифицированы. WavLM предложил 59,
+      но отдельный structural evidence подтвердил 10 слов / 4.682812s; held-out дал 1/166 слов.
+      Ни один recovery не пересёк 105 direct-truth items, 5% coverage gates не пройдены. Coverage v3
+      и exact aggregate fallback остаются authoritative; shadow и fail-open replay сохранены.
 
   quality-human-reviewed-lexical-seed-v1:
     title: "Human-Reviewed Lexical Seed v1"
     kind: task
     parent: murmurmark-cli
     deps: [quality-remote-unknown-evidence-recovery-v1]
-    status: blocked
+    status: current
     effort: 8
     notes: |
-      Собрать точную ручную word-level truth минимум для двух реальных встреч: 1x1 и group, Me и
-      remote, два acoustic modes. Machine agreement остаётся diagnostic evidence и не разблокирует
-      ASR tuning. Private text не попадает в tracked artifacts.
+      Заморозить минимум две реальные встречи: 1x1 и group, Me и remote, разные acoustic modes.
+      Материализовать короткую приватную word-level review queue и получить прямую human truth для
+      WER/CER/domain terms. Machine agreement и cloud transcript не являются reference evidence;
+      private text не попадает в tracked artifacts, production ASR пока не меняется.
 
   quality-session-scoped-lexical-context-v1:
     title: "Session-Scoped Lexical Context v1"
     kind: task
     parent: murmurmark-cli
     deps: [quality-human-reviewed-lexical-seed-v1]
-    status: later
+    status: blocked
     effort: 10
     notes: |
       Скомпилировать из локального domain pack короткий meeting-specific prompt/hotword set. Broad
@@ -897,16 +898,13 @@ views:
     lanes:
       working:
         title: "Готовая основа"
-        nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1, quality-residual-transcript-integrity-hardening-v1, quality-remote-speaker-boundary-minority-segmentation-v1, quality-post-segmentation-transcript-rebaseline-v1, product-one-command-meeting-lifecycle-v1]
+        nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1, quality-residual-transcript-integrity-hardening-v1, quality-remote-speaker-boundary-minority-segmentation-v1, quality-post-segmentation-transcript-rebaseline-v1, quality-capture-continuity-loss-closure-v1, quality-remote-unknown-evidence-recovery-v1, product-one-command-meeting-lifecycle-v1]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-capture-continuity-loss-closure-v1]
-      blocked:
-        title: "Внешняя lexical truth"
         nodes: [quality-human-reviewed-lexical-seed-v1]
-      next:
-        title: "Следующий quality residual"
-        nodes: [quality-remote-unknown-evidence-recovery-v1]
+      blocked:
+        title: "Зависит от lexical truth"
+        nodes: [quality-session-scoped-lexical-context-v1]
 
   critical-path:
     title: "Критический CLI-путь"
@@ -1011,11 +1009,11 @@ views:
         title: "Доказанная speaker evidence"
         nodes: [research-remote-diarization, research-rich-transcript, quality-remote-speaker-diarization-v2]
       current:
-        title: "Надёжность источника"
-        nodes: [quality-capture-continuity-loss-closure-v1]
+        title: "Прямой lexical reference"
+        nodes: [quality-human-reviewed-lexical-seed-v1]
       unknown:
-        title: "Следующий измеренный остаток"
-        nodes: [quality-remote-unknown-evidence-recovery-v1]
+        title: "Доказанный attribution bound"
+        nodes: [quality-capture-continuity-loss-closure-v1, quality-remote-unknown-evidence-recovery-v1]
       boundary-result:
         title: "Отклонённый boundary candidate"
         nodes: [quality-remote-speaker-boundary-minority-segmentation-v1]
@@ -1101,8 +1099,8 @@ x:
   exec:
     program:
       nearest_goal: >-
-        Remote Unknown Evidence Recovery v1: опираясь на завершённые Post-Segmentation Transcript Rebaseline v1 и Capture Continuity Loss Closure v1, заморозить 397.543570s / 547 слов explicit unknown из strict Coverage v3, разложить их по причинам отсутствия embedding, конфликтующим frame-speakers, слабому margin, overlap и boundary context, восстанавливать session-local speaker label только при независимом воспроизводимом evidence и без ослабления production abstention gates, сохранить точные words/roles/timestamps/aggregate fallback, выпустить PROMOTE либо точный EVIDENCE_BOUND, обновить тесты, документацию и планы, затем закоммитить и отправить результат в origin/main.
-      success_by_next_sync: "Каждое strict unknown слово имеет воспроизводимую причину; безопасно поддержанные labels восстановлены отдельным shadow-кандидатом, а остальной предел explicit unknown доказан без false identity regression."
+        Human-Reviewed Lexical Seed v1: опираясь на завершённые Post-Segmentation Transcript Rebaseline v1, Capture Continuity Loss Closure v1 и Remote Unknown Evidence Recovery v1, заморозить минимум две репрезентативные реальные встречи — 1x1 и group в разных акустических режимах — материализовать короткую приватную очередь word-level review для Me и remote, получить прямую человеческую truth по словам без использования machine agreement как эталона, измерить WER/CER и domain-term accuracy текущего production transcript, выпустить REFERENCE_READY либо воспроизводимый EVIDENCE_BOUND, обновить тесты, документацию и планы, затем закоммитить и отправить результат в origin/main.
+      success_by_next_sync: "Есть прямой приватный word-level reference минимум для 1x1 и group, а public report воспроизводимо измеряет реальный WER/CER и domain-term accuracy без изменения production ASR."
     defaults:
       status_progress:
         done: 1.0
@@ -1123,13 +1121,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle и batch transcript работают; stronger-audio v0.3 сохраняет canonical evidence и безопасно возобновляется после interruption."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Remote Unknown Evidence Recovery v1"
-        scope_nodes: [quality-remote-unknown-evidence-recovery-v1]
+        title: "Human-Reviewed Lexical Seed v1"
+        scope_nodes: [quality-human-reviewed-lexical-seed-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Capture closure завершён EVIDENCE_BOUND; fresh rebaseline оставляет 397.543570s / 547 strict unknown words следующим крупнейшим измеренным остатком."
-          next_sync_goal: "Разложить unknown по причинам и восстановить только labels с независимым evidence."
+          sync_note: "Remote unknown recovery завершён EVIDENCE_BOUND: безопасный intersection дал 10/547 слов и не имеет direct-truth overlap; Coverage v3 остаётся authoritative."
+          next_sync_goal: "Получить прямую human word truth и измерить lexical accuracy реальных встреч."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -1171,8 +1169,8 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Speaker-resolved handoff, fresh rebaseline и capture EVIDENCE_BOUND готовы; current focus вернулся к доказательной remote attribution."
-          next_sync_goal: "Снизить supported unknown без ослабления abstention и exact fallback."
+          sync_note: "Speaker-resolved handoff, fresh rebaseline, capture closure и remote unknown EVIDENCE_BOUND готовы; текущий неизвестный размер — lexical accuracy живой речи."
+          next_sync_goal: "Построить приватный human-reviewed seed до любых ASR context experiments."
     edges:
       - from: working-now
         to: current-quality
