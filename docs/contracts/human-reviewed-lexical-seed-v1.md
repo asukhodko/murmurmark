@@ -18,6 +18,10 @@ Selection is deterministic. Every source transcript, selected speaker profile, r
 implementation and materialized clip is fingerprinted with SHA-256. Once an answer exists, `freeze`
 only validates the existing bundle; it cannot regenerate it.
 
+The frozen implementation fingerprint covers the builder and lexical metric logic. The separate
+interactive review UI may evolve without changing the frozen queue. It may call only the builder's
+validated load, playback and atomic answer APIs; it cannot select or regenerate slots.
+
 ## Private Artifacts
 
 All speech-bearing data stays under the ignored directory:
@@ -86,3 +90,5 @@ production transcript by itself.
 - Machine agreement and cloud transcripts are never accepted as truth.
 - `replay` must reproduce the private evaluation, public report and tracked snapshot byte for byte.
 - A special outcome excludes the slot from WER/CER instead of inventing words.
+- Unknown slash commands are rejected before answer persistence. Russian-keyboard command aliases
+  and in-memory command history do not alter the answer schema or frozen evidence.

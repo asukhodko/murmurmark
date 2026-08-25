@@ -31,3 +31,7 @@ agreement as accuracy.
 
 Run `murmurmark corpus lexical-seed-v1 review`. When all slots are answered, regenerate the tracked
 snapshot and classify the result as `REFERENCE_READY` or `EVIDENCE_BOUND`.
+
+The interactive review regression verifies that Russian-layout aliases are accepted, unknown slash
+commands cannot become lexical truth, replay does not advance the queue, and quitting leaves the
+current slot unanswered.

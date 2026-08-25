@@ -1305,6 +1305,7 @@ enum DoctorChecks {
             "scripts/eres2netv2-speaker-embedding-worker.py",
             "scripts/report-lexical-accuracy-reference-corpus.py",
             "scripts/build-human-reviewed-lexical-seed-v1.py",
+            "scripts/review-human-reviewed-lexical-seed-v1.py",
             "scripts/report-speaker-bounded-chronology-arbitration-v1.py",
             "scripts/report-word-level-chronology-localization-v1.py",
             "scripts/report-speaker-resolved-terminal-gate-v1.py",
@@ -8306,7 +8307,10 @@ enum CorpusCommands {
                 )
             }
             let python = try PythonRuntime.resolve()
-            let arguments = [try script("build-human-reviewed-lexical-seed-v1.py").path]
+            let scriptName = action == "review"
+                ? "review-human-reviewed-lexical-seed-v1.py"
+                : "build-human-reviewed-lexical-seed-v1.py"
+            let arguments = [try script(scriptName).path]
                 + forwarded
                 + ["--sessions-root", sessionsRoot.path]
             if action == "review" {

@@ -17,6 +17,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 PYTHON = ROOT / ".venv/bin/python"
 SCRIPT = ROOT / "scripts/build-human-reviewed-lexical-seed-v1.py"
+REVIEW_SCRIPT = ROOT / "scripts/review-human-reviewed-lexical-seed-v1.py"
 
 
 def load() -> Any:
@@ -30,6 +31,19 @@ def load() -> Any:
 
 
 SEED = load()
+
+
+def load_review() -> Any:
+    spec = importlib.util.spec_from_file_location("murmurmark_human_lexical_seed_review_check", REVIEW_SCRIPT)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("cannot_load_human_lexical_seed_review")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+REVIEW = load_review()
 
 
 def run(args: list[str], expected: int = 0) -> subprocess.CompletedProcess[str]:
@@ -213,6 +227,16 @@ def command_args(policy_path: Path, sessions: Path, out: Path) -> list[str]:
 
 
 def check() -> None:
+    assert REVIEW.parse_review_input("/r") == ("replay", None)
+    assert REVIEW.parse_review_input("/к") == ("replay", None)
+    assert REVIEW.parse_review_input("/Ш") == ("inaudible", None)
+    assert REVIEW.parse_review_input("/ь") == ("mixed", None)
+    assert REVIEW.parse_review_input("/ч") == ("unusable", None)
+    assert REVIEW.parse_review_input("/Й") == ("quit", None)
+    assert REVIEW.parse_review_input("/unknown") == ("invalid_command", "/unknown")
+    assert REVIEW.parse_review_input("   ") == ("invalid_text", None)
+    assert REVIEW.parse_review_input("  точная фраза  ") == ("exact_text", "точная фраза")
+
     with tempfile.TemporaryDirectory(prefix="murmurmark-human-lexical-seed-v1-") as temporary:
         root = Path(temporary)
         sessions = root / "sessions"
@@ -228,6 +252,17 @@ def check() -> None:
         }
         run(["preflight", *base])
         run(["freeze", *base])
+        inputs = iter(["/unknown", "/к", "/q"])
+        original_input = REVIEW.read_review_input
+        original_play = REVIEW.CORE.play
+        REVIEW.read_review_input = lambda _prompt: next(inputs)
+        REVIEW.CORE.play = lambda _path: None
+        try:
+            assert REVIEW.review(policy_path, REVIEW.CORE.load_policy(policy_path), sessions, out) == 0
+        finally:
+            REVIEW.read_review_input = original_input
+            REVIEW.CORE.play = original_play
+        assert SEED.read_jsonl(out / SEED.ANSWERS) == []
         slots = SEED.read_jsonl(out / SEED.SLOTS)
         queue = SEED.read_jsonl(out / SEED.QUEUE)
         assert len(slots) == 8
