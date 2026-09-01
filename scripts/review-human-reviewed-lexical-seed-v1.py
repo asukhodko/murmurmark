@@ -50,8 +50,9 @@ def configure_input_history() -> None:
     if _readline is None:
         return
     _readline.clear_history()
-    if hasattr(_readline, "set_auto_history"):
-        _readline.set_auto_history(True)
+    if not hasattr(_readline, "set_auto_history"):
+        raise RuntimeError("readline_command_history_unavailable")
+    _readline.set_auto_history(False)
 
 
 def parse_review_input(value: str) -> tuple[str, str | None]:
@@ -67,7 +68,11 @@ def parse_review_input(value: str) -> tuple[str, str | None]:
 
 
 def read_review_input(prompt: str) -> str:
-    return input(prompt)
+    value = input(prompt)
+    stripped = value.strip()
+    if _readline is not None and stripped.casefold() in REVIEW_COMMANDS:
+        _readline.add_history(stripped)
+    return value
 
 
 def review(policy_path: Path, policy: dict[str, Any], sessions_root: Path, out: Path) -> int:

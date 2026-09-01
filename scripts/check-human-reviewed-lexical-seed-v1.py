@@ -10,6 +10,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+from unittest.mock import patch
 import wave
 from typing import Any
 
@@ -236,6 +237,16 @@ def check() -> None:
     assert REVIEW.parse_review_input("/unknown") == ("invalid_command", "/unknown")
     assert REVIEW.parse_review_input("   ") == ("invalid_text", None)
     assert REVIEW.parse_review_input("  точная фраза  ") == ("exact_text", "точная фраза")
+    REVIEW.configure_input_history()
+    if REVIEW._readline is not None:
+        assert REVIEW._readline.get_current_history_length() == 0
+        with patch("builtins.input", side_effect=["/r", "точная фраза"]):
+            assert REVIEW.read_review_input("prompt: ") == "/r"
+            assert REVIEW._readline.get_current_history_length() == 1
+            assert REVIEW.read_review_input("prompt: ") == "точная фраза"
+            assert REVIEW._readline.get_current_history_length() == 1
+        assert REVIEW._readline.get_history_item(1) == "/r"
+        REVIEW.configure_input_history()
 
     with tempfile.TemporaryDirectory(prefix="murmurmark-human-lexical-seed-v1-") as temporary:
         root = Path(temporary)

@@ -40,10 +40,10 @@ Commands at the prompt:
 
 Press Up Arrow and Enter to repeat the previous input. This is useful for replaying a difficult clip
 several times: enter `/r` once, then use Up Arrow and Enter for each additional replay. Input history
-exists only in the current review process and is not written to disk. Russian-layout aliases `/ш`,
-`/ь`, `/ч` and `/й` are accepted for `/i`, `/m`, `/x` and `/q`. Any other input beginning with `/`
-is rejected and cannot be saved as reference text. `Ctrl-C` stops review cleanly without losing
-completed answers.
+contains only recognized review commands, never entered transcript text. It exists only in the
+current review process and is not written to disk. Russian-layout aliases `/ш`, `/ь`, `/ч` and `/й`
+are accepted for `/i`, `/m`, `/x` and `/q`. Any other input beginning with `/` is rejected and cannot
+be saved as reference text. `Ctrl-C` stops review cleanly without losing completed answers.
 
 The queue resumes at the first unanswered slot. Do not normalize terminology to what the speaker
 probably meant; enter the words actually spoken. Punctuation and letter case do not affect WER/CER.

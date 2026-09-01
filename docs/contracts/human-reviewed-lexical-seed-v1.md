@@ -91,4 +91,5 @@ production transcript by itself.
 - `replay` must reproduce the private evaluation, public report and tracked snapshot byte for byte.
 - A special outcome excludes the slot from WER/CER instead of inventing words.
 - Unknown slash commands are rejected before answer persistence. Russian-keyboard command aliases
-  and in-memory command history do not alter the answer schema or frozen evidence.
+  and command-only in-memory history do not alter the answer schema or frozen evidence. Exact
+  transcript text is never added to interactive history.
