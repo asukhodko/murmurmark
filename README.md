@@ -73,17 +73,21 @@ prints an exact `murmurmark meeting --resume SESSION` command. The final summary
 transcript, verdict, unresolved review burden and raw preservation result; optional notes and export
 status are included when those derivative stages are present.
 
-The first authoritative handoff no longer waits for optional Neural Echo evaluation. Deferred enrichment has an explicit
-time budget: severe speaker playback prioritizes advanced Echo; other modes retain the review reserve.
-Explicit resume retries budget-deferred work. Enrichment, review and `report` finish through one
-reconciliation step that preserves compatible decisions and synchronizes profile, speaker evidence and
-the canonical review queue. When
-the strict publication gate misses, the ordinary read path keeps compatible local clusters and
-long-lived cohesive secondary clusters as disclaimer-bearing `provisional` attribution, and marks
-the rest `remote_speaker_unknown`; the exact
-role-only transcript remains available through `--aggregate`. `status` and `outcome` print the
-provisional coverage and strict failure reason. A known group roster can repair one
-acoustically split anonymous voice; see the speaker-resolved runbook. It never maps names to voices.
+The first authoritative handoff no longer waits for optional Neural Echo evaluation. It freezes a
+content-addressed transcript snapshot before deferred work begins. A bounded speaker-attribution
+attempt (up to five minutes) runs before optional audio judges. Enrichment, subsequent report, suggested
+review and guarded export share one optional time budget, including a reconciliation reserve.
+After that window, a cache-only final refresh (up to 30 seconds) synchronizes outcome without new inference.
+Review keep/drop of Me reuses compatible frozen remote evidence, including word-level turns, as a
+disclaimer-bearing provisional view. Ordinary `status`, `outcome` and `transcript --path-only` only
+verify published evidence; they never start a speaker model. Budget expiry checkpoints completed
+review work and is reported as deferred, not as an unexpected Python failure.
+Optional interruption preserves the transcript; explicit resume retries deferred work. Reconciliation
+keeps compatible decisions, profile, speaker evidence and the review queue consistent. Below strict
+publication gates, supported local/secondary clusters remain provisional, with the rest marked
+`remote_speaker_unknown`. `--aggregate` returns exact role-only text; `status` and `outcome` show
+coverage and failure reasons. A known group roster can repair one acoustically split anonymous
+voice, without mapping names to voices; see the [speaker contract](docs/contracts/speaker-resolved-transcript-default-v1.md).
 
 Capture runs in a short-lived child process and releases ScreenCaptureKit/ReplayKit before batch
 processing. A new meeting may start while an earlier one is processed in another terminal. Only one
@@ -91,6 +95,13 @@ capture may run at a time. Its lock is released after raw writers close and `ses
 optional Live Shadow finalization cannot reserve it. ScreenCaptureKit startup has a bounded timeout
 and releases the lock on failure. Partial, sparse or silent capture blocks processing; `status` also
 reports restart-correlated PCM gaps without changing raw CAF.
+
+Heavy post-processing is serialized globally under `sessions/.murmurmark-processing/lease.lock`.
+When another session already owns the lease, `process`, `enrich` or the post-capture part of
+`meeting` waits in a FIFO queue and reports the owner and queue position. This lease is separate from
+the recording lock: a new durable capture can start while older processing waits or runs. Interrupting
+a waiter starts no heavy child and leaves an exact resume command; abandoned same-host queue tickets
+are removed automatically.
 
 `meeting` already owns status, notes and transcript production. Do not paste unconditional
 `status/outcome/transcript` commands after it: when capture startup fails, no finalized session
@@ -129,29 +140,41 @@ automatically, while deterministic timeline/micro-ASR work still runs.
 ## Resource Use
 
 Derived work runs with the `background` resource profile by default. MurmurMark sets `nice=20`,
-applies the macOS background scheduling policy and limits native compute pools to four threads.
+applies the macOS background scheduling policy and limits native compute pools to three threads.
 Batch ASR uses one track worker, and the live sidecar uses one ASR worker. Durable capture is never
-demoted, so processing an older session cannot weaken a new recording.
+demoted, so processing an older session cannot weaken a new recording. Across sessions, the global
+processing lease admits only one heavy pipeline at a time; per-process thread limits therefore do not
+multiply merely because two completed meetings are resumed together.
 
 For faster post-recording work that still yields CPU to normal applications, use `opportunistic`.
-It keeps `nice=20`, removes the Darwin background clamp and restores bounded parallel mic/remote
-ASR. This mode can consume more power and produce more heat while the machine is otherwise idle;
-`background` remains the safer choice during capture or when charger headroom matters.
+It keeps `nice=20` and removes the Darwin background clamp, but retains the three-thread ceiling and
+serial heavy ASR workers. It can use those three threads more consistently while the machine is idle;
+`background` remains the safer choice during capture, low battery or limited charger power.
 
 The defaults are configurable in `murmurmark.config.json`:
 
 ```json
-"processing": {"resource_profile": "background", "max_compute_threads": 4}
+"processing": {"resource_profile": "background", "max_compute_threads": 3}
 ```
 
 Example for low-priority, work-conserving post-processing:
 
 ```json
-"processing": {"resource_profile": "opportunistic", "max_compute_threads": 0}
+"processing": {"resource_profile": "opportunistic", "max_compute_threads": 3}
 ```
 
-Use `murmurmark process "$SESSION" --resource-profile performance` only for an intentional
-foreground speed run. That restores the previous parallel ASR defaults and may occupy the machine.
+Values `0` and values above `3` are normalized to `3` for `background` and `opportunistic`, including
+legacy configs. Use `murmurmark process "$SESSION" --resource-profile performance` only for an
+intentional foreground speed run. `performance` is the sole unlimited profile, restores parallel ASR
+defaults and may occupy the machine.
+
+`status` reports `processing_lease`, `asr_stage` and `primary_asr_chunks` separately. A value such as
+`primary_asr_chunks: 88/88` means that the main chunk recognizer has finished; timeline repair,
+bounded micro-ASR or final transcript assembly can still be running. The external pipeline observer
+then reports `asr_stage: post_primary_timeline_and_micro_asr` without modifying the frozen,
+corpus-qualified transcriber runtime.
+The primary counter reserves both authoritative tracks as soon as the first track report appears, so
+serial background ASR cannot first show `N/N` and later jump backwards to `N/2N`.
 An interrupted processing run is resumed with the same command and session path:
 
 ```bash
@@ -215,9 +238,16 @@ JSON/Markdown provenance. Raw CAF and rebuildable media are deleted. Use
 audio-algorithm debugging. Low-level export and retention commands are documented in the
 [Retention Policy](docs/contracts/retention-policy.md).
 
-Standalone `review suggested` reuses compatible stronger-audio rows and computes at most four missing current-lane items; set `MURMURMARK_TARGETED_JUDGE_COMPUTE=0` for cache-only or `MURMURMARK_TARGETED_JUDGE_MAX_COMPUTED=N` for another cap. The meeting lifecycle keeps post-budget review cache-only. `status` shows selected/cached/computed/pending.
+Standalone `review suggested` reuses compatible evidence and computes at most four missing lane items;
+`MURMURMARK_TARGETED_JUDGE_COMPUTE=0` makes it cache-only, as the lifecycle already does after its budget.
+Source requirements are per item; suggested apply revalidates text, role, interval, audio and policy.
+Historical rows never count as current coverage. See [review evidence hardening](docs/testing/2026-09-23-review-audio-evidence-hardening.md).
+`meeting` prints the first transcript path before enrichment finishes, without approving guarded export.
+`transcript --cat` adds the attribution disclaimer; `--path-only` preserves the existing artifact header.
+Review-safe publication retains compatible remote labels after Me-only review without expanding frozen eligibility.
+Text retention is not voice/lexical confirmation. Reports share a fingerprint-bound queue with sum, union and unknown durations; see [repair status](docs/testing/2026-09-30-review-safe-handoff.md).
 ### Compact Old Sessions
-Keep raw CAF but remove rebuildable media:
+Low disk space triggers guarded cleanup before capture; see the [Retention Policy](docs/contracts/retention-policy.md). To keep raw CAF but remove rebuildable media manually:
 ```bash
 murmurmark retention compact plan "$SESSION"
 murmurmark retention compact apply "$SESSION" --confirm-delete-derived-media
@@ -271,37 +301,24 @@ murmurmark open "$SESSION" --kind transcript --command-only
 ```
 ## Current Development Direction
 The one-command lifecycle, Speaker-Preserving Neural Echo v2.17, Evidence Handoff v2, guarded export,
-bounded resume and incremental ASR are promoted. The normal path is one command plus `Ctrl-C`.
-Speaker-Resolved Transcript Default v1 promotes the fingerprint-verified Coverage v3 view into
-ordinary `transcript`, Evidence Handoff and guarded export. It preserves every selected word and
-keeps strict Evidence Handoff/export fallback unchanged. The ordinary transcript read surface adds
-a second tier: compatible but non-promoted acoustic clusters are shown as `provisional`, and truly
-unsupported remote speech is marked `remote_speaker_unknown` under a prominent disclaimer. Refresh
-or verify strict evidence:
+bounded resume and incremental ASR are promoted. Speaker-Resolved Transcript Default v1 publishes
+fingerprint-verified Coverage v3 evidence without changing selected words. Compatible evidence below
+the strict gate is shown as disclaimer-bearing `provisional`; unsupported remote speech remains
+`remote_speaker_unknown`, and `--aggregate` preserves the exact role-only fallback.
+
+Refresh or verify speaker evidence:
 ```bash
 murmurmark audit speaker-default "$SESSION"
 murmurmark audit speaker-default "$SESSION" --verify-only
 murmurmark transcript "$SESSION"
 ```
-The normal pipeline and every lifecycle readiness refresh run this selector against the current
-selected transcript profile. `status` and `outcome` show the selected speaker profile and fallback
-reason. `--rich` remains a compatible diagnostic view; use
-`audit remote-residual` only for the v4 measured ceiling.
-Anonymous Rich Transcript Handoff v1 passed all `1235` references on 6/6 sessions. Reviewed Remote
-Speaker Naming v1 and Reviewed Speaker-Aware Meeting Memory v1 add only explicit session-local
-labels and optional evidence-backed notes/export:
-```bash
-murmurmark speakers template "$SESSION"
-# Edit review/remote-speaker-labels.v1.json: resolve every row, then set review_completed to true.
-murmurmark speakers apply "$SESSION"
-murmurmark transcript "$SESSION" --rich --reviewed-speakers
-murmurmark notes "$SESSION" --reviewed-speakers
-murmurmark export "$SESSION" --format markdown --include-json --reviewed-speakers
-```
-Speaker-aware memory and exact-text notes remain optional derivatives. Transcript Perfection Corpus
-keeps every frozen source explicit and never collapses unlike quality dimensions into one score.
-Lexical Accuracy Reference Corpus v1 measures its exact 67-word digital subset at WER/CER `0`.
-The product-level terminal instrument keeps real-meeting lexical correctness explicitly blocked:
+The normal pipeline applies this selector to the selected transcript. `status` and `outcome` expose
+the profile, disclaimer and fallback reason. Reviewed names remain explicit session-local input;
+speaker-aware memory and notes are optional derivatives outside the critical product route.
+
+The terminal instrument keeps continuity, chronology, speaker-count truth, unknown duration and
+human-reviewed lexical accuracy as separate gates. **Review-Safe Attributed Handoff v1** is complete;
+the current qualification task is **Bounded Evidence Compute v1**. Chronology retains a bounded residue:
 ```bash
 murmurmark corpus lexical-seed-v1 progress
 murmurmark corpus chronology-arbitration-v1 status
@@ -309,34 +326,21 @@ murmurmark corpus chronology-localization-v1 status
 murmurmark corpus terminal-gate-v1 status
 murmurmark corpus terminal-gate-v1 replay
 ```
-The local glossary and prompt files are private inputs. The current production bridge does not
-consume `glossary.yaml`; its default `--max-context 0` also makes a prompt ineffective. A diagnostic
-A/B showed that a short topic-specific context can repair difficult terminology, while a broad
-static prompt did not help and can bias recognition. Production therefore keeps `prompt_file: null`.
-The planned **Session-Scoped Lexical Context v1** may enable compact meeting-specific context only
-after a human-reviewed lexical seed and multi-session no-regression gates exist.
-Disjoint truth v2 is complete: 72 primary + 12 repeats, consistency `1.0` and byte-exact replay. The
-one-shot ERes2NetV2 qualification kept Coverage v3; Cluster Purity Reference v1 found 10 remote
-voices compressed into four acoustic clusters, purity `89.8106%` and minority recall `0`. Transcript
-Integrity v1 repaired 10/19 proven duplicate/repetition candidates. Frozen Boundary and
-Remote Unknown Evidence Recovery v1 closed `EVIDENCE_BOUND`: only 10/547 words passed independent
-consensus. The fingerprint-bound terminal instrument is ready, while product state remains
-`NOT_READY`. **Word-Level Chronology Localization v1** is current. Speaker-bounded arbitration first
-closed 38/52 rows and `255.97/345.94s`; the word-timestamp pass then closed 9/14 residual rows and
-`52.83/89.97s`. The final chronology bound is 5 rows / `37.14s`.
-Publication/fallback and review-burden gates pass. Continuity, Target-Me residual, chronology,
-current speaker-count truth and unknown-duration remain bounded. Lexical accuracy is blocked by the
-unchanged 0/28 Human-Reviewed Lexical Seed queue.
-The remaining critical path is:
+
+Production keeps `prompt_file: null`: broad static context can bias recognition. Session-Scoped
+Lexical Context may be promoted only after direct lexical truth and multi-session no-regression
+gates. The current critical path is:
 ```text
-Coverage v3 + Transcript Integrity v1 -> Boundary Segmentation v1 (KEEP_COVERAGE_V3) -> Post-Segmentation Transcript Rebaseline v1 (REBASELINE_ESTABLISHED)
--> Capture Continuity Loss Closure v1 (EVIDENCE_BOUND) -> Remote Unknown Evidence Recovery v1 (EVIDENCE_BOUND) -> Terminal Gate Instrumentation v1
--> Speaker-Bounded Chronology Evidence Arbitration v1 (PROMOTE, 89.97s remain) -> Word-Level Chronology Localization v1 (current, 37.14s remain)
--> Human-Reviewed Lexical Seed v1 (blocked on 28 direct answers)
--> Session-Scoped Lexical Context v1
--> Speaker-Resolved Transcript Terminal Gate v1
+bounded chronology/continuity evidence
+  -> review-safe attributed handoff
+  -> qualified bounded evidence compute
+  -> human-reviewed lexical truth
+  -> session-scoped lexical context
+  -> speaker-resolved terminal gate
 ```
-See the [roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and [OpsKarta plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
+Measured history and exact remaining bounds live in the
+[roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and
+[OpsKarta plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 ## Scope And Limitations
 - Ordinary auto-selected transcripts use `Me` and the best current session-local remote speaker
   evidence. Verified labels are preferred; compatible labels below the strict session gate are
@@ -392,9 +396,4 @@ swift build
 .venv/bin/python -m py_compile scripts/*.py
 scripts/check-open-source-readiness.sh
 scripts/check.sh
-murmurmark corpus remote-coverage all --verify-existing && murmurmark corpus remote-residual all --verify-existing
-murmurmark corpus remote-independent all --verify-existing && murmurmark corpus remote-reference replay && murmurmark corpus remote-duration-v2 replay
-murmurmark corpus speaker-default all --verify-existing
-murmurmark corpus remote-identity-v1 replay && murmurmark corpus remote-boundary-minority-v1 replay
-murmurmark corpus post-segmentation-rebaseline all --verify-existing && murmurmark corpus chronology-arbitration-v1 replay && murmurmark corpus chronology-localization-v1 replay && murmurmark corpus terminal-gate-v1 replay
 ```

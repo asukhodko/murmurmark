@@ -5,11 +5,12 @@ import argparse
 import hashlib
 import json
 import os
-import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from murmurmark_deadline import BUDGET_EXIT, run_bounded
 
 
 SCHEMA = "murmurmark.session_state_reconciliation/v1"
@@ -20,12 +21,25 @@ class ReconciliationError(RuntimeError):
     pass
 
 
+class ReconciliationBudgetExhausted(ReconciliationError):
+    pass
+
+
+class StageJournal(list):
+    checkpoint = staticmethod(lambda: None)
+
+    def append(self, stage):
+        super().append(stage)
+        self.checkpoint()
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Reconcile review, speaker attribution, readiness and outcome for one session."
     )
     parser.add_argument("session", type=Path)
     parser.add_argument("--reason", default="explicit_refresh")
+    parser.add_argument("--cached-speakers-only", action="store_true")
     parser.add_argument(
         "--skip-review-rebase",
         action="store_true",
@@ -79,19 +93,31 @@ def run_stage(
 ) -> int:
     allowed = allowed or {0}
     started = datetime.now(timezone.utc).isoformat()
-    result = subprocess.run(command, check=False)
     stage = {
         "name": name,
         "command": command,
         "started_at": started,
-        "finished_at": datetime.now(timezone.utc).isoformat(),
-        "returncode": result.returncode,
-        "status": "passed" if result.returncode == 0 else "warning" if result.returncode in allowed else "failed",
+        "status": "running",
     }
     stages.append(stage)
-    if result.returncode not in allowed:
-        raise ReconciliationError(f"{name} exited with {result.returncode}")
-    return result.returncode
+    result = run_bounded(command, capture_output=False)
+    stage.update({
+        "finished_at": datetime.now(timezone.utc).isoformat(),
+        "returncode": result["returncode"],
+        "status": "passed" if result["returncode"] == 0 else "warning" if result["returncode"] in allowed
+        else "failed" if result["status"] == "completed" else result["status"],
+    })
+    if result["stderr"]:
+        stage["stderr_tail"] = result["stderr"][-12000:]
+    if isinstance(stages, StageJournal):
+        stages.checkpoint()
+    if result["status"] == "budget_exhausted":
+        raise ReconciliationBudgetExhausted(name)
+    if result["status"] == "interrupted":
+        raise KeyboardInterrupt
+    if result["returncode"] not in allowed:
+        raise ReconciliationError(f"{name} exited with {result['returncode']}")
+    return result["returncode"]
 
 
 def reviewed_rows(progress: dict[str, Any] | None) -> int:
@@ -251,11 +277,18 @@ def apply_rebased_review(session: Path, repo_root: Path, stages: list[dict[str, 
 
 
 def verify_consistency(session: Path) -> dict[str, Any]:
+    from review_audio_evidence import read_queue_snapshot
+
     readiness = read_json(session / "derived/readiness/session_readiness.json") or {}
     outcome = read_json(session / "derived/outcome/outcome.json") or {}
     selection = read_json(
         session / "derived/transcript-rich/speaker-resolved-default-v1/selection.json"
     ) or {}
+    speaker = outcome.get("speaker_resolution") or {}
+    if speaker.get("state") in {"provisional", "unavailable"}:
+        selection = read_json(
+            session / "derived/transcript-rich/speaker-resolved-default-v1/provisional/selection.json"
+        ) or {}
     progress = read_json(
         session / "derived/readiness/review-plan/review_decisions_progress.json"
     ) or {}
@@ -289,12 +322,24 @@ def verify_consistency(session: Path) -> dict[str, Any]:
         and (outcome_seconds is None or abs(remaining_seconds - outcome_seconds) <= 0.001)
         and abs(remaining_seconds - canonical_seconds) <= 0.001
         and abs(remaining_seconds - outcome_canonical_seconds) <= 0.001,
-        "speaker_selection_current": selection.get("gates", {}).get("current_profile") is True,
+        "speaker_selection_current": selection.get("selected_profile") == readiness.get("selected_profile")
+        and selection.get("state") == speaker.get("state")
+        and selection.get("selected_speaker_profile") == speaker.get("selected_speaker_profile")
+        and (selection.get("selected_transcript") or {}).get("path") == speaker.get("transcript_path"),
     }
+    snapshot = read_queue_snapshot(session)
+    if "queue_snapshot" in progress:
+        checks["review_queue_snapshot_current"] = snapshot is not None
+        checks["review_queue_snapshot_agrees"] = (
+            snapshot is not None
+            and readiness.get("review_queue_snapshot") == snapshot
+            and outcome.get("review_queue_snapshot") == snapshot
+        )
     return {
         "passed": all(checks.values()),
         "checks": checks,
         "profiles": profiles,
+        "review_queue_fingerprint": snapshot.get("fingerprint") if snapshot else None,
         "review_queue": {"rows": remaining_rows, "seconds": remaining_seconds},
         "readiness_review_queue": {"rows": metric_rows, "seconds": metric_seconds},
         "outcome_review_queue": {"rows": outcome_rows, "seconds": outcome_seconds},
@@ -308,6 +353,7 @@ def verify_consistency(session: Path) -> dict[str, Any]:
 
 def main() -> int:
     args = parse_args()
+    cached_speakers = args.cached_speakers_only or os.environ.get("MURMURMARK_SPEAKER_REFRESH_MODE") == "cache_only"
     session = args.session.expanduser().resolve()
     repo_root = Path(__file__).resolve().parents[1]
     if not (session / "session.json").is_file():
@@ -326,7 +372,7 @@ def main() -> int:
     if previous_transcript is not None and not previous_transcript.is_absolute():
         previous_transcript = session / previous_transcript
     fallback = artifact(previous_transcript, session) if previous_transcript is not None else None
-    stages: list[dict[str, Any]] = []
+    stages = StageJournal()
     payload: dict[str, Any] = {
         "schema": SCHEMA,
         "generator": {"name": "reconcile-session-state", "version": SCRIPT_VERSION},
@@ -337,8 +383,14 @@ def main() -> int:
         "previous_authoritative_fallback": fallback,
         "stages": stages,
     }
+    stages.checkpoint = lambda: write_json(report_path, payload)
     write_json(report_path, payload)
     try:
+        if args.skip_review_rebase:
+            run_stage(stages, "transcript_order_current_profile", [
+                sys.executable, str(repo_root / "scripts/audit-transcript-order.py"),
+                str(session), "--profile", "auto",
+            ])
         refresh_review_plan(
             session,
             repo_root,
@@ -355,7 +407,7 @@ def main() -> int:
                     str(repo_root / "scripts/audit-transcript-order.py"),
                     str(session),
                     "--profile",
-                    "authoritative",
+                    "auto",
                 ],
             )
             refresh_review_plan(session, repo_root, stages, rebase=True)
@@ -366,7 +418,8 @@ def main() -> int:
                 sys.executable,
                 str(repo_root / "scripts/select-speaker-resolved-transcript.py"),
                 str(session),
-                "--refresh-evidence",
+                "--verify-only" if cached_speakers
+                else "--refresh-evidence",
             ],
             allowed={0, 2},
         )
@@ -377,6 +430,7 @@ def main() -> int:
                 sys.executable,
                 str(repo_root / "scripts/materialize-provisional-speaker-transcript.py"),
                 str(session),
+                *(["--cached-only"] if cached_speakers else []),
             ],
             allowed={0, 2},
         )
@@ -399,6 +453,24 @@ def main() -> int:
         print(f"state_reconciliation: completed ({args.reason})")
         print(f"report: {report_path}")
         return 0
+    except (KeyboardInterrupt, ReconciliationBudgetExhausted) as error:
+        resume_command = (
+            f"murmurmark enrich {session}"
+            if args.reason == "deferred_enrichment"
+            else f"murmurmark report {session}"
+        )
+        payload.update(
+            {
+                "status": "deferred_budget_exhausted" if isinstance(error, ReconciliationBudgetExhausted)
+                else "interrupted_recoverable",
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+                "resume_command": resume_command,
+            }
+        )
+        write_json(report_path, payload)
+        print(f"state_reconciliation: {payload['status']}", file=sys.stderr)
+        print(f"report: {report_path}", file=sys.stderr)
+        return BUDGET_EXIT if isinstance(error, ReconciliationBudgetExhausted) else 130
     except Exception as error:  # noqa: BLE001 - preserve a recoverable transaction report
         payload.update(
             {

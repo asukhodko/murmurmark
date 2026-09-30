@@ -289,10 +289,21 @@ def main() -> int:
         assert cli_fallback.returncode == 0, cli_fallback.stderr
         assert "anonymous-v1/bundles" in cli_fallback.stdout
         assert "using anonymous rich transcript" in cli_fallback.stderr
+        publication = subprocess.run(
+            [sys.executable, str(ROOT / "scripts/materialize-provisional-speaker-transcript.py"),
+             str(session), "--cached-only"],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert publication.returncode == 0, publication.stderr
+        published = existing_hashes(session)
         plain = run_cli(session, "transcript", str(session), "--path-only")
         assert plain.returncode == 0, plain.stderr
         assert "speaker-resolved-default-v1/provisional" in plain.stdout
         assert "speaker attribution is" in plain.stderr
+        assert existing_hashes(session) == published
         aggregate = run_cli(
             session,
             "transcript",

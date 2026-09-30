@@ -12,8 +12,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from review_audio_evidence import (automatic_drop_supported, automatic_keep_supported,
+                                   effective_decision, evidence_matches_review_row, neighboring_remote_text,
+                                   review_targets, suggestion_receipt)
 
-SCRIPT_VERSION = "0.8.8"
+
+SCRIPT_VERSION = "0.8.9"
 REVIEW_STATE_FIELDS = {
     "decision",
     "status",
@@ -382,6 +386,9 @@ def merge_review_state(template: dict[str, Any], existing: dict[str, Any] | None
     merged = dict(template)
     if existing:
         merged.update({key: existing[key] for key in REVIEW_STATE_FIELDS if key in existing})
+        if effective_decision(merged) != str(merged.get("decision") or "todo"):
+            merged["recorded_decision"] = merged["decision"]
+            merged["decision"] = "needs_review"
     return merged
 
 
@@ -637,7 +644,7 @@ def stronger_judge_rows_by_session(rows: list[dict[str, Any]], source: str) -> d
                 paths.setdefault(session_id, stronger_judge_path_for_session(session_path))
     loaded: dict[str, list[dict[str, Any]]] = {}
     for session_id, path in paths.items():
-        loaded[session_id] = read_jsonl(path)
+        loaded[session_id] = [{**row, "evidence_artifact": str(path.resolve())} for row in read_jsonl(path)]
     return loaded
 
 
@@ -659,72 +666,21 @@ def target_me_rows_by_session(rows: list[dict[str, Any]], source: str) -> dict[s
                 paths.setdefault(session_id, target_me_path_for_session(session_path))
     loaded: dict[str, list[dict[str, Any]]] = {}
     for session_id, path in paths.items():
-        loaded[session_id] = read_jsonl(path)
+        loaded[session_id] = [{**row, "evidence_artifact": str(path.resolve())} for row in read_jsonl(path)]
     return loaded
 
 
 def stronger_matches_for_row(row: dict[str, Any], by_session: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
-    session_id = str(row.get("session_id") or "")
-    candidates = by_session.get(session_id) or []
-    if not candidates:
-        return []
-    row_ids = set(list_values(row, "utterance_ids"))
-    me_ids = set(list_values(row, "me_utterance_ids"))
-    remote_ids = set(list_values(row, "remote_utterance_ids"))
-    matches: list[dict[str, Any]] = []
-    for candidate in candidates:
-        candidate_ids = {str(value) for value in candidate.get("utterance_ids") or [] if value}
-        source_id = str(row.get("source_audit_id") or "")
-        candidate_source_id = str(candidate.get("source_pack_item_id") or "")
-        time_match = interval_overlap_seconds(row, candidate) > 0.05
-        source_id_match = bool(source_id and source_id == candidate_source_id)
-        source_utterance_match = bool(source_id_match and candidate_ids and (row_ids & candidate_ids or me_ids & candidate_ids))
-        if source_id_match and (time_match or source_utterance_match):
-            matches.append(candidate)
-            continue
-        if not candidate_ids:
-            continue
-        me_match = bool(me_ids and me_ids <= candidate_ids)
-        exactish = bool(row_ids and (row_ids <= candidate_ids or candidate_ids <= row_ids))
-        candidate_label = str((candidate.get("classification") or {}).get("label") or "")
-        if me_match and time_match and candidate_label in {"confirm_me"}:
-            matches.append(candidate)
-            continue
-        remote_match = not remote_ids or bool(remote_ids & candidate_ids)
-        if (exactish or me_match) and remote_match and time_match:
-            matches.append(candidate)
-    return matches
+    return [candidate for candidate in by_session.get(str(row.get("session_id") or ""), [])
+            if evidence_matches_review_row(row, candidate)]
 
 
 def target_me_matches_for_row(row: dict[str, Any], by_session: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
-    session_id = str(row.get("session_id") or "")
-    candidates = by_session.get(session_id) or []
-    if not candidates:
-        return []
-    row_ids = set(list_values(row, "utterance_ids"))
-    me_ids = set(list_values(row, "me_utterance_ids"))
-    source_id = str(row.get("source_audit_id") or "")
-    matches: list[dict[str, Any]] = []
-    for candidate in candidates:
-        candidate_ids = {str(value) for value in candidate.get("utterance_ids") or [] if value}
-        time_match = interval_overlap_seconds(row, candidate) > 0.05
-        candidate_source_ids = {str(value) for value in candidate.get("source_audit_ids") or [] if value}
-        candidate_source_id = str(candidate.get("source_pack_item_id") or "")
-        source_match = bool(
-            source_id
-            and time_match
-            and (source_id == candidate_source_id or source_id in candidate_source_ids)
-        )
-        if source_match:
-            matches.append(candidate)
-            continue
-        if not candidate_ids:
-            continue
-        me_match = bool(me_ids and me_ids <= candidate_ids)
-        exactish = bool(row_ids and (row_ids <= candidate_ids or candidate_ids <= row_ids))
-        if source_match or ((exactish or me_match) and time_match):
-            matches.append(candidate)
-    return matches
+    return stronger_matches_for_row(row, by_session)
+
+
+def matches_cover_rows(rows: list[dict[str, Any]], matches: list[dict[str, Any]]) -> bool:
+    return bool(rows) and all(any(evidence_matches_review_row(row, match) for match in matches) for row in rows)
 
 
 def stronger_summary_for_group(rows: list[dict[str, Any]], by_session: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
@@ -742,6 +698,7 @@ def stronger_summary_for_group(rows: list[dict[str, Any]], by_session: dict[str,
     return {
         "matches": matches,
         "labels": labels,
+        "covered_rows": sum(bool(stronger_matches_for_row(row, by_session)) for row in rows),
         "max_confidence": round(max(confidences), 3) if confidences else None,
         "count": len(matches),
     }
@@ -764,6 +721,7 @@ def target_me_summary_for_group(rows: list[dict[str, Any]], by_session: dict[str
         "matches": matches,
         "labels": labels,
         "impacts": impacts,
+        "covered_rows": sum(bool(target_me_matches_for_row(row, by_session)) for row in rows),
         "max_confidence": round(max(confidences), 3) if confidences else None,
         "count": len(matches),
     }
@@ -775,8 +733,8 @@ def stronger_suggested_decision(
 ) -> tuple[str | None, Any, str | None, dict[str, Any] | None]:
     summary = stronger_summary_for_group(rows, by_session)
     matches = summary["matches"]
-    if not matches:
-        return None, None, None, None
+    if not matches or summary["covered_rows"] != len(rows):
+        return None, None, None, summary
     allowed = set(common_allowed_decisions(rows))
     high = [match for match in matches if float((match.get("classification") or {}).get("confidence") or 0.0) >= 0.74]
     if not high:
@@ -784,13 +742,13 @@ def stronger_suggested_decision(
     labels = {str((match.get("classification") or {}).get("label") or "") for match in high}
     keep_labels = {"confirm_me", "confirm_timing_or_doubletalk"}
     drop_labels = {"confirm_remote_duplicate", "confirm_asr_noise"}
-    if labels and labels <= keep_labels and "keep_me" in allowed:
-        confidence = max(float((match.get("classification") or {}).get("confidence") or 0.0) for match in high)
+    if labels and labels <= keep_labels and "keep_me" in allowed and matches_cover_rows(rows, high):
+        confidence = min(float((match.get("classification") or {}).get("confidence") or 0.0) for match in high)
         reason = "stronger_audio_judge: " + ", ".join(sorted(labels))
         return "keep_me", round(confidence, 3), reason, summary
     if labels and labels <= drop_labels and "drop_me" in allowed:
-        confidence = max(float((match.get("classification") or {}).get("confidence") or 0.0) for match in high)
-        if confidence >= 0.86:
+        confidence = min(float((match.get("classification") or {}).get("confidence") or 0.0) for match in high)
+        if confidence >= 0.86 and matches_cover_rows(rows, high):
             reason = "stronger_audio_judge: " + ", ".join(sorted(labels))
             return "drop_me", round(confidence, 3), reason, summary
     if (
@@ -801,8 +759,8 @@ def stronger_suggested_decision(
         and all(str(row.get("source") or "") == "local_recall" for row in rows)
         and all(str(row.get("review_lane") or "") == "check_local_recall" for row in rows)
     ):
-        confidence = max(float((match.get("classification") or {}).get("confidence") or 0.0) for match in high)
-        if confidence >= 0.86:
+        confidence = min(float((match.get("classification") or {}).get("confidence") or 0.0) for match in high)
+        if confidence >= 0.86 and matches_cover_rows(rows, high):
             reason = "stronger_audio_judge: false local-recall candidate; " + ", ".join(sorted(labels))
             return "skip", round(confidence, 3), reason, summary
     if (
@@ -841,8 +799,8 @@ def target_me_suggested_decision(
 ) -> tuple[str | None, Any, str | None, dict[str, Any] | None]:
     summary = target_me_summary_for_group(rows, by_session)
     matches = summary["matches"]
-    if not matches:
-        return None, None, None, None
+    if not matches or summary["covered_rows"] != len(rows):
+        return None, None, None, summary
     allowed = set(common_allowed_decisions(rows))
     if "keep_me" not in allowed and "drop_me" not in allowed:
         return None, None, None, summary
@@ -863,7 +821,12 @@ def target_me_suggested_decision(
         for match in high_absent
         if str((match.get("classification") or {}).get("label") or "") == "target_me_absent_remote_like"
         and float((match.get("classification") or {}).get("confidence") or 0.0) >= 0.88
-        and str((match.get("impact") or {}).get("category") or "") == "new_drop_evidence"
+        and all(any(
+            str((judge.get("classification") or {}).get("label") or "") in {"confirm_remote_duplicate", "confirm_asr_noise"}
+            and float((judge.get("classification") or {}).get("confidence") or 0.0) >= 0.74
+            and evidence_matches_review_row(row, judge)
+            for judge in (stronger_summary or {}).get("matches") or []
+        ) for row in rows if evidence_matches_review_row(row, match))
     ]
     contradictory_absent = [
         match
@@ -887,16 +850,21 @@ def target_me_suggested_decision(
         labels = {str(row.get("label") or "") for row in rows}
         drop_safe_labels = {"lost_me", "uncertain", "asr_noise", "remote_duplicate"}
         text = " ".join(row_role_text(row, "me") for row in rows)
-        if labels <= drop_safe_labels and len(content_tokens(text)) <= 5:
-            confidence = max(float((match.get("classification") or {}).get("confidence") or 0.0) for match in useful_absent)
+        if labels <= drop_safe_labels and len(content_tokens(text)) <= 5 and matches_cover_rows(rows, useful_absent):
+            confidence = min(float((match.get("classification") or {}).get("confidence") or 0.0) for match in useful_absent)
             return (
                 "drop_me",
                 round(confidence, 3),
                 "target_me: local speaker absent and existing evidence points to remote/noise",
                 summary,
             )
-    if not high_confirmed or high_absent:
+    if not matches_cover_rows(rows, high_confirmed) or high_absent:
         return None, None, None, summary
+    confirmed_words = [match for match in (stronger_summary or {}).get("matches") or []
+                       if (match.get("classification") or {}).get("label") in {"confirm_me", "confirm_timing_or_doubletalk"}
+                       and float((match.get("classification") or {}).get("confidence") or 0.0) >= 0.74]
+    if any(row.get("review_lane") == "check_transcript_text" for row in rows) and not matches_cover_rows(rows, confirmed_words):
+        return "needs_review", "low", "target_me: local voice confirmed, but transcript words remain unconfirmed", summary
     if "keep_me" not in allowed:
         return None, None, None, summary
     if stronger_has_high_confidence_drop(stronger_summary):
@@ -912,7 +880,7 @@ def target_me_suggested_decision(
         if str((match.get("impact") or {}).get("category") or "")
         in {"new_keep_evidence", "corroborates_existing_evidence"}
     ]
-    if not useful:
+    if not matches_cover_rows(rows, useful):
         return None, None, None, summary
     confidence = max(float((match.get("classification") or {}).get("confidence") or 0.0) for match in useful)
     return "keep_me", round(confidence, 3), "target_me: confirmed local speaker", summary
@@ -982,7 +950,8 @@ def stronger_has_inconclusive_evidence(summary: dict[str, Any] | None) -> bool:
 def requires_materialized_local_recall(rows: list[dict[str, Any]]) -> bool:
     return any(
         str(row.get("source") or "") == "local_recall"
-        or str(row.get("label") or "") in {"lost_me", "local_recall_needs_review"}
+        or (str(row.get("label") or "") in {"lost_me", "local_recall_needs_review"}
+            and not review_targets(row))
         for row in rows
     )
 
@@ -1011,6 +980,7 @@ def text_guard_keep_decision(rows: list[dict[str, Any]], summary: dict[str, Any]
         return None, None, None
     me_text = " ".join(row_role_text(row, "me") for row in rows)
     remote_text = " ".join(row_role_text(row, "remote") for row in rows)
+    remote_text += " " + " ".join(neighboring_remote_text(row) for row in rows)
     me_tokens = content_tokens(me_text)
     remote_tokens = set(content_tokens(remote_text))
     unique_tokens = sorted({token for token in me_tokens if token not in remote_tokens})
@@ -1104,6 +1074,16 @@ def suggested_decision_for_group(
             summary,
             target_summary,
         )
+    drop_supported = automatic_drop_supported(
+        rows, [*((summary or {}).get("matches") or []), *((target_summary or {}).get("matches") or [])]
+    )
+    if "drop_me" in {stronger_decision, target_decision} and not drop_supported:
+        return "needs_review", "low", "automatic drop requires current interval-bounded audio evidence", summary, target_summary
+    keep_supported = automatic_keep_supported(
+        rows, [*((summary or {}).get("matches") or []), *((target_summary or {}).get("matches") or [])]
+    )
+    if "keep_me" in {stronger_decision, target_decision} and not keep_supported:
+        return "needs_review", "low", "retain text; local voice or chronology is not independently confirmed", summary, target_summary
     if stronger_decision:
         return stronger_decision, confidence, reason or "", summary, target_summary
     if target_decision:
@@ -1118,9 +1098,11 @@ def suggested_decision_for_group(
         )
     text_guard_decision, text_guard_confidence, text_guard_reason = text_guard_keep_decision(rows, summary)
     if text_guard_decision:
-        return text_guard_decision, text_guard_confidence, text_guard_reason or "", summary, target_summary
+        return "needs_review", text_guard_confidence, text_guard_reason or "", summary, target_summary
     text_guard_decision, text_guard_confidence, text_guard_reason = text_guard_drop_duplicate_decision(rows, summary)
     if text_guard_decision:
+        if not drop_supported:
+            return "needs_review", "low", "text similarity alone cannot authorize automatic drop", summary, target_summary
         return text_guard_decision, text_guard_confidence, text_guard_reason or "", summary, target_summary
     fallback_decision = group_suggested_decision(rows)
     if materialization_required and fallback_decision in {"keep_me", "drop_me"}:
@@ -1131,8 +1113,10 @@ def suggested_decision_for_group(
             summary,
             target_summary,
         )
-    if fallback_decision == "drop_me" and stronger_has_inconclusive_evidence(summary):
-        return "needs_review", "low", "stronger_audio_judge: inconclusive; suppressing automatic drop", summary, target_summary
+    if fallback_decision == "keep_me" and not keep_supported:
+        return "needs_review", "low", "retain text; no independent local-voice evidence", summary, target_summary
+    if fallback_decision == "drop_me" and (not drop_supported or stronger_has_inconclusive_evidence(summary)):
+        return "needs_review", "low", "independent audio evidence is missing or inconclusive; suppressing automatic drop", summary, target_summary
     return (
         fallback_decision,
         common_value(rows, "suggested_decision_confidence", "mixed"),
@@ -1845,6 +1829,11 @@ def main() -> int:
                     "group_key": related_group_key(row, args.group_related),
                     "session_id": row.get("session_id"),
                     "input_profile": row.get("input_profile"),
+                    "interval": row.get("interval"),
+                    "target_utterances": list({
+                        str(target.get("id")): {key: target.get(key) for key in ("id", "role", "source_track", "start", "end", "text")}
+                        for member in group_rows for target in review_targets(member)
+                    }.values()),
                     "review_lane": row.get("review_lane"),
                     "label": row.get("label"),
                     "utterance_ids": unique_from_rows(group_rows, "utterance_ids"),
@@ -1855,6 +1844,12 @@ def main() -> int:
                     "suggested_decision_reason": suggested_reason,
                     "stronger_audio_judge": stronger_summary,
                     "target_me": target_me_summary,
+                    "suggestion_receipt": suggestion_receipt(
+                        group_rows,
+                        list((stronger_summary or {}).get("matches") or [])
+                        + list((target_me_summary or {}).get("matches") or []),
+                        suggested_decision,
+                    ),
                     "allowed_decisions": common_allowed_decisions(group_rows),
                     "command_key": command_key,
                     "command": command,

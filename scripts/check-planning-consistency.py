@@ -95,6 +95,8 @@ CRITICAL_PATH = (
     "product-speaker-resolved-transcript-terminal-gate-instrument-v1",
     "quality-speaker-bounded-chronology-arbitration-v1",
     "quality-word-level-chronology-localization-v1",
+    "product-review-safe-attributed-handoff-v1",
+    "quality-bounded-evidence-compute-v1",
     "quality-human-reviewed-lexical-seed-v1",
     "quality-session-scoped-lexical-context-v1",
     "product-speaker-resolved-transcript-terminal-gate-v1",
@@ -174,7 +176,7 @@ def validate_statuses_and_goal(plan: dict) -> tuple[dict, str]:
     require(isinstance(statuses, dict), "plan.statuses must be a mapping")
     require(set(statuses) == EXPECTED_STATUSES, "plan status set does not match the planning contract")
     require(isinstance(nodes, dict) and nodes, "plan.nodes must be a non-empty mapping")
-    require(len(nodes) <= 64, f"active plan is too large: {len(nodes)} nodes, expected at most 64")
+    require(len(nodes) <= 66, f"active plan is too large: {len(nodes)} nodes, expected at most 66")
 
     current = [(node_id, node) for node_id, node in nodes.items() if node.get("status") == "current"]
     current_tasks = [(node_id, node) for node_id, node in current if node.get("kind") == "task"]
@@ -583,8 +585,16 @@ def validate_dependencies(nodes: dict, current_goal_id: str) -> None:
         "chronology arbitration must follow terminal-gate instrumentation",
     )
     require(
-        nodes["quality-word-level-chronology-localization-v1"].get("status") == "current",
-        "word-level chronology localization must be the current executable goal",
+        nodes["quality-word-level-chronology-localization-v1"].get("status") == "done",
+        "word-level chronology localization must remain a completed checkpoint",
+    )
+    require(
+        nodes["product-review-safe-attributed-handoff-v1"].get("status") == "done",
+        "review-safe attributed handoff must remain a completed checkpoint",
+    )
+    require(
+        nodes["quality-bounded-evidence-compute-v1"].get("status") == "current",
+        "producer requalification must be the current executable goal",
     )
     require(
         "quality-speaker-bounded-chronology-arbitration-v1"

@@ -9,8 +9,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from review_audio_evidence import review_targets, suggestion_receipt_current
 
-SCRIPT_VERSION = "0.6.5"
+
+SCRIPT_VERSION = "0.6.6"
 REVIEW_STATE_FIELDS = {
     "decision",
     "status",
@@ -851,6 +853,15 @@ def apply_lane(
             )
             continue
         concrete_indexes = [row_index for row_index in row_indexes if row_index is not None]
+        if answers_source == "suggested" and decision in {"keep_me", "drop_me", "drop_remote", "skip"}:
+            evidence = list((item.get("stronger_audio_judge") or {}).get("matches") or [])
+            evidence += list((item.get("target_me") or {}).get("matches") or [])
+            if not suggestion_receipt_current(
+                item.get("suggestion_receipt"), [rows[index] for index in concrete_indexes], evidence, decision
+            ):
+                rejected.append({"source_audit_id": source_id, "decision": decision,
+                                 "reason": "stale_or_missing_suggestion_receipt"})
+                continue
         suggested_decision = str(item.get("suggested_decision") or "todo")
         if suggested_decision not in VALID_DECISIONS:
             suggested_decision = "todo"
@@ -909,6 +920,9 @@ def apply_lane(
                     row["review_lane_pack_group_size"] = item.get("group_size")
                 row["review_reason"] = item.get("suggested_decision_reason") or ""
                 row["review_evidence"] = {
+                    "suggestion_receipt": item.get("suggestion_receipt"),
+                    "target_snapshot": [{key: target.get(key) for key in ("id", "role", "source_track", "text", "start", "end")}
+                                        for target in review_targets(row)],
                     "source_audit_ids": source_ids,
                     "review_lane": lane,
                     "lane_pack_index": item.get("index"),

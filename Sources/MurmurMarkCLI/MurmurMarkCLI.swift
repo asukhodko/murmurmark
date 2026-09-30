@@ -238,6 +238,10 @@ struct MurmurMark {
             default:
                 throw CLIError("unknown command: \(command)")
             }
+        } catch let stopped as FollowUpStopped {
+            let state = stopped.status == 75 ? "deferred_budget_exhausted" : "interrupted_recoverable"
+            fputs("followup: \(state); completed steps saved; resume the meeting to continue\n", stderr)
+            Foundation.exit(stopped.status)
         } catch {
             fputs("error: \(error.localizedDescription)\n", stderr)
             Foundation.exit(1)
@@ -776,6 +780,8 @@ enum Commands {
 
         The record command keeps macOS display/system idle sleep disabled while capture is active,
         because ScreenCaptureKit needs an awake desktop capture source.
+        Before capture, low disk space triggers guarded compaction of old unpinned sessions.
+        If the minimum reserve cannot be recovered, recording does not start.
 
         --live-pipeline is disabled by default. Use it only in lab diagnostics with
         MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1 until the async live path passes parity gates.
@@ -964,7 +970,9 @@ enum MeetingCommands {
 
         The high-level command never adds --full, --force-asr or --allow-partial. Use record and
         process directly for low-level diagnostics. After a successful guarded export it compacts
-        rebuildable media under derived/ unless --keep-debug-artifacts is set. Raw audio is kept.
+        rebuildable media and raw CAF unless --keep-debug-artifacts is set. Before capture, low
+        disk space triggers guarded compaction of older unpinned sessions; if the minimum reserve
+        cannot be recovered, recording does not start.
         """)
     }
 }
@@ -1226,7 +1234,7 @@ enum DoctorChecks {
             }
             let processing = config.effectiveProcessing()
             let profile = (processing["resource_profile"] as? String) ?? "background"
-            let maxThreads = (processing["max_compute_threads"] as? NSNumber)?.intValue ?? 4
+            let maxThreads = (processing["max_compute_threads"] as? NSNumber)?.intValue ?? 3
             if !["background", "opportunistic", "performance"].contains(profile) || maxThreads < 0 {
                 report.check(
                     .fail,
@@ -1267,6 +1275,7 @@ enum DoctorChecks {
             "scripts/run-session-pipeline.py",
             "scripts/reconcile-session-state.py",
             "scripts/murmurmark_resource_policy.py",
+            "scripts/murmurmark_processing_lease.py",
             "scripts/run-meeting-lifecycle.py",
             "scripts/report-meeting-lifecycle-corpus.py",
             "scripts/evaluate-outcome.py",
@@ -1381,6 +1390,7 @@ enum DoctorChecks {
             "scripts/apply-retention-policy.py",
             "scripts/build-provider-payload-manifest.py",
             "scripts/compact-derived-artifacts.py",
+            "scripts/preflight-recording-storage.py",
             "scripts/release-bundle.py",
             "scripts/install-release.sh",
             "scripts/acceptance-release-quality.sh",
@@ -1857,7 +1867,10 @@ enum PipelineCommands {
 
         print("SESSION=\"\(PathDisplay.display(session))\"")
         fflush(stdout)
-        try Tooling.runPathForwardingInterrupts(python, command)
+        let status = try Tooling.runPathForwardingInterruptsAllowingExitCodes(
+            python, command, allowedExitCodes: [0, 75, 130]
+        )
+        try FollowUpBudget.checkStatus(status)
         try ReadinessPrinter.printSession(session, label: "readiness")
         try ReadinessPrinter.printFinalNext(session)
     }
@@ -2140,7 +2153,7 @@ enum PipelineCommands {
 }
 
 enum SessionStateReconciler {
-    static func run(_ session: URL, reason: String, rebaseReview: Bool) throws {
+    static func run(_ session: URL, reason: String, rebaseReview: Bool, cachedSpeakersOnly: Bool = false) throws {
         let python = try PythonRuntime.resolve()
         let script = PathURLs.fileURL("scripts/reconcile-session-state.py")
         guard FileManager.default.fileExists(atPath: script.path) else {
@@ -2150,7 +2163,31 @@ enum SessionStateReconciler {
         if !rebaseReview {
             arguments.append("--skip-review-rebase")
         }
-        try Tooling.runPathQuiet(python, arguments)
+        if cachedSpeakersOnly {
+            arguments.append("--cached-speakers-only")
+        }
+        let status = try Tooling.runPathQuietAllowingExitCodes(python, arguments, allowedExitCodes: [0, 75, 130])
+        try FollowUpBudget.checkStatus(status)
+    }
+}
+
+struct FollowUpStopped: Error {
+    let status: Int32
+}
+
+enum FollowUpBudget {
+    static func requireTime(reserveSeconds: Double = 3) throws {
+        guard let raw = ProcessInfo.processInfo.environment["MURMURMARK_ACTION_DEADLINE_EPOCH"],
+              let deadline = Double(raw) else { return }
+        if deadline - Date().timeIntervalSince1970 <= reserveSeconds {
+            throw FollowUpStopped(status: 75)
+        }
+    }
+
+    static func checkStatus(_ status: Int32) throws {
+        if status == 75 || status == 130 {
+            throw FollowUpStopped(status: status)
+        }
     }
 }
 
@@ -2210,6 +2247,9 @@ enum PipelineHelp {
         background scheduling policy and bounds native/ASR concurrency. The opportunistic profile
         keeps nice=20 but uses otherwise idle CPU without the Darwin background clamp. Use
         --resource-profile performance only for an intentional foreground speed run.
+        Heavy processing is globally serialized across sessions in FIFO order. A queued process
+        reports its owner and position; capture remains independent and can start while it waits.
+        Primary ASR chunk completion is reported separately from timeline/micro-ASR repair.
         The --skip-* flags are for debugging or refreshing only selected derived layers.
         The normal stronger-audio-judge pass audits the residual queue with mic_clean+remote.
         Use --stronger-audio-judge-exhaustive only for deliberate four-source diagnostics.
@@ -2941,7 +2981,7 @@ enum ReviewCommands {
             }
             let report = try apply(forwarded, sessionsRoot: sessionsRoot)
             if let session {
-                try SessionStateReconciler.run(session, reason: "review_apply", rebaseReview: false)
+                try SessionStateReconciler.run(session, reason: "review_apply", rebaseReview: false, cachedSpeakersOnly: true)
                 print("SESSION=\"\(PathDisplay.display(session))\"")
             }
             try ReviewPrinter.printApply(report: report)
@@ -3578,12 +3618,14 @@ enum ReviewSuggestedCommand {
         }
 
         var batchArgs = ["--allow-partial-review", "--session", session.lastPathComponent, "--synthesize", "--refresh-reports"]
+        try FollowUpBudget.requireTime()
         ReviewSessionLocalPlan.addReviewApplyDefaults(for: session, to: &batchArgs)
         let status = try Tooling.runPathAllowingExitCodes(
             python,
             [try script("apply-review-decisions-batch.py").path] + batchArgs,
-            allowedExitCodes: [0, 2]
+            allowedExitCodes: [0, 2, 75, 130]
         )
+        try FollowUpBudget.checkStatus(status)
         try ReviewPrinter.printApply(report: ReviewPaths.applyReport(from: batchArgs))
         try refreshOutcome(session: session, python: python)
         print("")
@@ -3599,7 +3641,8 @@ enum ReviewSuggestedCommand {
             runStrongerAudioJudge: !skipTargetedJudge,
             runTargetMe: !skipTargetMe
         )
-        try SessionStateReconciler.run(session, reason: "suggested_review_apply", rebaseReview: false)
+        try FollowUpBudget.requireTime()
+        try SessionStateReconciler.run(session, reason: "suggested_review_apply", rebaseReview: false, cachedSpeakersOnly: true)
         print("")
         print("suggested_fixed_point:")
         print("  additional_materialized_passes: \(convergence.materializedPasses)")
@@ -3682,6 +3725,7 @@ enum ReviewSuggestedCommand {
         var remainingRows = 0
 
         for _ in 0..<maxAdditionalPasses {
+            try FollowUpBudget.requireTime(reserveSeconds: 10)
             try buildReviewWorkspace(session: session, python: python)
             if runStrongerAudioJudge || runTargetMe {
                 try refreshTargetedEvidence(
@@ -3741,8 +3785,9 @@ enum ReviewSuggestedCommand {
             let status = try Tooling.runPathAllowingExitCodes(
                 python,
                 [try script("apply-review-decisions-batch.py").path] + batchArgs,
-                allowedExitCodes: [0, 2]
+                allowedExitCodes: [0, 2, 75, 130]
             )
+            try FollowUpBudget.checkStatus(status)
             guard status == 0 else {
                 throw CLIError(
                     "suggested review convergence apply did not pass; inspect "
@@ -3782,20 +3827,15 @@ enum ReviewSuggestedCommand {
             return
         }
         if runStrongerAudioJudge {
-            let needsFullMicSources = lanePacks.contains { lanePack in
-                lanePack.lastPathComponent.contains("check_local_recall")
-                    || lanePack.lastPathComponent.contains("check_transcript_text")
-            }
             var judgeArgs = [
                 try script("audit-stronger-audio-judge.py").path,
                 session.path,
                 "--profile", "auto",
                 "--max-items", envValue("MURMURMARK_TARGETED_JUDGE_MAX_ITEMS", defaultValue: "80"),
                 "--no-progress",
+                "--adaptive-sources",
+                "--word-timestamps",
             ]
-            if !needsFullMicSources {
-                judgeArgs.append("--quick")
-            }
             if envBool("MURMURMARK_TARGETED_JUDGE_COMPUTE", defaultValue: true) {
                 judgeArgs += [
                     "--max-computed-items",
@@ -4159,6 +4199,7 @@ enum ReviewLaneApplyCommand {
             decisions: decisions,
             answers: explicitAnswers,
             answersFile: answersFile,
+            answersSource: answersSource,
             reviewer: reviewer,
             dryRun: dryRun
         ))
@@ -4215,6 +4256,7 @@ enum ReviewLaneApplyCommand {
         let decisions: URL
         let answers: String?
         let answersFile: URL?
+        let answersSource: String
         let reviewer: String?
         let dryRun: Bool
     }
@@ -4225,6 +4267,7 @@ enum ReviewLaneApplyCommand {
             context.manifest.path,
             "--template", context.template.path,
             "--out", context.decisions.path,
+            "--answers-source", context.answersSource,
         ]
         if let answers = context.answers {
             command += ["--answers", answers]
@@ -4315,17 +4358,21 @@ enum ReviewLaneApplyCommand {
     }
 
     private static func printIncompleteDryRunNext(_ context: ReviewLaneApplyPrintContext, sessionArgument: String) {
-        let nextCommand = context.answersFile
+        let manualFallback = context.answersSource == "suggested"
+        let answersFile = manualFallback
+            ? context.lanePackOutURL.appendingPathComponent("review_lane_answers.\(context.lane).txt")
+            : context.answersFile
+        let nextCommand = answersFile
             .map { "$EDITOR \(PathDisplay.display($0))" }
             ?? "murmurmark review lane \(context.lane)\(sessionArgument)"
         let markdown = context.lanePackOutURL.appendingPathComponent("review_lane_pack.\(context.lane).md")
-        let retry = ReviewLaneApplyNextCommand.command(context) + " --dry-run"
+        let retry = ReviewLaneApplyNextCommand.command(context, manualFallback: manualFallback) + " --dry-run"
         print("  recommended_next: \(nextCommand)")
         print("  next:")
         if FileManager.default.fileExists(atPath: markdown.path) {
             print("    less \(PathDisplay.display(markdown))")
         }
-        if let answersFile = context.answersFile {
+        if let answersFile {
             print("    $EDITOR \(PathDisplay.display(answersFile))")
         } else {
             print("    murmurmark review lane \(context.lane)\(sessionArgument)")
@@ -4448,7 +4495,7 @@ enum ReviewLaneApplyCommand {
 }
 
 enum ReviewLaneApplyNextCommand {
-    static func command(_ context: ReviewLaneApplyPrintContext) -> String {
+    static func command(_ context: ReviewLaneApplyPrintContext, manualFallback: Bool = false) -> String {
         var parts = ["murmurmark", "review", "lane", "apply", context.lane]
         if let session = context.session {
             parts += ["--session", PathDisplay.display(session)]
@@ -4476,7 +4523,9 @@ enum ReviewLaneApplyNextCommand {
             default: context.planURL.appendingPathComponent("review_decisions.jsonl"),
             to: &parts
         )
-        if let answers = context.answers {
+        if manualFallback {
+            parts += ["--answers-source", "manual"]
+        } else if let answers = context.answers {
             parts += ["--answers", answers]
         } else if context.answersSource == "suggested" {
             parts += ["--answers-source", "suggested"]
@@ -5792,11 +5841,20 @@ enum AuthoritativeHandoffState {
     private static func fingerprintMatches(_ payload: [String: Any], session: URL) -> Bool {
         guard let fingerprint = payload["transcript_fingerprint"] as? [String: Any],
               let rawPath = fingerprint["path"] as? String,
-              let expectedSHA = fingerprint["sha256"] as? String,
               !rawPath.isEmpty,
-              !expectedSHA.isEmpty,
               let paths = payload["paths"] as? [String: Any],
               paths["transcript"] as? String == rawPath
+        else {
+            return false
+        }
+        return fileMatches(fingerprint: fingerprint, session: session)
+    }
+
+    private static func fileMatches(fingerprint: [String: Any], session: URL) -> Bool {
+        guard let rawPath = fingerprint["path"] as? String,
+              let expectedSHA = fingerprint["sha256"] as? String,
+              !rawPath.isEmpty,
+              !expectedSHA.isEmpty
         else {
             return false
         }
@@ -5818,8 +5876,15 @@ enum AuthoritativeHandoffState {
     private static func readinessProfileMatches(_ payload: [String: Any], session: URL) -> Bool {
         guard let expectedProfile = payload["selected_transcript_profile"] as? String,
               !expectedProfile.isEmpty,
-              let paths = payload["paths"] as? [String: Any],
-              let transcriptPath = paths["transcript"] as? String
+              let paths = payload["paths"] as? [String: Any]
+        else {
+            return false
+        }
+        let sourceFingerprint = payload["source_transcript_fingerprint"] as? [String: Any]
+        let transcriptPath = sourceFingerprint?["path"] as? String ?? paths["transcript"] as? String
+        guard let transcriptPath,
+              !transcriptPath.isEmpty,
+              sourceFingerprint.map({ fileMatches(fingerprint: $0, session: session) }) ?? true
         else {
             return false
         }
@@ -5965,7 +6030,7 @@ enum SpeakerResolvedTranscriptState {
         let fallbackReason: String?
     }
 
-    static func materialize(_ session: URL) -> Selection? {
+    static func verified(_ session: URL) -> Selection? {
         let script = PathURLs.fileURL("scripts/select-speaker-resolved-transcript.py")
         guard FileManager.default.fileExists(atPath: script.path),
               let python = try? PythonRuntime.resolve()
@@ -5974,7 +6039,7 @@ enum SpeakerResolvedTranscriptState {
         }
         let strictStatus = try? Tooling.runPathQuietAllowingExitCodes(
             python,
-            [script.path, session.path],
+            [script.path, session.path, "--verify-only"],
             allowedExitCodes: [0, 2]
         )
         let strict = strictStatus == 0 ? selection(session) : nil
@@ -5985,7 +6050,7 @@ enum SpeakerResolvedTranscriptState {
         if FileManager.default.fileExists(atPath: provisionalScript.path),
            (try? Tooling.runPathQuietAllowingExitCodes(
                python,
-               [provisionalScript.path, session.path],
+               [provisionalScript.path, session.path, "--verify-only"],
                allowedExitCodes: [0, 2]
            )) == 0,
            let provisional = provisionalSelection(session) {
@@ -6466,6 +6531,13 @@ struct SynthesisArtifactHandoff {
 }
 
 enum TranscriptCommands {
+    static func attributionDisclaimer(kind: String) -> String {
+        guard kind != "aggregate_colleagues" else { return "" }
+        return "> [!NOTE]\n"
+            + "> Speaker attribution does not certify transcript words or resolve pending review. "
+            + "Anonymous remote_speaker_N labels are session-local clusters, not verified people.\n\n"
+    }
+
     private struct CaptureContinuityWarning {
         let gapCount: Int
         let gapSeconds: Double
@@ -6525,7 +6597,7 @@ enum TranscriptCommands {
         var fallbackReason: String?
         var speakerSelection: SpeakerResolvedTranscriptState.Selection?
         if rich {
-            speakerSelection = SpeakerResolvedTranscriptState.materialize(session)
+            speakerSelection = SpeakerResolvedTranscriptState.verified(session)
             let selection = try richTranscript(session: session, reviewedSpeakers: reviewedSpeakers)
             profile = selection.profile
             url = selection.url
@@ -6538,7 +6610,7 @@ enum TranscriptCommands {
         } else {
             profile = try selectedProfile(requestedProfile, session: session)
             if requestedProfile == "auto",
-               let selection = SpeakerResolvedTranscriptState.materialize(session) {
+               let selection = SpeakerResolvedTranscriptState.verified(session) {
                 speakerSelection = selection
                 url = selection.transcript
                 kind = selection.speakerProfile
@@ -6596,6 +6668,7 @@ enum TranscriptCommands {
             if let continuityWarning {
                 FileHandle.standardOutput.write(Data(continuityWarning.markdown.utf8))
             }
+            FileHandle.standardOutput.write(Data(attributionDisclaimer(kind: kind).utf8))
             let data = try Data(contentsOf: url)
             FileHandle.standardOutput.write(data)
             return
@@ -6622,6 +6695,7 @@ enum TranscriptCommands {
             print("  speaker_resolution_state: \(speakerSelection.state)")
             if let ratio = SpeakerResolvedTranscriptState.attributedRemoteSpeechRatio(speakerSelection) {
                 print(String(format: "  speaker_attribution_coverage: %.2f%%", ratio * 100))
+                print("  speaker_attribution_coverage_unit: remote_speech_seconds")
             }
         }
         print("  path: \(PathDisplay.display(url))")
@@ -10645,8 +10719,13 @@ struct MurmurMarkConfig {
         if processing["resource_profile"] == nil {
             processing["resource_profile"] = "background"
         }
-        if processing["max_compute_threads"] == nil {
-            processing["max_compute_threads"] = 4
+        let profile = (processing["resource_profile"] as? String) ?? "background"
+        let configuredThreads = (processing["max_compute_threads"] as? NSNumber)?.intValue
+        if profile == "performance" {
+            processing["max_compute_threads"] = configuredThreads ?? 0
+        } else {
+            let requested = configuredThreads ?? 3
+            processing["max_compute_threads"] = requested > 0 ? min(requested, 3) : 3
         }
         return processing
     }
@@ -11083,6 +11162,18 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         defer {
             recordingLock.release()
         }
+        let storagePreflight = PathURLs.fileURL("scripts/preflight-recording-storage.py")
+        guard fileManager.fileExists(atPath: storagePreflight.path) else {
+            throw CLIError("recording storage preflight not found: \(storagePreflight.path)")
+        }
+        try Tooling.runPath(
+            try PythonRuntime.resolve(),
+            [
+                storagePreflight.path,
+                "--capture-out", outputDirectory.path,
+                "--sessions-root", PathURLs.fileURL("sessions").path,
+            ]
+        )
         try prepareDirectories()
         let eventLog = try EventLog(url: outputDirectory.appendingPathComponent("events.jsonl"))
         events = eventLog
@@ -17172,12 +17263,13 @@ enum ReadinessPrinter {
         print("  gate: \(gate)")
         print("  recommendation: \(recommendation)")
         print("  selected_profile: \(profile)")
-        let speakerSelection = SpeakerResolvedTranscriptState.materialize(session)
+        let speakerSelection = SpeakerResolvedTranscriptState.verified(session)
         if let speaker = speakerSelection {
             print("  selected_speaker_profile: \(speaker.speakerProfile)")
             print("  speaker_resolution_state: \(speaker.state)")
             if let ratio = SpeakerResolvedTranscriptState.attributedRemoteSpeechRatio(speaker) {
                 print(String(format: "  speaker_attribution_coverage: %.2f%%", ratio * 100))
+                print("  speaker_attribution_coverage_unit: remote_speech_seconds")
             }
             if let fallbackReason = speaker.fallbackReason {
                 print("  speaker_fallback_reason: \(fallbackReason)")
@@ -17195,6 +17287,7 @@ enum ReadinessPrinter {
         printEvidenceHandoffSummary(session)
         printAuthoritativeHandoffSummary(session)
         print(String(format: "  notes_review_burden: %.2f min / %.2f%%", reviewSeconds / 60, reviewRatio))
+        printReviewQueue(payload, session: session)
         if abs(transcriptReviewSeconds - reviewSeconds) > 0.05 {
             print(String(format: "  transcript_review_burden: %.2f min / %.2f%%", transcriptReviewSeconds / 60, transcriptReviewRatio))
         }
@@ -17479,6 +17572,39 @@ enum ReadinessPrinter {
     }
 
     private static func printASRChunkProgress(_ progress: [String: Any], indent: String) {
+        if let lease = progress["processing_lease"] as? [String: Any] {
+            print("\(indent)processing_lease:")
+            print("\(indent)  status: \(string(lease["status"]) ?? "waiting")")
+            if let position = int(lease["queue_position"]), position > 0 {
+                print("\(indent)  queue_position: \(position)")
+            }
+            if let waited = double(lease["waited_sec"]) {
+                print(String(format: "\(indent)  waited: %.1fs", waited))
+            }
+            if let owner = lease["owner"] as? [String: Any],
+               let ownerSession = string(owner["session"]) {
+                print("\(indent)  owner_session: \(ownerSession)")
+            } else if string(lease["status"]) == "acquired",
+                      let ownerSession = string(lease["session"]) {
+                print("\(indent)  owner_session: \(ownerSession)")
+            }
+            print("\(indent)  capture_blocked: \(bool(lease["capture_blocked"]) ?? false)")
+        }
+        if let stage = progress["asr_stage"] as? [String: Any] {
+            print("\(indent)asr_stage:")
+            print("\(indent)  stage: \(string(stage["stage"]) ?? "unknown")")
+            print("\(indent)  status: \(string(stage["status"]) ?? "running")")
+            if let stageStatus = string(stage["stage_status"]) {
+                print("\(indent)  stage_status: \(stageStatus)")
+            }
+            let itemTotal = int(stage["items_total"]) ?? 0
+            if itemTotal > 0 {
+                print("\(indent)  items: \(int(stage["items_completed"]) ?? 0)/\(itemTotal)")
+            }
+            if let attempts = int(stage["micro_asr_attempts"]), attempts > 0 {
+                print("\(indent)  micro_asr_attempts: \(attempts)")
+            }
+        }
         guard let chunks = progress["asr_chunks"] as? [String: Any] else {
             return
         }
@@ -17494,7 +17620,7 @@ enum ReadinessPrinter {
         let transcribed = int(chunks["chunks_transcribed"]) ?? 0
         let reusedByOrigin = chunks["chunks_reused_by_origin"] as? [String: Any] ?? [:]
         let reusedSecByOrigin = chunks["reused_sec_by_origin"] as? [String: Any] ?? [:]
-        print("\(indent)asr_chunks:")
+        print("\(indent)primary_asr_chunks:")
         print("\(indent)  chunks: \(completed)/\(total)")
         print(String(format: "\(indent)  audio: %.1fs/%.1fs", completedSec, totalSec))
         print(String(format: "\(indent)  remaining: %.1fs", remainingSec))
@@ -17790,11 +17916,18 @@ enum ReadinessPrinter {
         print("  stronger_audio_judge:")
         print("    status: \(string(payload["status"]) ?? "legacy_unknown")")
         print("    items: \(items)")
+        if let historicalItems = int(payload["historical_items"]) {
+            print("    historical_items_not_current: \(historicalItems)")
+        }
         if selectedItems > 0 || cachedItems > 0 || computedItems > 0 || pendingItems > 0 {
             print("    selected: \(selectedItems)")
             print("    cached: \(cachedItems)")
             print("    computed: \(computedItems)")
             print("    pending: \(pendingItems)")
+        }
+        if let timing = payload["timing"] as? [String: Any] {
+            print(String(format: "    model_load_seconds: %.2f", double(timing["model_load_sec"]) ?? 0))
+            print(String(format: "    decode_seconds: %.2f", double(timing["decode_sec"]) ?? 0))
         }
         print(String(format: "    suggested_keep_me: %.2f min", keepSeconds / 60.0))
         print(String(format: "    suggested_drop_me: %.2f min", dropSeconds / 60.0))
@@ -18243,6 +18376,7 @@ enum ReadinessPrinter {
         }
         print("  use_gate: \(string(payload["use_gate"]) ?? "unknown")")
         print("  export_status: \(string(payload["export_status"]) ?? "unknown")")
+        printReviewQueue(payload, session: session)
         if let next = string(payload["next_command"]), !next.isEmpty {
             print("  next: \(next)")
         }
@@ -18344,6 +18478,33 @@ enum ReadinessPrinter {
         print("    run_manifest: \(PathDisplay.display(session.appendingPathComponent("derived/run/pipeline_run.json")))")
     }
 
+    private static func printReviewQueue(_ payload: [String: Any], session: URL) {
+        guard let queue = payload["review_queue_snapshot"] as? [String: Any] else { return }
+        let progressURL = session.appendingPathComponent("derived/readiness/review-plan/review_decisions_progress.json")
+        let progress = try? JSONFiles.object(progressURL)
+        let current = progress?["queue_snapshot"] as? [String: Any] ?? [:]
+        let files = queue["files"] as? [[String: Any]] ?? []
+        let fresh = !files.isEmpty && NSDictionary(dictionary: current).isEqual(to: queue) && files.allSatisfy { item in
+            guard let path = string(item["path"]) else { return false }
+            guard let expected = string(item["sha256"]) else {
+                return !FileManager.default.fileExists(atPath: path)
+            }
+            guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return false }
+            return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined() == expected
+        }
+        guard fresh else {
+            print("  review_queue: stale; run murmurmark report \(PathDisplay.display(session))")
+            return
+        }
+        let count = int(queue["unresolved_rows"]) ?? 0
+        let unknown = int(queue["unknown_duration_rows"]) ?? 0
+        let known = double(queue["known_interval_union_seconds"]) ?? 0
+        let duration = double(queue["interval_union_seconds"]).map { String(format: "%.3fs", $0) } ?? "unknown"
+        let sum = double(queue["interval_sum_seconds"]).map { String(format: "%.3fs", $0) } ?? "unknown"
+        print("  review_queue: \(count) tasks; interval_sum=\(sum); unique_audio=\(duration); unknown_durations=\(unknown)")
+        print(String(format: "  review_queue_known_union: %.3fs (not manual work time)", known))
+    }
+
     private static func printOutcomeSummary(_ session: URL, readinessProfile: String) {
         let url = session.appendingPathComponent("derived/outcome/outcome.json")
         guard let payload = compatibleOutcomePayload(session, readinessProfile: readinessProfile) else { return }
@@ -18433,7 +18594,7 @@ enum ReadinessPrinter {
         let canOpenReadOutputs = canReadOutputsForStatus(status)
         if canOpenReadOutputs {
             appendOpenCommand("open_notes", outputKey: "notes", session: session, outputs: outputs, to: &commands)
-            if let selection = SpeakerResolvedTranscriptState.materialize(session),
+            if let selection = SpeakerResolvedTranscriptState.verified(session),
                ["selected", "provisional", "unavailable"].contains(selection.state) {
                 commands.append(("open_transcript", "less \(PathDisplay.display(selection.transcript))"))
             } else {

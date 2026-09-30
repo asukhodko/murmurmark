@@ -12,6 +12,7 @@ from typing import Any
 
 
 DEFAULT_PROFILE = "background"
+SAFE_MAX_COMPUTE_THREADS = 3
 THREAD_ENV_VARS = (
     "OMP_NUM_THREADS",
     "OPENBLAS_NUM_THREADS",
@@ -39,8 +40,8 @@ PROFILE_DEFAULTS: dict[str, ResourcePolicy] = {
         profile="background",
         nice=20,
         darwin_background=True,
-        max_compute_threads=4,
-        asr_threads=4,
+        max_compute_threads=SAFE_MAX_COMPUTE_THREADS,
+        asr_threads=SAFE_MAX_COMPUTE_THREADS,
         asr_track_workers=1,
         micro_asr_workers=1,
         live_asr_threads=3,
@@ -50,12 +51,12 @@ PROFILE_DEFAULTS: dict[str, ResourcePolicy] = {
         profile="opportunistic",
         nice=20,
         darwin_background=False,
-        max_compute_threads=0,
-        asr_threads=6,
-        asr_track_workers=2,
-        micro_asr_workers=4,
-        live_asr_threads=4,
-        live_asr_parallelism=2,
+        max_compute_threads=SAFE_MAX_COMPUTE_THREADS,
+        asr_threads=SAFE_MAX_COMPUTE_THREADS,
+        asr_track_workers=1,
+        micro_asr_workers=1,
+        live_asr_threads=SAFE_MAX_COMPUTE_THREADS,
+        live_asr_parallelism=1,
     ),
     "performance": ResourcePolicy(
         profile="performance",
@@ -97,9 +98,19 @@ def resolve_resource_policy(
         choices = ", ".join(sorted(PROFILE_DEFAULTS))
         raise ValueError(f"unknown MurmurMark resource profile {name!r}; expected one of: {choices}")
     base = PROFILE_DEFAULTS[name]
-    limit = base.max_compute_threads if max_compute_threads is None else int(max_compute_threads)
-    if limit < 0:
+    requested_limit = base.max_compute_threads if max_compute_threads is None else int(max_compute_threads)
+    if requested_limit < 0:
         raise ValueError("max_compute_threads must be >= 0")
+    if name == "performance":
+        limit = requested_limit
+    else:
+        # Legacy configs used 0 for unlimited and 4 for the old ceiling. Normal
+        # meeting profiles now converge to a laptop-safe three-thread ceiling.
+        limit = (
+            min(requested_limit, SAFE_MAX_COMPUTE_THREADS)
+            if requested_limit > 0
+            else SAFE_MAX_COMPUTE_THREADS
+        )
     return ResourcePolicy(**{**asdict(base), "max_compute_threads": limit})
 
 
@@ -107,6 +118,15 @@ def bounded_threads(requested: int, policy: ResourcePolicy) -> int:
     value = max(1, int(requested))
     if policy.max_compute_threads > 0:
         value = min(value, policy.max_compute_threads)
+    return value
+
+
+def bounded_process_parallelism(requested: int, policy: ResourcePolicy) -> int:
+    value = max(1, int(requested))
+    # A per-process thread ceiling is not an aggregate ceiling when several ASR
+    # processes run together. Serialize heavy workers for every bounded profile.
+    if policy.max_compute_threads > 0:
+        return 1
     return value
 
 
@@ -207,12 +227,12 @@ def apply_resource_policy(policy: ResourcePolicy) -> dict[str, Any]:
         "thread_environment": thread_environment,
         "asr_defaults": {
             "threads": bounded_threads(policy.asr_threads, policy),
-            "track_workers": policy.asr_track_workers,
-            "micro_asr_workers": policy.micro_asr_workers,
+            "track_workers": bounded_process_parallelism(policy.asr_track_workers, policy),
+            "micro_asr_workers": bounded_process_parallelism(policy.micro_asr_workers, policy),
         },
         "live_asr_defaults": {
             "threads": bounded_threads(policy.live_asr_threads, policy),
-            "parallelism": policy.live_asr_parallelism,
+            "parallelism": bounded_process_parallelism(policy.live_asr_parallelism, policy),
         },
         "warnings": warnings,
     }

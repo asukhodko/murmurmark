@@ -286,8 +286,29 @@ Both commands accept:
 
 This flag skips automatic compaction for sessions retained for retranscription, corpus work, audio
 or pipeline investigation.
-Blocked export, review-first and failed sessions remain unmodified. Compaction failure is fail-open:
-the final export remains valid and existing files are kept or reported as a partial cleanup.
+At the start of `meeting` or `record`, a separate storage preflight runs under the recording lock,
+before the new session directory is prepared. Above the low-space threshold it does nothing. Below
+it, it processes completed sessions older than two days, oldest first: `keep_raw` first, then
+`transcript_only` only for a current outcome with transcript `ready`, export `allowed`, empty export
+blockers and good verdict. If the minimum reserve is still not met, an emergency third pass applies
+the same `transcript_only` operation shown in the manual bulk command to remaining eligible old
+sessions, even when review is blocked. This loses their raw review evidence irreversibly but keeps
+the selected transcript and structured provenance. The terminal and report mark these rows as
+`emergency`. This last pass stops as soon as the minimum reserve is restored, without continuing
+to the higher target. All passes use the compactor's selected-output verification and pin,
+capture and lifecycle gates. The preflight skips sessions marked `keep_debug_artifacts` in their
+meeting lifecycle state. It never auto-cleans an arbitrary output directory or a symlinked sessions
+root. Thresholds are `min(50 GiB, 10% of volume)` to trigger and `min(100 GiB, 20% of volume)`
+as the target reserve. If free space remains below the trigger after eligible cleanup, capture
+fails before recording begins. Below target but above trigger, it warns and proceeds. A low-space
+run writes `sessions/_reports/retention-compaction/recording_storage_preflight.json` with the
+before/after free space and per-session actions. This policy does not monitor free space during a
+recording; leave headroom for long meetings and post-processing.
+
+Blocked export and review-first sessions first lose only rebuildable derived media; raw CAF is
+deleted only if the minimum reserve still cannot be restored by the safer passes. Failed sessions
+are untouched. After a successful export, compaction failure is fail-open: the export remains valid
+and partial cleanup is reported.
 
 Re-running `murmurmark process SESSION` may recreate derived media. A later compaction plan scans the
 current filesystem and can return the session to thin storage.

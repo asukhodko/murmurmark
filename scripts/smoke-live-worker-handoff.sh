@@ -285,11 +285,11 @@ append_segment_pair "$shutdown_session" "2026-07-10T10:02:02Z"
 shutdown_worker_pid=$!
 wait_for 60 jq -e '
   (.current_stage == "asr_mic" or .current_stage == "asr_remote")
-  and (.child_pids | length) == 2
+  and (.child_pids | length) >= 1
   and (.progress.live_lag_sec // -1) >= 0
 ' \
   "$shutdown_session/derived/live/live_pipeline_state.json" >/dev/null 2>&1 \
-  || fail "shutdown fixture did not reach child ASR"
+  || fail "shutdown fixture did not reach bounded child ASR"
 shutdown_child_pids="$(jq -r '.child_pids[]' "$shutdown_session/derived/live/live_pipeline_state.json")"
 kill -TERM "$shutdown_worker_pid"
 wait_for_process_exit "$shutdown_worker_pid" || fail "worker ignored SIGTERM"

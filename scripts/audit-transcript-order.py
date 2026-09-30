@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import re
 from collections import Counter
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
+
+from transcript_overlaps import build_overlaps as current_overlaps
 
 
 SCHEMA_AUDIT = "murmurmark.transcript_order_audit/v1"
@@ -67,23 +70,14 @@ def resolve_profile(session: Path, requested: str) -> str:
         return str(handoff["selected_transcript_profile"])
     if requested != "auto":
         return requested
-    resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
-    for profile in (
-        "audit_cleanup_v7",
-        "agent_reviewed_v1",
-        "reviewed_v1",
-        "audit_cleanup_v6",
-        "audit_cleanup_v5",
-        "audit_cleanup_v4",
-        "audit_cleanup_v3",
-        "audit_cleanup_v2",
-        "audit_cleanup_v1",
-        "shadow_v2",
-        "current",
-    ):
-        if (resolved / f"clean_dialogue{suffix(profile)}.json").exists():
-            return profile
-    return "current"
+    # Use the same promotion/lineage checks as readiness, not a file-existence list.
+    spec = importlib.util.spec_from_file_location(
+        "order_session_quality", Path(__file__).with_name("report-session-quality.py")
+    )
+    assert spec is not None and spec.loader is not None
+    quality = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(quality)
+    return quality.selected_profile(session)
 
 
 def role_name(row: dict[str, Any]) -> str:
@@ -161,7 +155,9 @@ def format_time(seconds: float) -> str:
 
 def utterances(dialogue: dict[str, Any] | None) -> list[dict[str, Any]]:
     rows = (dialogue or {}).get("utterances")
-    return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+    if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+        raise ValueError("utterances must be a list of objects")
+    return rows
 
 
 def classify(
@@ -213,6 +209,7 @@ def classify(
 
 
 def build_items(dialogue_rows: list[dict[str, Any]], overlaps: list[dict[str, Any]], args: argparse.Namespace) -> list[dict[str, Any]]:
+    overlaps = current_overlaps(dialogue_rows, overlaps, text_similarity=text_similarity)
     by_id = {str(row.get("id")): row for row in dialogue_rows if row.get("id")}
     items: list[dict[str, Any]] = []
     for index, overlap in enumerate(overlaps, start=1):
@@ -323,6 +320,8 @@ def write_review(path: Path, session: Path, profile: str, summary: dict[str, Any
                 f"- Me duration: `{features.get('me_duration_sec')}` sec; post-remote tail: `{features.get('post_remote_tail_sec')}` sec",
                 "",
             ]
+    elif summary.get("recommended_next_step") == "missing_transcript_or_overlaps":
+        lines += ["Audit unavailable: transcript or overlap inputs are missing or invalid.", ""]
     else:
         lines += ["No probable order risks found.", ""]
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -337,7 +336,17 @@ def main() -> int:
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
     dialogue = read_json(resolved / f"clean_dialogue{suffix(profile)}.json")
     overlaps_payload = read_json(resolved / f"overlaps{suffix(profile)}.json")
-    if dialogue is None or overlaps_payload is None:
+    input_error = None
+    if dialogue is not None and overlaps_payload is not None:
+        try:
+            rows = utterances(dialogue)
+            overlaps = overlaps_payload.get("overlaps")
+            if not isinstance(overlaps, list):
+                raise ValueError("overlaps must be a list")
+            items = build_items(rows, overlaps, args)
+        except (ValueError, TypeError, KeyError) as error:
+            input_error = str(error)
+    if dialogue is None or overlaps_payload is None or input_error:
         summary = {
             "audited_overlap_count": 0,
             "by_label": {},
@@ -354,6 +363,7 @@ def main() -> int:
             "session": str(session),
             "profile": profile,
             "status": "missing_inputs",
+            "input_error": input_error,
             "inputs": {
                 "clean_dialogue": str(resolved / f"clean_dialogue{suffix(profile)}.json"),
                 "overlaps": str(resolved / f"overlaps{suffix(profile)}.json"),
@@ -372,9 +382,6 @@ def main() -> int:
         print("status: missing_inputs")
         return 2
 
-    rows = utterances(dialogue)
-    overlaps = overlaps_payload.get("overlaps") if isinstance(overlaps_payload.get("overlaps"), list) else []
-    items = build_items(rows, [row for row in overlaps if isinstance(row, dict)], args)
     summary = summarize(items)
     payload = {
         "schema": SCHEMA_AUDIT,
@@ -382,6 +389,8 @@ def main() -> int:
         "session": str(session),
         "profile": profile,
         "status": "ok",
+        "overlap_source": "recomputed_from_selected_dialogue",
+        "input_overlap_count": len(overlaps),
         "inputs": {
             "clean_dialogue": str(resolved / f"clean_dialogue{suffix(profile)}.json"),
             "overlaps": str(resolved / f"overlaps{suffix(profile)}.json"),

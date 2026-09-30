@@ -23,6 +23,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 import review_profile_lineage as review_lineage
+from transcript_overlaps import build_overlaps as current_overlaps
 
 
 SCRIPT_VERSION = "0.1.1"
@@ -913,60 +914,11 @@ def build_overlaps(
     rows: list[dict[str, Any]],
     source: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
-    by_id = {str(row.get("id") or ""): row for row in rows}
     source_rows = source.get("overlaps") if isinstance(source, dict) else None
-    if isinstance(source_rows, list):
-        values: list[dict[str, Any]] = []
-        for source_row in source_rows:
-            if not isinstance(source_row, dict):
-                continue
-            me = by_id.get(str(source_row.get("me_utterance_id") or ""))
-            remote = by_id.get(str(source_row.get("remote_utterance_id") or ""))
-            if me is None or remote is None:
-                continue
-            start = max(safe_float(me.get("start")), safe_float(remote.get("start")))
-            end = min(safe_float(me.get("end")), safe_float(remote.get("end")))
-            if end <= start:
-                continue
-            value = copy.deepcopy(source_row)
-            value.update(
-                {
-                    "start": round(start, 6),
-                    "end": round(end, 6),
-                    "duration_sec": round(end - start, 6),
-                    "me_text": row_text(me),
-                    "remote_text": row_text(remote),
-                    "text_similarity": text_similarity(row_text(me), row_text(remote)),
-                }
-            )
-            if "duration" in value:
-                value["duration"] = value["duration_sec"]
-            values.append(value)
-        return values
-
-    values: list[dict[str, Any]] = []
-    me_rows = [row for row in rows if role_name(row) == "me"]
-    remote_rows = [row for row in rows if role_name(row) == "remote"]
-    for me in me_rows:
-        for remote in remote_rows:
-            start = max(safe_float(me.get("start")), safe_float(remote.get("start")))
-            end = min(safe_float(me.get("end")), safe_float(remote.get("end")))
-            if end <= start:
-                continue
-            values.append(
-                {
-                    "id": f"ov_{len(values) + 1:06d}",
-                    "start": round(start, 6),
-                    "end": round(end, 6),
-                    "duration_sec": round(end - start, 6),
-                    "me_utterance_id": me.get("id"),
-                    "remote_utterance_id": remote.get("id"),
-                    "text_similarity": text_similarity(row_text(me), row_text(remote)),
-                    "me_text": row_text(me),
-                    "remote_text": row_text(remote),
-                }
-            )
-    return values
+    return current_overlaps(
+        rows, source_rows if isinstance(source_rows, list) else None,
+        text_similarity=text_similarity,
+    )
 
 
 def write_markdown(path: Path, rows: list[dict[str, Any]], profile: str) -> None:

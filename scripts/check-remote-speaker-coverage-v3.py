@@ -408,6 +408,9 @@ def check_auditor(root: Path) -> None:
     stale_selection = read_json(selection_path)
     assert stale_selection["state"] == "fallback"
     assert stale_selection["selected_transcript"]["sha256"] == sha256(aggregate)
+    # Publication is explicit; ordinary readers must not create or refresh evidence.
+    run([str(ROOT / "scripts/materialize-provisional-speaker-transcript.py"), str(session), "--cached-only"])
+    provisional_before = (session / "derived/transcript-rich/speaker-resolved-default-v1/provisional/selection.json").read_bytes()
     fallback_cli = subprocess.run(
         [str(CLI), "transcript", str(session), "--path-only"],
         cwd=ROOT,
@@ -425,6 +428,7 @@ def check_auditor(root: Path) -> None:
         provisional_selection["selected_transcript"]["path"]
     )
     assert "speaker attribution is" in fallback_cli.stderr
+    assert provisional_before == (session / "derived/transcript-rich/speaker-resolved-default-v1/provisional/selection.json").read_bytes()
     aggregate_cli = subprocess.run(
         [str(CLI), "transcript", str(session), "--aggregate", "--path-only"],
         cwd=ROOT,

@@ -1,5 +1,27 @@
 # First Recording Runbook
 
+## Review-Safe Finalization
+
+The September repair preserves compatible provisional remote labels after Me review. A retained
+sentence is not automatically a confirmed voice or verified text. The current queue separately
+shows tasks, interval sum, unique audio duration and unknown bounds; `stale` asks for a report refresh.
+Budget exit `75` and interruption `130` preserve completed work. Follow the printed resume command;
+neither status means that optional quality checks passed.
+
+For an already transcribed session, a report-only repair can reuse existing speaker evidence:
+
+```bash
+SESSION="sessions/<session-id>"
+MURMURMARK_SPEAKER_REFRESH_MODE=cache_only murmurmark report "$SESSION"
+murmurmark outcome "$SESSION"
+murmurmark transcript "$SESSION" --cat
+```
+
+Missing or incompatible evidence remains explicit unknown. This command does not run primary ASR.
+The new micro-ASR content cache is still a lab candidate, pending producer qualification; do not
+expect a measured production ASR speedup from this repair. See
+[the repair report](../testing/2026-09-30-review-safe-handoff.md).
+
 Use this runbook to prove that a fresh machine can record a minimal MurmurMark session and prepare it for transcription.
 
 ## Preconditions
@@ -124,7 +146,25 @@ bounded by a recorded lifecycle budget and may be deferred without hiding the tr
 item count and duration. The machine-readable details are in
 `derived/meeting-lifecycle/report.json`; `report.md` is the readable view.
 
-For bounded `meeting`, the supervisor passes the exact remaining enrichment budget downstream.
+For bounded `meeting`, enrichment, report, suggested review and export share one optional deadline.
+Initial speaker attribution now precedes this window and has its own five-minute limit. After the
+optional window, a 30-second cache-only final refresh reconciles outcome; it never launches another
+speaker model. A missing model or unfinished attribution remains an explicit warning, not a reason
+to remove the available transcript.
+Keep-only review no longer forces a fresh speaker pass: compatible cached labels are published with
+a provisional disclaimer. `status`, `outcome` and `transcript --path-only` only read/verify this result.
+Budget exhaustion preserves the review checkpoint and prints `deferred_budget_exhausted`; resume the
+same session to continue optional work. A cache-only repair for an already processed session is:
+
+```bash
+.venv/bin/python scripts/reconcile-session-state.py "$SESSION" \
+  --skip-review-rebase --cached-speakers-only
+```
+
+This refreshes profile/readiness/outcome without applying new review decisions or rerunning ASR.
+The supervisor reserves up to five minutes (or `20%` when less time remains) for follow-ups after
+enrichment. Those steps also stop at the shared deadline; the transcript remains available, unfinished
+actions are listed in the lifecycle report, and `meeting --resume SESSION` grants a fresh bounded attempt.
 The deferred pipeline admits the heavy Neural Echo selector only when its frozen maximum runtime
 estimate fits after a `900s` reserve for review evidence. Otherwise baseline synthesis and selector
 are marked skipped, and stronger audio/review work can consume the budget. Run
@@ -135,9 +175,20 @@ Post-capture work uses the `background` resource profile by default:
 
 - the capture child keeps normal scheduling until both raw tracks are finalized;
 - batch and enrichment run at `nice=20` under Darwin background scheduling;
-- native numerical libraries are capped at four threads;
+- native numerical libraries are capped at three threads;
 - primary mic/remote ASR runs sequentially instead of loading both tracks at once;
 - live ASR is a single best-effort worker and cannot change capture priority.
+
+Only one heavy batch/enrichment pipeline is admitted across the `sessions/` root. A second session
+waits in the global FIFO processing queue and prints its current owner and position. The queue does
+not own the recording lock, so another meeting may still start and durably capture raw audio. Pressing
+`Ctrl-C` while waiting removes the queue ticket and prints the command needed to resume.
+
+During transcription, `status` separates `primary_asr_chunks` from `asr_stage`. Completed primary
+chunks do not mean the whole transcription step is complete: the reported
+`post_primary_timeline_and_micro_asr` phase still includes timeline repair, bounded micro-ASR,
+shadow comparison and final assembly. This observation lives in the pipeline so the qualified
+transcriber file and its frozen SHA-256 remain unchanged.
 
 Confirm the active settings with `murmurmark config print`. For a deliberate benchmark, bypass the
 limits for one low-level run with:
@@ -153,13 +204,14 @@ use the work-conserving profile:
 murmurmark process "$SESSION" --resource-profile opportunistic
 ```
 
-`opportunistic` keeps `nice=20`, does not apply `taskpolicy -b`, and runs bounded parallel
-mic/remote ASR. It is faster than `background`, but it does not cap heat or power draw while the
-machine is idle. Keep `background` for live capture, battery use, or limited charger power.
+`opportunistic` keeps `nice=20`, does not apply `taskpolicy -b`, and retains the three-thread ceiling
+and one heavy ASR worker. It can use that bounded budget more consistently than `background`, but
+`background` remains preferable for live capture, low battery or limited charger power.
 
-Do not make `performance` the normal meeting default: it restores the old parallelism and can
-consume most CPU/GPU and charger headroom. A custom cap can be set with
-`--max-compute-threads N` or `processing.max_compute_threads` in the local config.
+Do not make `performance` the normal meeting default: it is the only unlimited profile, restores the
+old parallelism and can consume most CPU/GPU and charger headroom. A smaller cap can be set with
+`--max-compute-threads N` or `processing.max_compute_threads` in the local config. For normal
+profiles, legacy `0` and values above `3` are normalized to `3`.
 
 Use the low-level `record -> inspect -> process` sequence only for diagnostics or older sessions.
 The lifecycle contract and artifact paths are documented in
@@ -368,6 +420,29 @@ Do not use the runtime profile as transcript, notes or export input. Batch remai
 Normal `process` keeps the stronger-audio-judge queue broad but bounded: cheap cleanup runs first,
 the review pack is rebuilt from the residual transcript, and the judge decodes `mic_clean + remote`.
 Use `--stronger-audio-judge-exhaustive` only when all four clip sources are needed for diagnosis.
+
+Suggested review chooses source requirements per row. A quick confirmed row does not require another
+four-source run merely because a different row needs text or local-recall review. The lifecycle's
+cache-only policy remains in force; pending means that current evidence is insufficient, not that the
+recording failed. Legacy evidence is refreshed against text, role, interval and clip hashes before
+it can authorize another automatic decision.
+
+For a deliberate word-boundary investigation (not part of the ordinary meeting recipe):
+
+```bash
+murmurmark audit stronger-audio-judge "$SESSION" --adaptive-sources --word-timestamps
+murmurmark review suggested "$SESSION"
+```
+
+Word timestamps change decode settings and can require fresh inference. They are not enabled
+automatically for an entire meeting. If a suggested apply reports
+`stale_or_missing_suggestion_receipt`, rebuild with `review suggested` and inspect the refreshed
+proposal. Do not bypass the check. Historical decisions can be inspected without changing the session:
+
+```bash
+.venv/bin/python scripts/audit-review-decision-evidence.py "$SESSION" \
+  --out sessions/_reports/review-evidence-hardening/decision-audit.json
+```
 
 The current profile first trims strongly confirmed Target-Me spans to gaps between guarded live
 remote turns, then runs short-window micro-ASR only for compact weak-text gaps. It publishes a
@@ -617,7 +692,9 @@ lock and rejects a second concurrent capture before it creates another session.
 `murmurmark meeting` runs capture in a short-lived child process. After `Ctrl-C`, that child closes
 raw CAF, releases its ScreenCaptureKit/ReplayKit connection and exits before post-processing starts.
 It is therefore safe to start the next meeting while the previous one is still being processed in a
-different terminal. ScreenCaptureKit content lookup and stream start/stop are bounded; a missing
+different terminal. Multiple lifecycle supervisors may remain open, but their heavy post-capture
+actions pass through one FIFO processing lease and do not compete for the three-thread background
+budget. ScreenCaptureKit content lookup and stream start/stop are bounded; a missing
 completion produces a startup failure and releases the recording lock instead of hanging forever.
 For normal ScreenCaptureKit recording, the silent-track check is collected incrementally during raw
 writes, so a long meeting does not add a second full CAF scan before that lock is released.
@@ -728,6 +805,16 @@ After a successful guarded export, `meeting`/`finish` compact the session to sel
 structured provenance. Raw CAF and rebuildable audio are deleted. Add `--keep-debug-artifacts` to
 the original `meeting` command when raw capture, retranscription, preprocessing, audit, Live Shadow
 or candidate audio may still be needed.
+
+Recording startup now checks disk space automatically. Under 50 GiB or 10% free (whichever is
+smaller), it first clears rebuildable media from completed unpinned sessions older than two days;
+then it removes raw only from good, export-allowed outcomes. If the minimum reserve is still unmet,
+an explicitly reported emergency pass can remove raw from other completed old sessions with a
+selected transcript, just like the manual bulk `transcript_only` command. Sessions marked
+`--keep-debug-artifacts` are preserved. The low-space report is
+`sessions/_reports/retention-compaction/recording_storage_preflight.json`. If the minimum reserve
+cannot be restored, `meeting` stops before capture; inspect that report and free space deliberately.
+The ordinary command needs no extra cleanup flag.
 
 Older completed sessions can be compacted manually:
 

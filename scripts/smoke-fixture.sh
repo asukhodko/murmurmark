@@ -1691,6 +1691,7 @@ import tempfile
 from pathlib import Path
 
 path = sys.argv[1]
+sys.path.insert(0, str(Path(path).resolve().parent))
 spec = importlib.util.spec_from_file_location("stronger_audio_judge", path)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
@@ -1727,6 +1728,9 @@ noise_transcripts = {
     "mic_clean": {"text": "и роли идеи", "avg_logprob": -0.5, "no_speech_prob": 0.3},
     "mic_raw": {"text": "и роли идеи они генерируют себе токены", "avg_logprob": -0.5, "no_speech_prob": 0.3},
 }
+noise_metrics = module.source_metrics(noise_transcripts, "уб", "")
+assert module.classify_item(noise_item, noise_audit, noise_transcripts, noise_metrics)["label"] == "uncertain"
+noise_transcripts["remote"] = {"text": "", "avg_logprob": -0.5, "no_speech_prob": 0.9}
 noise_metrics = module.source_metrics(noise_transcripts, "уб", "")
 assert module.classify_item(noise_item, noise_audit, noise_transcripts, noise_metrics)["label"] == "confirm_asr_noise"
 short_leak_item = dict(item)
@@ -1922,8 +1926,10 @@ PY
   "$audit_python" - "$repo_root/scripts/build-review-lane-pack.py" <<'PY'
 import importlib.util
 import sys
+from pathlib import Path
 
 path = sys.argv[1]
+sys.path.insert(0, str(Path(path).resolve().parent))
 spec = importlib.util.spec_from_file_location("build_review_lane_pack", path)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
@@ -1952,12 +1958,21 @@ candidate = {
     },
 }
 decision, confidence, reason, summary = module.stronger_suggested_decision([row], {"fixture": [candidate]})
+assert decision is None, "IDs and overlapping clip bounds alone are insufficient"
+row["text"] = [
+    {"id": "utt_me", "role": "me", "source_track": "mic", "start": 10.0, "end": 12.0, "text": "local phrase"},
+    {"id": "utt_remote", "role": "remote", "source_track": "remote", "start": 10.0, "end": 12.0, "text": "remote phrase"},
+]
+candidate["utterances"] = row["text"]
+candidate["utterance_ids"] = row["utterance_ids"]
+decision, confidence, reason, summary = module.stronger_suggested_decision([row], {"fixture": [candidate]})
 assert decision == "keep_me", (decision, confidence, reason, summary)
 assert confidence == 0.78, (decision, confidence, reason, summary)
 
 drop_candidate = dict(
     candidate,
     id="fwj_drop_me_only",
+    utterances=[row["text"][0]],
     classification={
         "label": "confirm_remote_duplicate",
         "suggested_decision": "drop_me",
@@ -1985,7 +2000,7 @@ uncertain_candidate = dict(
 decision, confidence, reason, summary, target_summary = module.suggested_decision_for_group([old_drop_row], {"fixture": [uncertain_candidate]}, {})
 assert decision == "needs_review" and "suppressing automatic drop" in reason, (decision, confidence, reason, summary)
 decision, confidence, reason, summary, target_summary = module.suggested_decision_for_group([old_drop_row], {"fixture": []}, {})
-assert decision == "drop_me", (decision, confidence, reason, summary)
+assert decision == "needs_review" and "suppressing automatic drop" in reason, (decision, confidence, reason, summary)
 
 source_match_candidate = dict(
     candidate,
@@ -1999,7 +2014,7 @@ source_match_candidate = dict(
     },
 )
 decision, confidence, reason, summary = module.stronger_suggested_decision([row], {"fixture": [source_match_candidate]})
-assert decision == "keep_me" and confidence == 0.9, (decision, confidence, reason, summary)
+assert decision is None, "Matching source IDs cannot override a disjoint interval"
 
 group_row_a = dict(
     row,
@@ -2017,11 +2032,14 @@ group_row_b = dict(
     me_utterance_ids=["utt_me_group"],
     remote_utterance_ids=["utt_remote_b"],
 )
+group_row_a["text"] = [dict(row["text"][0], id="utt_me_group"), dict(row["text"][1], id="utt_remote_a", text="remote phrase A")]
+group_row_b["text"] = [dict(row["text"][0], id="utt_me_group"), dict(row["text"][1], id="utt_remote_b", text="remote phrase B")]
 group_keep_candidate = dict(
     candidate,
     id="fwj_group_keep",
     source_pack_item_id="arp_group_a",
     utterance_ids=["utt_me_group", "utt_remote_a"],
+    utterances=group_row_a["text"],
     classification={
         "label": "confirm_me",
         "suggested_decision": "keep_me",
@@ -2033,6 +2051,7 @@ group_duplicate_candidate = dict(
     id="fwj_group_duplicate",
     source_pack_item_id="arp_group_b",
     utterance_ids=["utt_me_group", "utt_remote_b"],
+    utterances=group_row_b["text"],
     classification={
         "label": "confirm_remote_duplicate",
         "suggested_decision": "drop_me",
@@ -2071,7 +2090,8 @@ text_guard_row = dict(
     ],
 )
 decision, confidence, reason, summary, target_summary = module.suggested_decision_for_group([text_guard_row], {"fixture": []}, {})
-assert decision == "keep_me" and confidence == 0.74 and "text_guard_unique_me_content" in reason, (
+# Text-only protection retains the utterance without confirming its local voice.
+assert decision == "needs_review" and confidence == 0.74 and "text_guard_unique_me_content" in reason, (
     decision,
     confidence,
     reason,
@@ -2101,7 +2121,7 @@ text_guard_contained_duplicate = dict(
     ],
 )
 decision, confidence, reason, summary, target_summary = module.suggested_decision_for_group([text_guard_contained_duplicate], {"fixture": []}, {})
-assert decision == "drop_me" and confidence == 0.82 and "text_guard_remote_contains_me" in reason, (
+assert decision == "needs_review" and "text similarity alone" in reason, (
     decision,
     confidence,
     reason,
@@ -2118,7 +2138,7 @@ text_guard_action_tail = dict(
     ],
 )
 decision, confidence, reason, summary, target_summary = module.suggested_decision_for_group([text_guard_action_tail], {"fixture": []}, {})
-assert decision == "keep_me" and "проверю" in reason, (decision, confidence, reason, summary)
+assert decision == "needs_review" and "проверю" in reason, (decision, confidence, reason, summary)
 PY
 
   group_session="$workdir/group-session"
@@ -2640,7 +2660,7 @@ PY
   jq -s '
     any(.[]; .type == "utterance_transcript_order_review" and (.source_audit_ids | index("order_0001")))
   ' "$order_session/derived/synthesis-simple/extractive/review_items.reviewed_v1.jsonl" >/dev/null
-  jq -c '.decision = "keep_me" | .status = "reviewed"' \
+  jq -c '.decision = "keep_me" | .status = "reviewed" | .review_source = "manual"' \
     "$order_review_plan_dir/review_decisions.template.jsonl" >"$order_review_plan_dir/review_decisions.jsonl"
   "$repo_root/scripts/apply-review-decisions.py" "$order_session" \
     --decisions "$order_review_plan_dir/review_decisions.jsonl" \
@@ -2958,7 +2978,7 @@ EOF
     --out "$review_cli_out" \
     --no-play \
     --limit 1 >"$review_cli_stdout"
-  jq -s '.[0].decision == "keep_me" and .[0].status == "reviewed"' "$review_cli_out" >/dev/null
+  jq -e -s '.[0].decision == "keep_me" and .[0].status == "reviewed" and .[0].review_source == "manual"' "$review_cli_out" >/dev/null
   rg -q 'Context:' "$review_cli_stdout"
   rg -q 'utt_audio_uncertain_me' "$review_cli_stdout"
   rg -q 'Progress: reviewed=1/2, remaining=1' "$review_cli_stdout"
@@ -2979,7 +2999,7 @@ EOF
 {"schema":"murmurmark.review_decision/v1","status":"todo","decision":"todo","allowed_decisions":["drop_me","drop_remote","keep_me","needs_review","skip"],"session_id":"group-session","session":"$group_session","input_profile":"shadow_v2","source":"audio_review","source_audit_id":"arp_manual_drop_remote","label":"remote_duplicate","verdict":"probable_transcript_error","review_lane":"check_unique_me_content","review_action":"check_unique_me_content","suggested_decision":"needs_review","suggested_decision_confidence":"medium","suggested_decision_reason":"fixture remote row may be duplicate of local speech","me_utterance_ids":["utt_dup_me"],"remote_utterance_ids":["utt_dup_remote"],"utterance_ids":["utt_dup_me","utt_dup_remote"],"interval":{"start":0.5,"end":2.5,"duration_sec":2.0},"text":[{"id":"utt_dup_me","role":"Me","source_track":"mic","text":"Надо проверить deploy."},{"id":"utt_dup_remote","role":"Colleagues","source_track":"remote","text":"Надо проверить deploy."}],"commands":{},"reviewer":"","notes":""}
 EOF
   drop_remote_decisions="$workdir/review_decisions_drop_remote.jsonl"
-  jq -c '.decision = "drop_remote" | .status = "reviewed"' "$drop_remote_template" >"$drop_remote_decisions"
+  jq -c '.decision = "drop_remote" | .status = "reviewed" | .review_source = "manual"' "$drop_remote_template" >"$drop_remote_decisions"
   "$repo_root/scripts/apply-review-decisions.py" "$group_session" \
     --decisions "$drop_remote_decisions" \
     --review-template "$drop_remote_template" \
@@ -3185,51 +3205,26 @@ EOF
   mv "$cli_suggested_answer_sheet.tmp" "$cli_suggested_answer_sheet"
   cli_workspace_suggested_partial_out="$workdir/review_decisions_workspace_cli_suggested_partial.jsonl"
   cli_workspace_suggested_partial_stdout="$workdir/review_workspace_cli_suggested_partial_stdout.txt"
-  "$repo_root/.build/debug/murmurmark" review workspace apply \
+  if "$repo_root/.build/debug/murmurmark" review workspace apply \
     --workspace "$cli_review_workspace_dir/review_workspace.json" \
     --template "$review_template" \
     --out "$cli_workspace_suggested_partial_out" \
     --report "$cli_review_workspace_dir/review_workspace_suggested_partial_report.json" \
     --answers-source suggested \
     --allow-partial \
-    --dry-run >"$cli_workspace_suggested_partial_stdout"
+    --dry-run >"$cli_workspace_suggested_partial_stdout" 2>&1; then
+    echo "expected a manually changed suggested answer to fail receipt validation" >&2
+    exit 1
+  fi
   [[ ! -e "$cli_workspace_suggested_partial_out" ]]
   jq -e '
     .schema == "murmurmark.review_workspace_apply_report/v1"
     and .answers_source == "suggested"
-    and .summary.reviewed_count == 1
-    and .summary.remaining_rows == 1
-    and .summary.ready_for_partial_apply == true
-    and .summary.partial_apply_allowed == true
-    and .suggested_closure.status == "partial_apply_ready"
-    and .suggested_closure.readiness_projection.before_state == "review_required"
-    and .suggested_closure.readiness_projection.after_state == "review_required"
-    and .suggested_closure.readiness_projection.effect == "manual_review_reduced"
-    and (.suggested_closure.generated_suggestions.rows | type == "number")
-    and (.suggested_closure.generated_suggestions.actionable_rows | type == "number")
-    and (.suggested_closure.generated_suggestions.needs_review_rows | type == "number")
-    and (.suggested_closure.generated_suggestions.todo_rows | type == "number")
-    and .suggested_closure.closed_by_suggestions.rows == 1
-    and .suggested_closure.remaining_manual_queue.rows == 1
+    and .summary.reviewed_count == 0
+    and .summary.remaining_rows == 2
+    and .summary.ready_for_partial_apply == false
+    and any(.errors[]; .reason == "stale_or_missing_suggestion_receipt")
   ' "$cli_review_workspace_dir/review_workspace_suggested_partial_report.json" >/dev/null
-  grep -q '^  ready_for_partial_apply: true' "$cli_workspace_suggested_partial_stdout"
-  grep -q '^  suggested_closure:$' "$cli_workspace_suggested_partial_stdout"
-  grep -q '^    status: partial_apply_ready' "$cli_workspace_suggested_partial_stdout"
-  grep -q '^    readiness_projection: review_required -> review_required' "$cli_workspace_suggested_partial_stdout"
-  grep -q '^    auto_closable: 1 rows / ' "$cli_workspace_suggested_partial_stdout"
-  "$repo_root/.build/debug/murmurmark" review workspace apply \
-    --workspace "$cli_review_workspace_dir/review_workspace.json" \
-    --template "$review_template" \
-    --out "$cli_workspace_suggested_partial_out" \
-    --report "$cli_review_workspace_dir/review_workspace_suggested_partial_apply_report.json" \
-    --answers-source suggested \
-    --allow-partial >/dev/null
-  jq -s '
-    .[0].decision == "todo"
-    and .[1].decision == "keep_me"
-    and .[1].review_source == "workspace_suggested_answer_sheet"
-    and (.[1].review_evidence.suggested_decision == "keep_me")
-  ' "$cli_workspace_suggested_partial_out" >/dev/null
   sed 's/^answers=.*/answers=k/' "$cli_answer_sheet" >"$cli_answer_sheet.tmp"
   mv "$cli_answer_sheet.tmp" "$cli_answer_sheet"
   cli_workspace_apply_out="$workdir/review_decisions_workspace_cli_apply.jsonl"
@@ -3265,7 +3260,7 @@ EOF
 {"schema":"murmurmark.review_decision/v1","status":"todo","decision":"todo","session_id":"group-session","session":"$group_session","input_profile":"reviewed_v1","source_audit_id":"preserve_current","label":"uncertain","verdict":"needs_stronger_audio_judge","review_lane":"classify_audio","review_action":"classify_audio","allowed_decisions":["keep_me","needs_review","skip"],"utterance_ids":["utt_preserve_current"],"interval":{"start":2.0,"end":3.0,"duration_sec":1.0},"text":[{"id":"utt_preserve_current","role":"me","source_track":"mic","text":"Current lane."}]}
 EOF
   cat >"$preserve_out" <<EOF
-{"schema":"murmurmark.review_decision/v1","status":"reviewed","decision":"keep_me","session_id":"group-session","session":"$group_session","input_profile":"reviewed_v1","source_audit_id":"preserve_existing","label":"uncertain","verdict":"needs_stronger_audio_judge","review_lane":"check_unique_me_content","review_action":"check_unique_me_content","utterance_ids":["utt_preserve_existing"],"interval":{"start":0.0,"end":1.0,"duration_sec":1.0},"text":[{"id":"utt_preserve_existing","role":"me","source_track":"mic","text":"Existing reviewed lane."}]}
+{"schema":"murmurmark.review_decision/v1","status":"reviewed","decision":"keep_me","review_source":"manual","session_id":"group-session","session":"$group_session","input_profile":"reviewed_v1","source_audit_id":"preserve_existing","label":"uncertain","verdict":"needs_stronger_audio_judge","review_lane":"check_unique_me_content","review_action":"check_unique_me_content","utterance_ids":["utt_preserve_existing"],"interval":{"start":0.0,"end":1.0,"duration_sec":1.0},"text":[{"id":"utt_preserve_existing","role":"me","source_track":"mic","text":"Existing reviewed lane."}]}
 EOF
   cat >"$preserve_manifest" <<EOF
 {"schema":"murmurmark.review_lane_pack/v1","lane":"classify_audio","items":[{"index":1,"source_audit_id":"preserve_current","source_audit_ids":["preserve_current"],"allowed_decisions":["keep_me","needs_review","skip"]}]}
@@ -3282,22 +3277,32 @@ EOF
 	  preserve_workspace_report="$workdir/review_workspace_preserve_apply_report.json"
 	  preserve_workspace_suggested="$workdir/review_lane_answers_preserve.suggested.txt"
 	  cat >"$preserve_workspace_out" <<EOF
-{"schema":"murmurmark.review_decision/v1","status":"reviewed","decision":"keep_me","session_id":"group-session","session":"$group_session","input_profile":"reviewed_v1","source_audit_id":"preserve_existing","label":"uncertain","verdict":"needs_stronger_audio_judge","review_lane":"check_unique_me_content","review_action":"check_unique_me_content","utterance_ids":["utt_preserve_existing"],"interval":{"start":0.0,"end":1.0,"duration_sec":1.0},"text":[{"id":"utt_preserve_existing","role":"me","source_track":"mic","text":"Existing reviewed lane."}]}
+{"schema":"murmurmark.review_decision/v1","status":"reviewed","decision":"keep_me","review_source":"manual","session_id":"group-session","session":"$group_session","input_profile":"reviewed_v1","source_audit_id":"preserve_existing","label":"uncertain","verdict":"needs_stronger_audio_judge","review_lane":"check_unique_me_content","review_action":"check_unique_me_content","utterance_ids":["utt_preserve_existing"],"interval":{"start":0.0,"end":1.0,"duration_sec":1.0},"text":[{"id":"utt_preserve_existing","role":"me","source_track":"mic","text":"Existing reviewed lane."}]}
 EOF
 	  echo 'answers=k' >"$preserve_workspace_suggested"
 	  cat >"$preserve_workspace" <<EOF
 {"schema":"murmurmark.review_workspace/v1","lanes":[{"status":"ok","lane":"classify_audio","manifest":"$preserve_manifest","answer_sheet":"$preserve_answers","suggested_answer_sheet":"$preserve_workspace_suggested"}]}
 EOF
-	  "$repo_root/scripts/apply-review-workspace-decisions.py" \
+	  preserve_workspace_before="$(shasum -a 256 "$preserve_workspace_out" | awk '{print $1}')"
+	  if "$repo_root/scripts/apply-review-workspace-decisions.py" \
 	    --workspace "$preserve_workspace" \
 	    --template "$preserve_template" \
 	    --out "$preserve_workspace_out" \
 	    --report "$preserve_workspace_report" \
 	    --answers-source suggested \
 	    --allow-partial \
-	    --quiet
-	  jq -s 'length == 2 and any(.[]; .source_audit_id == "preserve_existing" and .decision == "keep_me") and any(.[]; .source_audit_id == "preserve_current" and .decision == "keep_me" and .review_source == "workspace_suggested_answer_sheet")' "$preserve_workspace_out" >/dev/null
-	  jq -e '.summary.total_rows == 2 and .summary.remaining_rows == 0 and .suggested_closure.closed_by_suggestions.rows == 1' "$preserve_workspace_report" >/dev/null
+	    --quiet; then
+	    echo "expected an unsigned suggested manifest to be rejected" >&2
+	    exit 1
+	  fi
+	  [[ "$preserve_workspace_before" == "$(shasum -a 256 "$preserve_workspace_out" | awk '{print $1}')" ]]
+	  jq -e 'any(.errors[]; .reason == "stale_or_missing_suggestion_receipt")' "$preserve_workspace_report" >/dev/null
+	  "$repo_root/scripts/apply-review-workspace-decisions.py" \
+	    --workspace "$preserve_workspace" --template "$preserve_template" \
+	    --out "$preserve_workspace_out" --report "$preserve_workspace_report" \
+	    --answers-source review --allow-partial --quiet
+	  jq -s 'length == 2 and any(.[]; .source_audit_id == "preserve_existing" and .decision == "keep_me") and any(.[]; .source_audit_id == "preserve_current" and .decision == "keep_me" and .review_source == "workspace_answer_sheet")' "$preserve_workspace_out" >/dev/null
+	  jq -e '.summary.total_rows == 2 and .summary.remaining_rows == 0' "$preserve_workspace_report" >/dev/null
 	  preserve_progress="$workdir/review_decisions_preserve_progress.json"
 	  "$repo_root/scripts/report-review-decisions-progress.py" \
     --template "$preserve_template" \
@@ -3580,7 +3585,7 @@ EOF
   ' "$group_session/derived/transcript-simple/whisper-cpp/review-decisions/review_decisions_report.reviewed_partial_allowed_v1.json" >/dev/null
 
   cat >"$review_decisions" <<EOF
-{"schema":"murmurmark.review_decision/v1","status":"reviewed","decision":"keep_me","session_id":"group-session","session":"$group_session","input_profile":"audit_cleanup_v4","source_audit_id":"arp_manual_review_keep","label":"uncertain","verdict":"needs_stronger_audio_judge","review_action":"classify_audio","me_utterance_ids":["utt_audio_uncertain_me"],"remote_utterance_ids":["utt_audio_uncertain_remote"],"utterance_ids":["utt_audio_uncertain_remote","utt_audio_uncertain_me"],"text":[{"id":"utt_audio_uncertain_remote","role":"remote","source_track":"remote","text":"Там есть спорный кусок."},{"id":"utt_audio_uncertain_me","role":"me","source_track":"mic","text":"Я уточню отдельно."}],"reviewer":"smoke","notes":"confirmed local speech"}
+{"schema":"murmurmark.review_decision/v1","status":"reviewed","decision":"keep_me","review_source":"manual","session_id":"group-session","session":"$group_session","input_profile":"audit_cleanup_v4","source_audit_id":"arp_manual_review_keep","label":"uncertain","verdict":"needs_stronger_audio_judge","review_action":"classify_audio","me_utterance_ids":["utt_audio_uncertain_me"],"remote_utterance_ids":["utt_audio_uncertain_remote"],"utterance_ids":["utt_audio_uncertain_remote","utt_audio_uncertain_me"],"text":[{"id":"utt_audio_uncertain_remote","role":"remote","source_track":"remote","text":"Там есть спорный кусок."},{"id":"utt_audio_uncertain_me","role":"me","source_track":"mic","text":"Я уточню отдельно."}],"reviewer":"smoke","notes":"confirmed local speech"}
 {"schema":"murmurmark.review_decision/v1","status":"reviewed","decision":"needs_review","allowed_decisions":["keep_me","needs_review","skip"],"session_id":"group-session","session":"$group_session","input_profile":"audit_cleanup_v4","cluster_id":"review_cluster_local_001","source":"local_recall","source_audit_id":"local_recall_0001","label":"lost_me","verdict":"needs_stronger_audio_judge","review_action":"check_lost_local_speech","me_utterance_ids":[],"remote_utterance_ids":[],"utterance_ids":[],"interval":{"start":13.0,"end":14.2,"duration_sec":1.2},"text":[{"id":"cand_mic_fixture_002","role":"Me","source_track":"local_recall","text":"Я понял."}],"commands":{"mic_raw":"ffplay -hide_banner -loglevel error -ss 12.000 -t 3.200 \"$group_session/audio/mic/000001.caf\""},"reviewer":"smoke","notes":"local recall remains unresolved without a materialized utterance"}
 EOF
   "$repo_root/scripts/apply-review-decisions.py" "$group_session" \
@@ -3725,25 +3730,25 @@ EOF
   corpus_process_help="$("$bin" corpus process --help)"
   echo "$corpus_process_help" | grep -q 'plan-remote-leak-segment-repair.py'
   main_help="$("$bin" --help)"
-  echo "$main_help" | grep -q '^Normal flow:$'
-  echo "$main_help" | grep -q '^Handoff rule:$'
-  echo "$main_help" | grep -q 'final line is the primary command to run next'
-  echo "$main_help" | grep -q '^Everyday usage:$'
-  echo "$main_help" | grep -q '^  murmurmark config init$'
-  echo "$main_help" | grep -q '^  murmurmark acceptance --skip-release$'
-  echo "$main_help" | grep -q '^  murmurmark meeting --target-bundle system$'
-  echo "$main_help" | grep -q '^Quality and corpus maintenance:$'
-  echo "$main_help" | grep -q '^Setup and diagnostics:$'
-  echo "$main_help" | grep -q '^Advanced/debugging:$'
-  echo "$main_help" | grep -q '^  SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)"$'
-  echo "$main_help" | grep -q '^  murmurmark record --out "$SESSION" --target-bundle system$'
-  echo "$main_help" | grep -q '^  murmurmark process "$SESSION"$'
-  echo "$main_help" | grep -q '^  murmurmark live gate \[--sessions-root ./sessions\]$'
-  echo "$main_help" | grep -q '^  murmurmark acceptance \[--skip-release\] \[--python PATH\] \[--live-checklist\] \[--report PATH\]$'
-  echo "$main_help" | grep -q '\[--live-session SESSION|latest\] \[--require-meeting-lifecycle\]'
-  echo "$main_help" | grep -Eq '^[[:space:]]*\[--sessions-root ./sessions\]$'
-  echo "$main_help" | grep -q '^  murmurmark inspect ./session|latest \[--echo\] \[--sessions-root ./sessions\]$'
-  echo "$main_help" | grep -q '^  murmurmark review --help$'
+  grep -q '^Normal flow:$' <<<"$main_help"
+  grep -q '^Handoff rule:$' <<<"$main_help"
+  grep -q 'final line is the primary command to run next' <<<"$main_help"
+  grep -q '^Everyday usage:$' <<<"$main_help"
+  grep -q '^  murmurmark config init$' <<<"$main_help"
+  grep -q '^  murmurmark acceptance --skip-release$' <<<"$main_help"
+  grep -q '^  murmurmark meeting --target-bundle system$' <<<"$main_help"
+  grep -q '^Quality and corpus maintenance:$' <<<"$main_help"
+  grep -q '^Setup and diagnostics:$' <<<"$main_help"
+  grep -q '^Advanced/debugging:$' <<<"$main_help"
+  grep -q '^  SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)"$' <<<"$main_help"
+  grep -q '^  murmurmark record --out "$SESSION" --target-bundle system$' <<<"$main_help"
+  grep -q '^  murmurmark process "$SESSION"$' <<<"$main_help"
+  grep -q '^  murmurmark live gate \[--sessions-root ./sessions\]$' <<<"$main_help"
+  grep -q '^  murmurmark acceptance \[--skip-release\] \[--python PATH\] \[--live-checklist\] \[--report PATH\]$' <<<"$main_help"
+  grep -q '\[--live-session SESSION|latest\] \[--require-meeting-lifecycle\]' <<<"$main_help"
+  grep -Eq '^[[:space:]]*\[--sessions-root ./sessions\]$' <<<"$main_help"
+  grep -q '^  murmurmark inspect ./session|latest \[--echo\] \[--sessions-root ./sessions\]$' <<<"$main_help"
+  grep -q '^  murmurmark review --help$' <<<"$main_help"
   inspect_help="$("$bin" inspect --help)"
   echo "$inspect_help" | grep -q 'usage: murmurmark inspect ./session|latest'
   acceptance_help="$("$bin" acceptance --help)"
@@ -4461,6 +4466,7 @@ with tempfile.TemporaryDirectory() as tmp:
                 {
                     "status": "reviewed",
                     "decision": "keep_me",
+                    "review_source": "manual",
                     "input_profile": "reviewed_v1",
                     "source": "audio_review",
                     "source_audit_id": "arp_pending_keep",
@@ -4475,6 +4481,7 @@ with tempfile.TemporaryDirectory() as tmp:
                 {
                     "status": "reviewed",
                     "decision": "keep_me",
+                    "review_source": "manual",
                     "input_profile": "audit_cleanup_v7",
                     "source": "audio_review",
                     "source_audit_id": "arp_pending_cleanup_profile",
@@ -4482,6 +4489,7 @@ with tempfile.TemporaryDirectory() as tmp:
                 {
                     "status": "reviewed",
                     "decision": "keep_me",
+                    "review_source": "manual",
                     "input_profile": "other_profile",
                     "source": "audio_review",
                     "source_audit_id": "arp_other_profile",
@@ -4896,11 +4904,13 @@ PY
     --dry-run)"
   echo "$first_lane_suggested_dry_run_output" | grep -q '^review_lane_apply:$'
   echo "$first_lane_suggested_dry_run_output" | grep -q '^  answers_source: suggested'
-  echo "$first_lane_suggested_dry_run_output" | grep -q '^  lane_result: reviewed=1 todo=0 rejected=0'
+  echo "$first_lane_suggested_dry_run_output" | grep -q '^  lane_result: reviewed=0 todo=1 rejected=0'
   echo "$first_lane_suggested_dry_run_output" | grep -q 'review_lane_answers\..*\.suggested\.txt'
   echo "$first_lane_suggested_dry_run_output" | grep -q '^  next:$'
-  echo "$first_lane_suggested_dry_run_output" | grep -q '^    murmurmark review lane apply .* --answers-source suggested'
-  echo "$first_lane_suggested_dry_run_output" | grep -q '^next: murmurmark review lane apply .* --answers-source suggested'
+  echo "$first_lane_suggested_dry_run_output" | grep -q '^    murmurmark review lane apply .* --answers-source manual --dry-run'
+  echo "$first_lane_suggested_dry_run_output" | grep -q '^next: \$EDITOR '
+  echo "$first_lane_suggested_dry_run_output" | grep -q "^next: .*review_lane_answers\.$first_lane\.txt$"
+  ! echo "$first_lane_suggested_dry_run_output" | grep -q '^  recommended_next: .*\.suggested\.txt'
   ! echo "$first_lane_suggested_dry_run_output" | grep -Eq '^(\{"manifest_items"|Dry run:)'
   if "$bin" review lane apply first \
       --plan-out-dir "$first_lane_plan_dir" \
@@ -5163,7 +5173,7 @@ audit.mkdir(parents=True, exist_ok=True)
 (resolved / "clean_dialogue.reviewed_v1.json").write_text(json.dumps({
     "schema": "murmurmark.clean_dialogue/v1",
     "utterances": [
-        {"id": "utt_confirmed_me", "role": "Me", "source_track": "mic", "start": 1.0, "end": 2.0, "text": "Confirmed local utterance.", "quality": {"needs_review": False, "human_review": {"profile": "reviewed_v1", "decisions": ["keep_me"], "source_audit_ids": ["arp_old"]}}},
+        {"id": "utt_confirmed_me", "role": "Me", "source_track": "mic", "start": 1.0, "end": 2.0, "text": "Confirmed local utterance.", "quality": {"needs_review": False, "human_review": {"profile": "reviewed_v1", "decisions": ["keep_me"], "origins": ["human"], "status": "cleared", "scope": "local_voice", "source_audit_ids": ["arp_old"]}}},
         {"id": "utt_unresolved_me", "role": "Me", "source_track": "mic", "start": 3.0, "end": 4.0, "text": "Unresolved local utterance.", "quality": {"needs_review": True}},
     ],
 }, ensure_ascii=False), encoding="utf-8")
@@ -5195,6 +5205,7 @@ inherited_review.mkdir(parents=True, exist_ok=True)
     "status": "reviewed",
     "decision": "keep_me",
     "source": "audio_review",
+    "review_source": "manual",
     "source_audit_id": "arp_inherited_keep",
 }, ensure_ascii=False) + "\n", encoding="utf-8")
 assert module.review_resolved_audio_ids(inherited_session, "reviewed_v1") == {"arp_inherited_keep"}

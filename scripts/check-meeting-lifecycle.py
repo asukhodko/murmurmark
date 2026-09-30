@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import fcntl
+import importlib.util
 import json
 import os
 import shutil
@@ -11,8 +12,10 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -154,6 +157,15 @@ scenario = os.environ.get("FAKE_MEETING_SCENARIO", "review")
 with (session / "fake-cli.log").open("a", encoding="utf-8") as handle:
     handle.write(" ".join(args) + "\n")
 
+current_action = json.loads((session / "derived/meeting-lifecycle/state.json").read_text())["current_action"]
+if current_action == os.environ.get("FAKE_MEETING_SLOW_ACTION"):
+    (session / "fake-slow-pid").write_text(str(os.getpid()))
+    signal.signal(signal.SIGINT, lambda *_: sys.exit(130))
+    time.sleep(30)
+if command in {"enrich", "report", "review", "finish"}:
+    signal.signal(signal.SIGINT, lambda *_: sys.exit(130))
+    time.sleep(float(os.environ.get("FAKE_MEETING_OPTIONAL_DELAY", "0")))
+
 if command == "inspect":
     raise SystemExit(0)
 if command == "process":
@@ -206,6 +218,8 @@ if command == "enrich":
         raise SystemExit(7)
     if scenario == "enrich_slow":
         state_path = session / "derived/pipeline-run/pipeline_run_state.json"
+        deferred_report_path = session / "derived/pipeline-run/deferred_enrichment_report.json"
+        handoff_path = session / "derived/pipeline-run/authoritative_handoff.json"
         state = {
             "schema": "murmurmark.pipeline_run_state/v1",
             "status": "running",
@@ -213,11 +227,35 @@ if command == "enrich":
             "message": "pipeline_started",
         }
         write(state_path, state)
+        write(deferred_report_path, {
+            "schema": "murmurmark.session_pipeline_run/v1",
+            "status": "running",
+            "phase": "deferred",
+            "session": str(session),
+        })
+        write(handoff_path, {
+            "deferred_enrichment": {
+                "status": "running",
+                "report": "derived/pipeline-run/deferred_enrichment_report.json",
+            },
+        })
 
         def interrupt_enrich(signum, _frame):
             state["status"] = "interrupted"
             state["message"] = "pipeline_finished"
             write(state_path, state)
+            write(deferred_report_path, {
+                "schema": "murmurmark.session_pipeline_run/v1",
+                "status": "interrupted",
+                "phase": "deferred",
+                "session": str(session),
+            })
+            write(handoff_path, {
+                "deferred_enrichment": {
+                    "status": "interrupted",
+                    "report": "derived/pipeline-run/deferred_enrichment_report.json",
+                },
+            })
             raise SystemExit(128 + signum)
 
         signal.signal(signal.SIGINT, interrupt_enrich)
@@ -245,6 +283,9 @@ if command == "enrich":
     )
     raise SystemExit(0)
 if command in {"outcome", "report"}:
+    write(session / f"fake-{current_action}-env.json", {
+        "speaker_refresh_mode": os.environ.get("MURMURMARK_SPEAKER_REFRESH_MODE"),
+    })
     if scenario == "stale_refresh":
         raise SystemExit(0)
     applied = (session / "fixture-applied").exists()
@@ -344,6 +385,27 @@ if command == "finish":
         })
     raise SystemExit(0)
 raise SystemExit(0)
+'''
+
+
+FAKE_REPORT_RUNTIME = r'''
+import json
+import os
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+path = Path(os.environ["FAKE_REPORT_PIDS"])
+ready = path.with_suffix(".ready")
+child_code = "import signal,time,sys; from pathlib import Path; signal.signal(signal.SIGINT, signal.SIG_IGN); Path(sys.argv[1]).touch(); time.sleep(30)"
+child = subprocess.Popen([sys.executable, "-c", child_code, str(ready)], start_new_session=True)
+while not ready.exists():
+    time.sleep(.01)
+path.write_text(json.dumps([os.getpid(), child.pid]))
+signal.signal(signal.SIGINT, lambda *_: sys.exit(130))
+time.sleep(30)
 '''
 
 
@@ -555,6 +617,8 @@ def main() -> None:
         ready_session = write_session(root, "ready")
         ready_run = run_supervisor(root, ready_session, fake, "ready")
         assert ready_run.returncode == 0, (ready_run.stdout, ready_run.stderr)
+        assert ready_run.stdout.index("[meeting] transcript_available:") < ready_run.stdout.index("[meeting] enrich")
+        assert "not a guarded-export approval" in ready_run.stdout
         ready_report = report(ready_session)
         assert ready_report["result"] == "ready"
         assert ready_report["raw"]["preserved"] is True
@@ -566,6 +630,10 @@ def main() -> None:
         assert ready_report["elapsed_sec"]["total_after_stop"] >= 0
         assert ready_report["actions"]["review_suggested_apply"]["status"] == "passed"
         assert ready_report["actions"]["finish"]["status"] == "passed"
+        actions_log = (ready_session / "fake-cli.log").read_text().splitlines()
+        assert next(i for i, line in enumerate(actions_log) if line.startswith("report ")) < next(
+            i for i, line in enumerate(actions_log) if line.startswith("enrich ")
+        )
         assert ready_report["derived_compaction"]["status"] == "not_attempted"
         assert not (root / "SHOULD_NOT_RUN").exists()
 
@@ -672,6 +740,44 @@ def main() -> None:
             cli_env = os.environ.copy()
             cli_env["MURMURMARK_HOME"] = str(ROOT)
             cli_env["MURMURMARK_PYTHON"] = sys.executable
+            spec = importlib.util.spec_from_file_location("meeting_supervisor", SUPERVISOR)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            tree_session = write_session(root, "swift-worker-timeout")
+            supervisor = module.MeetingLifecycle(tree_session, cli_bin, 30, None, False, True, 1.0, 1.0)
+            supervisor.state = module.new_state(tree_session, None, True, 1.0, 1.0)
+            supervisor.state["current_action"] = "refresh_after_enrich"
+            runtime = root / "fake-report-runtime"
+            runtime.write_text(f"#!{sys.executable}\n" + FAKE_REPORT_RUNTIME)
+            runtime.chmod(0o755)
+            pids_path = root / "report-pids.json"
+            started = time.monotonic()
+            # A user interrupt during deadline cleanup must not switch back
+            # to killing only the already-dead Swift process group.
+            interrupt = threading.Timer(2.0, setattr, args=(supervisor.interrupts, "requested", True))
+            interrupt.start()
+            try:
+                _, interrupted, timed_out = supervisor.run_command(
+                    [str(cli_bin), "report", str(tree_session)], timeout_sec=1.0,
+                    extra_env={**cli_env, "MURMURMARK_PYTHON": str(runtime), "FAKE_REPORT_PIDS": str(pids_path)},
+                )
+                assert timed_out and interrupted
+                assert time.monotonic() - started < 18
+                pids = json.loads(pids_path.read_text())
+                assert all(pid not in supervisor.process_snapshot() for pid in pids), pids
+            finally:
+                interrupt.cancel()
+                interrupt.join()
+                if pids_path.is_file():
+                    for pid in json.loads(pids_path.read_text()):
+                        try:
+                            os.kill(pid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
+            # A recycled PID does not make the new process or its children ours.
+            owned = {1111: "old birth"}
+            supervisor.extend_owned_processes(owned, {1111: (1, "new birth"), 2222: (1111, "new child")})
+            assert owned == {1111: "old birth"}
             report_before = (ready_session / "derived/meeting-lifecycle/report.json").read_bytes()
             events_before = (ready_session / "derived/meeting-lifecycle/events.jsonl").read_bytes()
             cli_resume = subprocess.run(
@@ -691,7 +797,7 @@ def main() -> None:
             assert (ready_session / "derived/meeting-lifecycle/events.jsonl").read_bytes() == events_before
 
         review_session = write_session(root, "review")
-        review_run = run_supervisor(root, review_session, fake, "review", "--max-transitions", "9")
+        review_run = run_supervisor(root, review_session, fake, "review", "--max-transitions", "11")
         assert review_run.returncode == 0, (review_run.stdout, review_run.stderr)
         review_report = report(review_session)
         assert review_report["result"] == "ready_with_review"
@@ -717,7 +823,7 @@ def main() -> None:
             fake,
             "blocked",
             "--max-transitions",
-            "9",
+            "11",
         )
         assert blocked_run.returncode == 0, (blocked_run.stdout, blocked_run.stderr)
         blocked_report = report(blocked_session)
@@ -890,6 +996,70 @@ def main() -> None:
         assert budget_skip_report["raw"]["preserved"] is True
         budget_skip_log = (budget_skip_session / "fake-cli.log").read_text(encoding="utf-8").splitlines()
         assert not any(line.startswith("enrich ") for line in budget_skip_log)
+        assert all(line.startswith(("inspect ", "process ", "report ")) for line in budget_skip_log), budget_skip_log
+        assert budget_skip_report["actions"]["attribute_speakers"]["status"] == "passed"
+        assert budget_skip_report["actions"]["refresh_final_state"]["status"] == "passed"
+        final_env = json.loads((budget_skip_session / "fake-refresh_final_state-env.json").read_text())
+        assert final_env["speaker_refresh_mode"] == "cache_only"
+        assert budget_skip_report["resume_available"] is True
+        assert budget_skip_report["next"]["action"] == "resume"
+
+        # Follow-ups share one deadline, including report and export. Timing
+        # out an apply must not rewrite a successful enrichment checkpoint.
+        for slow_action in ("refresh_after_enrich", "review_suggested_preview", "review_suggested_apply",
+                            "refresh_after_review", "finish"):
+            followup_session = write_session(root, f"budget-{slow_action}")
+            started = time.monotonic()
+            run = run_supervisor(root, followup_session, fake, "ready",
+                                 "--max-enrichment-budget-sec", "1.5",
+                                 env_extra={"FAKE_MEETING_SLOW_ACTION": slow_action})
+            assert run.returncode == 0, (run.stdout, run.stderr)
+            assert time.monotonic() - started < 8, slow_action
+            payload = report(followup_session)
+            assert payload["actions"][slow_action]["status"] == "deferred_budget_exhausted", payload
+            assert payload["actions"]["enrich"]["status"] == "passed"
+            assert payload["budgets"]["status"] == "follow_up_deferred_budget_exhausted"
+            assert payload["deferred_work"]["pending_actions"] and payload["next"]["action"] == "resume"
+            assert payload["raw"]["preserved"] and payload["resume_available"]
+            transcript = followup_session / "derived/transcript-simple/whisper-cpp/resolved/transcript.fixture.md"
+            assert transcript.is_file()
+            pipeline = json.loads((followup_session / "derived/pipeline-run/pipeline_run_report.json").read_text())
+            assert pipeline["status"] == "passed" and pipeline["phase"] == "full"
+            pid = int((followup_session / "fake-slow-pid").read_text())
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                pass
+            else:
+                raise AssertionError(f"timed-out worker left running: {pid}")
+            # Simulate expensive required ASR from the original run: explicit
+            # recovery still has a fresh finite budget and never repeats ASR.
+            state_path = followup_session / "derived/meeting-lifecycle/state.json"
+            state = json.loads(state_path.read_text())
+            state["actions"]["process"]["duration_sec"] = 10000
+            write_json(state_path, state)
+            resumed = run_supervisor(root, followup_session, fake, "ready", "--resume",
+                                     "--max-enrichment-budget-sec", "5")
+            assert resumed.returncode == 0, (resumed.stdout, resumed.stderr)
+            recovered = report(followup_session)
+            assert recovered["result"] == "ready", recovered
+            assert not recovered["deferred_work"]["pending_actions"]
+            assert not recovered["resume_available"]
+            assert recovered["budgets"]["optional_budget"]["explicit_resume"] is True
+            log = (followup_session / "fake-cli.log").read_text().splitlines()
+            assert sum(line.startswith("process ") for line in log) == 1
+            assert sum(line.startswith("enrich ") for line in log) == 1
+
+        shared_session = write_session(root, "shared-budget")
+        started = time.monotonic()
+        shared = run_supervisor(root, shared_session, fake, "ready", "--max-enrichment-budget-sec", "1.5",
+                                env_extra={"FAKE_MEETING_OPTIONAL_DELAY": "0.4"})
+        assert shared.returncode == 0, (shared.stdout, shared.stderr)
+        assert time.monotonic() - started < 3.5
+        shared_report = report(shared_session)
+        assert shared_report["deferred_work"]["pending_actions"], shared_report
+        assert shared_report["actions"]["enrich"]["status"] == "passed"
+        assert shared_report["raw"]["preserved"]
 
         budget_timeout_session = write_session(root, "budget-timeout")
         budget_timeout_run = run_supervisor(
@@ -910,6 +1080,11 @@ def main() -> None:
         assert budget_timeout_report["actions"]["enrich"]["status"] == "deferred_budget_exhausted"
         assert budget_timeout_report["deferred_work"]["status"] == "deferred_budget_exhausted"
         assert budget_timeout_report["budgets"]["enrichment_budget_sec"] <= 0.2
+        assert budget_timeout_report["budgets"]["enrichment_finalization_reserve_sec"] > 0
+        assert (
+            budget_timeout_report["budgets"]["enrichment_execution_budget_sec"]
+            < budget_timeout_report["budgets"]["enrichment_budget_sec"]
+        )
         assert budget_timeout_report["raw"]["preserved"] is True
         assert "Traceback" not in budget_timeout_run.stderr
         budget_pipeline_state_path = (
@@ -920,6 +1095,23 @@ def main() -> None:
         )
         assert budget_pipeline_state["status"] == "deferred_budget_exhausted"
         assert budget_pipeline_state["message"] == "deferred_enrichment_budget_exhausted"
+        budget_deferred_report = json.loads(
+            (
+                budget_timeout_session
+                / "derived/pipeline-run/deferred_enrichment_report.json"
+            ).read_text(encoding="utf-8")
+        )
+        assert budget_deferred_report["status"] == "deferred_budget_exhausted"
+        assert budget_deferred_report["recommended_next"].startswith("murmurmark enrich ")
+        budget_handoff = json.loads(
+            (
+                budget_timeout_session / "derived/pipeline-run/authoritative_handoff.json"
+            ).read_text(encoding="utf-8")
+        )
+        assert (
+            budget_handoff["deferred_enrichment"]["status"]
+            == "deferred_budget_exhausted"
+        )
 
         budget_resume = run_supervisor(root, budget_timeout_session, fake, "review", "--resume")
         assert budget_resume.returncode == 0, (budget_resume.stdout, budget_resume.stderr)
@@ -1051,11 +1243,11 @@ def main() -> None:
             "review",
             "--resume",
             "--max-transitions",
-            "9",
+            "11",
         )
         assert limited_run.returncode == 0, (limited_run.stdout, limited_run.stderr)
         limited_state = json.loads(limited_state_path.read_text(encoding="utf-8"))
-        assert limited_state["transition_count"] <= 9, limited_state
+        assert limited_state["transition_count"] <= 11, limited_state
         assert limited_state["cumulative_transition_count"] >= 9, limited_state
 
         resumed = run_supervisor(root, interrupted_session, fake, "review", "--resume")
@@ -1140,6 +1332,37 @@ def main() -> None:
         assert "must remain outside lifecycle events" not in (
             refreshed_session / "derived/meeting-lifecycle/events.jsonl"
         ).read_text(encoding="utf-8")
+
+        spec = importlib.util.spec_from_file_location("meeting_publication_checks", SUPERVISOR)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        publication_session = write_session(root, "publication-timeout")
+        supervisor = module.MeetingLifecycle(publication_session, fake, 30, None, False, True, 1.0, 0.0)
+        supervisor.state = module.new_state(publication_session, None, True, 1.0, 0.0)
+        with patch.object(supervisor, "run_command", return_value=(130, False, True)) as command:
+            assert supervisor.execute_action("attribute_speakers", "test bounded publication") == "failed_soft"
+            assert command.call_args.kwargs["timeout_sec"] == 300.0
+            assert supervisor.execute_action("refresh_final_state", "test bounded final publication") == "failed_soft"
+            assert command.call_args.kwargs["timeout_sec"] == 30.0
+            assert command.call_args.kwargs["extra_env"]["MURMURMARK_SPEAKER_REFRESH_MODE"] == "cache_only"
+        module.recover_state_for_resume(supervisor.state)
+        assert supervisor.state["actions"]["attribute_speakers"]["status"] == "pending"
+        assert supervisor.state["actions"]["refresh_final_state"]["status"] == "pending"
+        supervisor.state["current_action"] = "review_suggested_apply"
+        result = supervisor.run_command(
+            [sys.executable, "-c", "import os; assert 'MURMURMARK_ACTION_DEADLINE_EPOCH' in os.environ; raise SystemExit(75)"],
+            timeout_sec=30,
+        )
+        assert result == (75, False, True), result
+
+        outcome_path = ready_session / "derived/outcome/outcome.json"
+        failed_outcome = json.loads(outcome_path.read_text())
+        failed_outcome["outcome"] = "pipeline_failed"
+        write_json(outcome_path, failed_outcome)
+        supervisor = module.MeetingLifecycle(ready_session, fake, 30, None, True, True, 1.0, 0.0)
+        supervisor.state = module.new_state(ready_session, None, True, 1.0, 0.0)
+        with patch.object(supervisor, "verify_raw_preserved", return_value=(True, [])):
+            assert supervisor.build_report()["result"] == "failed"
 
     print("meeting lifecycle checks passed")
 

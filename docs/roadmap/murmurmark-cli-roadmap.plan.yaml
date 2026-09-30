@@ -858,7 +858,7 @@ nodes:
     kind: task
     parent: murmurmark-cli
     deps: [quality-speaker-bounded-chronology-arbitration-v1]
-    status: current
+    status: done
     effort: 8
     notes: |
       Завершён frozen read-only run с PROMOTE_WORD_LEVEL_CHRONOLOGY_LOCALIZATION_V1. Локальный
@@ -868,11 +868,37 @@ nodes:
       текст, роли, timestamps и selected transcripts неизменны; replay byte-exact, Terminal Gate
       читает транзитивную provenance и точный остаток.
 
+  product-review-safe-attributed-handoff-v1:
+    title: "Review-Safe Attributed Handoff v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [quality-word-level-chronology-localization-v1, product-speaker-resolved-transcript-default-v1]
+    status: done
+    effort: 8
+    notes: |
+      Ремонт R1-R4/R6: совместимые remote labels после mixed keep/drop Me, frozen nonexpanding
+      eligibility, честные provenance/scope review, bounded 75/130 и завершение workers,
+      fingerprint-bound очередь с sum/union/unknown. Три cached replay сохраняют raw и основной
+      текст; coverage 84.97%, 91.67%, 49.54% не является accuracy. Выпускные проверки пройдены.
+
+  quality-bounded-evidence-compute-v1:
+    title: "Bounded Evidence Compute v1"
+    kind: task
+    parent: murmurmark-cli
+    deps: [product-review-safe-attributed-handoff-v1]
+    status: current
+    effort: 8
+    notes: |
+      Candidate exact-PCM cache проверен на конкуренцию, atomic publication, отмену и invalidation,
+      но не подключён к замороженному primary ASR. Raw отсутствует у 11/12 прежних Echo v2.17
+      qualification sessions: нужен новый явный корпус, producer requalification и cold/warm
+      benchmark без изменения resource policy. Простая замена policy SHA недопустима.
+
   quality-human-reviewed-lexical-seed-v1:
     title: "Human-Reviewed Lexical Seed v1"
     kind: task
     parent: murmurmark-cli
-    deps: [quality-word-level-chronology-localization-v1]
+    deps: [quality-word-level-chronology-localization-v1, quality-bounded-evidence-compute-v1]
     status: blocked
     effort: 8
     notes: |
@@ -934,7 +960,10 @@ views:
         nodes: [working-capabilities, corpus-regression, quality-transcript-perfection-corpus-v1, quality-residual-transcript-integrity-hardening-v1, quality-remote-speaker-boundary-minority-segmentation-v1, quality-post-segmentation-transcript-rebaseline-v1, quality-capture-continuity-loss-closure-v1, quality-remote-unknown-evidence-recovery-v1, product-speaker-resolved-transcript-terminal-gate-instrument-v1, quality-speaker-bounded-chronology-arbitration-v1, product-one-command-meeting-lifecycle-v1]
       current:
         title: "Единственная исполнимая цель"
-        nodes: [quality-word-level-chronology-localization-v1]
+        nodes: [product-review-safe-attributed-handoff-v1]
+      next:
+        title: "Следующий пакет после квалификации producer"
+        nodes: [quality-bounded-evidence-compute-v1]
       blocked:
         title: "Зависит от direct truth"
         nodes: [quality-human-reviewed-lexical-seed-v1, quality-session-scoped-lexical-context-v1, product-speaker-resolved-transcript-terminal-gate-v1]
@@ -1002,6 +1031,8 @@ views:
           - product-speaker-resolved-transcript-terminal-gate-instrument-v1
           - quality-speaker-bounded-chronology-arbitration-v1
           - quality-word-level-chronology-localization-v1
+          - product-review-safe-attributed-handoff-v1
+          - quality-bounded-evidence-compute-v1
           - quality-human-reviewed-lexical-seed-v1
           - quality-session-scoped-lexical-context-v1
           - product-speaker-resolved-transcript-terminal-gate-v1
@@ -1044,8 +1075,8 @@ views:
         title: "Доказанная speaker evidence"
         nodes: [research-remote-diarization, research-rich-transcript, quality-remote-speaker-diarization-v2]
       current:
-        title: "Word-level chronology localization"
-        nodes: [quality-word-level-chronology-localization-v1]
+        title: "Review-safe attributed handoff"
+        nodes: [product-review-safe-attributed-handoff-v1, quality-bounded-evidence-compute-v1]
       unknown:
         title: "Доказанный attribution bound"
         nodes: [quality-capture-continuity-loss-closure-v1, quality-remote-unknown-evidence-recovery-v1]
@@ -1127,6 +1158,8 @@ views:
           - product-speaker-resolved-transcript-terminal-gate-instrument-v1
           - quality-speaker-bounded-chronology-arbitration-v1
           - quality-word-level-chronology-localization-v1
+          - product-review-safe-attributed-handoff-v1
+          - quality-bounded-evidence-compute-v1
           - quality-human-reviewed-lexical-seed-v1
           - quality-session-scoped-lexical-context-v1
           - product-speaker-resolved-transcript-terminal-gate-v1
@@ -1136,8 +1169,8 @@ x:
   exec:
     program:
       nearest_goal: >-
-        Word-Level Chronology Localization v1: на замороженных 14 chronology rows / 89.97s выполнить локальный второй проход faster-whisper large-v3 с word timestamps отдельно для mic-clean и remote, привязать слова к исходным utterance IDs и определить фактические речевые интервалы внутри широких ASR-сегментов; закрывать только доказанную последовательную границу, реальный double-talk или доказанный перенос remote leak/segmentation, а слабое или конфликтующее выравнивание оставить явным; не менять raw, ASR, текст, роли, опубликованные timestamps или selected transcripts; закрыть не менее 50% строк и секунд либо выпустить точный EVIDENCE_BOUND; встроить остаток в terminal gate, обновить тесты, документы и OpsKarta, затем закоммитить и отправить результат в origin/main.
-      success_by_next_sync: "Все 14 rows получили стабильный outcome; безопасно закрыты 9 rows / 52.83s, а Terminal Gate показывает явный остаток 5 rows / 37.14s."
+        Bounded Evidence Compute v1: квалифицировать новый воспроизводимый корпус для изменения frozen ASR producer, подключить session-local exact-PCM micro-ASR cache без смешения provenance current/shadow, обеспечить отменяемые lock/decode и атомарную публикацию; измерить cold/warm время, новые decodes и время до атрибутированного текста при неизменном resource profile, сохранить все conservation/fallback gates, raw и основной текст; при недостатке evidence оставить production неизменным с точным DO_NOT_PROMOTE, обновить документацию и планы, завершить этап коммитом и push.
+      success_by_next_sync: "Зафиксирован новый qualification corpus; cache candidate проверен с реальным decode при неизменных входах и ресурсах, production promotion только после сохранения всех gates."
     defaults:
       status_progress:
         done: 1.0
@@ -1158,13 +1191,13 @@ x:
           sync_note: "Durable capture, one-command lifecycle и batch transcript работают; stronger-audio v0.3 сохраняет canonical evidence и безопасно возобновляется после interruption."
           next_sync_goal: "Сохранять baseline и frozen corpus неизменными."
       current-quality:
-        title: "Word-Level Chronology Localization v1"
-        scope_nodes: [quality-word-level-chronology-localization-v1]
+        title: "Bounded Evidence Compute v1"
+        scope_nodes: [quality-bounded-evidence-compute-v1]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "9/14 residual chronology rows и 52.83/89.97s закрыты независимыми word-level доказательствами; transcript неизменён, 37.14s остаются bounded."
-          next_sync_goal: "Сохранить byte-exact localization snapshot и передать Terminal Gate только доказанный остаток."
+          sync_note: "Первый пакет R1-R4/R6 завершён и проверен на трёх сессиях. Cache helper остаётся candidate-only; старый qualification corpus неполон."
+          next_sync_goal: "Заморозить новый корпус и квалифицировать producer; не менять policy SHA без доказательств и не обещать production speedup по synthetic tests."
       dependent-path:
         title: "Сходимость транскрибации"
         scope_nodes:
@@ -1203,6 +1236,7 @@ x:
           - product-speaker-resolved-transcript-terminal-gate-instrument-v1
           - quality-speaker-bounded-chronology-arbitration-v1
           - quality-word-level-chronology-localization-v1
+          - quality-bounded-evidence-compute-v1
           - quality-human-reviewed-lexical-seed-v1
           - quality-session-scoped-lexical-context-v1
           - product-speaker-resolved-transcript-terminal-gate-v1

@@ -932,6 +932,7 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
             or policy.get("schema") != "murmurmark.transcript_integrity_policy/v1"
             or policy.get("decision") != "PROMOTE"
             or qualified.get("sha256") != sha256_file(repo_root / "scripts/apply-transcript-integrity.py")
+            or qualified.get("overlap_builder_sha256") != sha256_file(repo_root / "scripts/transcript_overlaps.py")
             or report.get("output_profile") != profile
             or not isinstance(report.get("gates"), dict)
             or report["gates"].get("passed") is not True

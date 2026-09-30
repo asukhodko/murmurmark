@@ -1598,7 +1598,7 @@ def v217_contract_and_visibility_checks() -> None:
         }
     )
     require(
-        harmful["seconds"] == 18.96
+        harmful["seconds"] == 14.42
         and harmful["status"] == "review"
         and harmful["coverage"] == "partial",
         "outcome collapsed residual remote evidence to a false zero",

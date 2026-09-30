@@ -21,6 +21,7 @@ from typing import Any
 from murmurmark_resource_policy import (
     PROFILE_DEFAULTS,
     apply_resource_policy,
+    bounded_process_parallelism,
     bounded_threads,
     configure_thread_environment,
     max_threads_from_environment,
@@ -168,6 +169,7 @@ def parse_args() -> argparse.Namespace:
         args.asr_parallelism = policy.live_asr_parallelism
     elif args.asr_parallelism == 0:
         args.asr_parallelism = 2 if (os.cpu_count() or 1) >= 12 and policy.profile == "performance" else 1
+    args.asr_parallelism = bounded_process_parallelism(args.asr_parallelism, policy)
     args.resource_policy_spec = policy
     return args
 

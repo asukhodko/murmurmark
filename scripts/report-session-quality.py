@@ -17,9 +17,10 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 import review_profile_lineage as review_lineage
+from review_audio_evidence import effective_decision, read_queue_snapshot
 
 
-SCRIPT_VERSION = "0.6.0"
+SCRIPT_VERSION = "0.6.1"
 SCHEMA = "murmurmark.session_quality_report/v1"
 READINESS_SCHEMA = "murmurmark.session_readiness/v1"
 CLEANUP_PROFILES = {
@@ -84,11 +85,13 @@ def read_json(path: Path) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
-def read_review_progress_summary(session: Path) -> dict[str, Any]:
+def read_review_progress(session: Path) -> dict[str, Any]:
     plan = session / "derived/readiness/review-plan"
     progress_path = plan / "review_decisions_progress.json"
     payload = read_json(progress_path)
     if not payload:
+        return {}
+    if "queue_snapshot" in payload and read_queue_snapshot(session) is None:
         return {}
     try:
         progress_mtime = progress_path.stat().st_mtime_ns
@@ -100,6 +103,11 @@ def read_review_progress_summary(session: Path) -> dict[str, Any]:
                 return {}
     except OSError:
         return {}
+    return payload
+
+
+def read_review_progress_summary(session: Path) -> dict[str, Any]:
+    payload = read_review_progress(session)
     summary = payload.get("summary")
     return summary if isinstance(summary, dict) else {}
 
@@ -123,6 +131,69 @@ def review_progress_metrics(summary: dict[str, Any] | None) -> dict[str, Any]:
         "manual_review_queue_rows": remaining,
         "manual_review_queue_seconds": round(remaining_seconds, 3),
         "manual_review_queue_source": "review_decisions_progress",
+    }
+
+
+def review_progress_transcript_order_metrics(
+    session: Path,
+    progress: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Reconcile chronology against the fresh cumulative review history."""
+    if not isinstance(progress, dict) or progress.get("errors"):
+        return {}
+    by_lane = progress.get("by_lane")
+    if not isinstance(by_lane, list) or not any(
+        isinstance(row, dict) and row.get("review_lane") == "check_transcript_order"
+        for row in by_lane
+    ):
+        return {}
+
+    rows = [
+        row
+        for row in read_jsonl(
+            session / "derived/readiness/review-plan/review_decisions.jsonl"
+        )
+        if str(row.get("review_lane") or "") == "check_transcript_order"
+        or str(row.get("source") or "") == "transcript_order"
+    ]
+    if not rows:
+        return {}
+
+    def duration(row: dict[str, Any]) -> float:
+        interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+        value = safe_float(interval.get("duration_sec"))
+        if value is not None:
+            return max(0.0, value)
+        start = safe_float(interval.get("start")) or 0.0
+        end = safe_float(interval.get("end")) or start
+        return max(0.0, end - start)
+
+    unresolved = [
+        row
+        for row in rows
+        if effective_decision(row) not in {"keep_me", "skip"}
+    ]
+    probable = [
+        row
+        for row in unresolved
+        if str(row.get("label") or "") == "probable_order_risk"
+    ]
+    risk_seconds = round(sum(duration(row) for row in probable), 3)
+    review_seconds = round(sum(duration(row) for row in unresolved), 3)
+    blocking = bool(risk_seconds > 0.0 or review_seconds >= 10.0)
+    return {
+        "transcript_order_probable_order_risk_count": len(probable),
+        "transcript_order_probable_order_risk_seconds": risk_seconds,
+        "transcript_order_needs_review_count": len(unresolved),
+        "transcript_order_needs_review_seconds": review_seconds,
+        "transcript_order_review_seconds": review_seconds,
+        "transcript_order_blocking_order_risk": blocking,
+        "transcript_order_recommended_next_step": (
+            "review_transcript_order_items"
+            if unresolved
+            else "transcript_order_reviewed_clear"
+        ),
+        "transcript_order_reconciliation_source": "review_decisions_progress",
     }
 
 
@@ -289,6 +360,7 @@ def transcript_integrity_usable(session: Path, expected_input_profile: str | Non
         policy.get("schema") != "murmurmark.transcript_integrity_policy/v1"
         or policy.get("decision") != "PROMOTE"
         or qualified.get("sha256") != sha256_file(algorithm)
+        or qualified.get("overlap_builder_sha256") != sha256_file(algorithm.with_name("transcript_overlaps.py"))
         or report.get("schema") != "murmurmark.transcript_integrity_report/v1"
         or report.get("output_profile") != profile
         or not isinstance(report.get("gates"), dict)
@@ -1215,7 +1287,7 @@ def review_resolved_audio_ids(session: Path, profile: str, seen: set[str] | None
             continue
         if str(row.get("source") or "") != "audio_review":
             continue
-        if str(row.get("decision") or "") not in {"drop_me", "drop_remote", "keep_me", "skip"}:
+        if effective_decision(row) not in {"drop_me", "drop_remote", "keep_me", "skip"}:
             continue
         source_id = str(row.get("source_audit_id") or "")
         if source_id:
@@ -1230,7 +1302,7 @@ def review_resolved_audio_ids(session: Path, profile: str, seen: set[str] | None
     for row in read_jsonl(path):
         if str(row.get("source") or "") != "audio_review":
             continue
-        if str(row.get("decision") or "") not in {"drop_me", "drop_remote", "keep_me", "skip"}:
+        if effective_decision(row) not in {"drop_me", "drop_remote", "keep_me", "skip"}:
             continue
         source_id = str(row.get("source_audit_id") or "")
         if source_id:
@@ -1679,6 +1751,7 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
         resolved_intervals: list[tuple[float, float]] = []
         resolved_by_review_intervals: list[tuple[float, float]] = []
         remote_leak_intervals: list[tuple[float, float]] = []
+        error_intervals_by_label: dict[str, list[tuple[float, float]]] = {}
         explained_by_reliable_count = 0
         explained_by_reliable_intervals: list[tuple[float, float]] = []
         explained_by_strong_local_count = 0
@@ -1723,6 +1796,7 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
                 continue
             if verdict == "probable_transcript_error":
                 verdict = "probable_error"
+                error_intervals_by_label.setdefault(label or "unknown", []).append((start, end))
                 if label == "remote_leak":
                     remote_leak_intervals.append((start, end))
             if verdict in buckets:
@@ -1745,6 +1819,12 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
             "audio_review_reliable_seconds": union_seconds(buckets["likely_reliable"]["intervals"]),
             "audio_review_probable_error_count": buckets["probable_error"]["count"],
             "audio_review_probable_error_seconds": union_seconds(buckets["probable_error"]["intervals"]),
+            "audio_review_errors_by_label": {label: {"count": len(intervals), "seconds": union_seconds(intervals)}
+                                             for label, intervals in sorted(error_intervals_by_label.items())},
+            "audio_review_remote_duplicate_probable_error_seconds": union_seconds(error_intervals_by_label.get("remote_duplicate", [])),
+            "audio_review_remote_error_seconds": union_seconds(
+                error_intervals_by_label.get("remote_duplicate", []) + remote_leak_intervals
+            ),
             "audio_review_stronger_judge_count": buckets["needs_stronger_audio_judge"]["count"],
             "audio_review_stronger_judge_seconds": union_seconds(buckets["needs_stronger_audio_judge"]["intervals"]),
             "audio_review_notes_probable_error_count": notes_buckets["probable_error"]["count"],
@@ -2581,6 +2661,13 @@ def add_use_gate(row: dict[str, Any]) -> None:
     transcript_burden = transcript_probable_error + transcript_stronger_judge + local_recall_review + transcript_order_review
     notes_burden = max(notes_burden, review_scope_remaining)
     transcript_burden = max(transcript_burden, review_scope_remaining)
+    if row.get("manual_review_queue_source") == "review_decisions_progress":
+        canonical_remaining = safe_float(row.get("manual_review_queue_seconds"))
+        if canonical_remaining is not None:
+            # A current cumulative queue owns transcript review truth. Older
+            # category reports may only overstate this remaining queue.
+            transcript_burden = max(0.0, canonical_remaining)
+            notes_burden = min(notes_burden, transcript_burden)
     row["notes_review_burden_sec"] = round(notes_burden, 3)
     row["notes_review_burden_ratio"] = round(notes_burden / duration, 6) if duration > 0 else 0.0
     row["transcript_review_burden_sec"] = round(transcript_burden, 3)
@@ -2912,7 +2999,13 @@ def collect_session(
     row.update(pre_asr_echo_selection_metrics(session))
     row.update(group_metrics(group_summary))
     row.update(cleanup_metrics(quality, cleanup_report))
-    review_progress = read_review_progress_summary(session)
+    review_progress_report = read_review_progress(session)
+    row["review_queue_snapshot"] = read_queue_snapshot(session)
+    review_progress = (
+        review_progress_report.get("summary")
+        if isinstance(review_progress_report.get("summary"), dict)
+        else {}
+    )
     row.update(review_decision_metrics(review_report))
     row.update(synthesis_review_metrics(verdict))
     row.update(notes_needs_review_metrics(session, profile, evidence))
@@ -2929,6 +3022,7 @@ def collect_session(
         )
     )
     row.update(transcript_order_metrics(order_audit, review_report, order_repair_report))
+    row.update(review_progress_transcript_order_metrics(session, review_progress_report))
     if isinstance(boundary_report, dict) and (boundary_report.get("gates") or {}).get("passed") is True:
         boundary_summary = boundary_report.get("summary") if isinstance(boundary_report.get("summary"), dict) else {}
         remaining_local_count = safe_int(boundary_summary.get("remaining_local_recall_items")) or 0
@@ -3660,7 +3754,8 @@ def readiness_next_commands(session: Path, row: dict[str, Any]) -> list[dict[str
                     "command": f"less {command_path(session / 'derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair.md')}",
                 }
             )
-        elif safe_int(row.get("audio_review_remote_leak_probable_error_count")):
+        elif (safe_int(row.get("audio_review_remote_leak_probable_error_count"))
+              and row.get("remote_leak_segment_plan_status") not in {"ok", "reconciled_current_profile"}):
             commands.append(
                 {
                     "id": "plan_remote_leak_segment_repair",
@@ -3887,6 +3982,7 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
         "review_blockers": row.get("review_blockers") or [],
         "export_blockers": row.get("export_blockers") or [],
         "warnings": row.get("readiness_warnings") or [],
+        "review_queue_snapshot": row.get("review_queue_snapshot"),
         "formal_residual_risk": row.get("formal_residual_risk"),
         "non_actionable_blockers": non_actionable_review_blockers(row),
         "recommended_next": preferred_next_command(next_commands),

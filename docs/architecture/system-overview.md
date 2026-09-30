@@ -248,7 +248,10 @@ Owns:
 - local audio preprocessing;
 - low-impact derived execution: normal-priority durable capture followed by either the bounded
   `background` profile or work-conserving `opportunistic` processing (`nice=20`, no Darwin
-  background clamp); foreground `performance` remains explicit;
+  background clamp); both normal profiles use a three-thread ceiling and one heavy ASR worker,
+  while unlimited foreground `performance` remains explicit;
+- global FIFO admission for heavy `process`/`enrich` work, independent of the recording lock, so
+  multiple completed sessions do not multiply their CPU budgets while the next capture remains free;
 - Echo Guard diagnostics and derived audio selection;
 - window planning for long sessions;
 - ASR and diarization adapters;
@@ -264,6 +267,9 @@ Current implementation note:
   ordinary read uses verified evidence first and a disclaimer-bearing provisional cluster view when
   strict publication misses; handoff/export stay strict and `--aggregate` remains exact;
 - `transcript.shadow_v2.md` is a candidate export only when `repair_comparison.json` passes.
+- the pipeline observer separates primary chunk recognition from the combined post-primary
+  timeline/micro-ASR and final-assembly tail; it does not modify the frozen transcriber runtime, and
+  primary chunk completion alone is not terminal completion.
 
 Does not own:
 

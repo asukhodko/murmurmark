@@ -16,6 +16,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-transcript-integrity-v1.py
 "$python_bin" scripts/check-whisper-cpu-fallback.py
 "$python_bin" scripts/check-review-materialization-guard.py
+"$python_bin" scripts/check-review-audio-evidence.py
 "$python_bin" scripts/check-review-profile-lineage.py
 "$python_bin" scripts/check-session-quality-reconciliation.py
 "$python_bin" scripts/check-enrichment-coherence.py
@@ -106,11 +107,16 @@ swiftlint lint --quiet
   --frozen-manifest docs/testing/reviewed-speaker-memory-v1-manifest.json
 "$python_bin" scripts/check-authoritative-incremental-asr.py
 "$python_bin" scripts/check-authoritative-handoff.py
+"$python_bin" scripts/check-session-state-reconciliation.py
 "$python_bin" scripts/check-authoritative-handoff-corpus.py
 "$python_bin" scripts/check-evidence-handoff-v2.py
 "$python_bin" scripts/check-fast-diagnostics.py
 "$python_bin" scripts/check-bounded-asr-parallelism.py
+"$python_bin" scripts/check-transcribe-progress.py
+"$python_bin" scripts/check-micro-asr-cache.py
+"$python_bin" scripts/check-transcript-overlaps.py
 "$python_bin" scripts/check-resource-policy.py
+"$python_bin" scripts/check-processing-lease.py
 "$python_bin" scripts/check-audio-review-clip-parallelism.py
 "$python_bin" scripts/check-stronger-audio-judge.py
 "$python_bin" scripts/check-capture-continuity.py
@@ -131,9 +137,12 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-remote-speaker-cluster-purity-reference-v1.py
 "$python_bin" scripts/check-remote-speaker-boundary-minority-v1.py
 "$python_bin" scripts/check-provisional-speaker-transcript.py
+"$python_bin" scripts/check-review-publication.py
+"$python_bin" scripts/check-review-queue-snapshot.py
 "$python_bin" scripts/check-release-quality.py
 MURMURMARK_BIN="$repo_root/.build/debug/murmurmark" \
   "$python_bin" scripts/check-derived-compaction.py
+"$python_bin" scripts/check-recording-storage-preflight.py
 MURMURMARK_BIN="$repo_root/.build/debug/murmurmark" \
   "$python_bin" scripts/check-meeting-lifecycle.py
 "$python_bin" scripts/check-meeting-lifecycle-corpus.py

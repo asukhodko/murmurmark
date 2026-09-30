@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import math
 import os
@@ -16,7 +17,7 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 SELECTION_SCHEMA = "murmurmark.provisional_speaker_transcript_selection/v1"
 TRANSCRIPT_SCHEMA = "murmurmark.provisional_speaker_transcript/v1"
 READINESS_SCHEMA = "murmurmark.session_readiness/v1"
@@ -52,6 +53,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("session", type=Path)
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--verify-only", action="store_true")
+    parser.add_argument("--cached-only", action="store_true",
+                        help="Publish compatible cached evidence without starting inference.")
     parser.add_argument("--print-path", action="store_true")
     return parser.parse_args()
 
@@ -148,6 +151,11 @@ def v1_source_current(session: Path, report: dict[str, Any], dialogue: Path) -> 
     source = report.get("source") if isinstance(report.get("source"), dict) else {}
     if not source_identity_matches(session, source.get("dialogue"), dialogue):
         return False
+    return v1_audio_source_current(session, report)
+
+
+def v1_audio_source_current(session: Path, report: dict[str, Any]) -> bool:
+    source = report.get("source") if isinstance(report.get("source"), dict) else {}
     for key in ("remote_audio", "raw_remote_after"):
         row = source.get(key)
         if isinstance(row, dict) and row.get("exists") is True:
@@ -238,6 +246,7 @@ def current_v1_candidate(
     session: Path, profile: str, dialogue: Path
 ) -> tuple[Path, dict[str, Any], list[dict[str, Any]]] | None:
     candidates = list((session / STRICT_EVIDENCE_ROOT).glob("*/remote-speaker-evidence-v1"))
+    candidates.extend((session / DEFAULT_OUT_DIR / "evidence").glob("*/remote-speaker-evidence-v1"))
     candidates.append(session / CANONICAL_V1)
     valid: list[tuple[tuple[int, str], Path, dict[str, Any], list[dict[str, Any]]]] = []
     implementation_sha = sha256_file(V1_IMPLEMENTATION)
@@ -271,6 +280,204 @@ def current_v1_candidate(
         return None
     _, directory, report, attributions = max(valid, key=lambda row: row[0])
     return directory, report, attributions
+
+
+def strict_selection_basis(session: Path) -> dict[str, Any]:
+    """Bind decisions and evidence, not diagnostic cached/refreshed reason strings."""
+    try:
+        payload = read_json(session / STRICT_SELECTION)
+    except (OSError, ValueError, ProvisionalSpeakerError):
+        return {"exists": False}
+    return {key: payload.get(key) for key in (
+        "schema", "state", "selected_profile", "selected_speaker_profile",
+        "aggregate_transcript", "selected_dialogue", "selected_transcript",
+        "rich_transcript", "coverage_report", "policy", "speaker_roster",
+    )}
+
+
+def review_compatible_projection(utterances: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    result = []
+    for row in utterances:
+        # The frozen v1/v2/v3 backends use remote-only evidence units and overlaps.
+        if row.get("role") != "remote":
+            continue
+        projected = {key: row.get(key) for key in (
+            "id", "role", "text", "start", "end", "source_track", "source_start",
+            "source_end", "source_candidate_id",
+        )}
+        projected["quality"] = {key: value for key, value in (row.get("quality") or {}).items()
+                                if key not in {"human_review", "agent_review", "review_evidence",
+                                               "transcript_order_review"}}
+        result.append(projected)
+    return result
+
+
+def review_evidence_compatible(snapshot: list[dict[str, Any]], current: list[dict[str, Any]]) -> bool:
+    for rows in (snapshot, current):
+        ids = [row.get("id") for row in rows]
+        if not all(ids) or len(set(ids)) != len(ids):
+            return False
+    frozen = review_compatible_projection(snapshot)
+    reviewed = review_compatible_projection(current)
+    if len(frozen) != len(reviewed):
+        return False
+    for old, new in zip(frozen, reviewed):
+        # Clearing a review flag may admit NEW enrollment, but reuse never does that:
+        # preserve the old labels/unknowns with the old, narrower enrollment basis.
+        if old["quality"].get("needs_review") is True and new["quality"].get("needs_review") is False:
+            new["quality"]["needs_review"] = True
+        if old != new:
+            return False
+    return bool(frozen)
+
+
+def valid_artifact_bundle(directory: Path, schema: str, required: set[str]) -> bool:
+    manifest = read_json(directory / "artifact_manifest.json")
+    artifacts = manifest.get("artifacts") or {}
+    if manifest.get("schema") != schema or not required.issubset(artifacts):
+        return False
+    return all(isinstance(name, str) and isinstance(digest, str)
+               and within(directory / name, directory) and (directory / name).is_file()
+               and sha256_file(directory / name) == digest
+               for name, digest in artifacts.items())
+
+
+def installed_model_current(report: dict[str, Any]) -> bool:
+    spec = importlib.util.find_spec("resemblyzer")
+    if spec is None or spec.origin is None:
+        return False
+    return same_identity((report.get("model") or {}).get("model"),
+                         Path(spec.origin).with_name("pretrained.pt"))
+
+
+def compatible_v1_evidence(session: Path, directory: Path, utterances: list[dict[str, Any]]) -> tuple | None:
+    try:
+        report = read_json(directory / "report.json")
+        rich = read_json(directory / "transcript.rich.shadow.json")
+        snapshot = rich.get("utterances") or []
+        if (report.get("schema") != V1_REPORT_SCHEMA
+                or rich.get("schema") != "murmurmark.transcript_rich_shadow/v1"
+                or not snapshot or len({row.get("id") for row in snapshot}) != len(snapshot)
+                or not review_evidence_compatible(snapshot, utterances)
+                or not valid_artifact_bundle(directory, V1_MANIFEST_SCHEMA,
+                                              {"report.json", "utterance_attribution.jsonl", "transcript.rich.shadow.json"})
+                or (report.get("implementation") or {}).get("fingerprint", {}).get("sha256")
+                != sha256_file(V1_IMPLEMENTATION)
+                or not v1_audio_source_current(session, report)
+                or not installed_model_current(report)
+                or (report.get("model") or {}).get("consensus")):
+            return None
+        source = report["source"]
+        if (not source_identity_matches(session, source.get("raw_remote_after"))
+                or not source_identity_matches(session, source.get("remote_audio"))
+                or (source.get("raw_remote_before") or {}).get("sha256")
+                != (source.get("raw_remote_after") or {}).get("sha256")):
+            return None
+        return directory, report, read_jsonl(directory / "utterance_attribution.jsonl")
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, ProvisionalSpeakerError):
+        return None
+
+
+def best_compatible_v1(session: Path, utterances: list[dict[str, Any]]) -> tuple | None:
+    directories = list((session / STRICT_EVIDENCE_ROOT).glob("*/remote-speaker-evidence-v1"))
+    directories.extend((session / DEFAULT_OUT_DIR / "evidence").glob("*/remote-speaker-evidence-v1"))
+    directories.append(session / CANONICAL_V1)
+    candidates = [candidate for directory in sorted(set(directories))
+                  if (candidate := compatible_v1_evidence(session, directory, utterances)) is not None]
+    return max(candidates, key=lambda item: (item[1].get("decision") == "PUBLISH_AUDIT_EVIDENCE",
+                                           str(item[0]))) if candidates else None
+
+
+def compatible_v3_evidence(
+    session: Path, directory: Path, utterances: list[dict[str, Any]]
+) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    """Reuse frozen word/turn labels as provisional, never promote a new profile."""
+    try:
+        report = read_json(directory / "report.json")
+        rich = read_json(directory / "transcript.rich.shadow.json")
+        if (report.get("schema") != "murmurmark.remote_speaker_coverage_report/v3"
+                or report.get("decision") != "PUBLISH_EVIDENCE"
+                or rich.get("schema") != "murmurmark.remote_speaker_rich_transcript/v3"
+                or not report.get("gates") or not all(report["gates"].values())):
+            return None
+        snapshot = rich.get("utterances") or []
+        if (not snapshot or len({row.get("id") for row in snapshot}) != len(snapshot)
+                or not review_evidence_compatible(snapshot, utterances)):
+            return None
+        if not valid_artifact_bundle(directory, "murmurmark.remote_speaker_coverage_artifact_manifest/v3",
+                                     {"report.json", "transcript.rich.shadow.json", "word_attribution.jsonl"}):
+            return None
+        source = report["source"]
+        if rich.get("source") != source:
+            return None
+        if not {"report", "manifest", "frames", "words", "utterances", "speaker_map", "rich"}.issubset(
+            source.get("v2_artifacts") or {}
+        ):
+            return None
+        # Dialogue byte hashes may differ after keep-only review. Every other input
+        # and the original, manifest-bound dialogue snapshot must still be intact.
+        for key in ("remote_audio", "raw_remote_json", "v1_report", "v1_attribution"):
+            if not source_identity_matches(session, source.get(key)):
+                return None
+        for row in (source.get("v2_artifacts") or {}).values():
+            if not source_identity_matches(session, row):
+                return None
+        v2_path = resolve_session_path(session, source["v2_artifacts"]["report"]["path"])
+        v1_path = resolve_session_path(session, source["v1_report"]["path"])
+        if v2_path is None or v1_path is None:
+            return None
+        v2, v1 = read_json(v2_path), read_json(v1_path)
+        if (v2.get("schema") != "murmurmark.remote_speaker_diarization_report/v2"
+                or v2.get("decision") != "PUBLISH_EVIDENCE" or not v2.get("gates")
+                or not all(v2["gates"].values()) or not verify_manifest(v1_path.parent)):
+            return None
+        if not valid_artifact_bundle(v2_path.parent, "murmurmark.remote_speaker_diarization_artifact_manifest/v2",
+                                     {"report.json", "transcript.rich.shadow.json", "word_attribution.jsonl"}):
+            return None
+        for key in ("dialogue", "remote_audio", "raw_remote_json", "v1_report", "v1_attribution"):
+            if v2["source"].get(key) != source.get(key):
+                return None
+        if v1["source"].get("dialogue") != source.get("dialogue"):
+            return None
+        if not v1_audio_source_current(session, v1):
+            return None
+        if not source_identity_matches(session, v1["source"].get("raw_remote_after")):
+            return None
+        if ((v1["source"].get("raw_remote_before") or {}).get("sha256")
+                != (v1["source"].get("raw_remote_after") or {}).get("sha256")):
+            return None
+        if (v1.get("implementation", {}).get("fingerprint", {}).get("sha256")
+                != sha256_file(V1_IMPLEMENTATION)):
+            return None
+        # Resolve the installed model without importing torch or initializing an encoder.
+        if (not installed_model_current(v2) or not installed_model_current(v1)
+                or (v1.get("model") or {}).get("consensus")):
+            return None
+        verifier_spec = importlib.util.spec_from_file_location(
+            "speaker_coverage_reuse_verifier", ROOT / "scripts/audit-remote-speaker-coverage-v3.py")
+        assert verifier_spec is not None and verifier_spec.loader is not None
+        verifier = importlib.util.module_from_spec(verifier_spec)
+        verifier_spec.loader.exec_module(verifier)
+        if not verifier.verify_v2_promotion(v2) or not verifier.verify_v3_promotion(report):
+            return None
+        for row in snapshot:
+            if row.get("role") == "remote" and "".join(
+                str(turn.get("text") or "") for turn in row.get("speaker_turns") or []
+            ) != row.get("text"):
+                return None
+        return report, rich
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, ProvisionalSpeakerError):
+        return None
+
+
+def best_compatible_v3(session: Path, utterances: list[dict[str, Any]]) -> tuple[Path, dict, dict] | None:
+    directories = list((session / STRICT_EVIDENCE_ROOT).glob("*/remote-speaker-coverage-v3"))
+    directories.append(session / "derived/audit/remote-speaker-coverage-v3")
+    for directory in sorted(set(directories), reverse=True):
+        candidate = compatible_v3_evidence(session, directory, utterances)
+        if candidate is not None:
+            return directory, *candidate
+    return None
 
 
 def relaxed_evidence_key(profile: str, dialogue: Path, source_report: dict[str, Any]) -> str:
@@ -517,6 +724,13 @@ def render_markdown(
         timestamp = format_time(utterance.get("start"))
         text = str(utterance.get("text") or "").strip()
         if role == "remote":
+            if utterance.get("speaker_turns"):
+                for turn in utterance["speaker_turns"]:
+                    label = turn.get("speaker_id") or "remote_speaker_unknown"
+                    suffix = "" if turn.get("speaker_id") else " [unattributed]"
+                    lines.extend([f"## {format_time(turn.get('start'))} {label}{suffix}",
+                                  "", str(turn.get("text") or "").strip(), ""])
+                continue
             row = attributions.get(str(utterance.get("id") or ""), {})
             label = str(row.get("speaker_label") or "remote_speaker_unknown")
             suffix = ""
@@ -545,6 +759,8 @@ def semantic_basis(payload: dict[str, Any]) -> dict[str, Any]:
             "rich_transcript",
             "source_evidence",
             "strict_selection",
+            "strict_selection_basis",
+            "evidence_reuse",
             "implementation",
         )
     }
@@ -581,13 +797,20 @@ def verify_existing(
         source_path = resolve_session_path(session, source.get("path"))
         if source_path is None or not same_identity(source, source_path):
             reasons.append("selection_source_evidence_stale")
-    strict_path = session / STRICT_SELECTION
-    strict_row = payload.get("strict_selection")
-    if strict_path.is_file():
-        if not same_identity(strict_row, strict_path):
-            reasons.append("selection_strict_selection_stale")
-    elif isinstance(strict_row, dict) and strict_row.get("exists") is True:
+    if payload.get("strict_selection_basis") != strict_selection_basis(session):
         reasons.append("selection_strict_selection_stale")
+    if isinstance(source, dict) and source.get("exists") is True and not reasons:
+        assert source_path is not None
+        if payload.get("evidence_reuse"):
+            utterances = read_json(dialogue).get("utterances") or []
+            verifier = (compatible_v1_evidence if payload["evidence_reuse"].get("kind") == "v1"
+                        else compatible_v3_evidence)
+            if verifier(session, source_path.parent, utterances) is None:
+                reasons.append("selection_reused_evidence_stale")
+        else:
+            source_report = read_json(source_path)
+            if not verify_manifest(source_path.parent) or not v1_source_current(session, source_report, dialogue):
+                reasons.append("selection_acoustic_inputs_stale")
     if payload.get("semantic_fingerprint") != sha256_bytes(compact_json_bytes(semantic_basis(payload))):
         reasons.append("selection_fingerprint_invalid")
     if payload.get("state") not in {"provisional", "unavailable"}:
@@ -621,11 +844,17 @@ def materialize(args: argparse.Namespace) -> dict[str, Any]:
     if not isinstance(utterances, list):
         raise ProvisionalSpeakerError("selected_dialogue_utterances_invalid")
 
-    candidate = current_v1_candidate(session, profile, dialogue)
+    reused_v3 = best_compatible_v3(session, utterances)
+    candidate = current_v1_candidate(session, profile, dialogue) if reused_v3 is None else None
+    reused_v1 = candidate is None and reused_v3 is None
+    if reused_v1:
+        candidate = best_compatible_v1(session, utterances)
     if (
         candidate is not None
         and candidate[1].get("decision") != "PUBLISH_AUDIT_EVIDENCE"
         and can_refresh_relaxed_v1(session, candidate[1])
+        and not getattr(args, "cached_only", False)
+        and not reused_v1
     ):
         candidate = (
             refresh_relaxed_v1(session, profile, dialogue, out_dir, candidate[1]) or candidate
@@ -682,6 +911,49 @@ def materialize(args: argparse.Namespace) -> dict[str, Any]:
             row["tier"] == "provisional_secondary_cluster" for row in speaker_rows
         ),
     }
+    evidence_reuse = None
+    if reused_v1 and candidate is not None:
+        evidence_reuse = {
+            "schema": "murmurmark.speaker_evidence_reuse/v1", "kind": "v1",
+            "source_profile": candidate[1]["source"]["profile"],
+            "source_dialogue": candidate[1]["source"]["dialogue"],
+            "projection_sha256": sha256_bytes(compact_json_bytes(review_compatible_projection(utterances))),
+            "strict_publication_promoted": False,
+            "eligibility_basis": "frozen_nonexpanding",
+        }
+        warnings.append("review_compatible_v1_evidence_reused_without_inference")
+    reused_turns = {}
+    if reused_v3 is not None:
+        directory, report, rich = reused_v3
+        source_evidence = identity(directory / "report.json", session)
+        reused_turns = {row["id"]: row["speaker_turns"] for row in rich["utterances"]
+                        if row.get("role") == "remote"}
+        speaker_ids = sorted({turn["speaker_id"] for turns in reused_turns.values()
+                              for turn in turns if turn.get("speaker_id")})
+        speaker_rows = [{"speaker_id": value, "tier": "compatible_v3_evidence"} for value in speaker_ids]
+        state = "provisional" if speaker_ids else "unavailable"
+        speaker_profile = "remote_speaker_provisional_v1" if speaker_ids else "remote_speaker_attribution_unavailable_v1"
+        coverage = report["summary"]
+        summary.update({
+            "attributed_remote_utterances": sum(any(turn.get("speaker_id") for turn in turns)
+                                                for turns in reused_turns.values()),
+            "remote_speech_sec": coverage["remote_speech_sec"],
+            "attributed_remote_speech_sec": coverage["attributed_speech_sec"],
+            "attributed_remote_speech_ratio": coverage["attributable_remote_speech_ratio"],
+            "attributed_remote_words": coverage["attributed_words"],
+            "speaker_clusters": len(speaker_ids),
+            "coverage_basis": "frozen_v3_word_weights",
+        })
+        warnings = [fallback_reason, "review_compatible_v3_evidence_reused_without_inference"]
+        evidence_reuse = {
+            "schema": "murmurmark.speaker_evidence_reuse/v1",
+            "kind": "v3",
+            "source_profile": report["source"]["profile"],
+            "source_dialogue": report["source"]["dialogue"],
+            "projection_sha256": sha256_bytes(compact_json_bytes(review_compatible_projection(utterances))),
+            "strict_publication_promoted": False,
+            "eligibility_basis": "frozen_nonexpanding",
+        }
     normalized_attributions: dict[str, dict[str, Any]] = {}
     output_utterances: list[dict[str, Any]] = []
     for utterance in utterances:
@@ -704,6 +976,15 @@ def materialize(args: argparse.Namespace) -> dict[str, Any]:
             output["speaker_id"] = row["speaker_id"]
             output["speaker_label"] = row["speaker_label"]
             output["speaker_attribution"] = row
+            if utterance_id in reused_turns:
+                output["speaker_turns"] = reused_turns[utterance_id]
+                ids = {turn["speaker_id"] for turn in output["speaker_turns"] if turn.get("speaker_id")}
+                output["speaker_id"] = next(iter(ids)) if len(ids) == 1 else None
+                output["speaker_label"] = output["speaker_id"] or "remote_speaker_unknown"
+                row = {"speaker_id": output["speaker_id"], "speaker_label": output["speaker_label"],
+                       "tier": "compatible_v3_evidence", "speaker_turns": output["speaker_turns"]}
+                output["speaker_attribution"] = row
+                normalized_attributions[utterance_id] = row
         output_utterances.append(output)
 
     transcript_payload = {
@@ -717,6 +998,7 @@ def materialize(args: argparse.Namespace) -> dict[str, Any]:
         "warnings": sorted(set(warnings)),
         "summary": summary,
         "speaker_map": speaker_rows,
+        "evidence_reuse": evidence_reuse,
         "remote_utterance_attributions": normalized_attributions,
         "utterances": output_utterances,
         "safety": {
@@ -728,8 +1010,11 @@ def materialize(args: argparse.Namespace) -> dict[str, Any]:
             "strict_verified_profile_unchanged": True,
         },
     }
-    rich_path = out_dir / "transcript.provisional.json"
-    markdown_path = out_dir / "transcript.provisional.md"
+    # Readers follow selection.json only after both immutable generation files exist.
+    generation = sha256_bytes(canonical_json_bytes(transcript_payload))
+    generation_dir = out_dir / "generations" / generation
+    rich_path = generation_dir / "transcript.provisional.json"
+    markdown_path = generation_dir / "transcript.provisional.md"
     atomic_write(rich_path, canonical_json_bytes(transcript_payload))
     atomic_write(
         markdown_path,
@@ -757,7 +1042,9 @@ def materialize(args: argparse.Namespace) -> dict[str, Any]:
         "selected_transcript": identity(markdown_path, session),
         "rich_transcript": identity(rich_path, session),
         "source_evidence": source_evidence,
+        "evidence_reuse": evidence_reuse,
         "strict_selection": identity(session / STRICT_SELECTION, session),
+        "strict_selection_basis": strict_selection_basis(session),
         "implementation": identity(Path(__file__).resolve()),
         "batch_authoritative": True,
         "aggregate_fallback_available": True,
@@ -765,6 +1052,9 @@ def materialize(args: argparse.Namespace) -> dict[str, Any]:
     }
     selection["semantic_fingerprint"] = sha256_bytes(compact_json_bytes(semantic_basis(selection)))
     atomic_write(out_dir / "selection.json", canonical_json_bytes(selection))
+    # Compatibility copies are not used as the publication commit point.
+    atomic_write(out_dir / "transcript.provisional.json", rich_path.read_bytes())
+    atomic_write(out_dir / "transcript.provisional.md", markdown_path.read_bytes())
     return selection
 
 

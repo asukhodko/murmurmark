@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from review_audio_evidence import digest, evidence_files_current, evidence_matches_review_row, file_identity, seal_evidence
+
 import librosa
 import numpy as np
 
@@ -26,7 +28,7 @@ SCHEMA_ENROLLMENT = "murmurmark.target_me_enrollment/v1"
 SCHEMA_ROW = "murmurmark.target_me_audit/v1"
 SCHEMA_SUMMARY = "murmurmark.target_me_summary/v1"
 SCHEMA_CORPUS = "murmurmark.target_me_corpus_report/v1"
-SCRIPT_VERSION = "0.3.0"
+SCRIPT_VERSION = "0.3.1"
 SAMPLE_RATE = 16000
 EPS = 1e-9
 DEFAULT_WAVLM_MODEL = Path.home() / ".local/share/murmurmark/models/target-me/wavlm-base-plus-sv"
@@ -1207,6 +1209,8 @@ def evidence_rows_by_item_id(
         if not pack_id:
             continue
         for row in rows:
+            if row.get("schema") == "murmurmark.faster_whisper_judge/v1" and not evidence_files_current(row):
+                continue
             if evidence_row_matches_item(row, item):
                 matched[pack_id] = row
                 break
@@ -1218,20 +1222,7 @@ def evidence_rows_by_item_id(
                 continue
             if str(row.get("session_id") or "") != str(item.get("session_id") or ""):
                 continue
-            item_text_by_id = {
-                str(value.get("id")): normalize_text(value.get("text"))
-                for value in item.get("utterances") or []
-                if isinstance(value, dict) and value.get("id")
-            }
-            row_text_by_id = {
-                str(value.get("id")): normalize_text(value.get("text"))
-                for value in row.get("utterances") or []
-                if isinstance(value, dict) and value.get("id")
-            }
-            me_ids = set(me_utterance_ids(item))
-            if not me_ids or not me_ids <= set(row_text_by_id):
-                continue
-            if any(item_text_by_id.get(item_id) != row_text_by_id.get(item_id) for item_id in me_ids):
+            if not evidence_matches_review_row({**item, "text": item.get("utterances") or []}, row):
                 continue
             matched[pack_id] = row
             break
@@ -1383,6 +1374,7 @@ def classify_target_me(
             "audio_review_label": audio_label,
             "audio_review_verdict": audio_verdict,
             "stronger_audio_judge_label": judge_label,
+            "stronger_audio_judge_confidence": safe_float(((stronger_judge or {}).get("classification") or {}).get("confidence")),
         },
     }
 
@@ -1393,11 +1385,12 @@ def classify_target_me_impact(classification: dict[str, Any]) -> dict[str, Any]:
     audio_label = str(existing.get("audio_review_label") or "")
     audio_verdict = str(existing.get("audio_review_verdict") or "")
     judge_label = str(existing.get("stronger_audio_judge_label") or "")
-    already_confirmed_keep = audio_label == "likely_reliable" or judge_label in {
+    judge_confidence = safe_float(existing.get("stronger_audio_judge_confidence"))
+    already_confirmed_keep = audio_label == "likely_reliable" or judge_confidence >= 0.74 and judge_label in {
         "confirm_me",
         "confirm_timing_or_doubletalk",
     }
-    already_confirmed_drop = judge_label in {"confirm_remote_duplicate", "confirm_asr_noise"}
+    already_confirmed_drop = judge_confidence >= 0.86 and judge_label in {"confirm_remote_duplicate", "confirm_asr_noise"}
     unresolved_or_conflicting = (
         audio_label in {"uncertain", "remote_leak", "remote_duplicate", "asr_noise", "needs_human_review"}
         or audio_verdict in {"needs_stronger_audio_judge", "probable_transcript_error"}
@@ -1777,8 +1770,15 @@ def audit_session(session: Path, args: argparse.Namespace) -> dict[str, Any]:
         selected,
         [row for directory in evidence_dirs for row in read_jsonl(directory / "faster_whisper_judge.jsonl")],
     )
+    classification_inputs = [file_identity(path) for path in (
+        dialogue_path, pack_dir / "review_pack_items.jsonl",
+        *(directory / filename for directory in evidence_dirs
+          for filename in ("audio_review_audit.jsonl", "faster_whisper_judge.jsonl")),
+    )]
     calibration = enrollment.get("calibration") if isinstance(enrollment.get("calibration"), dict) else {}
     existing_rows = read_jsonl(out_dir / "target_me_audit.jsonl")
+    enrollment_identity = digest({"model": {key: value.tolist() if hasattr(value, "tolist") else value
+                                           for key, value in target_model.items()}, "calibration": calibration})
     cached_by_item: dict[str, dict[str, Any]] = {}
     for item in all_items:
         pack_id = str(item.get("id") or "")
@@ -1787,7 +1787,9 @@ def audit_session(session: Path, args: argparse.Namespace) -> dict[str, Any]:
         for row in existing_rows:
             if item.get("review_lane_target") and str(row.get("source_pack_item_id") or "") != pack_id:
                 continue
-            if evidence_row_matches_item(row, item):
+            if (evidence_row_matches_item(row, item) and evidence_files_current(row)
+                    and row.get("enrollment_identity") == enrollment_identity
+                    and row.get("classification_policy_version") == SCRIPT_VERSION):
                 cached_by_item[pack_id] = row
                 break
     computed_by_item: dict[str, dict[str, Any]] = {}
@@ -1807,6 +1809,10 @@ def audit_session(session: Path, args: argparse.Namespace) -> dict[str, Any]:
             audio_review_by_id,
             stronger_by_id,
         )
+        computed_by_item[pack_id]["enrollment_identity"] = enrollment_identity
+        computed_by_item[pack_id]["classification_policy_version"] = SCRIPT_VERSION
+        computed_by_item[pack_id]["classification_inputs"] = classification_inputs
+        seal_evidence(computed_by_item[pack_id], Path(__file__), session / "derived/preprocess/echo/speaker_state.jsonl")
     merged_by_item = dict(cached_by_item)
     merged_by_item.update(computed_by_item)
     ordered_ids = [str(item.get("id") or "") for item in all_items if item.get("id")]

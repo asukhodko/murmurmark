@@ -33,8 +33,8 @@ def check_defaults() -> None:
     background = POLICY.resolve_resource_policy("background")
     assert background.nice == 20
     assert background.darwin_background is True
-    assert background.max_compute_threads == 4
-    assert background.asr_threads == 4
+    assert background.max_compute_threads == 3
+    assert background.asr_threads == 3
     assert background.asr_track_workers == 1
     assert background.micro_asr_workers == 1
     assert background.live_asr_parallelism == 1
@@ -42,11 +42,15 @@ def check_defaults() -> None:
     opportunistic = POLICY.resolve_resource_policy("opportunistic")
     assert opportunistic.nice == 20
     assert opportunistic.darwin_background is False
-    assert opportunistic.max_compute_threads == 0
-    assert opportunistic.asr_threads == 6
-    assert opportunistic.asr_track_workers == 2
-    assert opportunistic.micro_asr_workers == 4
-    assert opportunistic.live_asr_parallelism == 2
+    assert opportunistic.max_compute_threads == 3
+    assert opportunistic.asr_threads == 3
+    assert opportunistic.asr_track_workers == 1
+    assert opportunistic.micro_asr_workers == 1
+    assert opportunistic.live_asr_parallelism == 1
+
+    assert POLICY.resolve_resource_policy("background", 0).max_compute_threads == 3
+    assert POLICY.resolve_resource_policy("opportunistic", 4).max_compute_threads == 3
+    assert POLICY.bounded_process_parallelism(4, opportunistic) == 1
 
     performance = POLICY.resolve_resource_policy("performance")
     assert performance.nice is None
@@ -116,11 +120,11 @@ print(json.dumps(report))
     assert report["profile"] == "opportunistic"
     assert report["nice_after"] == 20
     assert report["taskpolicy_status"] == "disabled"
-    assert report["max_compute_threads"] == 0
+    assert report["max_compute_threads"] == 3
     assert report["asr_defaults"] == {
-        "threads": 6,
-        "track_workers": 2,
-        "micro_asr_workers": 4,
+        "threads": 3,
+        "track_workers": 1,
+        "micro_asr_workers": 1,
     }
 
 
@@ -134,17 +138,17 @@ def parse_pipeline_args(*extra: str) -> object:
 def check_pipeline_defaults() -> None:
     background = parse_pipeline_args()
     assert background.resource_profile == "background"
-    assert background.max_compute_threads == 4
-    assert background.asr_threads == 4
+    assert background.max_compute_threads == 3
+    assert background.asr_threads == 3
     assert background.asr_track_workers == 1
     assert background.micro_asr_workers == 1
 
     opportunistic = parse_pipeline_args("--resource-profile", "opportunistic")
     assert opportunistic.resource_profile == "opportunistic"
-    assert opportunistic.max_compute_threads == 0
-    assert opportunistic.asr_threads == 6
-    assert opportunistic.asr_track_workers == 2
-    assert opportunistic.micro_asr_workers == 4
+    assert opportunistic.max_compute_threads == 3
+    assert opportunistic.asr_threads == 3
+    assert opportunistic.asr_track_workers == 1
+    assert opportunistic.micro_asr_workers == 1
 
     performance = parse_pipeline_args("--resource-profile", "performance")
     assert performance.resource_profile == "performance"
@@ -160,16 +164,29 @@ def check_pipeline_defaults() -> None:
         "2",
         "--asr-threads",
         "6",
+        "--asr-track-workers",
+        "2",
+        "--micro-asr-workers",
+        "4",
     )
     assert bounded.asr_threads == 2
+    assert bounded.asr_track_workers == 1
+    assert bounded.micro_asr_workers == 1
 
 
 def check_integration_points() -> None:
     pipeline = (SCRIPTS / "run-session-pipeline.py").read_text(encoding="utf-8")
     live = (SCRIPTS / "live-pipeline-shadow.py").read_text(encoding="utf-8")
+    stronger_judge = (SCRIPTS / "audit-stronger-audio-judge.py").read_text(encoding="utf-8")
     assert "resource_policy_report = apply_resource_policy(args.resource_policy_spec)" in pipeline
+    assert "ProcessingLease(" in pipeline
+    assert "bounded_process_parallelism(" in pipeline
     assert "args.resource_policy_report = apply_resource_policy(args.resource_policy_spec)" in live
     assert "configure_thread_environment(_early_policy)" in live
+    assert "bounded_process_parallelism(args.asr_parallelism, policy)" in live
+    assert 'os.environ.get("MURMURMARK_MAX_COMPUTE_THREADS")' in stronger_judge
+    assert 'model_options["cpu_threads"] = thread_limit' in stronger_judge
+    assert 'model_options["num_workers"] = 1' in stronger_judge
 
 
 def main() -> int:

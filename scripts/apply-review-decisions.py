@@ -9,6 +9,9 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
+from review_audio_evidence import decision_origin, effective_decision, signature as audio_evidence_signature
+from transcript_overlaps import build_overlaps as current_overlaps
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
@@ -135,32 +138,7 @@ def overlap_duration(left: dict[str, Any], right: dict[str, Any]) -> float:
 
 
 def build_overlaps(utterances: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    me_rows = [row for row in utterances if is_me(row)]
-    remote_rows = [row for row in utterances if role_name(row) == "Colleagues"]
-    overlaps: list[dict[str, Any]] = []
-    index = 1
-    for me in me_rows:
-        for remote in remote_rows:
-            duration = overlap_duration(me, remote)
-            if duration <= 0:
-                continue
-            start = max(safe_float(me.get("start")), safe_float(remote.get("start")))
-            end = min(safe_float(me.get("end")), safe_float(remote.get("end")))
-            overlaps.append(
-                {
-                    "id": f"ov_{index:06d}",
-                    "start": round(start, 3),
-                    "end": round(end, 3),
-                    "duration_sec": round(duration, 3),
-                    "me_utterance_id": me.get("id"),
-                    "remote_utterance_id": remote.get("id"),
-                    "text_similarity": round(text_similarity(me.get("text"), remote.get("text")), 6),
-                    "me_text": me.get("text"),
-                    "remote_text": remote.get("text"),
-                }
-            )
-            index += 1
-    return overlaps
+    return current_overlaps(utterances, text_similarity=text_similarity)
 
 
 def write_markdown(path: Path, utterances: list[dict[str, Any]], model: str | None, language: str | None) -> None:
@@ -329,6 +307,10 @@ def normalize_decision(row: dict[str, Any]) -> dict[str, Any]:
     if is_transcript_order_decision(normalized) and decision in {"drop_me", "drop_remote"}:
         normalized["_invalid"] = True
         normalized["_invalid_reason"] = f"{decision}_is_not_supported_for_transcript_order"
+    if not normalized.get("_invalid") and effective_decision(normalized) != decision:
+        normalized["recorded_decision"] = decision
+        normalized["review_effect_reason"] = "keep_retains_text_without_confirming_review_scope"
+        normalized["decision"] = effective_decision(normalized)
     return normalized
 
 
@@ -608,6 +590,12 @@ def decision_matches_dialogue(row: dict[str, Any], by_id: dict[str, dict[str, An
     target_ids = decision_utterance_ids(row)
     if not target_ids:
         return False
+    snapshot = (row.get("review_evidence") or {}).get("target_snapshot")
+    if snapshot is not None and (not snapshot or any(
+        audio_evidence_signature(target) != audio_evidence_signature(by_id.get(str(target.get("id")), {}))
+        for target in snapshot
+    )):
+        return False
     evidence_by_id = {
         str(item.get("id")): item
         for item in row.get("text") or []
@@ -627,15 +615,45 @@ def decision_matches_dialogue(row: dict[str, Any], by_id: dict[str, dict[str, An
 
 
 def has_explicit_unresolved_review(quality: dict[str, Any], excluded_key: str) -> bool:
-    for key, value in quality.items():
-        if key == excluded_key or not isinstance(value, dict):
-            continue
-        if str(value.get("status") or "") == "needs_review":
+    def unresolved(value: Any) -> bool:
+        if isinstance(value, list):
+            return any(unresolved(item) for item in value)
+        if not isinstance(value, dict):
+            return False
+        if value.get("status") == "needs_review" or value.get("needs_review") is True:
             return True
-        decisions = value.get("decisions")
-        if isinstance(decisions, list) and "needs_review" in decisions:
+        if "needs_review" in (value.get("decisions") or []):
+            return True
+        return any(unresolved(item) for item in value.values())
+
+    for key, value in quality.items():
+        if key != excluded_key and unresolved(value):
             return True
     return False
+
+
+def annotate_voice_review(quality: dict[str, Any], rows: list[dict[str, Any]], profile: str) -> None:
+    origins = sorted({decision_origin(item) for item in rows})
+    confirmed = all(
+        item.get("decision") in {"keep_me", "drop_remote"}
+        and (decision_origin(item) == "human" or (
+            decision_origin(item) == "automatic"
+            and ((item.get("review_evidence") or {}).get("suggestion_receipt") or {}).get("resolved_scope") == "local_voice"
+        )) for item in rows
+    )
+    annotation = {
+        "profile": profile, "origins": origins,
+        "decisions": sorted({str(item.get("decision")) for item in rows}),
+        "source_audit_ids": sorted({str(item["source_audit_id"]) for item in rows if item.get("source_audit_id")}),
+        "scope": "local_voice", "text_retained": True,
+        "status": "cleared" if confirmed else "needs_review",
+    }
+    quality["review_evidence"] = annotation
+    if origins == ["human"]:
+        quality["human_review"] = annotation
+    elif origins == ["automatic"]:
+        quality["agent_review"] = annotation
+    quality["needs_review"] = not confirmed or has_explicit_unresolved_review(quality, "review_evidence")
 
 
 def add_review_quality(row: dict[str, Any], key: str, rows: list[dict[str, Any]], output_profile: str) -> None:
@@ -652,11 +670,12 @@ def add_review_quality(row: dict[str, Any], key: str, rows: list[dict[str, Any]]
         "status": "needs_review" if needs_review else "cleared",
         "decisions": decisions,
         "source_audit_ids": sorted({str(item.get("source_audit_id")) for item in rows if item.get("source_audit_id")}),
+        "scope": "chronology",
+        "origins": sorted({decision_origin(item) for item in rows}),
     }
     if needs_review:
         quality["needs_review"] = True
-    elif not has_explicit_unresolved_review(quality, key):
-        quality["needs_review"] = False
+    # A chronology decision cannot clear an existing voice/text uncertainty.
 
 
 def quality_report(
@@ -679,8 +698,12 @@ def quality_report(
     report["remote_duplicate_in_me_count"] = len(duplicate_overlaps)
     report["remote_duplicate_in_me_seconds"] = round(sum(safe_float(row.get("duration_sec")) for row in duplicate_overlaps), 3)
     report["meeting_duration_sec"] = round(max((safe_float(row.get("end")) for row in utterances), default=0.0), 3)
-    report["human_review"] = review_summary
-    if output_profile.startswith("agent_reviewed"):
+    report["review_evidence"] = review_summary
+    report.pop("human_review", None)
+    report.pop("agent_review", None)
+    if review_summary.get("origins") == ["human"]:
+        report["human_review"] = review_summary
+    elif review_summary.get("origins") == ["automatic"]:
         report["agent_review"] = review_summary
     return report
 
@@ -835,16 +858,9 @@ def main() -> int:
             if not isinstance(quality, dict):
                 quality = {}
                 new_row["quality"] = quality
-            review_key = "agent_review" if args.output_profile.startswith("agent_reviewed") else "human_review"
-            quality[review_key] = {
-                "profile": args.output_profile,
-                "decisions": sorted(decisions_set),
-                "source_audit_ids": sorted({str(item.get("source_audit_id")) for item in rows if item.get("source_audit_id")}),
-            }
+            annotate_voice_review(quality, rows, args.output_profile)
             if "needs_review" in decisions_set or utterance_id in {item.get("utterance_id") for item in conflicts}:
                 quality["needs_review"] = True
-            elif decisions_set <= {"keep_me", "drop_remote"}:
-                quality["needs_review"] = False
         add_review_quality(new_row, "transcript_order_review", order_rows, args.output_profile)
         output_utterances.append(new_row)
 
@@ -881,9 +897,12 @@ def main() -> int:
     transcript_order_risk_remaining = [
         row for row in transcript_order_remaining if str(row.get("label") or "") == "probable_order_risk"
     ]
+    origins = sorted({decision_origin(row) for row in applied_all})
     review_summary = {
         "schema": "murmurmark.review_decisions_summary/v1",
-        "review_mode": "agent" if args.output_profile.startswith("agent_reviewed") else "human",
+        "review_mode": origins[0] if len(origins) == 1 else "mixed" if origins else "none",
+        "origins": origins,
+        "reinterpreted_legacy_keep_rows": sum(1 for row in decisions if row.get("recorded_decision") == "keep_me"),
         "input_profile": input_profile,
         "output_profile": args.output_profile,
         "decision_rows": len(decisions),

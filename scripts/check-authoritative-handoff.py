@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import patch
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -87,10 +88,37 @@ def main() -> int:
         assert checkpoint["selected_transcript_profile"] == "audit_cleanup_v2"
         assert checkpoint["deferred_enrichment"]["status"] == "pending"
         assert checkpoint["asr_provenance"]["invocation"]["mode"] == "forced_batch"
+        assert checkpoint["version"] == 2
+        assert checkpoint["source_transcript_fingerprint"]["path"] == str(
+            transcript.relative_to(session)
+        )
+        snapshot = session / checkpoint["paths"]["transcript"]
+        assert snapshot != transcript
+        assert snapshot.exists()
+        assert checkpoint["transcript_fingerprint"]["sha256"] == MODULE.sha256_file(snapshot)
+        assert MODULE.sha256_file(snapshot) == MODULE.sha256_file(transcript)
         assert MODULE.handoff_fingerprint_matches(checkpoint, session)
         assert SYNTHESIS_MODULE.authoritative_handoff_profile(session) == ("audit_cleanup_v2", None)
         assert QUALITY_MODULE.authoritative_handoff_profile(session) == "audit_cleanup_v2"
         assert ORDER_MODULE.resolve_profile(session, "authoritative") == "audit_cleanup_v2"
+        deferred_handoff = MODULE.pipeline_handoff(
+            status="interrupted",
+            resume_phase="deferred",
+            session=session,
+            report_path=session / "derived/pipeline-run/deferred_enrichment_report.json",
+            repo_root=Path(raw_root),
+            readiness=None,
+        )
+        assert deferred_handoff["recommended_next"] == "murmurmark enrich sessions/fixture"
+        batch_handoff = MODULE.pipeline_handoff(
+            status="interrupted",
+            resume_phase="handoff",
+            session=session,
+            report_path=report,
+            repo_root=Path(raw_root),
+            readiness=None,
+        )
+        assert batch_handoff["recommended_next"] == "murmurmark process sessions/fixture"
 
         review_session = Path(raw_root) / "sessions/review"
         build_fixture(review_session)
@@ -167,6 +195,35 @@ def main() -> int:
         assert "error" not in updated["deferred_enrichment"]
         assert updated["transcript_fingerprint"]["sha256"] == before
         assert MODULE.handoff_fingerprint_matches(updated, session)
+
+        legacy_session = Path(raw_root) / "sessions/legacy"
+        legacy_transcript = build_fixture(legacy_session)
+        legacy_checkpoint = MODULE.build_authoritative_handoff(
+            session=legacy_session,
+            repo_root=Path(raw_root),
+            started_at="2026-07-16T00:00:00+00:00",
+            elapsed_sec=10.0,
+            report_path=legacy_session / "derived/pipeline-run/pipeline_run_report.json",
+        )
+        legacy_source_fingerprint = legacy_checkpoint.pop("source_transcript_fingerprint")
+        legacy_checkpoint["version"] = 1
+        legacy_checkpoint["paths"]["transcript"] = legacy_source_fingerprint["path"]
+        legacy_checkpoint["transcript_fingerprint"] = legacy_source_fingerprint
+        MODULE.write_json_atomic(MODULE.authoritative_handoff_path(legacy_session), legacy_checkpoint)
+        legacy_bundle = (
+            legacy_session / "derived/handoff-v2/bundles/frozen-fixture/transcript.md"
+        )
+        legacy_bundle.parent.mkdir(parents=True, exist_ok=True)
+        legacy_bundle.write_bytes(legacy_transcript.read_bytes())
+        legacy_transcript.write_text("mutated after handoff\n", encoding="utf-8")
+        repaired = MODULE.repair_legacy_authoritative_handoff_snapshot(
+            MODULE.read_json(MODULE.authoritative_handoff_path(legacy_session)), legacy_session
+        )
+        assert repaired is not None
+        assert repaired["version"] == 2
+        assert repaired["source_transcript_fingerprint"] == legacy_source_fingerprint
+        assert MODULE.handoff_artifact_fingerprint_matches(repaired, legacy_session)
+        assert not MODULE.handoff_fingerprint_matches(repaired, legacy_session)
 
         child_pid_path = session / "derived/pipeline-run/orphan-child.pid"
         child_code = (
@@ -249,6 +306,8 @@ def main() -> int:
             murmurmark_bin=Path("murmurmark"),
         )
         pipeline_steps = MODULE.build_steps(pipeline_args, REPO_ROOT, session)
+        judge_step = next(item for item in pipeline_steps if item["name"] == "audit_stronger_audio_judge")
+        assert "--word-timestamps" in judge_step["command"]
         transcribe_steps = [item for item in pipeline_steps if item["name"].startswith("transcribe_")]
         assert [item["name"] for item in transcribe_steps] == ["transcribe_current"]
         assert transcribe_steps[0]["command"][-2:] == ["--repair-profile", "shadow_v2"]
@@ -459,8 +518,21 @@ def main() -> int:
         assert graceful_marker.read_text(encoding="utf-8") == "checkpointed\n"
         assert "resource_tracker" not in graceful.get("stderr_tail", ""), graceful
 
+        with patch.dict(os.environ, {"MURMURMARK_ACTION_DEADLINE_EPOCH": str(time.time() + 0.3)}):
+            budgeted = MODULE.run_step(
+                MODULE.step("budgeted_judge", [sys.executable, "-c", graceful_code], phase=MODULE.DEFERRED_PHASE),
+                REPO_ROOT, False, progress_interval_sec=0, session=session, report_path=report,
+                pipeline_started_at="2026-07-17T00:00:00+00:00", pipeline_phase=MODULE.DEFERRED_PHASE,
+            )
+        assert budgeted["status"] == "deferred_budget_exhausted", budgeted
+        assert budgeted["returncode"] == 75
+        assert MODULE.handoff_artifact_fingerprint_matches(updated, session)
+
         transcript.write_text("mutated\n", encoding="utf-8")
         assert not MODULE.handoff_fingerprint_matches(updated, session)
+        assert MODULE.handoff_artifact_fingerprint_matches(updated, session)
+        snapshot.write_text("mutated snapshot\n", encoding="utf-8")
+        assert not MODULE.handoff_artifact_fingerprint_matches(updated, session)
 
     print("authoritative handoff checks passed")
     return 0

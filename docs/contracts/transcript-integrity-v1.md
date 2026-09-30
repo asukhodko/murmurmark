@@ -69,11 +69,16 @@ silently removed.
 - source and output schemas remain compatible with the selected transcript pipeline;
 - rerunning from identical inputs and judge cache is byte-stable;
 - previous profiles remain unchanged and are always valid fallback inputs.
+- overlaps are rebuilt from retained current-dialogue intervals. Both `left/right_utterance_id`
+  and legacy `me/remote_utterance_id` inputs are supported. Missing links are reconstructed;
+  obsolete links disappear only when the corresponding rows no longer overlap or survive.
+- chronology audits use the actually selected, lineage-validated profile and recompute its overlaps;
+  an empty overlap file is not evidence that chronology is safe.
 
 ## Promotion And Selection
 
 `policies/transcript-integrity-v1.json` binds promotion to the exact SHA-256 of
-`scripts/apply-transcript-integrity.py`. Automatic selection additionally requires:
+`scripts/apply-transcript-integrity.py` and `scripts/transcript_overlaps.py`. Automatic selection additionally requires:
 
 1. `PROMOTE` in the tracked policy;
 2. current hashes for every recorded input and output;
@@ -93,3 +98,7 @@ session slots and contains no meeting text, session identifiers or absolute path
 
 The first qualification used three sessions: 19 candidates, 10 safe repairs and nine explicit
 review cases. It passed all gates and produced `PROMOTE`.
+
+The 2026-09-24 compatibility rerun used three current sessions and cached judge evidence: 11
+candidates, six identical repairs and five review cases. It restored 33/36/16 cross-role links
+while preserving transcript Markdown, dialogue and simple transcript JSON byte-for-byte.

@@ -1,5 +1,9 @@
 # Documentation Index
 
+Current repair: [Transcript reliability repair plan, 2026-09-30](project/2026-09-30-transcript-reliability-repair-plan.md).
+Its first package, Review-Safe Attributed Handoff v1, is complete; the current frontier is
+Bounded Evidence Compute v1. See [verification and remaining bounds](testing/2026-09-30-review-safe-handoff.md).
+
 Read in this order:
 
 1. [Product vision](product/vision.md)
@@ -268,7 +272,7 @@ closed `EVIDENCE_BOUND`. Remote Unknown Evidence Recovery v1 then classified all
 words but safely recovered only 10 / `4.682812s`; its `EVIDENCE_BOUND` keeps Coverage v3 selected.
 Speaker-Resolved Transcript Terminal Gate Instrumentation v1 is complete. Its eight dimensions from
 10 fingerprint-bound sources are measurable. Speaker-Bounded Chronology Evidence Arbitration v1
-closed 38/52 rows / `255.97s`; current Word-Level Chronology Localization v1 then closed 9/14 rows /
+closed 38/52 rows / `255.97s`; completed Word-Level Chronology Localization v1 then closed 9/14 rows /
 `52.83s` and reduced the final chronology bound to 5 rows / `37.14s`.
 Publication and review burden pass; lexical accuracy remains blocked by the unchanged 0/28 human
 queue. Session-scoped context follows direct truth.

@@ -11,16 +11,20 @@ import re
 import signal
 import shlex
 import subprocess
+import sys
+import time
 import wave
 from collections import Counter
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
+from review_audio_evidence import digest, evidence_matches_review_row, file_identity, seal_evidence
+
 
 SCHEMA_ROW = "murmurmark.faster_whisper_judge/v1"
 SCHEMA_SUMMARY = "murmurmark.faster_whisper_judge_summary/v1"
-SCRIPT_VERSION = "0.3.0"
+SCRIPT_VERSION = "0.3.1"
 DECODE_CACHE_SCHEMA = "murmurmark.faster_whisper_decode_cache/v1"
 DEFAULT_MODEL = Path.home() / ".local/share/murmurmark/models/faster-whisper/large-v3"
 DEFAULT_MAX_ITEMS = 80
@@ -97,6 +101,8 @@ def parse_args() -> argparse.Namespace:
         help="Compute at most this many missing items in this run. Cached rows are still kept. 0 means no extra cap.",
     )
     parser.add_argument("--beam-size", type=int, default=1)
+    parser.add_argument("--adaptive-sources", action="store_true", help="Keep sufficient quick evidence; request full mic evidence only for unresolved risky items.")
+    parser.add_argument("--word-timestamps", action="store_true", help="Include word alignment in new clip decodes (separate cache identity).")
     parser.add_argument(
         "--quick",
         action="store_true",
@@ -144,6 +150,27 @@ def selected_sources(args: argparse.Namespace) -> tuple[str, ...]:
     if args.quick:
         return QUICK_SOURCES
     return DEFAULT_SOURCES
+
+
+def item_sources(args: argparse.Namespace, item: dict[str, Any]) -> tuple[str, ...]:
+    return tuple(item.get("required_sources") or selected_sources(args))
+
+
+def adaptive_sources(item: dict[str, Any], quick_row: dict[str, Any] | None) -> tuple[str, ...]:
+    classification = (quick_row or {}).get("classification") or {}
+    label = classification.get("label")
+    confidence = safe_float(classification.get("confidence"))
+    if (label in {"confirm_me", "confirm_timing_or_doubletalk"} and confidence >= 0.74
+            or label == "confirm_remote_duplicate" and confidence >= 0.86):
+        return QUICK_SOURCES
+    if any(value in {"unknown_clip_offset", "ambiguous_segment_boundary"}
+           for value in ((quick_row or {}).get("classification_scope") or {}).values()):
+        # Additional mic variants cannot localize words within a padded segment.
+        return QUICK_SOURCES
+    reasons = " ".join(str(value) for value in item.get("source_reasons") or [])
+    if any(value in reasons for value in ("local_recall", "transcript_text", "lost_me", "asr_noise")):
+        return DEFAULT_SOURCES
+    return QUICK_SOURCES
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
@@ -195,6 +222,9 @@ def lane_pack_selectors(args: argparse.Namespace) -> tuple[list[dict[str, Any]],
                     "utterance_ids": list_strings(item.get("utterance_ids")),
                     "me_utterance_ids": list_strings(item.get("me_utterance_ids")),
                     "remote_utterance_ids": list_strings(item.get("remote_utterance_ids")),
+                    "session_id": item.get("session_id"),
+                    "interval": item.get("interval"),
+                    "text": item.get("target_utterances"),
                 }
             )
     return selectors, missing_pack_files
@@ -313,6 +343,9 @@ def slice_audio(source: Path, destination: Path, start: float, duration: float) 
 
 
 def lane_item_text_rows(item: dict[str, Any], start: float, end: float) -> list[dict[str, Any]]:
+    if item.get("target_utterances"):
+        return [dict(row) for row in item["target_utterances"]
+                if safe_float(row.get("end")) > start and safe_float(row.get("start")) < end]
     rows: list[dict[str, Any]] = []
     me_ids = list_strings(item.get("me_utterance_ids"))
     remote_ids = list_strings(item.get("remote_utterance_ids"))
@@ -359,6 +392,8 @@ def lane_item_text_rows(item: dict[str, Any], start: float, end: float) -> list[
 
 
 def lane_item_text_rows_for_source(item: dict[str, Any], source_id: str, start: float, end: float) -> list[dict[str, Any]]:
+    if item.get("target_utterances"):
+        return lane_item_text_rows(item, start, end)
     rows: list[dict[str, Any]] = []
     for piece in item.get("evidence_text") or []:
         if not isinstance(piece, dict):
@@ -452,7 +487,7 @@ def synthetic_item_from_existing_clips(
     }
 
 
-def synthetic_lane_pack_items(args: argparse.Namespace, session: Path, out_dir: Path) -> tuple[list[dict[str, Any]], list[str]]:
+def synthetic_lane_pack_items(args: argparse.Namespace, session: Path, out_dir: Path, canonical_items: list[dict[str, Any]] | None = None) -> tuple[list[dict[str, Any]], list[str]]:
     items: list[dict[str, Any]] = []
     missing_pack_files: list[str] = []
     clip_dir = out_dir / "review-lane-clips"
@@ -463,6 +498,10 @@ def synthetic_lane_pack_items(args: argparse.Namespace, session: Path, out_dir: 
             continue
         for item in lane_pack.get("items") or []:
             if not isinstance(item, dict):
+                continue
+            if item.get("target_utterances") and any(evidence_matches_review_row(
+                {**item, "text": item["target_utterances"]}, {**canonical, "schema": ""}
+            ) for canonical in canonical_items or []):
                 continue
             source_ids = list_strings(item.get("source_audit_ids")) or list_strings([item.get("source_audit_id")])
             source_id = source_ids[0] if source_ids else ""
@@ -493,7 +532,8 @@ def synthetic_lane_pack_items(args: argparse.Namespace, session: Path, out_dir: 
             end = start + duration
             clips: dict[str, str] = {}
             for source, audio_path in session_audio_sources(session, mic_raw_path).items():
-                destination = clip_dir / f"{source_id}_{source}.wav"
+                identity = digest({"audio": file_identity(audio_path), "start": start, "duration": duration})[:24]
+                destination = clip_dir / f"{source_id}_{identity}_{source}.wav"
                 if destination.exists() and destination.stat().st_size > 0:
                     clips[source] = str(destination)
                     continue
@@ -526,6 +566,7 @@ def synthetic_lane_pack_items(args: argparse.Namespace, session: Path, out_dir: 
                     ),
                     "utterance_ids": list_strings(item.get("utterance_ids")),
                     "utterances": utterance_rows,
+                    "clip_interval": {"start": start, "end": end},
                     "clips": clips,
                 }
             )
@@ -539,6 +580,8 @@ def item_id_set(item: dict[str, Any]) -> set[str]:
 
 
 def item_matches_lane_selector(item: dict[str, Any], selector: dict[str, Any]) -> bool:
+    if selector.get("text"):
+        return evidence_matches_review_row(selector, {**item, "schema": ""})
     item_ids = item_id_set(item)
     selector_ids = set(selector.get("utterance_ids") or [])
     me_ids = set(selector.get("me_utterance_ids") or [])
@@ -892,10 +935,11 @@ def cached_row_matches_item(
         return True
     clips = item.get("clips") if isinstance(item.get("clips"), dict) else {}
     transcripts = row.get("transcripts") if isinstance(row.get("transcripts"), dict) else {}
-    for source in sources:
+    for source in sorted(row_sources):
         path_value = clips.get(source)
         transcript = transcripts.get(source)
-        if not path_value or not isinstance(transcript, dict):
+        if (not path_value or not isinstance(transcript, dict)
+                or transcript.get("error") or transcript.get("exists") is False):
             return False
         identity = decode_cache.cache_identity(Path(str(path_value)).expanduser())
         metadata = transcript.get("decode_cache")
@@ -957,8 +1001,6 @@ def selected_items(
         return targeted
     ranked = sorted(items, key=lambda item: item_priority(item, audit_rows.get(str(item.get("id") or ""))))
     selected = [item for item in ranked if item_priority(item, audit_rows.get(str(item.get("id") or "")))[0] < 9]
-    if not selected:
-        selected = ranked
     return selected[: max(0, limit)]
 
 
@@ -981,6 +1023,7 @@ def load_model(model_path: Path, args: argparse.Namespace) -> Any:
 
 
 def transcribe_clip(model: Any, path: Path, args: argparse.Namespace) -> dict[str, Any]:
+    started = time.monotonic()
     if not path.exists() or path.stat().st_size <= 0:
         return {"path": str(path), "exists": False, "text": "", "segments": [], "avg_logprob": None, "no_speech_prob": None}
     try:
@@ -990,7 +1033,7 @@ def transcribe_clip(model: Any, path: Path, args: argparse.Namespace) -> dict[st
             beam_size=args.beam_size,
             vad_filter=False,
             condition_on_previous_text=False,
-            word_timestamps=False,
+            word_timestamps=bool(getattr(args, "word_timestamps", False)),
         )
         rows: list[dict[str, Any]] = []
         for segment in segments:
@@ -1001,6 +1044,8 @@ def transcribe_clip(model: Any, path: Path, args: argparse.Namespace) -> dict[st
                     "text": str(segment.text or "").strip(),
                     "avg_logprob": round(safe_float(getattr(segment, "avg_logprob", None), 0.0), 6),
                     "no_speech_prob": round(safe_float(getattr(segment, "no_speech_prob", None), 0.0), 6),
+                    "words": [{"start": float(word.start), "end": float(word.end), "word": word.word}
+                              for word in getattr(segment, "words", None) or []],
                 }
             )
     except Exception as error:
@@ -1017,6 +1062,7 @@ def transcribe_clip(model: Any, path: Path, args: argparse.Namespace) -> dict[st
     return {
         "path": str(path),
         "exists": True,
+        "decode_duration_sec": round(time.monotonic() - started, 6),
         "text": text,
         "segments": rows,
         "segment_count": len(rows),
@@ -1054,10 +1100,12 @@ def model_content_fingerprint(model_path: Path, cache_root: Path) -> str:
             "path": str(path.relative_to(model_path)) if model_path.is_dir() else path.name,
             "bytes": path.stat().st_size,
             "mtime_ns": path.stat().st_mtime_ns,
+            "ctime_ns": path.stat().st_ctime_ns,
         }
         for path in model_files
     ]
-    if isinstance(existing, dict) and existing.get("signature") == signature and existing.get("sha256"):
+    if (isinstance(existing, dict) and existing.get("signature") == signature and existing.get("sha256")
+            and existing.get("model_path") == str(model_path.resolve())):
         return str(existing["sha256"])
     digest = hashlib.sha256()
     for path, file_signature in zip(model_files, signature):
@@ -1071,6 +1119,7 @@ def model_content_fingerprint(model_path: Path, cache_root: Path) -> str:
         {
             "schema": "murmurmark.faster_whisper_model_identity/v1",
             "signature": signature,
+            "model_path": str(model_path.resolve()),
             "sha256": fingerprint,
         },
     )
@@ -1091,16 +1140,16 @@ class DecodeCache:
             "beam_size": args.beam_size,
             "vad_filter": False,
             "condition_on_previous_text": False,
-            "word_timestamps": False,
+            "word_timestamps": bool(getattr(args, "word_timestamps", False)),
         }
-        self._clip_hashes: dict[tuple[str, int, int], str] = {}
+        self._clip_hashes: dict[tuple[str, int, int, int], str] = {}
         self.hits = 0
         self.misses = 0
         self.writes = 0
 
     def clip_sha256(self, path: Path) -> str:
         stat = path.stat()
-        key = (str(path.resolve()), stat.st_size, stat.st_mtime_ns)
+        key = (str(path.resolve()), stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
         digest = self._clip_hashes.get(key)
         if digest is None:
             digest = sha256_file(path)
@@ -1131,7 +1180,7 @@ class DecodeCache:
             self.misses += 1
             return None
         result = entry.get("result")
-        if not isinstance(result, dict):
+        if not isinstance(result, dict) or result.get("error") or result.get("exists") is False:
             self.misses += 1
             return None
         self.hits += 1
@@ -1141,7 +1190,7 @@ class DecodeCache:
         return reused
 
     def put(self, path: Path, result: dict[str, Any]) -> None:
-        if not self.enabled:
+        if not self.enabled or result.get("error") or result.get("exists") is False:
             return
         identity = self.cache_identity(path)
         if identity is None:
@@ -1170,10 +1219,21 @@ class DecodeCache:
         return result is not None
 
 
-def item_decode_cache_ready(item: dict[str, Any], sources: tuple[str, ...], cache: DecodeCache) -> bool:
+def item_sources_present(item: dict[str, Any], sources: tuple[str, ...]) -> bool:
     clips = item.get("clips") if isinstance(item.get("clips"), dict) else {}
-    required = [Path(str(clips[source])).expanduser() for source in sources if clips.get(source)]
-    return bool(required) and all(cache.has(path) for path in required)
+    try:
+        return bool(sources) and all(
+            clips.get(source) and Path(str(clips[source])).expanduser().is_file()
+            and Path(str(clips[source])).expanduser().stat().st_size > 0 for source in sources
+        )
+    except OSError:
+        return False
+
+
+def item_decode_cache_ready(item: dict[str, Any], sources: tuple[str, ...], cache: DecodeCache) -> bool:
+    return item_sources_present(item, sources) and all(
+        cache.has(Path(str(item["clips"][source])).expanduser()) for source in sources
+    )
 
 
 def source_metrics(transcripts: dict[str, dict[str, Any]], me_text: str, remote_text: str) -> dict[str, Any]:
@@ -1409,6 +1469,12 @@ def classify_item(
             )
         )
     )
+    remote_explains_local_decode = (
+        me_confirmed and remote_source_tokens >= 4 and mic_content_tokens >= 4
+        and best_decoded_remote_in_mic >= 0.82
+        and best_decoded_remote_in_mic >= best_me_any - 0.03
+        and remote_source_to_remote >= 0.65
+    )
     decoded_remote_to_me = text_similarity(str(transcripts.get("remote", {}).get("text") or ""), me_text)
     decoded_remote_phrase_match = phrase_window_similarity(
         me_text, str(transcripts.get("remote", {}).get("text") or "")
@@ -1593,6 +1659,11 @@ def classify_item(
             "single content-word Me fragment is contained in decoded remote while speaker_state is "
             "remote-only and the matching mic decode has high no-speech probability"
         )
+    elif remote_explains_local_decode:
+        label = "uncertain"
+        suggested = "needs_review"
+        confidence = 0.88
+        reasons.append("decoded remote explains the mic hypothesis; activity alone cannot confirm local voice")
     elif group_timing_context and best_remote_in_mic < 0.58 and remote_duplicate is False:
         label = "confirm_timing_or_doubletalk"
         suggested = "keep_me"
@@ -1707,6 +1778,21 @@ def classify_item(
         confidence = min(confidence, 0.69)
         reasons.append("protected work marker prevents automatic drop suggestion")
 
+    local_active = safe_float((speaker_state or {}).get("local_active_ratio"))
+    if label == "confirm_asr_noise" and local_active >= 0.5:
+        label, suggested, confidence = "uncertain", "needs_review", min(confidence, 0.69)
+        reasons.append("local speech is present; unconfirmed words require text/boundary review, not deletion")
+    if label == "confirm_asr_noise" and not all(source in transcripts for source in DEFAULT_SOURCES):
+        label, suggested, confidence = "uncertain", "needs_review", min(confidence, 0.69)
+        reasons.append("noise deletion requires raw, clean, role-masked and remote evidence")
+    if any(value.get("error") or value.get("exists") is False for value in transcripts.values()):
+        label, suggested, confidence = "uncertain", "needs_review", 0.0
+        reasons.append("missing or failed clip decode is not evidence of absent speech")
+    if any(value.get("scope_status") in {"unknown_clip_offset", "ambiguous_segment_boundary"}
+           for source, value in transcripts.items() if source != "remote"):
+        label, suggested, confidence = "uncertain", "needs_review", min(confidence, 0.69)
+        reasons.append("mic words are not localized to the target interval; padded context cannot decide this phrase")
+
     return {
         "label": label,
         "suggested_decision": suggested,
@@ -1757,6 +1843,42 @@ def classify_item(
     }
 
 
+def scoped_transcripts(item: dict[str, Any], transcripts: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    clip_interval = item.get("clip_interval")
+    if not isinstance(clip_interval, dict) or "start" not in clip_interval:
+        return {source: {**value, "scope_status": "unknown_clip_offset"} for source, value in transcripts.items()}
+    offset = safe_float(clip_interval["start"])
+    scoped = {}
+    for source, transcript in transcripts.items():
+        segments = transcript.get("segments") or []
+        words = [word for segment in segments for word in segment.get("words") or []]
+        intervals = [(safe_float(row.get("start")), safe_float(row.get("end")))
+                     for row in item.get("utterances") or []
+                     if (str(row.get("role") or "").lower() == "me") == (source != "remote")]
+        if not intervals:
+            interval = item.get("interval") or {}
+            intervals = [(safe_float(interval.get("start")), safe_float(interval.get("end")))]
+        if not words:
+            included = []
+            ambiguous = False
+            for segment in segments:
+                start = offset + safe_float(segment.get("start"))
+                end = offset + safe_float(segment.get("end"))
+                if any(low <= start and end <= high for low, high in intervals):
+                    included.append(segment)
+                elif str(segment.get("text") or "").strip() and any(start < high and end > low for low, high in intervals):
+                    ambiguous = True
+            scoped[source] = {**transcript, "text": " ".join(str(segment.get("text") or "").strip() for segment in included),
+                              "scope_status": "ambiguous_segment_boundary" if ambiguous else "segment_bounded"}
+            continue
+        selected = [word for word in words if any(
+            start <= offset + (safe_float(word.get("start")) + safe_float(word.get("end"))) / 2 < end
+            for start, end in intervals)]
+        scoped[source] = {**transcript, "text": " ".join(str(word.get("word") or "").strip() for word in selected),
+                          "scope_status": "word_bounded"}
+    return scoped
+
+
 def audit_item(
     model: Any | None,
     item: dict[str, Any],
@@ -1765,7 +1887,8 @@ def audit_item(
     speaker_state_rows: list[dict[str, Any]],
     decode_cache: DecodeCache,
 ) -> dict[str, Any]:
-    sources = selected_sources(args)
+    started = time.monotonic()
+    sources = item_sources(args, item)
     clips = item.get("clips") if isinstance(item.get("clips"), dict) else {}
     transcripts: dict[str, dict[str, Any]] = {}
     for source in sources:
@@ -1783,17 +1906,19 @@ def audit_item(
         decode_cache.put(clip_path, result)
         transcripts[source] = result
     me_text, remote_text = utterance_texts(item)
-    metrics = source_metrics(transcripts, me_text, remote_text)
+    scoped = scoped_transcripts(item, transcripts)
+    metrics = source_metrics(scoped, me_text, remote_text)
     speaker_state = interval_speaker_state_evidence(speaker_state_rows, item.get("interval"))
-    classification = classify_item(item, audit_row, transcripts, metrics, speaker_state)
-    return {
+    classification = classify_item(item, audit_row, scoped, metrics, speaker_state)
+    return seal_evidence({
         "schema": SCHEMA_ROW,
         "id": f"fwj_{str(item.get('id') or '').replace('arp_', '')}",
         "source_pack_item_id": item.get("id"),
         "source_pack_item_fingerprint": item_fingerprint(item),
         "session_id": item.get("session_id"),
         "profile": item.get("profile") or args.profile,
-        "sources": list(sources),
+        "sources": list(transcripts),
+        "required_sources": list(sources),
         "interval": item.get("interval"),
         "source_reasons": item.get("source_reasons") or [],
         "review_features": item.get("review_features") or {},
@@ -1802,11 +1927,16 @@ def audit_item(
         "audio_review_classification": (audit_row or {}).get("classification"),
         "audio_review_scores": (audit_row or {}).get("scores"),
         "clips": clips,
+        "clip_interval": item.get("clip_interval"),
+        "classification_text": {source: value.get("text") for source, value in scoped.items()},
+        "classification_scope": {source: value.get("scope_status") for source, value in scoped.items()},
         "transcripts": transcripts,
         "text_metrics": metrics,
         "speaker_state_evidence": speaker_state,
         "classification": classification,
-    }
+        "classification_policy_version": SCRIPT_VERSION,
+        "duration_sec": round(time.monotonic() - started, 6),
+    }, Path(__file__), decode_cache.root / "model_identity.json")
 
 
 def refresh_cached_classification(
@@ -1818,14 +1948,23 @@ def refresh_cached_classification(
     refreshed = dict(row)
     transcripts = row.get("transcripts") if isinstance(row.get("transcripts"), dict) else {}
     me_text, remote_text = utterance_texts(item)
-    metrics = source_metrics(transcripts, me_text, remote_text)
+    scoped = scoped_transcripts(item, transcripts)
+    metrics = source_metrics(scoped, me_text, remote_text)
     speaker_state = interval_speaker_state_evidence(speaker_state_rows, item.get("interval"))
     refreshed["text_metrics"] = metrics
     refreshed["speaker_state_evidence"] = speaker_state
     refreshed["review_features"] = item.get("review_features") or {}
-    refreshed["classification"] = classify_item(item, audit_row, transcripts, metrics, speaker_state)
+    refreshed["classification"] = classify_item(item, audit_row, scoped, metrics, speaker_state)
+    refreshed["classification_text"] = {source: value.get("text") for source, value in scoped.items()}
+    refreshed["classification_scope"] = {source: value.get("scope_status") for source, value in scoped.items()}
+    refreshed["clip_interval"] = item.get("clip_interval")
+    refreshed["clips"] = item.get("clips") or {}
+    refreshed["transcripts"] = {source: {**value, "path": refreshed["clips"].get(source)}
+                                for source, value in transcripts.items()}
     refreshed["classification_policy_version"] = SCRIPT_VERSION
-    return refreshed
+    dependencies = [Path(value["path"]) for value in row.get("evidence_files") or []
+                    if Path(value["path"]).name == "model_identity.json"]
+    return seal_evidence(refreshed, Path(__file__), *dependencies)
 
 
 def refreshed_valid_existing_rows_by_pack_id(
@@ -1924,7 +2063,7 @@ def cached_rows_for_items(
     for item in items:
         pack_id = str(item.get("id") or "")
         row = cached_by_pack_id.get(pack_id)
-        if row and cached_row_matches_item(row, item, sources, decode_cache):
+        if row and cached_row_matches_item(row, item, tuple(item.get("required_sources") or sources), decode_cache):
             cached.append(row)
         else:
             missing.append(item)
@@ -1954,6 +2093,17 @@ def existing_rows_by_pack_id(out_dir: Path) -> dict[str, dict[str, Any]]:
         if pack_id:
             rows[pack_id] = row
     return rows
+
+
+def archive_stale_rows(out_dir: Path, valid_rows: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    path = out_dir / "faster_whisper_judge_history.jsonl"
+    historical = {digest(row): row for row in read_jsonl(path)}
+    for key, row in existing_rows_by_pack_id(out_dir).items():
+        if key not in valid_rows:
+            historical[digest(row)] = row
+    if historical:
+        write_jsonl(path, list(historical.values()))
+    return list(historical.values())
 
 
 def ordered_rows_for_items(
@@ -2071,6 +2221,7 @@ def write_report(path: Path, summary: dict[str, Any], rows: list[dict[str, Any]]
 
 
 def main() -> int:
+    run_started = time.monotonic()
     args = parse_args()
     # SIGTERM is used only after a cooperative SIGINT grace period. Treat it as
     # an interrupt too so the latest completed item is never lost.
@@ -2079,7 +2230,7 @@ def main() -> int:
     pack_dir = args.pack_dir or session / "derived/audit/audio-review-pack"
     out_dir = args.out_dir or pack_dir
     canonical_items = read_jsonl(pack_dir / "review_pack_items.jsonl")
-    lane_items, lane_missing_files = synthetic_lane_pack_items(args, session, out_dir)
+    lane_items, lane_missing_files = synthetic_lane_pack_items(args, session, out_dir, canonical_items)
     # Resolve lane selectors against the canonical review pack first. A lane's
     # source_audit_id is not the identity of an existing arp_* item even when a
     # synthetic clip happens to reuse that id. Synthetic items are a fallback
@@ -2091,6 +2242,10 @@ def main() -> int:
     )
     audio_review_rows = audit_by_id(read_jsonl(pack_dir / "audio_review_audit.jsonl"))
     speaker_state_rows = read_jsonl(session / "derived/preprocess/echo/speaker_state.jsonl")
+    classification_inputs = [file_identity(path) for path in (
+        pack_dir / "review_pack_items.jsonl", pack_dir / "audio_review_audit.jsonl",
+        session / "derived/preprocess/echo/speaker_state.jsonl",
+    )]
     pack_summary = read_json(pack_dir / "review_pack_summary.json")
     model_path = resolve_model(args)
     ready, ready_reason = model_ready(model_path)
@@ -2098,18 +2253,11 @@ def main() -> int:
 
     if not ready:
         sources = selected_sources(args)
-        rows = ordered_rows_for_items(
-            items,
-            refreshed_valid_existing_rows_by_pack_id(
-                out_dir,
-                items,
-                sources,
-                audio_review_rows,
-                speaker_state_rows,
-            ),
-        )
+        historical = archive_stale_rows(out_dir, {})
+        rows = []
         summary = summarize(rows, model_path=model_path, pack_summary=pack_summary, skipped_reason=ready_reason)
         summary["status"] = "skipped"
+        summary["historical_items"] = len(historical)
         summary["sources"] = list(sources)
         write_jsonl(out_dir / "faster_whisper_judge.jsonl", rows)
         write_json(out_dir / "faster_whisper_judge_summary.json", summary)
@@ -2119,8 +2267,10 @@ def main() -> int:
         return 0
 
     if not items:
+        historical = archive_stale_rows(out_dir, {})
         summary = summarize([], model_path=model_path, pack_summary=pack_summary)
         summary["status"] = "completed"
+        summary["historical_items"] = len(historical)
         write_jsonl(out_dir / "faster_whisper_judge.jsonl", [])
         write_json(out_dir / "faster_whisper_judge_summary.json", summary)
         write_report(out_dir / "faster_whisper_judge_report.md", summary, [])
@@ -2138,6 +2288,16 @@ def main() -> int:
     missing_target_ids = [item_id for item_id in requested_target_ids if item_id not in {str(item.get("id") or "") for item in items}]
     sources = selected_sources(args)
     decode_cache = DecodeCache(out_dir, model_path, args)
+    valid_rows = refreshed_valid_existing_rows_by_pack_id(
+        out_dir, items, (), audio_review_rows, speaker_state_rows, decode_cache,
+    )
+    for row in valid_rows.values():
+        seal_evidence(row, Path(__file__), decode_cache.root / "model_identity.json")
+    historical = archive_stale_rows(out_dir, valid_rows)
+    if args.adaptive_sources and not args.source:
+        for item in selected:
+            item["required_sources"] = list(adaptive_sources(item, valid_rows.get(str(item.get("id") or ""))))
+        sources = tuple(source for source in DEFAULT_SOURCES if any(source in item_sources(args, item) for item in selected))
     cached_rows, missing_items, cached_count = cached_rows_for_items(
         out_dir,
         selected,
@@ -2146,27 +2306,17 @@ def main() -> int:
         decode_cache=decode_cache,
     )
     pending_selected_count = len(missing_items)
+    missing_items = [item for item in missing_items if item_sources_present(item, item_sources(args, item))]
     if args.cached_only:
         missing_items = [
-            item for item in missing_items if item_decode_cache_ready(item, sources, decode_cache)
+            item for item in missing_items if item_decode_cache_ready(item, item_sources(args, item), decode_cache)
         ]
     elif args.max_computed_items > 0 and len(missing_items) > args.max_computed_items:
         missing_items = missing_items[: args.max_computed_items]
     cached_by_pack_id = {str(row.get("source_pack_item_id") or ""): row for row in cached_rows}
-    targeted_run = bool(requested_target_ids or args.review_lane_pack or args.pack_item_id)
-    checkpoint_by_pack_id = (
-        existing_rows_by_pack_id(out_dir)
-        if targeted_run
-        else refreshed_valid_existing_rows_by_pack_id(
-            out_dir,
-            items,
-            sources,
-            audio_review_rows,
-            speaker_state_rows,
-            decode_cache,
-        )
-    )
-    checkpoint_by_pack_id.update(cached_by_pack_id)
+    checkpoint_by_pack_id = dict(valid_rows)
+    for row in checkpoint_by_pack_id.values():
+        row["classification_inputs"] = classification_inputs
     if missing_items:
         progress(
             args,
@@ -2189,14 +2339,17 @@ def main() -> int:
             pending_items_before_cap=pending_selected_count,
             sources=sources,
         )
-        requires_model = any(not item_decode_cache_ready(item, sources, decode_cache) for item in missing_items)
+        requires_model = any(not item_decode_cache_ready(item, item_sources(args, item), decode_cache) for item in missing_items)
         model = None
+        model_load_sec = 0.0
         new_by_pack_id: dict[str, dict[str, Any]] = {}
         computed_count = 0
         try:
             if requires_model:
                 progress(args, f"loading faster-whisper model: {model_path}")
+                model_started = time.monotonic()
                 model = load_model(model_path, args)
+                model_load_sec = time.monotonic() - model_started
                 progress(args, "model loaded")
             else:
                 progress(args, "all required clip decodes are content-cache hits")
@@ -2213,6 +2366,7 @@ def main() -> int:
                     decode_cache,
                 )
                 new_by_pack_id[item_id]["classification_policy_version"] = SCRIPT_VERSION
+                new_by_pack_id[item_id]["classification_inputs"] = classification_inputs
                 checkpoint_by_pack_id[item_id] = new_by_pack_id[item_id]
                 computed_count = index
                 write_incremental_checkpoint(
@@ -2238,7 +2392,7 @@ def main() -> int:
                     ),
                 )
         except KeyboardInterrupt:
-            resume_command = f"murmurmark audit stronger-audio-judge {session} --profile {args.profile}"
+            resume_command = shlex.join(["murmurmark", "audit", "stronger-audio-judge", *sys.argv[1:]])
             rows, summary = write_incremental_checkpoint(
                 out_dir,
                 items,
@@ -2264,8 +2418,9 @@ def main() -> int:
             model = None
             gc.collect()
     else:
-        progress(args, f"all selected items are cached ({cached_count}/{len(selected)})")
+        progress(args, f"selected={len(selected)} cached={cached_count} pending={pending_selected_count}; no new decodes")
         new_by_pack_id = {}
+        model_load_sec = 0.0
     selected_rows: list[dict[str, Any]] = []
     for item in selected:
         item_id = str(item.get("id") or "")
@@ -2279,30 +2434,41 @@ def main() -> int:
                     speaker_state_rows,
                 )
             )
-    merged_by_pack_id = existing_rows_by_pack_id(out_dir) if targeted_run else {}
-    merged_by_pack_id.update(
-        refreshed_valid_existing_rows_by_pack_id(
-            out_dir,
-            items,
-            sources,
-            audio_review_rows,
-            speaker_state_rows,
-            decode_cache,
-        )
-    )
+    merged_by_pack_id = dict(valid_rows)
     for row in selected_rows:
         if row.get("source_pack_item_id"):
             merged_by_pack_id[str(row["source_pack_item_id"])] = row
     rows = ordered_rows_for_items(items, merged_by_pack_id)
+    for row in rows:
+        row["classification_inputs"] = classification_inputs
+        seal_evidence(row, Path(__file__), decode_cache.root / "model_identity.json")
     summary = summarize(rows, model_path=model_path, pack_summary=pack_summary)
     summary["cached_items"] = cached_count
     summary["computed_items"] = len(missing_items)
     summary["selected_items"] = len(selected)
     summary["pending_selected_items_before_cap"] = pending_selected_count
-    summary["pending_selected_items_after_cap"] = max(0, pending_selected_count - len(missing_items))
+    failed_items = {str(row.get("source_pack_item_id")) for row in selected_rows if any(
+        value.get("error") or value.get("exists") is False for value in (row.get("transcripts") or {}).values()
+    )}
+    summary["pending_selected_items_after_cap"] = max(0, pending_selected_count - len(missing_items)) + len(failed_items)
     summary["sources"] = list(sources)
     summary["quick"] = bool(args.quick)
     summary["cached_only"] = bool(args.cached_only)
+    summary["adaptive_sources"] = bool(args.adaptive_sources)
+    summary["historical_items"] = len(historical)
+    summary["timing"] = {"elapsed_sec": round(time.monotonic() - run_started, 6),
+                         "model_load_sec": round(model_load_sec, 6),
+                         "decode_sec": round(sum(safe_float(value.get("decode_duration_sec"))
+                             for row in new_by_pack_id.values() for value in (row.get("transcripts") or {}).values()
+                             if not (value.get("decode_cache") or {}).get("hit")), 6)}
+    summary["selected_coverage"] = [
+        {"source_pack_item_id": item.get("id"), "required_sources": list(item_sources(args, item)),
+         "available_sources": list((merged_by_pack_id.get(str(item.get("id"))) or {}).get("sources") or []),
+         "status": "decode_failed" if str(item.get("id")) in failed_items
+         else "ready" if any(row.get("source_pack_item_id") == item.get("id") for row in selected_rows)
+         else "pending_additional_sources" if str(item.get("id")) in merged_by_pack_id else "missing_or_stale_evidence"}
+        for item in selected
+    ]
     summary["decode_cache"] = {
         "schema": DECODE_CACHE_SCHEMA,
         "model_sha256": decode_cache.model_sha256,

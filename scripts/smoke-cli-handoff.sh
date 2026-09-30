@@ -3,6 +3,10 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 bin="${MURMURMARK_BIN:-$repo_root/.build/debug/murmurmark}"
+eval_python="${MURMURMARK_PYTHON:-$repo_root/.venv/bin/python}"
+if [[ ! -x "$eval_python" ]]; then
+  eval_python="python3"
+fi
 
 require_tool() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -207,6 +211,12 @@ jq -n '{
 }' >"$session/derived/transcript-simple/whisper-cpp/resolved/transcript.simple.json"
 
 jq -n '{
+  schema: "murmurmark.transcript_overlaps/v1",
+  session: "cli-handoff",
+  overlaps: []
+}' >"$session/derived/transcript-simple/whisper-cpp/resolved/overlaps.json"
+
+jq -n '{
   schema: "murmurmark.simple_transcript_quality/v1",
   utterances: 1,
   needs_review_count: 0,
@@ -222,6 +232,8 @@ cp "$session/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.json"
   "$session/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.shadow_v2.json"
 cp "$session/derived/transcript-simple/whisper-cpp/resolved/quality_report.json" \
   "$session/derived/transcript-simple/whisper-cpp/resolved/quality_report.shadow_v2.json"
+cp "$session/derived/transcript-simple/whisper-cpp/resolved/overlaps.json" \
+  "$session/derived/transcript-simple/whisper-cpp/resolved/overlaps.shadow_v2.json"
 jq -n '{schema: "murmurmark.repair_comparison/v1", passed: true, gates: {passed: true}}' \
   >"$session/derived/transcript-simple/whisper-cpp/resolved/repair_comparison.json"
 
@@ -233,6 +245,8 @@ cp "$session/derived/transcript-simple/whisper-cpp/resolved/transcript.md" \
   "$session/derived/transcript-simple/whisper-cpp/resolved/transcript.audit_cleanup_v1.md"
 cp "$session/derived/transcript-simple/whisper-cpp/resolved/transcript.simple.json" \
   "$session/derived/transcript-simple/whisper-cpp/resolved/transcript.simple.audit_cleanup_v1.json"
+cp "$session/derived/transcript-simple/whisper-cpp/resolved/overlaps.json" \
+  "$session/derived/transcript-simple/whisper-cpp/resolved/overlaps.audit_cleanup_v1.json"
 
 jq -n '{
   schema: "murmurmark.echo.local_fir_report/v1",
@@ -526,7 +540,13 @@ jq -n \
     recommended_next: $next
   }' >"$session/derived/pipeline-run/authoritative_handoff.json"
 
+# Publish explicitly, as the lifecycle does; status must only verify the result.
+"$eval_python" "$repo_root/scripts/materialize-provisional-speaker-transcript.py" \
+  "$session" --cached-only >/dev/null
+speaker_selection="$session/derived/transcript-rich/speaker-resolved-default-v1/provisional/selection.json"
+speaker_selection_before="$(shasum -a 256 "$speaker_selection")"
 status_output="$("$bin" status "$session")"
+[[ "$speaker_selection_before" == "$(shasum -a 256 "$speaker_selection")" ]]
 echo "$status_output" | grep -q '^readiness:$'
 echo "$status_output" | grep -q '^  status: exportable$'
 echo "$status_output" | grep -q '^  use:$'
@@ -633,10 +653,6 @@ cat >"$review_session/derived/readiness/review-plan/review_workspace_apply_repor
   }
 }
 EOF
-eval_python="${MURMURMARK_PYTHON:-$repo_root/.venv/bin/python}"
-if [[ ! -x "$eval_python" ]]; then
-  eval_python="python3"
-fi
 "$eval_python" "$repo_root/scripts/evaluate-outcome.py" "$review_session" >/dev/null
 jq -e '
   .outcome == "review_first"

@@ -181,6 +181,7 @@ def main() -> int:
             "session_id": session.name,
             "utterance_ids": ["utt_remote", "utt_me"],
             "utterances": dialogue,
+            "interval": {"start": 9.8, "end": 12.0},
         }
         assert module.evidence_rows_by_item_id([lane_item], [compatible_judge]) == {
             lane_item["id"]: compatible_judge

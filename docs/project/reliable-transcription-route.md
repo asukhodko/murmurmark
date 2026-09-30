@@ -39,7 +39,14 @@ Speaker-Bounded Chronology Evidence Arbitration v1 then classified all 52 order 
 `255.97s` and left 14 / `89.97s` explicit. Word-Level Chronology Localization v1 then closed 9 more
 rows / `52.83s` from actual role-word spans, leaving 5 / `37.14s`. Human-Reviewed Lexical Seed
 remains blocked at 0/28.
-Notes and work proposals remain optional. Date: 2026-08-21
+Notes and work proposals remain optional. Date: 2026-09-30
+
+Completed repair: **Review-Safe Attributed Handoff v1** preserves compatible attribution through
+Me review, separates decision provenance/scope, bounds cancellation and reconciles queue snapshots.
+The current **Bounded Evidence Compute v1** package must qualify producer changes before enabling
+exact-PCM decode reuse. Its helper is tested but production ASR is unchanged; historical Echo
+corpus inputs are incomplete, so a new explicit qualification is required. See the
+[repair plan](2026-09-30-transcript-reliability-repair-plan.md).
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
 corpus-calibrated gates and explicit review burden before broader repair. Outcome Contract v1,
@@ -80,8 +87,9 @@ speaker-resolved review materialization and zero actionable review lanes after d
 also left roughly 15% of remote speech explicit unknown and reproduced dense-overlap lexical damage.
 Three stale-state defects found in that run are now closed: reviewed profiles refresh speaker
 selection, reviewed quality no longer inherits cleanup-only harmful seconds, and a recovered deferred
-stage clears its old error. The remaining measured problem still belongs to remote boundaries,
-minority turns and later lexical accuracy rather than lifecycle repair.
+stage clears its old error. That historical run did not cover mixed keep/drop review or changed
+remote eligibility. September sessions reproduced publication and lifecycle defects; these now
+precede remote-boundary, minority-turn and lexical improvements in the repair plan.
 
 ## Why This Exists
 
@@ -541,13 +549,15 @@ Local mic multi-speaker остаётся условной веткой и отк
    authoritative and explicit unknown remains valid abstention.
 2. **Terminal Gate Instrumentation v1** is complete and materializes the independent evidence map.
 3. **Speaker-Bounded Chronology Evidence Arbitration v1** is complete; 38/52 rows closed.
-4. **Word-Level Chronology Localization v1** is current; 9/14 residual rows closed and 5 remain.
-5. **Human-Reviewed Lexical Seed v1** stays blocked at 0/28 direct answers.
-6. **Session-Scoped Lexical Context v1** stays blocked, then compiles only a compact meeting-specific prompt or hotword
+4. **Word-Level Chronology Localization v1** is complete with a bound; 9/14 residual rows closed and 5 remain.
+5. **Review-Safe Attributed Handoff v1** is complete; compatible labels and honest review scope survive bounded follow-up.
+6. **Bounded Evidence Compute v1** is current; cache integration requires explicit producer requalification.
+7. **Human-Reviewed Lexical Seed v1** stays blocked at 0/28 direct answers.
+8. **Session-Scoped Lexical Context v1** stays blocked, then compiles only a compact meeting-specific prompt or hotword
    set and requires a frozen multi-session no-regression A/B.
-7. **Speaker-Resolved Transcript Terminal Gate v1** requires the North Star across capture, local
+9. **Speaker-Resolved Transcript Terminal Gate v1** requires the North Star across capture, local
    preservation, words, order, roles, anonymous speakers, explicit unknown and exact fallback.
-8. **Local Mic Multi-Speaker Diarization v1** and heavier local ASR validators remain conditional
+10. **Local Mic Multi-Speaker Diarization v1** and heavier local ASR validators remain conditional
    branches after the terminal gate and labelled evidence.
 
 ## Current Evidence Boundary

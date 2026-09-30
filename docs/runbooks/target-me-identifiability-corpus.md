@@ -39,7 +39,7 @@ extraction. It never downloads data itself and runs the remaining work offline.
 .venv/bin/python scripts/target-me-identifiability-corpus-v1.py verify
 ```
 
-The builder lowers its own priority with `nice=20`, limits native compute pools to four threads and
+The builder lowers its own priority with `nice=20`, limits native compute pools to three threads and
 publishes transactionally. An interrupted `.staging-*` directory cannot replace `current.json`.
 
 Inspect the decision:

@@ -9,8 +9,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from review_audio_evidence import review_targets, suggestion_receipt_current
 
-SCRIPT_VERSION = "0.5.3"
+
+SCRIPT_VERSION = "0.5.4"
 REVIEW_STATE_FIELDS = {
     "decision",
     "status",
@@ -72,6 +74,7 @@ def parse_args() -> argparse.Namespace:
         help="Text file with an answers=... line or a bare compact answer line.",
     )
     parser.add_argument("--reviewer", default="", help="Reviewer name written to decided rows.")
+    parser.add_argument("--answers-source", choices=("manual", "suggested"), default="manual")
     parser.add_argument("--dry-run", action="store_true", help="Validate and print a report without writing --out.")
     return parser.parse_args()
 
@@ -262,7 +265,9 @@ def lane_apply_base_command(args: argparse.Namespace, manifest_path: Path, templ
         "--decisions-out",
         shell_path(out),
     ]
-    if args.answers_file:
+    if getattr(args, "answers_source", "manual") == "suggested":
+        parts.extend(["--answers-source", "suggested"])
+    elif args.answers_file:
         parts.extend(["--answers-file", shell_path(args.answers_file.expanduser())])
     elif args.answers:
         parts.extend(["--answers", shlex.quote(str(args.answers))])
@@ -282,6 +287,18 @@ def lane_apply_handoff(
     rejected: list[dict[str, Any]],
 ) -> dict[str, Any]:
     base = lane_apply_base_command(args, manifest_path, template, out)
+    manual_answers = args.answers_file
+    if getattr(args, "answers_source", "manual") == "suggested":
+        manifest = read_json(manifest_path)
+        manual_answers = Path((manifest.get("outputs") or {}).get("answer_sheet") or
+                              manifest_path.parent / f"review_lane_answers.{manifest.get('lane') or 'unknown'}.txt")
+        manual_args = argparse.Namespace(**vars(args))
+        manual_args.answers_source = "manual"
+        manual_args.answers_file = manual_answers
+        manual_args.answers = None
+        retry_base = lane_apply_base_command(manual_args, manifest_path, template, out)
+    else:
+        retry_base = base
     batch_command = (
         "murmurmark review apply "
         f"--decisions {shell_path(out)} "
@@ -290,15 +307,15 @@ def lane_apply_handoff(
     next_commands: list[dict[str, str]] = []
     if args.dry_run:
         if rejected or summary.get("todo_count") or not summary.get("reviewed_count"):
-            if args.answers_file:
+            if manual_answers:
                 next_commands.append(
                     command_item(
                         "edit_review_lane_answers",
-                        f"$EDITOR {shell_path(args.answers_file.expanduser())}",
+                        f"$EDITOR {shell_path(manual_answers.expanduser())}",
                         "finish manual answers before applying",
                     )
                 )
-            next_commands.append(command_item("retry_review_lane_dry_run", f"{base} --dry-run", "rerun lane apply validation"))
+            next_commands.append(command_item("retry_review_lane_dry_run", f"{retry_base} --dry-run", "rerun lane apply validation"))
         else:
             next_commands.append(command_item("apply_review_lane_answers", base, "apply validated lane answers"))
     else:
@@ -308,9 +325,9 @@ def lane_apply_handoff(
         command_item("open_review_lane_apply_report", f"less {shell_path(report_path)}", "inspect lane apply report"),
         command_item("open_review_lane_manifest", f"less {shell_path(manifest_path)}", "inspect lane pack manifest"),
     ]
-    if args.answers_file:
+    if manual_answers:
         open_commands.append(
-            command_item("edit_review_lane_answers", f"$EDITOR {shell_path(args.answers_file.expanduser())}", "edit manual answers")
+            command_item("edit_review_lane_answers", f"$EDITOR {shell_path(manual_answers.expanduser())}", "edit manual answers")
         )
     return {
         "recommended_next": next_commands[0]["command"] if next_commands else f"less {shell_path(report_path)}",
@@ -355,6 +372,12 @@ def main() -> int:
             )
             continue
         concrete_indexes = [row_index for row_index in row_indexes if row_index is not None]
+        if args.answers_source == "suggested" and decision in {"keep_me", "drop_me", "drop_remote", "skip"}:
+            evidence = list((item.get("stronger_audio_judge") or {}).get("matches") or [])
+            evidence += list((item.get("target_me") or {}).get("matches") or [])
+            if not suggestion_receipt_current(item.get("suggestion_receipt"), [rows[index] for index in concrete_indexes], evidence, decision):
+                rejected.append({"source_audit_id": source_id, "decision": decision, "reason": "stale_or_missing_suggestion_receipt"})
+                continue
         invalid_rows = [
             {
                 "review_row_key": review_row_key(rows[row_index]),
@@ -386,6 +409,13 @@ def main() -> int:
                 row["status"] = "reviewed"
                 row["reviewed_at"] = now
                 row["review_source"] = "lane_pack"
+                if args.answers_source == "suggested":
+                    row["review_source"] = "lane_pack_suggested"
+                    row["review_evidence"] = {
+                        "suggestion_receipt": item.get("suggestion_receipt"),
+                        "target_snapshot": [{key: target.get(key) for key in ("id", "role", "source_track", "text", "start", "end")}
+                                            for target in review_targets(row)],
+                    }
                 row["review_lane_pack"] = str(manifest_path)
                 row["review_lane_pack_index"] = item.get("index")
                 if item.get("grouped"):
@@ -425,6 +455,7 @@ def main() -> int:
         },
         "lane": manifest.get("lane"),
         "dry_run": args.dry_run,
+        "answers_source": args.answers_source,
         "summary": summary,
         "applied": applied,
         "rejected": rejected,

@@ -414,6 +414,7 @@ def audit_item(item: dict[str, Any]) -> dict[str, Any]:
         "profile": item.get("profile"),
         "interval": item.get("interval"),
         "source_reasons": item.get("source_reasons"),
+        "review_features": item.get("review_features") or {},
         "utterance_ids": item.get("utterance_ids"),
         "utterances": item.get("utterances"),
         "features": features,

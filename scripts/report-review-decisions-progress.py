@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from review_audio_evidence import bounds, effective_decision, queue_snapshot
+
 
 SCRIPT_VERSION = "0.3.3"
 SCHEMA = "murmurmark.review_decisions_progress/v1"
@@ -138,7 +140,7 @@ def allowed_decisions(row: dict[str, Any]) -> set[str]:
 
 
 def normalized_decision(row: dict[str, Any]) -> str:
-    decision = str(row.get("decision") or "todo").strip()
+    decision = effective_decision(row)
     return decision if decision else "todo"
 
 
@@ -148,6 +150,9 @@ def is_reviewed(row: dict[str, Any]) -> bool:
 
 def row_seconds(row: dict[str, Any]) -> float:
     interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+    exact = bounds(interval)
+    if exact is not None:
+        return exact[1] - exact[0]
     try:
         return max(0.0, float(interval.get("duration_sec") or 0.0))
     except (TypeError, ValueError):
@@ -310,6 +315,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             "template": str(args.template),
             "decisions": str(args.decisions) if args.decisions.exists() else None,
         },
+        "queue_snapshot": queue_snapshot(rows, args.template, args.decisions),
         "summary": {
             "total": total,
             "reviewed": reviewed,
@@ -348,6 +354,12 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         "| Lane | Rows Reviewed | Actions Remaining | Remaining sec | Decisions |",
         "|---|---:|---:|---:|---|",
     ]
+    snapshot = report.get("queue_snapshot") or {}
+    lines.extend([
+        f"- Unresolved tasks: `{snapshot.get('unresolved_rows', 'unknown')}` (including needs_review answers)",
+        f"- Known interval sum / union: `{snapshot.get('known_interval_sum_seconds', 'unknown')}` / `{snapshot.get('known_interval_union_seconds', 'unknown')}` sec",
+        f"- Unknown durations: `{snapshot.get('unknown_duration_rows', 'unknown')}`; this is not an estimate of manual work",
+    ])
     for row in report.get("by_lane") or []:
         lines.append(
             f"| `{row.get('review_lane')}` | {row.get('reviewed')}/{row.get('total')} | "

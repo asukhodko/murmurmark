@@ -19,25 +19,34 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
+from murmurmark_deadline import extend_owned_processes, process_snapshot
+
 
 STATE_SCHEMA = "murmurmark.meeting_lifecycle_state/v1"
 NEXT_SCHEMA = "murmurmark.meeting_next_action/v1"
 EVENT_SCHEMA = "murmurmark.meeting_lifecycle_event/v1"
 REPORT_SCHEMA = "murmurmark.meeting_lifecycle_report/v1"
-GENERATOR = {"name": "run-meeting-lifecycle", "version": "0.1.4"}
+GENERATOR = {"name": "run-meeting-lifecycle", "version": "0.1.6"}
 DEFAULT_POST_STOP_BUDGET_RATIO = 1.0
 DEFAULT_MAX_ENRICHMENT_BUDGET_SEC = 1800.0
+DEFAULT_ENRICHMENT_FINALIZATION_RESERVE_SEC = 300.0
+DEFAULT_SPEAKER_HANDOFF_TIMEOUT_SEC = 300.0
+DEFAULT_FINAL_STATE_TIMEOUT_SEC = 30.0
 ACTION_ORDER = (
     "capture_validate",
     "inspect",
     "process",
+    "attribute_speakers",
     "enrich",
     "refresh_after_enrich",
     "review_suggested_preview",
     "review_suggested_apply",
     "refresh_after_review",
     "finish",
+    "refresh_final_state",
 )
+OPTIONAL_ACTIONS = ACTION_ORDER[ACTION_ORDER.index("enrich"):ACTION_ORDER.index("refresh_final_state")]
+REFRESH_ACTIONS = {"attribute_speakers", "refresh_after_enrich", "refresh_after_review", "refresh_final_state"}
 TERMINAL_ACTION_STATUSES = {
     "passed",
     "skipped",
@@ -259,10 +268,23 @@ def recover_state_for_resume(state: dict[str, Any], *, retry_deferred: bool = Fa
         int(state.get("cumulative_transition_count") or 0) + previous_transitions
     )
     state["transition_count"] = 0
+    retry_followups = any(
+        state["actions"][action].get("status") == "deferred_budget_exhausted"
+        for action in OPTIONAL_ACTIONS if action != "enrich"
+    )
     reset_downstream = False
     for action in ACTION_ORDER:
         action_state = state["actions"][action]
         status = action_state.get("status")
+        if action in {"attribute_speakers", "refresh_final_state"} and status == "failed_soft":
+            action_state["status"] = "pending"
+            action_state["error"] = None
+            action_state["reason"] = "explicit resume retries incomplete transcript publication"
+            continue
+        if retry_followups and action == "refresh_after_enrich":
+            # An interrupted apply may have published a new profile. Rebuild
+            # readiness and suggestions before attempting any further changes.
+            reset_downstream = True
         if retry_deferred and action == "enrich" and status in {
             "deferred_budget_exhausted",
             "failed_soft",
@@ -276,7 +298,7 @@ def recover_state_for_resume(state: dict[str, Any], *, retry_deferred: bool = Fa
         if reset_downstream:
             action_state["status"] = "pending"
             action_state["error"] = None
-            action_state["reason"] = "upstream deferred enrichment is being retried"
+            action_state["reason"] = "refresh follow-up state for explicit resume"
             continue
         if status in {"running", "interrupted"}:
             action_state["status"] = "pending"
@@ -369,6 +391,8 @@ class MeetingLifecycle:
         self.lock_path = self.root / "lifecycle.lock"
         self.interrupts = InterruptController()
         self.state: dict[str, Any] = {}
+        self.optional_deadline: float | None = None
+        self.attempt_started = time.monotonic()
 
     def run(self) -> int:
         if not self.session.is_dir():
@@ -418,7 +442,12 @@ class MeetingLifecycle:
                                 selected_profile=refreshed.get("selected_profile"),
                             )
                             report = refreshed
-                        if not self.resume or self.deferred_is_complete():
+                        publication_complete = all(
+                            self.state["actions"][action].get("status") == "passed"
+                            for action in ("attribute_speakers", "refresh_final_state")
+                        )
+                        if not self.resume or (self.deferred_is_complete() and not self.budget_deferred_actions()
+                                               and publication_complete):
                             print_summary(report)
                             return 0
                 if self.resume:
@@ -437,6 +466,7 @@ class MeetingLifecycle:
                         f"resume explicitly with `{self.state['resume_command']}`"
                     )
             self.save_state()
+            self.attempt_started = time.monotonic()
 
             while True:
                 if self.interrupts.requested:
@@ -473,8 +503,10 @@ class MeetingLifecycle:
 
             if action == "enrich" and self.deferred_is_complete():
                 return f"skip:{action}", "structured checkpoint proves deferred enrichment is complete"
-            if action == "enrich" and self.enrichment_budget_remaining_sec() <= 0:
-                return f"skip:{action}", "post-stop enrichment budget is exhausted"
+            if action in OPTIONAL_ACTIONS:
+                self.start_optional_budget()
+                if self.enrichment_budget_remaining_sec() <= 0:
+                    return f"skip:{action}", "shared post-stop follow-up budget is exhausted"
             if action == "review_suggested_preview":
                 if self.state["actions"]["refresh_after_enrich"].get("status") != "passed":
                     return f"skip:{action}", "structured refresh after enrichment did not pass"
@@ -499,6 +531,7 @@ class MeetingLifecycle:
             "capture_validate": "validate finalized durable capture and freeze raw identities",
             "inspect": "run the existing capture/session inspection gate",
             "process": "produce the authoritative batch transcript with the ordinary process path",
+            "attribute_speakers": "attempt bounded speaker attribution before optional audio judges",
             "enrich": "run optional local evidence enrichment after authoritative handoff",
             "refresh_after_enrich": (
                 "refresh readiness, current-profile speaker evidence and outcome after enrichment"
@@ -509,6 +542,7 @@ class MeetingLifecycle:
                 "refresh readiness, current-profile speaker evidence and outcome after suggested review"
             ),
             "finish": "create a guarded export and retention plan because export is allowed",
+            "refresh_final_state": "publish current outcome from cached evidence without new inference",
         }
         return reasons[action]
 
@@ -518,11 +552,13 @@ class MeetingLifecycle:
         commands = {
             "inspect": [base, "inspect", session],
             "process": [base, "process", session, "--skip-build"],
+            "attribute_speakers": [base, "report", session],
             "enrich": [base, "enrich", session],
             "refresh_after_enrich": [base, "report", session],
             "review_suggested_preview": [base, "review", "suggested", "preview", session],
             "review_suggested_apply": [base, "review", "suggested", "apply", session],
             "refresh_after_review": [base, "report", session],
+            "refresh_final_state": [base, "report", session],
             "finish": [base, "finish", session]
             + (["--keep-debug-artifacts"] if self.state.get("keep_debug_artifacts") else []),
         }
@@ -535,9 +571,15 @@ class MeetingLifecycle:
         action_state["started_at"] = now_iso()
         action_state["reason"] = reason
         action_state["error"] = None
-        if action == "enrich":
+        if action in OPTIONAL_ACTIONS:
             action_state["budget_remaining_before_sec"] = rounded(
                 self.enrichment_budget_remaining_sec()
+            )
+            action_state["finalization_reserve_sec"] = rounded(
+                self.enrichment_finalization_reserve_sec() if action == "enrich" else 0.0
+            )
+            action_state["execution_budget_sec"] = rounded(
+                self.enrichment_execution_budget_sec() if action == "enrich" else self.enrichment_budget_remaining_sec()
             )
         if action == "process":
             action_state["pipeline_report_before"] = self.file_identity(self.pipeline_report_path())
@@ -548,7 +590,7 @@ class MeetingLifecycle:
             )
             if action == "review_suggested_apply":
                 action_state["reviewed_decisions_before"] = self.reviewed_decision_count()
-        elif action in {"refresh_after_enrich", "refresh_after_review"}:
+        elif action in REFRESH_ACTIONS:
             action_state["outcome_before"] = self.file_identity(self.outcome_path())
             action_state["readiness_before"] = self.file_identity(self.readiness_path())
         elif action == "finish":
@@ -569,11 +611,18 @@ class MeetingLifecycle:
                 command = self.command_for(action)
                 if command is None:
                     raise LifecycleError(f"action has no allowlisted command: {action}")
-                timeout_sec = (
-                    self.enrichment_budget_remaining_sec() if action == "enrich" else None
-                )
+                timeout_sec = None
+                if action == "attribute_speakers":
+                    timeout_sec = DEFAULT_SPEAKER_HANDOFF_TIMEOUT_SEC
+                elif action == "refresh_final_state":
+                    timeout_sec = DEFAULT_FINAL_STATE_TIMEOUT_SEC
+                if action in OPTIONAL_ACTIONS:
+                    timeout_sec = (self.enrichment_execution_budget_sec() if action == "enrich"
+                                   else self.enrichment_budget_remaining_sec())
                 extra_env = None
-                if action == "enrich" and timeout_sec is not None:
+                if action in REFRESH_ACTIONS and action != "attribute_speakers":
+                    extra_env = {"MURMURMARK_SPEAKER_REFRESH_MODE": "cache_only"}
+                elif action == "enrich" and timeout_sec is not None:
                     extra_env = {
                         "MURMURMARK_DEFERRED_BOUNDED": "1",
                         "MURMURMARK_DEFERRED_BUDGET_SEC": f"{timeout_sec:.6f}",
@@ -596,14 +645,17 @@ class MeetingLifecycle:
                     self.event("action_interrupted", action=action, returncode=return_code)
                     return "interrupted"
                 if timed_out:
+                    if action not in OPTIONAL_ACTIONS:
+                        raise LifecycleError(f"bounded transcript publication timed out after {timeout_sec:.1f}s")
                     duration = rounded(time.monotonic() - started)
-                    self.mark_deferred_pipeline_budget_exhausted()
+                    if action == "enrich":
+                        self.mark_deferred_pipeline_budget_exhausted()
                     action_state["status"] = "deferred_budget_exhausted"
                     action_state["finished_at"] = now_iso()
                     action_state["duration_sec"] = duration
                     action_state["returncode"] = return_code
                     action_state["error"] = None
-                    action_state["reason"] = "post-stop enrichment budget exhausted during execution"
+                    action_state["reason"] = "shared post-stop follow-up budget exhausted during execution"
                     self.state["current_action"] = None
                     self.save_state()
                     self.event(
@@ -652,6 +704,8 @@ class MeetingLifecycle:
         timeout_sec: float | None = None,
         extra_env: dict[str, str] | None = None,
     ) -> tuple[int, bool, bool]:
+        if timeout_sec is not None and timeout_sec <= 0:
+            return 0, False, True
         self.state["actions"][self.state["current_action"]]["command"] = command
         self.save_state()
         # Isolate each allowlisted action from the terminal's foreground process group.
@@ -659,6 +713,11 @@ class MeetingLifecycle:
         environment = os.environ.copy()
         if extra_env:
             environment.update(extra_env)
+        if timeout_sec is not None:
+            # Give cooperative children time to checkpoint before the hard watchdog.
+            environment["MURMURMARK_ACTION_DEADLINE_EPOCH"] = str(
+                time.time() + max(0.0, timeout_sec - (10.0 if self.state["current_action"] == "enrich" else 3.0))
+            )
         process = subprocess.Popen(
             command,
             stdin=subprocess.DEVNULL,
@@ -673,8 +732,9 @@ class MeetingLifecycle:
         terminate_sent = False
         kill_sent = False
         timed_out = False
+        owned: dict[int, str] = {}
         try:
-            while process.poll() is None:
+            while process.poll() is None or (timed_out and self.owned_processes_alive(owned)):
                 now = time.monotonic()
                 if (
                     timeout_sec is not None
@@ -684,31 +744,76 @@ class MeetingLifecycle:
                 ):
                     timed_out = True
                     timed_out_at = now
+                    snapshot = self.process_snapshot()
+                    if process.pid in snapshot:
+                        owned[process.pid] = snapshot[process.pid][1]
+                    self.extend_owned_processes(owned, snapshot)
                 if self.interrupts.requested:
                     interrupted_at = interrupted_at or now
                     elapsed = now - interrupted_at
                     if elapsed > 15 and not kill_sent:
-                        self.signal_process_group(process, signal.SIGKILL)
+                        if owned:
+                            self.signal_owned_processes(process, owned, signal.SIGKILL)
+                        else:
+                            self.signal_process_group(process, signal.SIGKILL)
                         kill_sent = True
                     elif elapsed > 10 and not terminate_sent:
-                        self.signal_process_group(process, signal.SIGTERM)
+                        if owned:
+                            self.signal_owned_processes(process, owned, signal.SIGTERM)
+                        else:
+                            self.signal_process_group(process, signal.SIGTERM)
                         terminate_sent = True
                 elif timed_out_at is not None:
                     elapsed = now - timed_out_at
                     if not graceful_timeout_sent:
-                        # SIGINT lets run-session-pipeline persist an interrupted checkpoint.
-                        self.signal_process_group(process, signal.SIGINT)
+                        # Foundation and pipeline workers may use separate groups.
+                        # Freeze ownership before the wrapper can exit and orphan them.
+                        self.signal_owned_processes(process, owned, signal.SIGINT)
                         graceful_timeout_sent = True
                     elif elapsed > 10 and not terminate_sent:
-                        self.signal_process_group(process, signal.SIGTERM)
+                        self.signal_owned_processes(process, owned, signal.SIGTERM)
                         terminate_sent = True
                     elif elapsed > 15 and not kill_sent:
-                        self.signal_process_group(process, signal.SIGKILL)
+                        self.signal_owned_processes(process, owned, signal.SIGKILL)
                         kill_sent = True
                 time.sleep(0.1)
-            return int(process.returncode or 0), self.interrupts.requested, timed_out
+            budget_exit = timeout_sec is not None and process.returncode == 75
+            return int(process.returncode or 0), self.interrupts.requested, timed_out or budget_exit
         finally:
             self.interrupts.child = None
+
+    @staticmethod
+    def process_snapshot() -> dict[int, tuple[int, str]]:
+        return process_snapshot()
+
+    @staticmethod
+    def extend_owned_processes(owned: dict[int, str], snapshot: dict[int, tuple[int, str]]) -> None:
+        extend_owned_processes(owned, snapshot)
+
+    def owned_processes_alive(self, owned: dict[int, str]) -> bool:
+        snapshot = self.process_snapshot()
+        self.extend_owned_processes(owned, snapshot)
+        return any(snapshot.get(pid, (None, None))[1] == birth for pid, birth in owned.items())
+
+    def signal_owned_processes(self, process: subprocess.Popen[Any], owned: dict[int, str], signum: int) -> None:
+        snapshot = self.process_snapshot()
+        self.extend_owned_processes(owned, snapshot)
+        if signum == signal.SIGINT and self.state.get("current_action") == "enrich" and process.poll() is None:
+            # Enrich already forwards interrupts and reaps its own workers;
+            # avoid a second SIGINT during its checkpoint cleanup.
+            process.send_signal(signum)
+            return
+        signaled = set()
+        for pid, birth in reversed(list(owned.items())):
+            if snapshot.get(pid, (None, None))[1] != birth:
+                continue
+            try:
+                os.kill(pid, signum)
+                signaled.add(pid)
+            except ProcessLookupError:
+                pass
+        if process.pid not in signaled and process.poll() is None:
+            process.send_signal(signum)
 
     @staticmethod
     def signal_process_group(process: subprocess.Popen[Any], signum: int) -> None:
@@ -789,6 +894,8 @@ class MeetingLifecycle:
             transcript = self.output_path(outcome, "transcript")
             if transcript is None or not transcript.is_file():
                 raise LifecycleError("authoritative transcript was not produced")
+            print(f"[meeting] transcript_available: {transcript.resolve()}", flush=True)
+            print("[meeting] evidence checks continue; this is not a guarded-export approval", flush=True)
         elif action == "enrich":
             if not self.deferred_is_complete():
                 raise LifecycleError("deferred enrichment did not reach a completed checkpoint")
@@ -823,7 +930,7 @@ class MeetingLifecycle:
                     raise LifecycleError("suggested review removed previously reviewed decisions")
                 if int(closed.get("rows") or 0) <= 0 and reviewed_after <= reviewed_before:
                     raise LifecycleError("suggested review apply closed no safe rows")
-        elif action in {"refresh_after_enrich", "refresh_after_review"}:
+        elif action in REFRESH_ACTIONS:
             outcome = read_json(self.outcome_path())
             readiness = read_json(self.readiness_path())
             if outcome is None or outcome.get("schema") != "murmurmark.outcome/v1":
@@ -903,7 +1010,7 @@ class MeetingLifecycle:
 
     def skip_action(self, action: str, reason: str) -> None:
         action_state = self.state["actions"][action]
-        budget_exhausted = action == "enrich" and "budget" in reason
+        budget_exhausted = action in OPTIONAL_ACTIONS and "budget" in reason
         action_state["status"] = (
             "deferred_budget_exhausted" if budget_exhausted else "skipped"
         )
@@ -942,11 +1049,42 @@ class MeetingLifecycle:
         return max(0.0, elapsed)
 
     def enrichment_budget_remaining_sec(self) -> float:
+        if self.optional_deadline is not None:
+            return max(0.0, self.optional_deadline - time.monotonic())
         ratio, maximum = self.budget_policy()
         capture = max(0.0, float(self.state.get("capture_elapsed_sec") or 0.0))
         total_budget = capture * ratio
-        remaining = max(0.0, total_budget - self.required_elapsed_before_enrichment_sec())
+        # Explicit resume gets a fresh bounded attempt; already completed ASR
+        # must not permanently consume the budget of subsequent recovery runs.
+        required = time.monotonic() - self.attempt_started if self.resume else max(
+            self.required_elapsed_before_enrichment_sec(), time.monotonic() - self.attempt_started
+        )
+        remaining = max(0.0, total_budget - required)
         return min(remaining, maximum)
+
+    def start_optional_budget(self) -> None:
+        if self.optional_deadline is not None:
+            return
+        budget = self.enrichment_budget_remaining_sec()
+        self.optional_deadline = time.monotonic() + budget
+        self.state["optional_budget"] = {
+            "scope": list(OPTIONAL_ACTIONS), "limit_sec": rounded(budget),
+            "explicit_resume": self.resume, "started_at": now_iso(),
+        }
+
+    def budget_deferred_actions(self) -> list[str]:
+        return [action for action in OPTIONAL_ACTIONS
+                if self.state["actions"][action].get("status") == "deferred_budget_exhausted"]
+
+    def enrichment_finalization_reserve_sec(self) -> float:
+        remaining = self.enrichment_budget_remaining_sec()
+        return min(DEFAULT_ENRICHMENT_FINALIZATION_RESERVE_SEC, remaining * 0.2)
+
+    def enrichment_execution_budget_sec(self) -> float:
+        return max(
+            0.0,
+            self.enrichment_budget_remaining_sec() - self.enrichment_finalization_reserve_sec(),
+        )
 
     def budget_report(self, total_after_stop_sec: float) -> dict[str, Any]:
         ratio, maximum = self.budget_policy()
@@ -960,6 +1098,9 @@ class MeetingLifecycle:
         if enrich_status == "deferred_budget_exhausted":
             status = "enrichment_deferred_budget_exhausted"
             reason = str(enrich.get("reason") or "post-stop enrichment budget exhausted")
+        elif self.budget_deferred_actions():
+            status = "follow_up_deferred_budget_exhausted"
+            reason = "shared optional budget exhausted; resume remaining follow-up actions explicitly"
         elif total_budget > 0 and total_after_stop_sec > total_budget:
             status = "required_work_exceeded_budget"
             reason = "required authoritative or bounded follow-up work exceeded the post-stop budget"
@@ -973,10 +1114,18 @@ class MeetingLifecycle:
             "enrichment_budget_sec": rounded(
                 float(enrich.get("budget_remaining_before_sec") or 0.0)
             ),
+            "enrichment_execution_budget_sec": rounded(
+                float(enrich.get("execution_budget_sec") or 0.0)
+            ),
+            "enrichment_finalization_reserve_sec": rounded(
+                float(enrich.get("finalization_reserve_sec") or 0.0)
+            ),
             "consumed_after_stop_sec": rounded(total_after_stop_sec),
             "remaining_after_stop_sec": rounded(max(0.0, total_budget - total_after_stop_sec)),
             "status": status,
             "reason": reason,
+            "optional_budget": self.state.get("optional_budget"),
+            "deferred_actions": self.budget_deferred_actions(),
         }
 
     def deferred_work_report(self) -> dict[str, Any]:
@@ -997,11 +1146,17 @@ class MeetingLifecycle:
             status = "completed" if "complete" in str(reason or "") else "skipped"
         else:
             status = action_status
+        pending = self.budget_deferred_actions()
+        if pending:
+            status = "deferred_budget_exhausted"
+            reason = "shared optional budget exhausted: " + ", ".join(pending)
         return {
             "status": status,
             "reason": reason,
             "blocking": False,
-            "command": f"murmurmark enrich {shlex.quote(display_path(self.session))}",
+            "command": (resume_command(self.session, bool(self.state.get("keep_debug_artifacts")))
+                        if pending else f"murmurmark enrich {shlex.quote(display_path(self.session))}"),
+            "pending_actions": pending,
         }
 
     def deferred_is_complete(self) -> bool:
@@ -1082,20 +1237,61 @@ class MeetingLifecycle:
         return self.session / "derived" / "pipeline-run" / "deferred_enrichment_report.json"
 
     def mark_deferred_pipeline_budget_exhausted(self) -> None:
+        finished_at = now_iso()
+        resume = f"murmurmark enrich {display_path(self.session)}"
         path = self.session / "derived" / "pipeline-run" / "pipeline_run_state.json"
         payload = read_json(path)
         if (
-            payload is None
-            or payload.get("schema") != "murmurmark.pipeline_run_state/v1"
-            or payload.get("phase") != "deferred_enrichment"
+            payload is not None
+            and payload.get("schema") == "murmurmark.pipeline_run_state/v1"
+            and payload.get("phase") == "deferred_enrichment"
         ):
-            return
-        payload["status"] = "deferred_budget_exhausted"
-        payload["updated_at"] = now_iso()
-        payload["message"] = "deferred_enrichment_budget_exhausted"
-        payload["resume_command"] = f"murmurmark enrich {display_path(self.session)}"
-        payload["safe_interrupt"] = True
-        write_json(path, payload)
+            payload["status"] = "deferred_budget_exhausted"
+            payload["updated_at"] = finished_at
+            payload["message"] = "deferred_enrichment_budget_exhausted"
+            payload["resume_command"] = resume
+            payload["safe_interrupt"] = True
+            write_json(path, payload)
+
+        report_path = self.deferred_report_path()
+        report = read_json(report_path)
+        if report is not None and report.get("schema") == "murmurmark.session_pipeline_run/v1":
+            report["status"] = "deferred_budget_exhausted"
+            report["finished_at"] = finished_at
+            report["recommended_next"] = resume
+            report["next_commands"] = [
+                {
+                    "id": "resume_deferred_enrichment",
+                    "command": resume,
+                    "reason": "resume optional enrichment after the bounded meeting lifecycle",
+                }
+            ]
+            warnings = report.setdefault("warnings", [])
+            warning = "bounded meeting lifecycle exhausted the optional enrichment budget"
+            if warning not in warnings:
+                warnings.append(warning)
+            write_json(report_path, report)
+
+        handoff_path = self.authoritative_handoff_path()
+        handoff = read_json(handoff_path)
+        if isinstance(handoff, dict):
+            deferred = (
+                dict(handoff.get("deferred_enrichment"))
+                if isinstance(handoff.get("deferred_enrichment"), dict)
+                else {}
+            )
+            deferred.update(
+                {
+                    "status": "deferred_budget_exhausted",
+                    "finished_at": finished_at,
+                    "report": "derived/pipeline-run/deferred_enrichment_report.json",
+                    "command": resume,
+                }
+            )
+            deferred.pop("error", None)
+            handoff["deferred_enrichment"] = deferred
+            handoff["updated_at"] = finished_at
+            write_json(handoff_path, handoff)
 
     def authoritative_handoff_path(self) -> Path:
         return self.session / "derived" / "pipeline-run" / "authoritative_handoff.json"
@@ -1232,6 +1428,8 @@ class MeetingLifecycle:
         *,
         emit_raw_event: bool = True,
     ) -> dict[str, Any]:
+        from review_audio_evidence import read_queue_snapshot
+
         outcome = read_json(self.outcome_path()) or {}
         readiness = read_json(self.readiness_path()) or {}
         metrics = readiness.get("metrics") if isinstance(readiness.get("metrics"), dict) else {}
@@ -1277,7 +1475,7 @@ class MeetingLifecycle:
                     if not raw_acceptable
                     else "authoritative_transcript_missing"
                 )
-            elif outcome.get("outcome") == "failed":
+            elif outcome.get("outcome") in {"failed", "pipeline_failed"}:
                 result = "failed"
                 reason = reason or f"outcome:{outcome.get('outcome')}"
             elif outcome.get("outcome") == "blocked":
@@ -1334,10 +1532,12 @@ class MeetingLifecycle:
         postprocess_elapsed = rounded(capture_finalize_elapsed + supervisor_elapsed)
         budgets = self.budget_report(postprocess_elapsed)
         deferred_work = self.deferred_work_report()
-        resumable = result == "interrupted" or any(
+        resumable = result == "interrupted" or bool(self.budget_deferred_actions()) or any(
             action != "capture_validate"
             and isinstance(value, dict)
-            and value.get("status") == "failed_hard"
+            and (value.get("status") == "failed_hard" or (
+                action in {"attribute_speakers", "refresh_final_state"} and value.get("status") == "failed_soft"
+            ))
             and int(value.get("attempts") or 0) < MAX_ACTION_ATTEMPTS
             for action, value in actions.items()
         )
@@ -1379,6 +1579,7 @@ class MeetingLifecycle:
                 "blockers": review_blockers,
             },
             "manual_decisions": manual_decisions,
+            "review_queue_snapshot": read_queue_snapshot(self.session),
             "budgets": budgets,
             "deferred_work": deferred_work,
             "next": next_step,
@@ -1426,6 +1627,7 @@ class MeetingLifecycle:
                 "capture": capture_elapsed,
                 "capture_finalize": capture_finalize_elapsed,
                 "authoritative_process": action_times.get("process", 0.0),
+                "speaker_attribution": action_times.get("attribute_speakers", 0.0),
                 "enrichment": action_times.get("enrich", 0.0),
                 "postprocessing": postprocess_elapsed,
                 "supervisor_actions": supervisor_elapsed,
@@ -1645,6 +1847,21 @@ class MeetingLifecycle:
                 "action": "resume" if command else "failed",
                 "command": command,
                 "reason": reason,
+            }
+        if self.budget_deferred_actions():
+            return {
+                "status": "action_required", "action": "resume",
+                "command": resume_command(self.session, bool(self.state.get("keep_debug_artifacts"))),
+                "reason": "transcript available; optional follow-up deferred by the shared time budget",
+            }
+        if resume_available and any(
+            self.state["actions"][action].get("status") == "failed_soft"
+            for action in ("attribute_speakers", "refresh_final_state")
+        ):
+            return {
+                "status": "action_required", "action": "resume",
+                "command": resume_command(self.session, bool(self.state.get("keep_debug_artifacts"))),
+                "reason": "transcript publication needs a bounded retry",
             }
         commands = remediation_commands(readiness, outcome)
         if commands:
@@ -1892,6 +2109,11 @@ def print_summary(report: dict[str, Any]) -> None:
     if speaker.get("fallback_reason"):
         print(f"  speaker_fallback_reason: {speaker['fallback_reason']}")
     print(f"  unresolved: {int(unresolved.get('count') or 0)} items / {float(unresolved.get('seconds') or 0.0):.3f}s")
+    queue = report.get("review_queue_snapshot") or {}
+    if queue:
+        union = queue.get("interval_union_seconds")
+        print(f"  review_queue: {queue['unresolved_rows']} tasks; unique audio={union if union is not None else 'unknown'}s; "
+              f"known union={queue['known_interval_union_seconds']}s; unknown durations={queue['unknown_duration_rows']}")
     manual = report.get("manual_decisions") if isinstance(report.get("manual_decisions"), dict) else {}
     next_step = report.get("next") if isinstance(report.get("next"), dict) else {}
     print(f"  manual_decisions: {int(manual.get('total') or 0)}")

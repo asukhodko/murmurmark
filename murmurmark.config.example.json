@@ -7,7 +7,7 @@
   },
   "processing": {
     "resource_profile": "background",
-    "max_compute_threads": 4
+    "max_compute_threads": 3
   },
   "export": {
     "format": "markdown",

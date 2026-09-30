@@ -472,6 +472,7 @@ def main() -> int:
         row["decision"] = decision
         row["status"] = "reviewed" if decision != "todo" else "todo"
         if decision != "todo":
+            row["review_source"] = "manual"
             row["reviewed_at"] = datetime.now(timezone.utc).isoformat()
             if args.reviewer:
                 row["reviewer"] = args.reviewer

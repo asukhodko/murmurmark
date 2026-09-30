@@ -687,6 +687,7 @@ def attach_clips(item: dict[str, Any], sources: dict[str, Path], clips_dir: Path
         clips["stereo_clean_left_remote_right"] = str(stereo)
         clip_sha256["stereo_clean_left_remote_right"] = digest
     item["clips"] = clips
+    item["clip_interval"] = {"start": start, "end": end}
     item["clip_sha256"] = clip_sha256
     item["commands"] = {key: f"afplay {path}" for key, path in clips.items()}
 

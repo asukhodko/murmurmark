@@ -18,9 +18,12 @@ from pathlib import Path
 from typing import Any
 
 import evidence_handoff_v2
+from murmurmark_deadline import ActionStopped, BUDGET_EXIT, remaining_seconds
+from murmurmark_processing_lease import ProcessingLease
 from murmurmark_resource_policy import (
     PROFILE_DEFAULTS,
     apply_resource_policy,
+    bounded_process_parallelism,
     bounded_threads,
     max_threads_from_environment,
     print_resource_policy,
@@ -28,7 +31,7 @@ from murmurmark_resource_policy import (
     resolve_resource_policy,
 )
 
-SCRIPT_VERSION = "0.2.8"
+SCRIPT_VERSION = "0.2.11"
 SCHEMA = "murmurmark.session_pipeline_run/v1"
 RUN_STATE_SCHEMA = "murmurmark.pipeline_run_state/v1"
 HANDOFF_SCHEMA = "murmurmark.authoritative_handoff/v1"
@@ -187,27 +190,27 @@ def parse_args() -> argparse.Namespace:
         "--max-compute-threads",
         type=int,
         default=None,
-        help="Cap native compute thread pools. Default: 4 for background, unlimited for opportunistic/performance.",
+        help="Cap native compute thread pools. Default: 3 for background/opportunistic; performance is unlimited.",
     )
     parser.add_argument(
         "--asr-threads",
         type=int,
         default=None,
-        help="whisper.cpp compute threads per ASR process. Profile default: 4 background, 6 opportunistic/performance.",
+        help="whisper.cpp compute threads per ASR process. Profile default: 3 background/opportunistic, 6 performance.",
     )
     parser.add_argument(
         "--asr-track-workers",
         type=int,
         choices=(1, 2),
         default=None,
-        help="Bounded independent mic/remote whisper.cpp workers. Profile default: 1 background, 2 opportunistic/performance.",
+        help="Independent mic/remote whisper.cpp workers. Bounded profiles run 1; performance runs 2.",
     )
     parser.add_argument(
         "--micro-asr-workers",
         type=int,
         choices=(1, 2, 4),
         default=None,
-        help="Bounded independent micro-ASR source/window workers. Profile default: 1 background, 4 opportunistic/performance.",
+        help="Independent micro-ASR source/window workers. Bounded profiles run 1; performance runs 4.",
     )
     parser.add_argument(
         "--phase",
@@ -263,8 +266,12 @@ def parse_args() -> argparse.Namespace:
         parser.error(str(error))
     args.max_compute_threads = policy.max_compute_threads
     args.asr_threads = bounded_threads(args.asr_threads or policy.asr_threads, policy)
-    args.asr_track_workers = args.asr_track_workers or policy.asr_track_workers
-    args.micro_asr_workers = args.micro_asr_workers or policy.micro_asr_workers
+    args.asr_track_workers = bounded_process_parallelism(
+        args.asr_track_workers or policy.asr_track_workers, policy
+    )
+    args.micro_asr_workers = bounded_process_parallelism(
+        args.micro_asr_workers or policy.micro_asr_workers, policy
+    )
     args.resource_policy_spec = policy
     return args
 
@@ -742,6 +749,7 @@ def first_next_command(readiness: dict[str, Any] | None) -> str | None:
 def pipeline_handoff(
     *,
     status: str,
+    resume_phase: str,
     session: Path,
     report_path: Path,
     repo_root: Path,
@@ -749,6 +757,7 @@ def pipeline_handoff(
 ) -> dict[str, Any]:
     session_arg = shell_path(session, repo_root)
     report_arg = shell_path(report_path, repo_root)
+    resume_command = f"murmurmark {'enrich' if resume_phase == 'deferred' else 'process'} {session_arg}"
     readiness_md = session / "derived/readiness/session_readiness.md"
     quality_md = session / "derived/synthesis-simple/extractive/quality_verdict.md"
 
@@ -807,12 +816,13 @@ def pipeline_handoff(
                 "reason": "refresh and inspect the post-process readiness summary",
             }
         )
-    elif status == "interrupted":
+    elif status in {"interrupted", "deferred_budget_exhausted"}:
         next_commands = [
             {
-                "id": "rerun_process",
-                "command": f"murmurmark process {session_arg}",
-                "reason": "resume the post-recording pipeline after Ctrl-C",
+                "id": "resume_pipeline",
+                "command": resume_command,
+                "reason": "continue checkpointed optional work" if status == "deferred_budget_exhausted"
+                else "resume the interrupted pipeline phase",
             },
             {
                 "id": "open_pipeline_run_report",
@@ -828,9 +838,9 @@ def pipeline_handoff(
                 "reason": "inspect the failed pipeline step and command tails",
             },
             {
-                "id": "rerun_process",
-                "command": f"murmurmark process {session_arg}",
-                "reason": "rerun the post-recording pipeline after fixing the failure",
+                "id": "resume_pipeline",
+                "command": resume_command,
+                "reason": "rerun the failed pipeline phase after fixing the failure",
             },
         ]
 
@@ -929,6 +939,7 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
         "audit_cleanup_v2",
         "--max-items",
         str(args.max_stronger_audio_judge_items),
+        "--word-timestamps",
     ]
     if not args.stronger_audio_judge_exhaustive:
         stronger_audio_judge.append("--quick")
@@ -1437,6 +1448,38 @@ def transcribe_chunk_progress(session: Path) -> dict[str, Any] | None:
         )
     if not tracks:
         return None
+    # The authoritative transcriber always runs mic and remote. With one bounded
+    # track worker, the second report appears only after the first track ends;
+    # reserve it here so progress never jumps from N/N back to N/2N.
+    observed_tracks = {str(row.get("track") or "") for row in tracks}
+    missing_tracks = [track for track in ("mic", "remote") if track not in observed_tracks]
+    if missing_tracks:
+        reference = tracks[0]
+        for track in missing_tracks:
+            inferred_chunks = int(reference.get("chunks_total") or 0)
+            inferred_seconds = float(reference.get("total_sec") or 0.0)
+            total_chunks += inferred_chunks
+            total_sec += inferred_seconds
+            tracks.append(
+                {
+                    "track": track,
+                    "status": "pending",
+                    "chunks_completed": 0,
+                    "chunks_total": inferred_chunks,
+                    "chunks_missing": inferred_chunks,
+                    "chunks_reused": 0,
+                    "chunks_transcribed": 0,
+                    "chunks_reused_by_origin": {},
+                    "completed_sec": 0.0,
+                    "total_sec": inferred_seconds,
+                    "remaining_sec": inferred_seconds,
+                    "reused_sec": 0.0,
+                    "reused_sec_by_origin": {},
+                    "transcribed_sec": 0.0,
+                    "report": None,
+                    "inferred_from_track": reference.get("track"),
+                }
+            )
     return {
         "tracks": tracks,
         "chunks_completed": completed_chunks,
@@ -1452,6 +1495,66 @@ def transcribe_chunk_progress(session: Path) -> dict[str, Any] | None:
         "reused_sec_by_origin": {key: round(value, 3) for key, value in sorted(reused_sec_by_origin.items())},
         "transcribed_sec": round(transcribed_sec, 3),
         "completed_ratio": round(completed_sec / total_sec, 6) if total_sec > 0 else None,
+    }
+
+
+def transcribe_stage_progress(
+    session: Path,
+    *,
+    active: bool,
+) -> dict[str, Any] | None:
+    """Observe the frozen transcriber without changing its qualified runtime identity."""
+    chunks = transcribe_chunk_progress(session)
+    resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
+    transcript = resolved / "transcript.md"
+    report = resolved / "transcribe_simple_report.json"
+
+    if active:
+        if not isinstance(chunks, dict):
+            stage = "preparing_audio_or_asr_cache"
+            details: dict[str, Any] = {}
+        elif int(chunks.get("chunks_missing") or 0) > 0:
+            stage = "primary_asr"
+            details = {
+                "items_completed": int(chunks.get("chunks_completed") or 0),
+                "items_total": int(chunks.get("chunks_total") or 0),
+                "remaining_audio_sec": float(chunks.get("remaining_sec") or 0.0),
+            }
+        else:
+            stage = "post_primary_timeline_and_micro_asr"
+            details = {
+                "primary_asr_status": "completed",
+                "primary_chunks_completed": int(chunks.get("chunks_completed") or 0),
+                "primary_chunks_total": int(chunks.get("chunks_total") or 0),
+            }
+        return {
+            "schema": "murmurmark.transcribe_stage_observation/v1",
+            "source": "pipeline_observer",
+            "status": "running",
+            "stage": stage,
+            **details,
+        }
+
+    if transcript.exists() and report.exists():
+        return {
+            "schema": "murmurmark.transcribe_stage_observation/v1",
+            "source": "pipeline_observer",
+            "status": "completed",
+            "stage": "completed",
+            "transcript": rel(transcript, session),
+            "report": rel(report, session),
+        }
+    if not isinstance(chunks, dict):
+        return None
+    primary_complete = int(chunks.get("chunks_missing") or 0) == 0
+    return {
+        "schema": "murmurmark.transcribe_stage_observation/v1",
+        "source": "pipeline_observer",
+        "status": "incomplete",
+        "stage": (
+            "post_primary_incomplete" if primary_complete else "primary_asr_incomplete"
+        ),
+        "primary_asr_status": "completed" if primary_complete else "incomplete",
     }
 
 
@@ -1491,7 +1594,7 @@ def append_authoritative_handoff_run(
         "asr_provenance": provenance,
         "runtime": {
             "resource_profile": getattr(args, "resource_profile", "background"),
-            "max_compute_threads": getattr(args, "max_compute_threads", 4),
+            "max_compute_threads": getattr(args, "max_compute_threads", 3),
             "asr_track_workers": args.asr_track_workers,
             "asr_threads": args.asr_threads,
             "micro_asr_workers": args.micro_asr_workers,
@@ -1528,6 +1631,105 @@ def file_fingerprint(path: Path, session: Path) -> dict[str, Any]:
     }
 
 
+def authoritative_transcript_snapshot_path(session: Path, sha256: str, suffix: str = ".md") -> Path:
+    safe_suffix = suffix if suffix and len(suffix) <= 16 else ".md"
+    return (
+        session
+        / "derived"
+        / "pipeline-run"
+        / "authoritative-handoff"
+        / f"transcript.{sha256}{safe_suffix}"
+    )
+
+
+def materialize_authoritative_transcript_snapshot(source: Path, session: Path) -> Path:
+    source_fingerprint = file_fingerprint(source, session)
+    expected_sha = str(source_fingerprint["sha256"])
+    expected_size = int(source_fingerprint["size"])
+    target = authoritative_transcript_snapshot_path(session, expected_sha, source.suffix)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists():
+        if target.stat().st_size != expected_size or sha256_file(target) != expected_sha:
+            raise RuntimeError(f"authoritative transcript snapshot collision: {target}")
+        return target
+
+    temporary = target.with_name(f".{target.name}.{os.getpid()}.tmp")
+    try:
+        with source.open("rb") as source_file, temporary.open("wb") as target_file:
+            shutil.copyfileobj(source_file, target_file, length=1024 * 1024)
+            target_file.flush()
+            os.fsync(target_file.fileno())
+        if temporary.stat().st_size != expected_size or sha256_file(temporary) != expected_sha:
+            raise RuntimeError(f"authoritative transcript snapshot verification failed: {source}")
+        os.replace(temporary, target)
+        directory_fd = os.open(target.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return target
+
+
+def fingerprint_path(payload: dict[str, Any], session: Path) -> Path | None:
+    raw_path = payload.get("path")
+    if not isinstance(raw_path, str) or not raw_path:
+        return None
+    path = Path(raw_path)
+    return path if path.is_absolute() else session / path
+
+
+def fingerprint_matches_file(fingerprint: dict[str, Any], path: Path) -> bool:
+    expected_sha = fingerprint.get("sha256")
+    expected_size = fingerprint.get("size")
+    if not isinstance(expected_sha, str) or not path.exists():
+        return False
+    if isinstance(expected_size, int) and path.stat().st_size != expected_size:
+        return False
+    return sha256_file(path) == expected_sha
+
+
+def repair_legacy_authoritative_handoff_snapshot(
+    payload: dict[str, Any] | None, session: Path
+) -> dict[str, Any] | None:
+    if not isinstance(payload, dict) or payload.get("schema") != HANDOFF_SCHEMA:
+        return payload
+    fingerprint = payload.get("transcript_fingerprint")
+    paths = payload.get("paths")
+    if not isinstance(fingerprint, dict) or not isinstance(paths, dict):
+        return payload
+    if isinstance(payload.get("source_transcript_fingerprint"), dict):
+        return payload
+
+    original_path = fingerprint_path(fingerprint, session)
+    candidates: list[Path] = []
+    if original_path is not None:
+        candidates.append(original_path)
+    bundle_root = session / "derived" / "handoff-v2" / "bundles"
+    if bundle_root.exists():
+        candidates.extend(sorted(bundle_root.glob("*/transcript.md")))
+
+    source = next(
+        (candidate for candidate in candidates if fingerprint_matches_file(fingerprint, candidate)),
+        None,
+    )
+    if source is None:
+        return payload
+
+    snapshot = materialize_authoritative_transcript_snapshot(source, session)
+    repaired = dict(payload)
+    repaired_paths = dict(paths)
+    repaired_paths["transcript"] = rel(snapshot, session)
+    repaired["paths"] = repaired_paths
+    repaired["source_transcript_fingerprint"] = dict(fingerprint)
+    repaired["transcript_fingerprint"] = file_fingerprint(snapshot, session)
+    repaired["version"] = 2
+    repaired["snapshot_repaired_at"] = datetime.now(timezone.utc).isoformat()
+    write_json_atomic(authoritative_handoff_path(session), repaired)
+    return repaired
+
+
 def readiness_output_path(readiness: dict[str, Any], key: str, session: Path) -> Path | None:
     outputs = readiness.get("outputs")
     if not isinstance(outputs, dict):
@@ -1551,39 +1753,42 @@ def handoff_artifact_fingerprint_matches(payload: dict[str, Any] | None, session
     if not isinstance(fingerprint, dict):
         return False
     raw_path = fingerprint.get("path")
-    expected_sha = fingerprint.get("sha256")
-    expected_size = fingerprint.get("size")
-    if not isinstance(raw_path, str) or not isinstance(expected_sha, str):
+    if not isinstance(raw_path, str):
         return False
-    path = Path(raw_path)
-    path = path if path.is_absolute() else session / path
-    if not path.exists():
+    path = fingerprint_path(fingerprint, session)
+    if path is None:
         return False
     paths = payload.get("paths")
     if not isinstance(paths, dict) or paths.get("transcript") != raw_path:
         return False
-    if isinstance(expected_size, int) and path.stat().st_size != expected_size:
-        return False
-    return sha256_file(path) == expected_sha
+    return fingerprint_matches_file(fingerprint, path)
 
 
 def handoff_fingerprint_matches(payload: dict[str, Any] | None, session: Path) -> bool:
     if not handoff_artifact_fingerprint_matches(payload, session):
         return False
     assert isinstance(payload, dict)
-    fingerprint = payload["transcript_fingerprint"]
-    assert isinstance(fingerprint, dict)
-    raw_path = fingerprint["path"]
-    assert isinstance(raw_path, str)
-    path = Path(raw_path)
-    path = path if path.is_absolute() else session / path
     readiness = read_json(session / "derived/readiness/session_readiness.json")
     selected_profile = payload.get("selected_transcript_profile")
     if not isinstance(readiness, dict) or readiness.get("selected_profile") != selected_profile:
         return False
     readiness_transcript = readiness_output_path(readiness, "transcript", session)
-    if readiness_transcript is None or readiness_transcript.resolve() != path.resolve():
-        return False
+    source_fingerprint = payload.get("source_transcript_fingerprint")
+    if isinstance(source_fingerprint, dict):
+        source_path = fingerprint_path(source_fingerprint, session)
+        if (
+            readiness_transcript is None
+            or source_path is None
+            or readiness_transcript.resolve() != source_path.resolve()
+            or not fingerprint_matches_file(source_fingerprint, source_path)
+        ):
+            return False
+    else:
+        fingerprint = payload["transcript_fingerprint"]
+        assert isinstance(fingerprint, dict)
+        path = fingerprint_path(fingerprint, session)
+        if readiness_transcript is None or path is None or readiness_transcript.resolve() != path.resolve():
+            return False
     return True
 
 
@@ -1707,14 +1912,24 @@ def build_authoritative_handoff(
         if status == "review_required" and deferred_status == "pending"
         else readiness_next
     )
-    fingerprint = file_fingerprint(transcript, session) if transcript is not None and transcript.exists() else None
+    source_fingerprint = (
+        file_fingerprint(transcript, session) if transcript is not None and transcript.exists() else None
+    )
+    transcript_snapshot = (
+        materialize_authoritative_transcript_snapshot(transcript, session)
+        if transcript is not None and transcript.exists()
+        else None
+    )
+    fingerprint = (
+        file_fingerprint(transcript_snapshot, session) if transcript_snapshot is not None else None
+    )
     now = datetime.now(timezone.utc).isoformat()
     provenance = asr_provenance(session)
     if asr_invocation_context is not None:
         provenance["invocation"] = asr_invocation_context
     checkpoint = {
         "schema": HANDOFF_SCHEMA,
-        "version": 1,
+        "version": 2,
         "generator": {"name": "run-session-pipeline", "version": SCRIPT_VERSION},
         "session": str(session),
         "status": status,
@@ -1722,7 +1937,7 @@ def build_authoritative_handoff(
         "verdict": verdict,
         "use_gate": use_gate,
         "paths": {
-            "transcript": rel(transcript, session) if transcript is not None and transcript.exists() else None,
+            "transcript": rel(transcript_snapshot, session) if transcript_snapshot is not None else None,
             "notes": rel(notes, session) if notes is not None and notes.exists() else None,
             "verdict": rel(verdict_markdown, session)
             if verdict_markdown is not None and verdict_markdown.exists()
@@ -1748,6 +1963,7 @@ def build_authoritative_handoff(
         },
         "recommended_next": recommended_next,
         "transcript_fingerprint": fingerprint,
+        "source_transcript_fingerprint": source_fingerprint,
     }
     write_json_atomic(authoritative_handoff_path(session), checkpoint)
     return checkpoint
@@ -1770,7 +1986,8 @@ def update_deferred_checkpoint(
     deferred.update(
         {
             "status": status,
-            "finished_at": datetime.now(timezone.utc).isoformat() if status in {"completed", "failed", "interrupted"} else None,
+            "finished_at": datetime.now(timezone.utc).isoformat()
+            if status in {"completed", "failed", "interrupted", "deferred_budget_exhausted"} else None,
             "elapsed_sec": round(elapsed_sec, 3),
             "report": rel(report_path, session),
         }
@@ -1878,6 +2095,8 @@ def checkpoint_progress_for_step(
     step_name: str,
     session: Path,
     report_path: Path,
+    processing_lease: dict[str, Any] | None = None,
+    step_active: bool = True,
 ) -> dict[str, Any]:
     outputs = [
         item
@@ -1896,7 +2115,7 @@ def checkpoint_progress_for_step(
             existing.append(raw_path)
         else:
             missing.append(raw_path)
-    return {
+    progress = {
         "total": len(outputs),
         "existing": len(existing),
         "missing": len(missing),
@@ -1905,7 +2124,13 @@ def checkpoint_progress_for_step(
         "asr_chunks": transcribe_chunk_progress(session)
         if step_name in {"transcribe_current", "transcribe_shadow_v2"}
         else None,
+        "asr_stage": transcribe_stage_progress(session, active=step_active)
+        if step_name in {"transcribe_current", "transcribe_shadow_v2"}
+        else None,
     }
+    if processing_lease is not None:
+        progress["processing_lease"] = processing_lease
+    return progress
 
 
 def expected_output_specs(session: Path, report_path: Path) -> list[dict[str, str]]:
@@ -2125,6 +2350,7 @@ def run_step(
     report_path: Path,
     pipeline_started_at: str,
     pipeline_phase: str,
+    processing_lease: dict[str, Any] | None = None,
     timeout_sec: int = 0,
 ) -> dict[str, Any]:
     started_at = datetime.now(timezone.utc).isoformat()
@@ -2144,6 +2370,11 @@ def run_step(
         result["finished_at"] = datetime.now(timezone.utc).isoformat()
         result["duration_sec"] = 0.0
         return result
+    action_remaining = remaining_seconds() if pipeline_phase == DEFERRED_PHASE else None
+    if action_remaining is not None and action_remaining <= 0:
+        return {**result, "status": "deferred_budget_exhausted", "returncode": BUDGET_EXIT,
+                "finished_at": datetime.now(timezone.utc).isoformat(), "duration_sec": 0.0,
+                "message": "shared follow-up deadline reached; step not started"}
     with tempfile.TemporaryDirectory(prefix="murmurmark-pipeline-") as temp_dir:
         stdout_path = Path(temp_dir) / "stdout.log"
         stderr_path = Path(temp_dir) / "stderr.log"
@@ -2163,6 +2394,7 @@ def run_step(
                     step_name=step_name,
                     session=session,
                     report_path=report_path,
+                    processing_lease=processing_lease,
                 ),
                 message="step_started",
             )
@@ -2177,12 +2409,18 @@ def run_step(
             )
             next_progress_at = time.monotonic() + max(1, progress_interval_sec)
             timed_out = False
+            budget_exhausted = False
             try:
                 while True:
                     returncode = process.poll()
                     if returncode is not None:
                         break
                     now = time.monotonic()
+                    action_remaining = remaining_seconds() if pipeline_phase == DEFERRED_PHASE else None
+                    if action_remaining is not None and action_remaining <= 0:
+                        budget_exhausted = True
+                        terminate_process_group(process)
+                        break
                     if timeout_sec > 0 and now - started >= timeout_sec:
                         timed_out = True
                         terminate_process_group(process)
@@ -2194,6 +2432,7 @@ def run_step(
                             step_name=step_name,
                             session=session,
                             report_path=report_path,
+                            processing_lease=processing_lease,
                         )
                         write_pipeline_run_state(
                             session=session,
@@ -2236,11 +2475,35 @@ def run_step(
                                     if isinstance(estimate, dict) and estimate.get("estimated_wall_sec") is not None:
                                         eta_text = f", eta~{format_duration(float(estimate['estimated_wall_sec']))}"
                                     chunk_text = (
-                                        f"; ASR chunks {chunks_completed}/{chunks_total}"
+                                        f"; primary ASR chunks {chunks_completed}/{chunks_total}"
                                         f" ({format_duration(completed_sec)}/{format_duration(total_sec)}),"
                                         f" remaining={format_duration(remaining_sec)},"
                                         f" reused={reused}, transcribed={transcribed}{eta_text}"
                                     )
+                        stage_progress = progress.get("asr_stage")
+                        if isinstance(stage_progress, dict):
+                            stage = str(stage_progress.get("stage") or "unknown")
+                            stage_status = str(
+                                stage_progress.get("stage_status")
+                                or stage_progress.get("status")
+                                or "running"
+                            )
+                            items_completed = int(stage_progress.get("items_completed") or 0)
+                            items_total = int(stage_progress.get("items_total") or 0)
+                            item_text = (
+                                f" {items_completed}/{items_total}"
+                                if items_total > 0
+                                else ""
+                            )
+                            micro_attempts = int(stage_progress.get("micro_asr_attempts") or 0)
+                            micro_text = (
+                                f", micro-ASR attempts={micro_attempts}"
+                                if micro_attempts > 0
+                                else ""
+                            )
+                            chunk_text += (
+                                f"; ASR stage={stage} ({stage_status}){item_text}{micro_text}"
+                            )
                         reason = str(hint.get("reason") or "working")
                         print(
                             f"[run] {step_name} still running ({format_duration(elapsed)})"
@@ -2274,6 +2537,7 @@ def run_step(
                         step_name=str(item.get("name") or "unknown"),
                         session=session,
                         report_path=report_path,
+                        processing_lease=processing_lease,
                     ),
                     message="interrupted_by_user",
                 )
@@ -2298,8 +2562,15 @@ def run_step(
         stdout_tail = read_tail(stdout_path)
         stderr_tail = read_tail(stderr_path)
     warning_returncodes = {int(value) for value in item.get("warning_returncodes", [])}
+    command = item["command"]
+    cooperative_child = (len(command) > 1 and Path(command[1]).suffix == ".py"
+                         and Path(command[1]).resolve().parent == (repo_root / "scripts").resolve())
     if returncode == 0:
         status = "passed"
+    elif cooperative_child and returncode == BUDGET_EXIT:
+        status = "deferred_budget_exhausted"
+    elif returncode == -signal.SIGINT or (cooperative_child and returncode == 130):
+        status = "interrupted"
     elif returncode in warning_returncodes:
         status = "passed_with_warnings"
     else:
@@ -2317,6 +2588,13 @@ def run_step(
     if timed_out:
         result["status"] = "failed"
         result["message"] = f"step exceeded timeout of {timeout_sec}s; process group terminated"
+    elif budget_exhausted:
+        result.update(status="deferred_budget_exhausted", returncode=BUDGET_EXIT,
+                      message="shared follow-up deadline reached; completed checkpoints retained")
+    elif status == "deferred_budget_exhausted":
+        result["message"] = "child reached shared follow-up deadline; completed checkpoints retained"
+    elif status == "interrupted":
+        result.update(returncode=130, message="child interrupted; completed checkpoints retained")
     return result
 
 
@@ -2567,7 +2845,9 @@ def main() -> int:
             "reason": "not_requested",
             "tracks": [],
         }
-    existing_handoff = read_json(authoritative_handoff_path(session))
+    existing_handoff = repair_legacy_authoritative_handoff_snapshot(
+        read_json(authoritative_handoff_path(session)), session
+    )
     reusable_handoff = handoff_fingerprint_matches(existing_handoff, session) and default_handoff_reuse_allowed(args)
 
     if requested_phase == "handoff" and reusable_handoff:
@@ -2610,6 +2890,11 @@ def main() -> int:
     started_clock = time.monotonic()
     final_status = "passed"
     initial_state_phase = DEFERRED_PHASE if effective_phase == "deferred" else HANDOFF_PHASE
+    processing_lease_report: dict[str, Any] = {
+        "schema": "murmurmark.processing_lease/v1",
+        "status": "not_required" if args.plan_only else "pending",
+        "capture_blocked": False,
+    }
     write_pipeline_run_state(
         session=session,
         repo_root=repo_root,
@@ -2639,6 +2924,7 @@ def main() -> int:
                 "status": "running",
                 "phase": requested_phase,
                 "resource_policy": resource_policy_report,
+                "processing_lease": processing_lease_report,
                 "plan": plan_metadata,
                 "steps": [],
             },
@@ -2747,6 +3033,72 @@ def main() -> int:
     if args.plan_only:
         print_pipeline_plan(steps, session, report_path, repo_root, plan_metadata)
 
+    processing_lease: ProcessingLease | None = None
+    if not args.plan_only:
+        processing_lease = ProcessingLease(
+            sessions_root=session.resolve().parent,
+            session=session,
+            phase=initial_state_phase,
+        )
+
+        def report_processing_wait(snapshot: dict[str, Any]) -> None:
+            nonlocal processing_lease_report
+            processing_lease_report = snapshot
+            owner = snapshot.get("owner") if isinstance(snapshot.get("owner"), dict) else {}
+            owner_session = str(owner.get("session") or "unknown")
+            print(
+                "[queue] waiting for global processing lease "
+                f"(position {int(snapshot.get('queue_position') or 0)}, "
+                f"owner={owner_session}, waited={format_duration(float(snapshot.get('waited_sec') or 0.0))}); "
+                "new recording remains available",
+                flush=True,
+            )
+            write_pipeline_run_state(
+                session=session,
+                repo_root=repo_root,
+                report_path=report_path,
+                started_at=started_at,
+                status="running",
+                phase=initial_state_phase,
+                active_step="waiting_for_processing_lease",
+                active_step_started_at=started_at,
+                active_step_elapsed_sec=float(snapshot.get("waited_sec") or 0.0),
+                progress={"processing_lease": snapshot},
+                message="waiting_for_global_processing_lease",
+                completed_steps=results,
+            )
+
+        try:
+            processing_lease_report = processing_lease.acquire(report_processing_wait)
+        except (KeyboardInterrupt, ActionStopped) as error:
+            stopped = "deferred_budget_exhausted" if isinstance(error, ActionStopped) else "interrupted"
+            processing_lease_report = processing_lease.summary(stopped)
+            write_pipeline_run_state(
+                session=session,
+                repo_root=repo_root,
+                report_path=report_path,
+                started_at=started_at,
+                status=stopped,
+                phase=initial_state_phase,
+                active_step="waiting_for_processing_lease",
+                progress={"processing_lease": processing_lease_report},
+                message=f"processing_lease_wait_{stopped}",
+                completed_steps=results,
+            )
+            print(f"[queue] processing wait {stopped}; no heavy step was started", flush=True)
+            resume = (
+                f"murmurmark enrich {rel(session, repo_root)}"
+                if initial_state_phase == DEFERRED_PHASE
+                else f"murmurmark process {rel(session, repo_root)}"
+            )
+            print(f"[queue] resume: {resume}", flush=True)
+            return error.returncode if isinstance(error, ActionStopped) else 130
+        print(
+            "[queue] acquired global processing lease "
+            f"after {format_duration(float(processing_lease_report.get('waited_sec') or 0.0))}",
+            flush=True,
+        )
+
     for item in steps:
         if not args.plan_only:
             print_step_start(item, args.plan_only)
@@ -2759,6 +3111,7 @@ def main() -> int:
             report_path=report_path,
             pipeline_started_at=started_at,
             pipeline_phase=str(item.get("phase") or HANDOFF_PHASE),
+            processing_lease=processing_lease_report,
             timeout_sec=(
                 args.deferred_step_timeout_sec
                 if str(item.get("phase") or HANDOFF_PHASE) == DEFERRED_PHASE
@@ -2780,6 +3133,8 @@ def main() -> int:
                 step_name=str(result.get("name") or ""),
                 session=session,
                 report_path=report_path,
+                processing_lease=processing_lease_report,
+                step_active=False,
             ),
             message=f"step_{result['status']}",
             completed_steps=results,
@@ -2814,12 +3169,18 @@ def main() -> int:
             else:
                 final_status = "failed"
                 break
+        if result["status"] == "deferred_budget_exhausted":
+            final_status = "deferred_budget_exhausted"
+            break
         if result["status"] == "failed":
             final_status = "failed"
             break
         if result["status"] == "interrupted":
             final_status = "interrupted"
             break
+
+    if processing_lease is not None:
+        processing_lease_report = processing_lease.release()
 
     quality_path = session / "derived/synthesis-simple/extractive/quality_verdict.json"
     readiness_path = session / "derived/readiness/session_readiness.json"
@@ -2838,6 +3199,12 @@ def main() -> int:
     status = "planned" if args.plan_only else final_status
     command_handoff = pipeline_handoff(
         status=status,
+        resume_phase=(
+            "deferred"
+            if effective_phase == "deferred"
+            or (effective_phase == "full" and results and results[-1].get("phase") == DEFERRED_PHASE)
+            else "handoff"
+        ),
         session=session,
         report_path=report_path,
         repo_root=repo_root,
@@ -2907,6 +3274,7 @@ def main() -> int:
         "open_commands": command_handoff["open_commands"],
         "progress": {
             "asr_chunks": transcribe_chunk_progress(session),
+            "asr_stage": transcribe_stage_progress(session, active=False),
             "asr_remaining_estimate": estimate_remaining_runtime(
                 transcribe_chunk_progress(session),
                 sum(float(item.get("duration_sec") or 0.0) for item in results if item.get("name") == "transcribe_current"),
@@ -2914,6 +3282,7 @@ def main() -> int:
         },
         "performance": {
             "resource_policy": resource_policy_report,
+            "processing_lease": processing_lease_report,
             "authoritative_handoff_elapsed_sec": round(handoff_elapsed, 3),
             "deferred_elapsed_sec": round(deferred_elapsed, 3),
             "critical_path_stages": [
@@ -2938,7 +3307,9 @@ def main() -> int:
     )
     if ran_deferred and not args.plan_only:
         deferred_status = "completed" if status == "passed" else status
-        if not handoff_fingerprint_matches(read_json(authoritative_handoff_path(session)), session):
+        if not handoff_artifact_fingerprint_matches(
+            read_json(authoritative_handoff_path(session)), session
+        ):
             deferred_status = "failed"
             status = "failed"
             report["status"] = "failed"
@@ -2963,10 +3334,14 @@ def main() -> int:
         message="pipeline_finished",
         completed_steps=results,
     )
-    if not args.plan_only:
+    if not args.plan_only and status != "deferred_budget_exhausted":
         write_outcome_artifacts(session, report_path, repo_root)
         build_evidence_handoff(session=session, repo_root=repo_root, quiet=True)
     print_pipeline_summary(report, report_path, repo_root)
+    if report["status"] == "deferred_budget_exhausted":
+        return BUDGET_EXIT
+    if report["status"] == "interrupted":
+        return 130
     return 0 if report["status"] in {"passed", "planned"} else 2
 
 

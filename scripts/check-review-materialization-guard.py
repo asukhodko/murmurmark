@@ -11,6 +11,7 @@ import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
+from review_audio_evidence import seal_evidence
 
 def load_module(filename: str, name: str):
     path = Path(__file__).with_name(filename)
@@ -42,7 +43,7 @@ def main() -> int:
     assert "private static func convergeSuggestedReview(" in swift_source
     assert "let maxAdditionalPasses = 7" in swift_source
     assert 'let closed = closure["closed_by_suggestions"]' in swift_source
-    assert 'lanePack.lastPathComponent.contains("check_transcript_text")' in swift_source
+    assert '"--adaptive-sources"' in swift_source
 
     unsupported_fallback = {
         "id": "utt_micro_empty",
@@ -79,6 +80,7 @@ def main() -> int:
                     "input_profile": "audit_cleanup_v2",
                     "source": "transcript_order",
                     "source_audit_id": "order_0001",
+                    "review_source": "manual",
                     "status": "reviewed",
                     "decision": "keep_me",
                 }
@@ -326,13 +328,26 @@ def main() -> int:
         "utterance_ids": ["utt_micro_empty"],
         "interval": {"start": 0.0, "end": 6.5},
         "classification": {"label": "confirm_asr_noise", "confidence": 0.92},
+        "utterances": [{**piece, "start": 0.0, "end": 6.5} for piece in transcript_text_row["text"]],
     }
+    transcript_text_row.pop("session", None)
     suggestion = lane.suggested_decision_for_group(
         [transcript_text_row],
         {"fixture": [stronger_noise]},
         {},
     )
-    assert suggestion[0] == "drop_me", suggestion
+    assert suggestion[0] == "needs_review", suggestion
+    with tempfile.TemporaryDirectory(prefix="murmurmark-noise-evidence-") as directory:
+        clips = {}
+        for source in ("mic_raw", "mic_clean", "mic_role_masked", "remote"):
+            path = Path(directory) / f"{source}.wav"
+            path.write_bytes(f"fixture {source}".encode())
+            clips[source] = str(path)
+        stronger_noise.update({"schema": stronger.SCHEMA_ROW, "clips": clips, "sources": list(clips),
+                               "classification_scope": {source: "word_bounded" for source in clips}})
+        seal_evidence(stronger_noise)
+        suggestion = lane.suggested_decision_for_group([transcript_text_row], {"fixture": [stronger_noise]}, {})
+        assert suggestion[0] == "drop_me", suggestion
 
     raw = {
         "session_id": "fixture",
@@ -347,6 +362,8 @@ def main() -> int:
         # the local-recall repair profile materializes them.
         "me_utterance_ids": ["live_candidate_1"],
         "utterance_ids": ["live_candidate_1"],
+        "interval": {"start": 0.0, "end": 3.0},
+        "text": [{"id": "live_candidate_1", "role": "me", "start": 0.0, "end": 3.0, "text": "candidate speech"}],
     }
     assert lane.requires_materialized_local_recall([raw]) is True
     suggestion = lane.suggested_decision_for_group([raw], {}, {})
@@ -360,6 +377,7 @@ def main() -> int:
         "utterance_ids": ["live_candidate_1"],
         "interval": {"start": 0.0, "end": 3.0},
         "classification": {"label": "confirm_remote_duplicate", "confidence": 0.95},
+        "utterances": raw["text"],
     }
     suggestion = lane.suggested_decision_for_group([raw], {"fixture": [false_candidate_judge]}, {})
     assert suggestion[0] == "skip", suggestion
@@ -388,7 +406,7 @@ def main() -> int:
     }
     assert lane.requires_materialized_local_recall([materialized]) is False
     suggestion = lane.suggested_decision_for_group([materialized], {}, {})
-    assert suggestion[0] == "keep_me", suggestion
+    assert suggestion[0] == "needs_review", suggestion
     normalized = apply.normalize_decision({**materialized, "decision": "keep_me"})
     assert not normalized.get("_invalid"), normalized
     assert apply.obsolete_audit_only_local_recall_keep({**materialized, "decision": "keep_me"}) is False
@@ -403,6 +421,10 @@ def main() -> int:
         "me_utterance_ids": ["utt_voice_me"],
         "remote_utterance_ids": ["utt_voice_remote"],
         "interval": {"start": 10.0, "end": 12.0},
+        "text": [
+            {"id": "utt_voice_me", "role": "me", "text": "local speech", "start": 10.0, "end": 12.0},
+            {"id": "utt_voice_remote", "role": "remote", "text": "remote speech", "start": 10.0, "end": 12.0},
+        ],
     }
     stronger_keep = {
         "id": "fwj_voice_conflict",
@@ -410,6 +432,7 @@ def main() -> int:
         "session_id": "fixture",
         "utterance_ids": ["utt_voice_me", "utt_voice_remote"],
         "interval": {"start": 10.0, "end": 12.0},
+        "utterances": audio_row["text"],
         "classification": {
             "label": "confirm_timing_or_doubletalk",
             "confidence": 0.92,
@@ -427,6 +450,7 @@ def main() -> int:
         "session_id": "fixture",
         "utterance_ids": ["utt_voice_me", "utt_voice_remote"],
         "interval": {"start": 10.0, "end": 12.0},
+        "utterances": audio_row["text"],
         "classification": {"label": "target_me_absent", "confidence": 0.70},
         "impact": {"category": "not_actionable"},
     }
@@ -435,7 +459,7 @@ def main() -> int:
         {"fixture": [stronger_keep]},
         {"fixture": [target_absent]},
     )
-    assert suggestion[0] == "keep_me", suggestion
+    assert suggestion[0] == "needs_review", suggestion  # Unsealed legacy evidence.
 
     target_remote_like = {
         **target_absent,
@@ -462,7 +486,7 @@ def main() -> int:
         {"fixture": [stronger_keep]},
         {"fixture": [target_confirmed]},
     )
-    assert suggestion[0] == "keep_me", suggestion
+    assert suggestion[0] == "needs_review", suggestion  # Voice scores do not seal missing clips.
 
     workspace_apply = load_module(
         "apply-review-workspace-decisions.py",
@@ -519,6 +543,7 @@ def main() -> int:
         "decision": "keep_me",
         "status": "reviewed",
         "reviewer": "test",
+        "review_source": "manual",
         "review_suggested_decision": "keep_me",
     }
     for merge_module in merge_modules:
@@ -620,6 +645,7 @@ def main() -> int:
             "cluster_id": "order_cluster",
             "label": "probable_order_risk",
             "review_action": "check_transcript_order",
+            "review_source": "manual",
             "decision": "keep_me",
             "status": "reviewed",
             "me_utterance_ids": ["utt_order_me"],
@@ -637,6 +663,7 @@ def main() -> int:
             "cluster_id": "audio_cluster",
             "label": "uncertain",
             "review_action": "classify_audio",
+            "review_source": "manual",
             "decision": "keep_me",
             "status": "reviewed",
             "me_utterance_ids": ["utt_audio_me"],
@@ -712,7 +739,9 @@ def main() -> int:
         assert completed.returncode == 0, (completed.stdout, completed.stderr)
         reviewed = json.loads((resolved / "clean_dialogue.reviewed_v1.json").read_text(encoding="utf-8"))
         reviewed_by_id = {row["id"]: row for row in reviewed["utterances"]}
-        assert reviewed_by_id["utt_order_me"]["quality"]["needs_review"] is False, reviewed_by_id["utt_order_me"]
+        # Confirming order cannot erase an independent voice/text uncertainty.
+        assert reviewed_by_id["utt_order_me"]["quality"]["needs_review"] is True, reviewed_by_id["utt_order_me"]
+        assert reviewed_by_id["utt_order_me"]["quality"]["transcript_order_review"]["status"] == "cleared"
         assert reviewed_by_id["utt_audio_me"]["quality"]["needs_review"] is False, reviewed_by_id["utt_audio_me"]
         assert reviewed_by_id["utt_pending_me"]["quality"]["needs_review"] is True, reviewed_by_id["utt_pending_me"]
         report = json.loads(
@@ -758,6 +787,7 @@ def main() -> int:
             "schema": "murmurmark.review_decision/v1",
             "decision": "keep_me",
             "status": "reviewed",
+            "review_source": "manual",
         }
         pending_template_row = {**pending_decision, "decision": "todo", "status": "todo"}
         pending_decisions = Path(temp_dir) / "pending_review_decisions.jsonl"

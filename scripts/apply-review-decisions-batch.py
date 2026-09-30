@@ -3,13 +3,16 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
+import os
+import shlex
 import sys
 from pathlib import Path
 from typing import Any
 
+from murmurmark_deadline import BUDGET_EXIT, run_bounded
 
-SCRIPT_VERSION = "0.3.4"
+
+SCRIPT_VERSION = "0.3.5"
 SCHEMA = "murmurmark.review_decisions_batch_report/v1"
 
 
@@ -102,7 +105,9 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(path)
 
 
 def session_key(row: dict[str, Any]) -> str:
@@ -151,13 +156,13 @@ def collect_sessions(decisions_path: Path, template_path: Path, filters: set[str
 
 
 def run_command(command: list[str]) -> dict[str, Any]:
-    completed = subprocess.run(command, text=True, capture_output=True, check=False)
-    return {
-        "command": command,
-        "returncode": completed.returncode,
-        "stdout": completed.stdout.strip(),
-        "stderr": completed.stderr.strip(),
-    }
+    return run_bounded(command)
+
+
+class BatchStopped(RuntimeError):
+    def __init__(self, result: dict[str, Any]):
+        self.result = result
+        super().__init__(result["status"])
 
 
 def safe_str(value: Any) -> str:
@@ -302,7 +307,8 @@ def refresh_sessions_from_existing_report(out_dir: Path, fallback: list[Path]) -
     return sessions or fallback
 
 
-def refresh_reports(args: argparse.Namespace, repo_root: Path, sessions: list[Path]) -> list[dict[str, Any]]:
+def refresh_reports(args: argparse.Namespace, repo_root: Path, sessions: list[Path],
+                    run=run_command) -> list[dict[str, Any]]:
     if not sessions:
         return []
     session_quality_out = args.session_quality_out_dir.expanduser()
@@ -312,9 +318,9 @@ def refresh_reports(args: argparse.Namespace, repo_root: Path, sessions: list[Pa
     speaker_refresh_steps = [
         [
             sys.executable,
-            str(repo_root / "scripts/select-speaker-resolved-transcript.py"),
+            str(repo_root / "scripts/materialize-provisional-speaker-transcript.py"),
             str(session),
-            "--refresh-evidence",
+            "--cached-only",
         ]
         for session in sessions
     ]
@@ -350,17 +356,24 @@ def refresh_reports(args: argparse.Namespace, repo_root: Path, sessions: list[Pa
             str(review_plan_out),
         ],
     ]
+    # Publish the reviewed profile before binding speaker evidence to it. Review
+    # convergence must not start a fresh acoustic inference on every keep-only pass.
+    report_results = []
+    for command in report_steps:
+        result = run(command)
+        report_results.append(result)
+        if result["returncode"] != 0:
+            return report_results
     speaker_results = []
     for command in speaker_refresh_steps:
-        result = run_command(command)
+        result = run(command)
         result["optional"] = True
         result["purpose"] = "refresh_speaker_resolved_transcript"
         speaker_results.append(result)
-    return speaker_results + [run_command(command) for command in report_steps]
+    return report_results + speaker_results
 
 
-def main() -> int:
-    args = parse_args()
+def apply_batch(args: argparse.Namespace, run, results: list[dict[str, Any]]) -> int:
     repo_root = Path(__file__).resolve().parents[1]
     decisions = args.decisions.expanduser()
     template = args.review_template.expanduser()
@@ -371,7 +384,6 @@ def main() -> int:
 
     filters = {item.strip() for item in args.session if item.strip()}
     sessions = collect_sessions(decisions, template, filters)
-    results: list[dict[str, Any]] = []
     for session in sessions:
         apply_command = [
             sys.executable,
@@ -388,7 +400,7 @@ def main() -> int:
         ]
         if args.allow_partial_review:
             apply_command.append("--allow-partial-review")
-        apply_result = run_command(apply_command)
+        apply_result = run(apply_command)
         review_report_path = (
             session
             / "derived/transcript-simple/whisper-cpp/review-decisions"
@@ -398,18 +410,6 @@ def main() -> int:
         gates = review_report.get("gates") if isinstance(review_report, dict) else {}
         coverage = review_report.get("coverage") if isinstance(review_report, dict) else {}
         partial_success = partial_review_success(args, apply_result, review_report)
-
-        synthesize_result: dict[str, Any] | None = None
-        if (args.synthesize or args.refresh_reports) and (apply_result["returncode"] == 0 or partial_success):
-            synthesize_result = run_command(
-                [
-                    sys.executable,
-                    str(repo_root / "scripts/synthesize-simple-extractive.py"),
-                    str(session),
-                    "--transcript-profile",
-                    args.output_profile,
-                ]
-            )
 
         results.append(
             {
@@ -428,13 +428,18 @@ def main() -> int:
                     "stdout": apply_result["stdout"],
                     "stderr": apply_result["stderr"],
                 },
-                "synthesize": synthesize_result,
+                "synthesize": None,
             }
         )
+        if (args.synthesize or args.refresh_reports) and (apply_result["returncode"] == 0 or partial_success):
+            results[-1]["synthesize"] = run([
+                sys.executable, str(repo_root / "scripts/synthesize-simple-extractive.py"),
+                str(session), "--transcript-profile", args.output_profile,
+            ])
 
     refresh_results: list[dict[str, Any]] = []
     if args.refresh_reports:
-        refresh_results = refresh_reports(args, repo_root, sessions)
+        refresh_results = refresh_reports(args, repo_root, sessions, run)
         for row in results:
             session = Path(str(row.get("session") or ""))
             row["post_apply_readiness"] = post_apply_readiness(session)
@@ -461,6 +466,7 @@ def main() -> int:
     next_commands = report_next_commands(args.out.expanduser(), results, failed, failed_refresh)
     report = {
         "schema": SCHEMA,
+        "status": "completed" if not failed and not failed_refresh else "failed",
         "generator": {"name": "apply-review-decisions-batch", "version": SCRIPT_VERSION},
         "inputs": {
             "decisions": decisions.as_posix(),
@@ -496,6 +502,38 @@ def main() -> int:
     if args.refresh_reports:
         print(f"failed_refresh_steps: {len(failed_refresh)}")
     return 0 if not failed and not failed_refresh else 2
+
+
+def main() -> int:
+    args = parse_args()
+    results: list[dict[str, Any]] = []
+    journal: dict[str, Any] = {
+        "schema": SCHEMA, "status": "running", "sessions": results, "commands": [],
+        "inputs": {"decisions": str(args.decisions), "review_template": str(args.review_template)},
+        "current_command": None,
+    }
+
+    def run(command: list[str]) -> dict[str, Any]:
+        journal["current_command"] = command
+        write_json(args.out, journal)
+        result = run_command(command)
+        journal["commands"].append(result)
+        journal["current_command"] = None
+        write_json(args.out, journal)
+        if result["status"] in {"budget_exhausted", "interrupted"}:
+            raise BatchStopped(result)
+        return result
+
+    try:
+        return apply_batch(args, run, results)
+    except (BatchStopped, KeyboardInterrupt) as error:
+        budget = isinstance(error, BatchStopped) and error.result["status"] == "budget_exhausted"
+        journal["status"] = "deferred_budget_exhausted" if budget else "interrupted_recoverable"
+        journal["resume_command"] = shlex.join([sys.executable, str(Path(__file__).resolve()), *sys.argv[1:]])
+        write_json(args.out, journal)
+        print(f"review_decisions_apply: {journal['status']}; completed steps saved", file=sys.stderr)
+        print(f"report: {args.out}", file=sys.stderr)
+        return BUDGET_EXIT if budget else 130
 
 
 if __name__ == "__main__":

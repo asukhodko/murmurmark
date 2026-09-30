@@ -170,6 +170,7 @@ def main() -> int:
         "algorithm": {
             "path": "scripts/apply-transcript-integrity.py",
             "sha256": sha256(algorithm),
+            "overlap_builder_sha256": sha256(repo_root / "scripts/transcript_overlaps.py"),
         },
         "summary": {
             "session_count": len(rows),

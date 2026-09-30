@@ -125,6 +125,89 @@ def main() -> None:
     assert metrics["manual_review_queue_seconds"] == 12.346
     assert metrics["review_scope_closed_rows"] == 3
     assert metrics["manual_review_queue_source"] == "review_decisions_progress"
+
+    with tempfile.TemporaryDirectory(prefix="murmurmark-review-progress-order-") as temporary:
+        session = Path(temporary) / "fixture"
+        plan = session / "derived/readiness/review-plan"
+        plan.mkdir(parents=True)
+        decisions = [
+            {
+                "source": "transcript_order",
+                "review_lane": "check_transcript_order",
+                "label": "probable_order_risk",
+                "decision": "keep_me",
+                "review_source": "manual",
+                "status": "reviewed",
+                "interval": {"start": 1.0, "end": 50.0, "duration_sec": 49.0},
+            },
+            {
+                "source": "transcript_order",
+                "review_lane": "check_transcript_order",
+                "label": "transcript_order_needs_review",
+                "decision": "skip",
+                "status": "reviewed",
+                "interval": {"start": 60.0, "end": 108.91, "duration_sec": 48.91},
+            },
+        ]
+        (plan / "review_decisions.jsonl").write_text(
+            "\n".join(json.dumps(row) for row in decisions) + "\n",
+            encoding="utf-8",
+        )
+        progress = {
+            "summary": progress_summary,
+            "by_lane": [
+                {
+                    "review_lane": "check_transcript_order",
+                    "total": 2,
+                    "reviewed": 2,
+                    "remaining": 0,
+                    "seconds": 97.91,
+                    "remaining_seconds": 0.0,
+                    "decisions": {"keep_me": 1, "skip": 1},
+                }
+            ],
+            "errors": [],
+        }
+        order_metrics = QUALITY.review_progress_transcript_order_metrics(session, progress)
+        assert order_metrics["transcript_order_review_seconds"] == 0.0, order_metrics
+        assert order_metrics["transcript_order_blocking_order_risk"] is False, order_metrics
+        assert order_metrics["transcript_order_reconciliation_source"] == "review_decisions_progress"
+
+        decisions[0]["decision"] = "needs_review"
+        decisions[0]["status"] = "todo"
+        (plan / "review_decisions.jsonl").write_text(
+            "\n".join(json.dumps(row) for row in decisions) + "\n",
+            encoding="utf-8",
+        )
+        progress["by_lane"][0].update(
+            {
+                "reviewed": 1,
+                "remaining": 1,
+                "remaining_seconds": 49.0,
+                "decisions": {"skip": 1, "needs_review": 1},
+            }
+        )
+        unresolved_order = QUALITY.review_progress_transcript_order_metrics(session, progress)
+        assert unresolved_order["transcript_order_review_seconds"] == 49.0, unresolved_order
+        assert unresolved_order["transcript_order_blocking_order_risk"] is True, unresolved_order
+
+    burden_row = {
+        "meeting_duration_sec": 1000.0,
+        "audio_review_stronger_judge_seconds": 6.39,
+        "transcript_order_review_seconds": 97.91,
+        "review_scope_remaining_seconds": 4.55,
+        "manual_review_queue_source": "review_decisions_progress",
+        "manual_review_queue_seconds": 4.55,
+        "risk_flags": ["partial_review_scope"],
+        "needs_review_count": 2,
+        "notes_needs_review_count": 0,
+        "selected_profile": "reviewed_v1",
+        "pipeline_status": "complete",
+        "verdict": "usable_with_review",
+    }
+    QUALITY.add_use_gate(burden_row)
+    assert burden_row["transcript_review_burden_sec"] == 4.55, burden_row
+    assert burden_row["review_burden_sec"] == 4.55, burden_row
     stale_closure = {
         "answers_source": "suggested",
         "dry_run": False,
@@ -226,6 +309,21 @@ def main() -> None:
         inconsistent = RECONCILE.verify_consistency(session)
         assert inconsistent["passed"] is False
         assert inconsistent["checks"]["review_seconds_agree"] is False
+
+        primary_path = session / "derived/pipeline-run/pipeline_run_report.json"
+        deferred_path = primary_path.with_name("deferred_enrichment_report.json")
+        write_json(primary_path, {"phase": "fast", "status": "passed"})
+        for status in ("interrupted", "failed", "deferred_budget_exhausted"):
+            write_json(deferred_path, {"phase": "deferred", "status": status})
+            path, primary, optional = OUTCOME.pipeline_inputs(session, deferred_path)
+            assert path == primary_path and primary["status"] == "passed"
+            assert optional["status"] == status
+        write_json(primary_path, {"phase": "fast", "status": "failed"})
+        assert OUTCOME.pipeline_inputs(session, deferred_path)[1]["status"] == "failed"
+        primary_path.unlink()
+        assert OUTCOME.pipeline_inputs(session, deferred_path)[1]["status"] != "passed"
+        write_json(deferred_path, {"phase": "deferred", "status": "passed"})
+        assert OUTCOME.pipeline_inputs(session, deferred_path)[1]["status"] == "failed"
 
     print("enrichment coherence checks passed")
 

@@ -34,6 +34,7 @@ derived/transcript-rich/speaker-resolved-default-v1/
     selection.json
     transcript.provisional.json
     transcript.provisional.md
+    generations/<content-hash>/transcript.provisional.{json,md}
     evidence/<refresh-key>/...
 ```
 
@@ -54,10 +55,12 @@ anonymous clusters, exact input/output identities and the materializer fingerpri
 
 For `murmurmark transcript SESSION` with profile `auto`:
 
-1. Validate or materialize the selector.
+1. Validate existing strict/provisional selections with `--verify-only`. Reading never runs inference
+   or publishes files. A missing publication is handled by the ordinary aggregate fallback.
 2. Return the v3 Markdown when state is `selected`.
-3. If the strict selector falls back, rerun only the current fingerprint-bound v1 evidence with the
-   global coverage floor removed. Strict clusters keep their original gates. The read-only
+3. If the strict selector falls back, use the already published provisional view. Its explicit
+   materialization can run current fingerprint-bound v1 evidence with the global coverage floor
+   removed, unless `--cached-only` is set. Strict clusters keep their original gates. The read-only
    provisional view may also expose a secondary cluster when a strict cluster already anchors the
    session and the candidate reaches at least 80% of the strict unit and speech-duration floors,
    the full strict span floor, and cohesion `>= max(strict floor, 0.90)`.
@@ -67,7 +70,7 @@ For `murmurmark transcript SESSION` with profile `auto`:
 4. Return a disclaimer-bearing provisional Markdown when at least one locally supported cluster is
    available. The header reports how many secondary clusters are below the strict publication gate.
    Unsupported utterances are labelled `remote_speaker_unknown`.
-5. If no compatible current evidence exists, return an explicit `unavailable` Markdown in which
+5. If publication finds no compatible current evidence, it writes an explicit `unavailable` Markdown in which
    every remote utterance is `remote_speaker_unknown`. It must never look like one real person.
 
 For selected or provisional output, the CLI states that `remote_speaker_N` labels are anonymous
@@ -83,9 +86,27 @@ selection fails and expose its state, coverage and strict fallback reason.
 
 The meeting lifecycle refreshes this selector after readiness changes and automatic review. The
 refresh uses the final selected transcript profile; it runs before `outcome` is rebuilt. If the
-profile changed from `audit_cleanup_v2` to `reviewed_v1`, stale evidence from the earlier profile is
-never reused. Missing evidence produces explicit `remote_speaker_unknown`; the exact aggregate
-remains available only by explicit request and to strict handoff/export consumers.
+profile changes, byte-stale evidence is not treated as a verified selection. A separate review-compatible
+projection may retain v1 clusters or v3 word turns as provisional output when remote utterance IDs,
+text, roles, timestamps and source intervals/order match. The current backends do not depend on Me
+rows, so Me deletion does not invalidate this projection. All IDs must be nonempty and unique.
+Remote quality matches except review annotations (`human_review`, `agent_review`, `review_evidence`,
+`transcript_order_review`). `needs_review: true -> false` may retain prior labels under
+`eligibility_basis: frozen_nonexpanding`; the reverse transition is rejected. No newly eligible
+interval receives a label or becomes an enrollment sample through this reuse path.
+Raw remote audio, prepared audio, installed model, roster, implementation and artifact manifests are
+verified. V3 additionally retains promoted v2/v3 provenance and raw word timestamps. Reuse with a
+consensus model is conservatively unsupported in this version. Any mismatch blocks reuse.
+`evidence_reuse` records schema `murmurmark.speaker_evidence_reuse/v1`, `kind: v1|v3`, source profile,
+source dialogue identity and projection SHA-256. The strict selector and its policy remain unchanged.
+Other quality changes invalidate reuse. This narrowly defined compatibility is not a general
+permission to ignore quality, alter a model, change cluster topology or refresh strict qualification.
+New provisional selection points to two fully written immutable generation files. Repeated reads and
+diagnostic-only strict fallback-reason changes cannot trigger inference or rewrite the selection.
+An explicit publication with missing evidence produces `remote_speaker_unknown`. If no valid
+publication exists at all, readers return the exact aggregate with a fallback warning; they never
+start inference to repair it. The aggregate is also available by explicit request and to strict
+handoff/export consumers.
 
 When a user provides a current roster count, v1 may repair exactly one acoustically split major
 cluster through the separately documented two-backend consensus rule. The roster does not map

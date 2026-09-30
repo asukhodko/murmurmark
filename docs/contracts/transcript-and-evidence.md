@@ -6375,6 +6375,21 @@ speech becomes `remote_speaker_unknown`. Status, outcome and meeting handoff exp
 complete fingerprint-bound review and are never inferred from voice. See the dedicated contract for
 complete failure rules.
 
+Ordinary speaker readers only run `--verify-only`. Publication is explicit: `--cached-only` on the
+provisional materializer may bind unchanged acoustic evidence to a reviewed profile without inference.
+The `murmurmark.speaker_evidence_reuse/v1` provenance binds the frozen source profile/dialogue and
+normalized remote utterance projection. Remote text, IDs, roles, source intervals and ordering must
+match, as must raw audio, model, roster, backend, policy and artifact identities. Me-only edits do
+not invalidate remote-only evidence. Review annotations are ignored; a remote `needs_review`
+transition from true to false may retain the original, nonexpanding eligibility. The reverse
+transition and other dependent quality changes reject reuse. V3 word turns and unknown spans
+survive unchanged; the new view is provisional and does not promote strict export gates.
+Missing evidence fails closed for reuse. The dedicated speaker-default contract defines the
+supported backends and the frozen eligibility checks.
+Provisional readers follow an atomic selection pointer to immutable generation files; compatibility
+copies at the old paths are not the publication commit point. Diagnostic-only strict fallback-reason
+changes do not invalidate otherwise identical evidence.
+
 ## Reviewed Remote Speaker Naming v1
 
 Reviewed naming is a separate opt-in overlay over a current Anonymous Rich Transcript Handoff v1:
@@ -8501,7 +8516,12 @@ atomic replacement after session readiness succeeds and contains:
     "pipeline_report": "..."
   },
   "transcript_fingerprint": {
-    "path": "...",
+    "path": "derived/pipeline-run/authoritative-handoff/transcript.<sha256>.md",
+    "size": 123,
+    "sha256": "..."
+  },
+  "source_transcript_fingerprint": {
+    "path": "derived/transcript-simple/whisper-cpp/resolved/transcript.<profile>.md",
     "size": 123,
     "sha256": "..."
   },
@@ -8525,11 +8545,15 @@ atomic replacement after session readiness succeeds and contains:
 }
 ```
 
-A consumer must reject this checkpoint unless the status is readable, the transcript file still
-matches both size and SHA-256, `paths.transcript` matches the fingerprint path, and
-`session_readiness.json` still selects the same profile and transcript path. Deferred enrichment
-may update only `deferred_enrichment` metadata in this checkpoint; it must not alter the published
-fingerprint or silently select another transcript.
+A consumer must reject the frozen checkpoint unless the status is readable, the content-addressed
+transcript snapshot still matches both size and SHA-256, and `paths.transcript` matches the snapshot
+fingerprint path. Reusing the checkpoint as the current handoff additionally requires
+`session_readiness.json` to select the same profile and the source transcript to match
+`source_transcript_fingerprint`. Deferred enrichment may select a newer reviewed or speaker-aware
+transcript in current readiness, but it may update only `deferred_enrichment` metadata in the frozen
+checkpoint; it must not alter the published snapshot. A legacy v1 checkpoint without a snapshot is
+upgraded only when MurmurMark finds an exact SHA-256/size match in the source path or an immutable
+Evidence Handoff v2 bundle. Otherwise enrichment fails closed.
 
 The bounded `meeting` supervisor exports `MURMURMARK_DEFERRED_BOUNDED=1` and the exact remaining
 seconds in `MURMURMARK_DEFERRED_BUDGET_SEC` only to its `enrich` child. The deferred pipeline uses
@@ -8982,10 +9006,36 @@ derived/audit/audio-review-pack/faster_whisper_decode_cache/v1/*.json
   murmurmark.faster_whisper_decode_cache/v1
 ```
 
-`review_decisions_progress.json` is the canonical user-visible manual queue. Session quality,
+`review_decisions_progress.json` is the canonical user-visible decision queue. Session quality,
 readiness and outcome copy its remaining rows and seconds into `manual_review_queue_*`; a
 profile-local audit counter may not override them. Stale progress whose template or decision file is
 newer is ignored until rebuilt.
+
+The same cumulative decision history reconciles category metrics. In particular, explicitly human
+`keep_me` and allowed `skip` close audit-only `check_transcript_order` rows even when the newest residual profile no longer
+contains those rows. Only unresolved cumulative decisions contribute chronology seconds, and the
+sum of older audio/order/local-recall reports cannot exceed a fresh canonical manual queue. This
+prevents a later partial materialization from resurrecting review work that the user already closed.
+
+New progress reports embed `murmurmark.review_queue_snapshot/v1`. The snapshot binds template,
+decisions, source dialogues and producer files by SHA-256 and includes stable per-task identity,
+facet, input profile and origin. `needs_review` is answered but remains unresolved. Legacy/unproven
+automatic keep is likewise unresolved; it is not silently upgraded to human truth.
+`interval_sum_seconds` counts overlapping tasks separately; `interval_union_seconds` merges them
+per session on the common any-track timeline. Unknown bounds make complete totals null, with
+`known_interval_*` and `unknown_duration_rows` reported separately. None measures manual work time.
+Readiness, outcome/review plan and a newly generated lifecycle report share the current snapshot;
+historical run reports remain unchanged. Readers reject changed inputs, not only newer mtimes.
+
+Review provenance is `human`, `automatic` or `legacy_unknown`, derived from `review_source`, never
+from an output profile name. `review_evidence.scope` separates `local_voice` from `chronology`;
+`text_retained` does not certify lexical correctness. Suggested voice keep requires fresh,
+interval-bounded mic-clean and remote evidence and `suggestion_receipt.resolved_scope=local_voice`.
+It cannot close text/order/local-recall tasks. Nested integrity `needs_review` remains open.
+Legacy journals are retained byte-for-byte; derived decisions record `recorded_decision` and the
+reason an old keep now evaluates as `needs_review`. Text guards inspect ordered remote neighbors
+within five seconds, never the entire meeting; remote-explained mic evidence cannot become a
+confident local keep based only on activity. Existing whole-Me deletion gates remain required.
 
 Review rebase is conservative. It carries only closed decisions with unchanged evidence identity,
 or one unambiguous interval/text match whose decision remains allowed. Changed text, ambiguous
@@ -8996,6 +9046,50 @@ The stronger-audio decode cache is content-addressed by clip SHA-256, every file
 faster-whisper model directory and all transcription settings that affect output. Path or profile
 changes alone do not force inference; any audio, model or setting change does. Cache failure is a
 normal miss and cannot authorize a transcript mutation.
+
+### Audio Evidence Identity And Suggested Apply
+
+Audio decode reuse and decision reuse are separate contracts. A decision must match the current
+session, normalized text, role/source track and exact millisecond utterance interval. IDs alone,
+partial overlap, or one matching phrase inside a multi-Me clip are insufficient. Unchanged content
+may survive renumbering or a profile change; split/merged or changed utterances require new evidence.
+Evidence rows seal clip and producer-policy SHA-256 in `evidence_files`. Target-Me also checks
+enrollment identity before reuse. Legacy unsealed rows must be refreshed, not trusted as new decisions.
+`classification_inputs` records the audio audit, speaker state and other context files used by the
+classifier, including intentionally absent optional inputs. A changed or newly appearing input
+invalidates the verdict without invalidating otherwise compatible audio decodes.
+
+Lane manifests carry `target_utterances` and a `murmurmark.review_suggestion_receipt/v1` containing
+the decision, row/evidence hashes, current dialogue, evidence-artifact and suggestion-policy hashes.
+Both workspace and single-lane suggested apply revalidate the receipt. Missing/stale receipts are
+rejected without editing the row. Persisted `target_snapshot` protects later materialization against
+retiming and ID reuse. Manual answers retain their existing validation path.
+
+A current receipt with an empty evidence set cannot authorize automatic `drop_me`. Both generation and
+application require current, sealed, interval-bounded stronger-judge evidence for every affected row:
+confidence at least `0.86`, or `0.74` corroborated by same-row Target-Me remote-like absence at `0.88`.
+Confirmed local voice or conflicting keep evidence vetoes deletion. Duplicate evidence must cover clean
+mic and remote; noise evidence must cover raw, clean, role-masked mic and remote. Text-only duplicate
+scores and heuristic "confirm by listening" noise hints remain manual `needs_review`. Micro-ASR stability
+flags propagate unchanged through the audio audit into operational readiness and review planning.
+
+The stronger judge's `--adaptive-sources` chooses sources per item, rather than escalating all
+lanes because one needs text/local-recall evidence. A missing requested clip cannot count as checked.
+`selected_coverage` distinguishes ready evidence, missing additional sources and stale/missing rows.
+`faster_whisper_judge_history.jsonl` retains stale rows separately; they cannot inflate active coverage.
+`timing` separates model-load, decode and total elapsed seconds. Failed decodes are not reusable silence.
+
+`clip_interval` records the extracted clip's actual origin. Production and targeted refresh pass
+`--word-timestamps`; the decode cache distinguishes aligned and unaligned settings. Words are restricted
+to speaker-specific target intervals. Segment-only evidence crossing a target boundary,
+or a legacy clip without a known origin, remains uncertain. Four-source ASR noise evidence still
+cannot delete locally active speech: uncertain words and confirmed local voice require text review.
+Target-Me absence can corroborate a judge only on the same row; every row in a group needs support.
+An already materialized `lost_me` row is distinct from a virtual local-recall candidate.
+
+Quality metrics keep local-recall errors separate from remote duplicate/leak errors. Generic
+`audio_review_probable_error_seconds` is not a measurement of remote-in-Me. Rich speaker labels
+do not certify lexical correctness or resolve pending transcript review.
 
 ## Remote Unknown Evidence Recovery
 

@@ -89,6 +89,14 @@ def speaker_selection_result(
     if row.get("sha256") and row.get("sha256") != sha256_file(path):
         return None
     summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+    coverage_ratio = summary.get("attributed_remote_speech_ratio")
+    coverage = payload.get("coverage_report")
+    if coverage_ratio is None and state == "selected" and isinstance(coverage, dict) and coverage.get("path"):
+        coverage_path = (session / str(coverage["path"])).resolve()
+        if (coverage_path.is_relative_to(session.resolve()) and coverage_path.is_file()
+                and coverage.get("sha256") == sha256_file(coverage_path)):
+            coverage_summary = (read_json(coverage_path) or {}).get("summary") or {}
+            coverage_ratio = coverage_summary.get("attributable_remote_speech_ratio")
     return {
         "state": state,
         "selected_speaker_profile": payload.get("selected_speaker_profile"),
@@ -96,7 +104,7 @@ def speaker_selection_result(
         "transcript_path": raw_path,
         "identity_scope": payload.get("identity_scope"),
         "selection_fingerprint": payload.get("semantic_fingerprint"),
-        "attributed_remote_speech_ratio": summary.get("attributed_remote_speech_ratio"),
+        "attributed_remote_speech_ratio": coverage_ratio,
     }
 
 
@@ -111,7 +119,7 @@ def speaker_resolution(session: Path, selected_profile: Any) -> dict[str, Any]:
     strict: dict[str, Any] | None = None
     if SPEAKER_SELECTOR.is_file():
         completed = subprocess.run(
-            [sys.executable, str(SPEAKER_SELECTOR), str(session)],
+            [sys.executable, str(SPEAKER_SELECTOR), str(session), "--verify-only"],
             cwd=ROOT,
             text=True,
             capture_output=True,
@@ -132,7 +140,7 @@ def speaker_resolution(session: Path, selected_profile: Any) -> dict[str, Any]:
 
     if PROVISIONAL_SPEAKER_MATERIALIZER.is_file():
         completed = subprocess.run(
-            [sys.executable, str(PROVISIONAL_SPEAKER_MATERIALIZER), str(session)],
+            [sys.executable, str(PROVISIONAL_SPEAKER_MATERIALIZER), str(session), "--verify-only"],
             cwd=ROOT,
             text=True,
             capture_output=True,
@@ -468,7 +476,8 @@ def harmful_remote_evidence(
             "audit_harmful_seconds_after",
             "remote_duplicate_in_me_seconds",
             "audio_review_remote_leak_probable_error_seconds",
-            "audio_review_probable_error_seconds",
+            "audio_review_remote_duplicate_probable_error_seconds",
+            "audio_review_remote_error_seconds",
         )
     }
     if selected_profile in {"reviewed_v1", "agent_reviewed_v1"}:
@@ -799,6 +808,8 @@ def gate_summary(gates: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def build_review_plan(session: Path, readiness: dict[str, Any] | None, outcome: str) -> dict[str, Any]:
+    from review_audio_evidence import read_queue_snapshot
+
     session_arg = shell_path(session, Path.cwd())
     if not isinstance(readiness, dict):
         lanes = [
@@ -820,6 +831,7 @@ def build_review_plan(session: Path, readiness: dict[str, Any] | None, outcome: 
                 "generator": {"name": "evaluate-outcome", "version": SCRIPT_VERSION},
                 "session": str(session),
                 "outcome": outcome,
+                "queue_snapshot": read_queue_snapshot(session),
                 "lanes": [],
                 "summary": {
                     "open_lanes": 0,
@@ -921,19 +933,23 @@ def build_review_plan(session: Path, readiness: dict[str, Any] | None, outcome: 
                     "reason": "session readiness requires review but no specialized lane was detected",
                 }
             )
+    known_estimates = [safe_float(item.get("estimated_seconds")) for item in lanes]
+    unknown_lanes = sum(value is None for value in known_estimates)
+    known_sum = round(sum(value for value in known_estimates if value is not None), 3)
     return {
         "schema": REVIEW_PLAN_SCHEMA,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "generator": {"name": "evaluate-outcome", "version": SCRIPT_VERSION},
         "session": str(session),
         "outcome": outcome,
+        "queue_snapshot": read_queue_snapshot(session),
         "lanes": lanes,
         "summary": {
             "open_lanes": len([item for item in lanes if item.get("status") == "open"]),
-            "estimated_seconds": round(
-                sum(safe_float(item.get("estimated_seconds")) or 0.0 for item in lanes),
-                3,
-            ),
+            "estimated_seconds": known_sum if not unknown_lanes else None,
+            "known_lane_seconds_sum": known_sum,
+            "unknown_duration_lanes": unknown_lanes,
+            "duration_scope": "lane_estimates_may_overlap_not_unique_audio_or_manual_effort",
             "auto_close_seconds": round(
                 sum(safe_float(item.get("auto_close_seconds")) or 0.0 for item in lanes),
                 3,
@@ -1190,6 +1206,21 @@ def markdown(outcome_payload: dict[str, Any], review_plan: dict[str, Any]) -> st
     return "\n".join(lines).rstrip() + "\n"
 
 
+def pipeline_inputs(session: Path, requested: Path) -> tuple[Path, dict[str, Any] | None, dict[str, Any] | None]:
+    """Optional enrichment cannot replace the authoritative processing result."""
+    report = read_json(requested)
+    if isinstance(report, dict) and report.get("phase") == "deferred":
+        authoritative = session / "derived/pipeline-run/pipeline_run_report.json"
+        primary = read_json(authoritative)
+        if isinstance(primary, dict) and primary.get("phase") != "deferred":
+            return authoritative, primary, report
+        # Even a completed optional report cannot stand in for the primary run.
+        return authoritative, {"phase": "authoritative", "status": "failed",
+                               "error": "authoritative_pipeline_report_missing_or_invalid"}, report
+    deferred = read_json(session / "derived/pipeline-run/deferred_enrichment_report.json")
+    return requested, report, deferred
+
+
 def main() -> int:
     args = parse_args()
     session = args.session.expanduser()
@@ -1199,9 +1230,18 @@ def main() -> int:
     )
     readiness_path = session / "derived/readiness/session_readiness.json"
     readiness = read_json(readiness_path)
-    pipeline_report = read_json(pipeline_report_path)
+    requested_pipeline_path = pipeline_report_path
+    pipeline_report_path, pipeline_report, deferred_report = pipeline_inputs(session, pipeline_report_path)
     gates = evaluate_gates(session, readiness, pipeline_report)
     base_outcome = outcome_from_readiness(readiness, pipeline_report)
+    if deferred_report:
+        deferred_status = str(deferred_report.get("status") or "unknown")
+        gates.append({
+            "id": "deferred_enrichment", "severity": "info",
+            "status": "pass" if deferred_status == "passed" else "warning",
+            "message": f"optional enrichment status={deferred_status}",
+            "value": deferred_status,
+        })
     outcome = outcome_from_gates(base_outcome, gates)
     review_plan = build_review_plan(session, readiness, outcome)
     next_command = (
@@ -1250,6 +1290,7 @@ def main() -> int:
         "session": str(session),
         "outcome": outcome,
         "base_outcome": base_outcome,
+        "review_queue_snapshot": review_plan.get("queue_snapshot"),
         "selected_profile": (readiness or {}).get("selected_profile"),
         "selected_speaker_profile": speaker.get("selected_speaker_profile"),
         "speaker_resolution": speaker,
@@ -1279,6 +1320,7 @@ def main() -> int:
         "inputs": {
             "session_readiness": rel(readiness_path, session) if readiness_path.exists() else None,
             "pipeline_report": rel(pipeline_report_path, session) if pipeline_report_path.exists() else None,
+            "requested_pipeline_report": rel(requested_pipeline_path, session),
         },
         "outputs": outputs,
     }

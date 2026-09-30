@@ -16,6 +16,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from micro_asr_evidence import assess_micro_reasr_selection
+from review_audio_evidence import effective_decision
 
 
 SCRIPT_VERSION = "0.4.9"
@@ -441,7 +442,9 @@ def review_confirmed_me_ids(session_path: Path, profile: str) -> set[str]:
         quality = row.get("quality") if isinstance(row.get("quality"), dict) else {}
         human = quality.get("human_review") if isinstance(quality.get("human_review"), dict) else {}
         decisions = {str(item) for item in human.get("decisions") or [] if item}
-        if decisions and decisions <= {"keep_me", "drop_remote"}:
+        if (decisions and decisions <= {"keep_me", "drop_remote"}
+                and human.get("origins") == ["human"] and human.get("status") == "cleared"
+                and not quality.get("needs_review")):
             ids.add(str(row.get("id")))
     return ids
 
@@ -775,7 +778,7 @@ def review_resolved_audio_ids(session_path: Path, profile: str, seen: set[str] |
             continue
         if str(row.get("source") or "") != "audio_review":
             continue
-        if str(row.get("decision") or "") not in {"drop_me", "drop_remote", "keep_me", "skip"}:
+        if effective_decision(row) not in {"drop_me", "drop_remote", "keep_me", "skip"}:
             continue
         source_id = str(row.get("source_audit_id") or "")
         if source_id:
@@ -790,7 +793,7 @@ def review_resolved_audio_ids(session_path: Path, profile: str, seen: set[str] |
     for row in read_jsonl(path):
         if str(row.get("source") or "") != "audio_review":
             continue
-        if str(row.get("decision") or "") not in {"drop_me", "drop_remote", "keep_me", "skip"}:
+        if effective_decision(row) not in {"drop_me", "drop_remote", "keep_me", "skip"}:
             continue
         source_id = str(row.get("source_audit_id") or "")
         if source_id:
@@ -811,7 +814,7 @@ def review_resolved_audio_keys(session_path: Path, profile: str, seen: set[str] 
             continue
         if str(row.get("source") or "") != "audio_review":
             continue
-        if str(row.get("decision") or "") not in {"drop_me", "drop_remote", "keep_me", "skip"}:
+        if effective_decision(row) not in {"drop_me", "drop_remote", "keep_me", "skip"}:
             continue
         key = review_decision_identity_key(row)
         if key:
@@ -826,7 +829,7 @@ def review_resolved_audio_keys(session_path: Path, profile: str, seen: set[str] 
     for row in read_jsonl(path):
         if str(row.get("source") or "") != "audio_review":
             continue
-        if str(row.get("decision") or "") not in {"drop_me", "drop_remote", "keep_me", "skip"}:
+        if effective_decision(row) not in {"drop_me", "drop_remote", "keep_me", "skip"}:
             continue
         key = review_decision_identity_key(row)
         if key:
@@ -851,7 +854,7 @@ def review_resolved_local_recall_ids(session_path: Path, profile: str, seen: set
             continue
         if str(row.get("source") or "") not in {"local_recall", "local_recall_repair"}:
             continue
-        if str(row.get("decision") or "") not in {"drop_me", "keep_me", "skip"}:
+        if effective_decision(row) not in {"drop_me", "keep_me", "skip"}:
             continue
         source_id = str(row.get("source_audit_id") or "")
         if source_id:
@@ -866,7 +869,7 @@ def review_resolved_local_recall_ids(session_path: Path, profile: str, seen: set
     for row in read_jsonl(path):
         if str(row.get("source") or "") not in {"local_recall", "local_recall_repair"}:
             continue
-        if str(row.get("decision") or "") not in {"drop_me", "keep_me", "skip"}:
+        if effective_decision(row) not in {"drop_me", "keep_me", "skip"}:
             continue
         source_id = str(row.get("source_audit_id") or "")
         if source_id:
@@ -890,7 +893,7 @@ def review_resolved_transcript_order_ids(session_path: Path, profile: str, seen:
             continue
         if str(row.get("source") or "") != "transcript_order":
             continue
-        if str(row.get("decision") or "") not in {"keep_me", "skip"}:
+        if effective_decision(row) not in {"keep_me", "skip"}:
             continue
         source_id = str(row.get("source_audit_id") or "")
         if source_id:
@@ -905,7 +908,7 @@ def review_resolved_transcript_order_ids(session_path: Path, profile: str, seen:
     for row in read_jsonl(path):
         if str(row.get("source") or "") != "transcript_order":
             continue
-        if str(row.get("decision") or "") not in {"keep_me", "skip"}:
+        if effective_decision(row) not in {"keep_me", "skip"}:
             continue
         source_id = str(row.get("source_audit_id") or "")
         if source_id:
@@ -1123,6 +1126,7 @@ def compact_review_item(session: dict[str, Any], row: dict[str, Any]) -> dict[st
         "interval": interval,
         "utterance_ids": row.get("utterance_ids", []),
         "review_features": {
+            **(row.get("review_features") or {}),
             "me_overlap_coverage": round(me_coverage, 6),
             "remote_overlap_coverage": round(interval_coverage(remote_row), 6),
             "me_utterance_duration_sec": round(utterance_duration(me_row), 3),
