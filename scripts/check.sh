@@ -137,6 +137,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-remote-speaker-cluster-purity-reference-v1.py
 "$python_bin" scripts/check-remote-speaker-boundary-minority-v1.py
 "$python_bin" scripts/check-provisional-speaker-transcript.py
+"$python_bin" scripts/check-transcript-publication.py
 "$python_bin" scripts/check-review-publication.py
 "$python_bin" scripts/check-review-queue-snapshot.py
 "$python_bin" scripts/check-release-quality.py

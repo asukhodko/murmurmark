@@ -183,6 +183,19 @@ def check_publication(root):
         strict["fallback_reason"] = "cached_coverage_invalid"
         write(session / M.STRICT_SELECTION, strict)
         assert not M.verify_existing(session, out, "reviewed_v1", aggregate, dialogue)[1]
+        for module, reason in (
+            (M.publication, "selection_publication_implementation_stale"),
+            (M.micro_asr_evidence, "selection_micro_evidence_implementation_stale"),
+            (M.acoustic_timing_evidence, "selection_acoustic_timing_implementation_stale"),
+        ):
+            with patch.object(module, "__file__", str(root / "missing_helper.py")):
+                assert reason in M.verify_existing(session, out, "reviewed_v1", aggregate, dialogue)[1]
+        with patch.object(M.acoustic_timing_evidence, "fingerprint", return_value={"exists": False}):
+            assert "selection_timing_audio_stale" in M.verify_existing(session, out, "reviewed_v1", aggregate, dialogue)[1]
+        extra_audio = session / "audio/remote/000002.caf"
+        extra_audio.write_bytes(b"additional source")
+        assert "selection_timing_layout_stale" in M.verify_existing(session, out, "reviewed_v1", aggregate, dialogue)[1]
+        extra_audio.unlink()
         for field, value in (("text", "Changed"), ("start", 1.01), ("role", "me"), ("source_start", 0.8)):
             changed = deepcopy(rows)
             changed[1][field] = value
@@ -434,6 +447,23 @@ def check_real_corpus(sessions, report_path):
             row["status"] = "failed"
         write(report_path, report)
         assert row["current_text_and_quality_preserved"], "publication changed transcript content"
+        display = rich["display_turns"]
+        expected_display = M.publication.display_turns(
+            rich["utterances"], rich.get("remote_utterance_attributions"), rich.get("acoustic_timing_evidence"))
+        assert display == expected_display
+        positions = [turn["start"] for turn in display if turn["start"] is not None]
+        assert positions == sorted(positions), "display timeline regressed"
+        for parent in rich["utterances"]:
+            assert "".join(turn["text"] for turn in display if turn["utterance_id"] == parent["id"]) == parent["text"]
+        markdown = (session / provisional["selected_transcript"]["path"]).read_text()
+        assert "\n".join(M.publication.render_body(display)).rstrip() in markdown
+        row["publication_checks"] = {
+            "ordered_display": True, "all_words_preserved": True, "json_markdown_agree": True,
+            "warning_turns": sum(bool(turn["review_reasons"]) for turn in display),
+            "acoustic_lower_bound_turns": sum(turn["time_basis"] == "acoustic_lower_bound" for turn in display),
+            "parent_interval_turns": sum(turn["time_basis"] == "parent_interval" for turn in display),
+        }
+        write(report_path, report)
         metadata = lambda: {str(path.relative_to(session)): (path.stat().st_size, path.stat().st_mtime_ns)
                             for path in session.rglob("*") if path.is_file()}
         before_reads = metadata()

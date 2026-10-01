@@ -8,6 +8,12 @@ shows tasks, interval sum, unique audio duration and unknown bounds; `stale` ask
 Budget exit `75` and interruption `130` preserve completed work. Follow the printed resume command;
 neither status means that optional quality checks passed.
 
+In the provisional Markdown, `[needs_review: text/role/speaker/time]` belongs to that turn.
+An approximate parent interval or sound-onset lower bound is explicitly marked; it is not a
+word-aligned timestamp. Raw/primary ASR and strict speaker artifacts are not rewritten. A new
+micro-ASR ownership warning preserves the hypothesis but does not confirm its words or permit
+dropping it. Remote text review cannot trigger `drop_me` or `drop_remote`.
+
 For an already transcribed session, a report-only repair can reuse existing speaker evidence:
 
 ```bash
@@ -19,8 +25,9 @@ murmurmark transcript "$SESSION" --cat
 
 Missing or incompatible evidence remains explicit unknown. This command does not run primary ASR.
 The new micro-ASR content cache is still a lab candidate, pending producer qualification; do not
-expect a measured production ASR speedup from this repair. See
-[the repair report](../testing/2026-09-30-review-safe-handoff.md).
+expect a measured production ASR speedup from this repair. See the
+[handoff report](../testing/2026-09-30-review-safe-handoff.md) and
+[publication verification](../testing/2026-10-01-acoustic-publication-repair.md).
 
 Use this runbook to prove that a fresh machine can record a minimal MurmurMark session and prepare it for transcription.
 

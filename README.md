@@ -82,12 +82,12 @@ Review keep/drop of Me reuses compatible frozen remote evidence, including word-
 disclaimer-bearing provisional view. Ordinary `status`, `outcome` and `transcript --path-only` only
 verify published evidence; they never start a speaker model. Budget expiry checkpoints completed
 review work and is reported as deferred, not as an unexpected Python failure.
-Optional interruption preserves the transcript; explicit resume retries deferred work. Reconciliation
-keeps compatible decisions, profile, speaker evidence and the review queue consistent. Below strict
-publication gates, supported local/secondary clusters remain provisional, with the rest marked
-`remote_speaker_unknown`. `--aggregate` returns exact role-only text; `status` and `outcome` show
-coverage and failure reasons. A known group roster can repair one acoustically split anonymous
-voice, without mapping names to voices; see the [speaker contract](docs/contracts/speaker-resolved-transcript-default-v1.md).
+Provisional views mark per-turn review and approximate timing; missing times never become zero.
+See the [read-view contract](docs/contracts/transcript-publication-read-view.md) and [repair checkpoint](docs/project/2026-10-01-acoustic-publication-repair.md).
+Optional interruption preserves the transcript; resume retries deferred work. Reconciliation keeps
+compatible decisions, profile, speaker evidence and review queue consistent. Unsupported remote
+speech is `remote_speaker_unknown`; `--aggregate` returns the exact role-only fallback.
+A known group roster can reconcile one split anonymous voice without assigning names; see the [speaker contract](docs/contracts/speaker-resolved-transcript-default-v1.md).
 
 Capture runs in a short-lived child process and releases ScreenCaptureKit/ReplayKit before batch
 processing. A new meeting may start while an earlier one is processed in another terminal. Only one

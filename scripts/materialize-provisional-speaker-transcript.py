@@ -15,6 +15,9 @@ import sys
 import tempfile
 from typing import Any
 
+import transcript_publication as publication
+import micro_asr_evidence
+import acoustic_timing_evidence
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = "0.3.0"
@@ -686,11 +689,12 @@ def render_markdown(
     state: str,
     reason: str,
     summary: dict[str, Any],
+    display_rows: list[dict[str, Any]] | None = None,
 ) -> str:
     if state == "provisional":
         warning = (
             "**Speaker attribution is provisional.** Anonymous `remote_speaker_NN` labels are "
-            "best-effort acoustic clusters and may merge one person or split one person into several labels."
+            "best-effort acoustic clusters and may merge several people into one label or split one person across labels."
         )
     else:
         warning = (
@@ -712,33 +716,15 @@ def render_markdown(
             "> Secondary clusters below the strict publication gate: "
             f"`{integer(summary.get('provisional_secondary_clusters'))}`."
         ),
-        "> The text, roles and timestamps come from the authoritative batch transcript.",
+        "> The selected batch transcript is the source, not a human-verified truth. Local review warnings remain unresolved.",
+        "> Coverage measures assigned labels, not speaker accuracy. Approximate parent intervals are marked explicitly.",
         "",
         f"Transcript profile: `{profile}`  ",
         f"Speaker attribution state: `{state}`  ",
         "Speaker identities: session-local and anonymous",
         "",
     ]
-    for utterance in utterances:
-        role = str(utterance.get("role") or "")
-        timestamp = format_time(utterance.get("start"))
-        text = str(utterance.get("text") or "").strip()
-        if role == "remote":
-            if utterance.get("speaker_turns"):
-                for turn in utterance["speaker_turns"]:
-                    label = turn.get("speaker_id") or "remote_speaker_unknown"
-                    suffix = "" if turn.get("speaker_id") else " [unattributed]"
-                    lines.extend([f"## {format_time(turn.get('start'))} {label}{suffix}",
-                                  "", str(turn.get("text") or "").strip(), ""])
-                continue
-            row = attributions.get(str(utterance.get("id") or ""), {})
-            label = str(row.get("speaker_label") or "remote_speaker_unknown")
-            suffix = ""
-            if label == "remote_speaker_unknown":
-                suffix = " [unattributed]"
-            lines.extend([f"## {timestamp} {label}{suffix}", "", text, ""])
-        else:
-            lines.extend([f"## {timestamp} Me", "", text, ""])
+    lines.extend(publication.render_body(display_rows if display_rows is not None else publication.display_turns(utterances, attributions)))
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -762,6 +748,10 @@ def semantic_basis(payload: dict[str, Any]) -> dict[str, Any]:
             "strict_selection_basis",
             "evidence_reuse",
             "implementation",
+            "publication_implementation",
+            "micro_evidence_implementation",
+            "acoustic_timing_implementation",
+            "acoustic_timing_evidence",
         )
     }
 
@@ -792,6 +782,18 @@ def verify_existing(
     implementation = payload.get("implementation")
     if not same_identity(implementation, Path(__file__).resolve()):
         reasons.append("selection_implementation_stale")
+    if not same_identity(payload.get("publication_implementation"), Path(publication.__file__).resolve()):
+        reasons.append("selection_publication_implementation_stale")
+    if not same_identity(payload.get("micro_evidence_implementation"), Path(micro_asr_evidence.__file__).resolve()):
+        reasons.append("selection_micro_evidence_implementation_stale")
+    if not same_identity(payload.get("acoustic_timing_implementation"), Path(acoustic_timing_evidence.__file__).resolve()):
+        reasons.append("selection_acoustic_timing_implementation_stale")
+    timing = payload.get("acoustic_timing_evidence") or {}
+    audio = session / "audio/remote/000001.caf"
+    if timing.get("audio") != acoustic_timing_evidence.fingerprint(audio, session):
+        reasons.append("selection_timing_audio_stale")
+    if timing.get("source_files") != [str(p.relative_to(session)) for p in sorted((session / "audio/remote").glob("*.caf"))]:
+        reasons.append("selection_timing_layout_stale")
     source = payload.get("source_evidence")
     if isinstance(source, dict) and source.get("exists") is True:
         source_path = resolve_session_path(session, source.get("path"))
@@ -987,6 +989,8 @@ def materialize(args: argparse.Namespace) -> dict[str, Any]:
                 normalized_attributions[utterance_id] = row
         output_utterances.append(output)
 
+    timing_evidence = acoustic_timing_evidence.inspect(session, output_utterances)
+    display_rows = publication.display_turns(output_utterances, normalized_attributions, timing_evidence)
     transcript_payload = {
         "schema": TRANSCRIPT_SCHEMA,
         "version": 1,
@@ -1001,10 +1005,17 @@ def materialize(args: argparse.Namespace) -> dict[str, Any]:
         "evidence_reuse": evidence_reuse,
         "remote_utterance_attributions": normalized_attributions,
         "utterances": output_utterances,
+        "publication_version": publication.VERSION,
+        "publication_implementation": identity(Path(publication.__file__).resolve()),
+        "micro_evidence_implementation": identity(Path(micro_asr_evidence.__file__).resolve()),
+        "acoustic_timing_implementation": identity(Path(acoustic_timing_evidence.__file__).resolve()),
+        "acoustic_timing_evidence": timing_evidence,
+        "display_turns": display_rows,
         "safety": {
             "aggregate_transcript_unchanged": True,
             "selected_dialogue_unchanged": True,
             "text_roles_timestamps_unchanged": True,
+            "display_timing_is_separate_from_source": True,
             "session_local_anonymous_only": True,
             "human_identity_inference": False,
             "strict_verified_profile_unchanged": True,
@@ -1025,6 +1036,7 @@ def materialize(args: argparse.Namespace) -> dict[str, Any]:
             state,
             fallback_reason,
             summary,
+            display_rows,
         ).encode(),
     )
     selection: dict[str, Any] = {
@@ -1046,6 +1058,10 @@ def materialize(args: argparse.Namespace) -> dict[str, Any]:
         "strict_selection": identity(session / STRICT_SELECTION, session),
         "strict_selection_basis": strict_selection_basis(session),
         "implementation": identity(Path(__file__).resolve()),
+        "publication_implementation": identity(Path(publication.__file__).resolve()),
+        "micro_evidence_implementation": identity(Path(micro_asr_evidence.__file__).resolve()),
+        "acoustic_timing_implementation": identity(Path(acoustic_timing_evidence.__file__).resolve()),
+        "acoustic_timing_evidence": timing_evidence,
         "batch_authoritative": True,
         "aggregate_fallback_available": True,
         "identity_scope": "session_local_anonymous",

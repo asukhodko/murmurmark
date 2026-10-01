@@ -203,6 +203,60 @@ def main() -> int:
     ]
     assert readiness.unstable_successful_micro_asr(stable_micro) is None
 
+    # Agreement on a phrase in a wide context is not word ownership by a short island.
+    wide_micro = json.loads(json.dumps(stable_micro))
+    wide_meta = wide_micro["quality"]["repair"]["micro_reasr"]
+    wide_meta["rows"] = [{"text": "Да.", "start_ms": 9000, "end_ms": 11700}]
+    wide_meta["selection_stability"] = {"status": "stable", "schema": "legacy"}
+    scope_review = readiness.unstable_successful_micro_asr(wide_micro)
+    assert scope_review["reasons"] == ["micro_asr_context_not_owned_by_target"]
+    assert scope_review["independent_support"] is True
+    wide_meta["selected_words"] = [{"word": "Да.", "start_ms": 10010, "end_ms": 10600}]
+    assert readiness.unstable_successful_micro_asr(wide_micro) is None
+    wide_meta["selected_words"][0]["word"] = "Other"
+    assert readiness.unstable_successful_micro_asr(wide_micro) is not None
+    wide_meta["selected_words"][0].update(word="Да.", end_ms=11500)
+    assert readiness.unstable_successful_micro_asr(wide_micro) is not None
+
+    remote_text = readiness.compact_transcript_text_utterance(
+        {"session_id": "fixture", "session": "/tmp/fixture"},
+        {"id": "remote_risk", "role": "remote", "start": 5.0, "end": 7.0,
+         "text": "Remote words.", "quality": {"needs_review": True}}, input_profile="reviewed_v1",
+    )
+    assert remote_text["me_utterance_ids"] == []
+    assert remote_text["text"][0]["role"] == "remote"
+    assert remote_text["allowed_decisions"] == ["needs_review", "skip"]
+    assert lane.suggested_decision_for_group([remote_text], {}, {})[0] == "needs_review"
+
+    with tempfile.TemporaryDirectory(prefix="murmurmark-review-scope-") as temporary:
+        session = Path(temporary)
+        rows = [
+            wide_micro,
+            {"id": "remote_risk", "role": "remote", "start": 10.0, "end": 11.0,
+             "text": "Remote words.", "quality": {"needs_review": False,
+                 "transcript_integrity": {"status": "needs_review", "reason": "uncertain_repeat"}}},
+        ]
+        rows[0]["quality"]["human_review"] = {
+            "status": "cleared", "scope": "local_voice", "origins": ["human"], "decisions": ["keep_me"]}
+        resolved = session / "derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.reviewed_v1.json"
+        resolved.parent.mkdir(parents=True)
+        resolved.write_text(json.dumps({"utterances": rows}))
+        order = session / "derived/audit/order/transcript_order_items.jsonl"
+        order.parent.mkdir(parents=True)
+        order.write_text(json.dumps({"item_id": "order", "label": "probable_order_risk",
+            "interval": {"start": 10.0, "end": 11.0, "duration_sec": 1.0},
+            "utterances": {"me": rows[0], "remote": rows[1]}}) + "\n")
+        queue, excluded = readiness.build_review_queue_details([{
+            "session_id": "fixture", "session": str(session), "selected_profile": "reviewed_v1",
+            "use_gate": "ready_for_notes", "export_blockers": [], "transcript_review_burden_sec": 0.0,
+        }], 80)
+        text_rows = [r for r in queue if r["source"] == "transcript_text"]
+        assert len(text_rows) == 2, (queue, excluded)
+        assert {r["source"] for r in queue} == {"transcript_text", "transcript_order"}
+        remote_row = next(r for r in text_rows if r["utterance_ids"] == ["remote_risk"])
+        assert remote_row["text"][0]["role"] == "remote"
+        assert not {"drop_me", "drop_remote", "keep_me"} & set(remote_row["allowed_decisions"])
+
     unstable_remote_item = {
         "source_reasons": ["review_lane:check_transcript_text", "transcript_text_needs_review"],
         "review_features": music_row["review_features"],

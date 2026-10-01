@@ -1,6 +1,6 @@
 # Current Goal
 
-Updated: 2026-09-30
+Updated: 2026-10-01
 
 This document expands the single executable goal from
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`.
@@ -36,6 +36,14 @@ OpsKarta nearest goal: Bounded Evidence Compute v1: квалифицироват
 7. Недостаточный корпус означает явный DO_NOT_PROMOTE, а не ослабление gate или обещание ускорения.
 
 ## Current Evidence
+
+Промежуточный ремонт публикации 1 октября отделён от изменения producer. Provisional view
+показывает локальные review-причины, проверяет вложенные времена и не ставит remote-текст раньше
+доказанного конца цифровой тишины. Это приблизительный display bound, не word alignment и не
+пересчёт overlaps/Me repair. Micro-ASR context ownership теперь проверяется в review; remote
+needs_review больше не теряется из-за Me-only фильтра. Слова и frozen evidence не переписываются.
+Состояние и следующий допуск: [repair checkpoint](2026-10-01-acoustic-publication-repair.md);
+корпус и границы проверки: [отчёт](../testing/2026-10-01-acoustic-publication-repair.md).
 
 Helper прошёл synthetic checks: шесть concurrent requests дают один fake decode; current/shadow
 могут разделять session-local cache. Это не production benchmark. Primary transcriber и strict

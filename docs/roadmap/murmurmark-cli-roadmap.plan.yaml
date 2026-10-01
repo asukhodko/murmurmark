@@ -893,6 +893,11 @@ nodes:
       но не подключён к замороженному primary ASR. Raw отсутствует у 11/12 прежних Echo v2.17
       qualification sessions: нужен новый явный корпус, producer requalification и cold/warm
       benchmark без изменения resource policy. Простая замена policy SHA недопустима.
+      Checkpoint 2026-10-01: provisional per-turn warnings, parent/unknown timing fallback,
+      exact-silence sound-onset lower bound, micro-ASR context ownership review и remote text
+      review реализованы отдельно от producer. Upstream word alignment до overlaps/Me repair,
+      строгая word-bounded selection, targeted speaker/lexical adjudication и cache promotion
+      остаются следующими квалифицируемыми изменениями, не считаются выполненными этим repair.
 
   quality-human-reviewed-lexical-seed-v1:
     title: "Human-Reviewed Lexical Seed v1"

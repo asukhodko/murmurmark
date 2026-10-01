@@ -81,6 +81,10 @@ for relative in [
     "scripts/murmurmark_processing_lease.py",
     "scripts/review_audio_evidence.py",
     "scripts/audit-review-decision-evidence.py",
+    "scripts/materialize-provisional-speaker-transcript.py",
+    "scripts/micro_asr_evidence.py",
+    "scripts/transcript_publication.py",
+    "scripts/acoustic_timing_evidence.py",
     "policies/remote-speaker-cluster-purity-reference-v1.json",
     "policies/remote-speaker-boundary-minority-v1.json",
     "policies/transcript-integrity-v1.json",
@@ -129,6 +133,10 @@ with tempfile.TemporaryDirectory(prefix="murmurmark-release-unit-") as temporary
         "scripts/murmurmark_processing_lease.py",
         "scripts/review_audio_evidence.py",
         "scripts/audit-review-decision-evidence.py",
+        "scripts/materialize-provisional-speaker-transcript.py",
+        "scripts/micro_asr_evidence.py",
+        "scripts/transcript_publication.py",
+        "scripts/acoustic_timing_evidence.py",
         "policies/remote-speaker-cluster-purity-reference-v1.json",
         "policies/remote-speaker-boundary-minority-v1.json",
         "policies/transcript-integrity-v1.json",
@@ -165,6 +173,15 @@ with tempfile.TemporaryDirectory(prefix="murmurmark-release-unit-") as temporary
     run(PYTHON, utility, "archive", bundle, archive_b)
     assert archive_a.read_bytes() == archive_b.read_bytes(), "release archives are not deterministic"
     run(PYTHON, utility, "verify", archive_a)
+
+    for name in ("transcript_publication.py", "acoustic_timing_evidence.py"):
+        helper = bundle / "scripts" / name
+        content = helper.read_bytes()
+        helper.unlink()
+        incomplete = run(PYTHON, utility, "verify", bundle, check=False)
+        assert incomplete.returncode != 0 and name in incomplete.stderr, incomplete.stderr
+        helper.write_bytes(content)
+    run(PYTHON, utility, "verify", bundle)
 
     with (bundle / "README.md").open("a", encoding="utf-8") as handle:
         handle.write("tamper\n")

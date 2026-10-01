@@ -4904,7 +4904,11 @@ PY
     --dry-run)"
   echo "$first_lane_suggested_dry_run_output" | grep -q '^review_lane_apply:$'
   echo "$first_lane_suggested_dry_run_output" | grep -q '^  answers_source: suggested'
-  echo "$first_lane_suggested_dry_run_output" | grep -q '^  lane_result: reviewed=0 todo=1 rejected=0'
+  # Text questions remain independent of adjacent chronology/audio questions.
+  jq -e '.lane == "check_transcript_text" and (.items | length) == 4
+    and all(.items[]; .source == "transcript_text" and .suggested_decision == "needs_review")' \
+    "$first_lane_pack_dir/review_lane_pack.$first_lane.json" >/dev/null
+  grep -q '^  lane_result: reviewed=0 todo=4 rejected=0$' <<<"$first_lane_suggested_dry_run_output"
   echo "$first_lane_suggested_dry_run_output" | grep -q 'review_lane_answers\..*\.suggested\.txt'
   echo "$first_lane_suggested_dry_run_output" | grep -q '^  next:$'
   echo "$first_lane_suggested_dry_run_output" | grep -q '^    murmurmark review lane apply .* --answers-source manual --dry-run'

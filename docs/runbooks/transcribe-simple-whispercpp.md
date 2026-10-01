@@ -966,7 +966,13 @@ transcript.
 The current decision is `PROMOTE_LOCAL_SPEECH_COMPLETION_V2`: `3/6` local-recall rows and
 `22.4/35.85s` close safely, one damaged duplicate text tail is repaired, and three rows / `13.45s`
 remain in `check_local_recall`. The operational report additionally creates
-`check_transcript_text` for selected `Me` utterances whose text still carries `needs_review`:
+`check_transcript_text` for selected utterances whose text still carries `needs_review`:
+
+Both Me and remote are included. Remote rows preserve `source_track=remote`, contain no
+`me_utterance_ids` and allow only `needs_review`/`skip`; existing Me edit gates remain unchanged.
+Open order/role rows do not suppress a separate text question for the same utterance. Successful
+micro-ASR with decoded context outside the target island stays under review unless complete
+word-bounded support is present. A legacy stored `stable` result cannot bypass this check.
 
 ```bash
 murmurmark review lane check_transcript_text \

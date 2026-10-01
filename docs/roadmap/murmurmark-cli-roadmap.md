@@ -1,11 +1,12 @@
 # MurmurMark CLI Roadmap
-Updated: 2026-09-30
+Updated: 2026-10-01
 Это читаемое представление активного плана OpsKarta v3:
 
 - `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`
 YAML владеет статусами и зависимостями. `docs/project/current-goal.md` раскрывает единственную
 исполняемую цель. Завершённые эксперименты остаются в `docs/research/`, `docs/testing/` и
 `docs/history/`, но не определяют текущий приоритет.
+Ремонт 1 октября улучшает provisional времена и review; upstream ASR/cache ещё требуют квалификации. [Состояние ремонта](../project/2026-10-01-acoustic-publication-repair.md).
 ## Правила Планирования
 - В работе находится ровно одна цель со статусом `current`.
 - Основной путь заканчивается надёжной speaker-resolved транскрибацией, а не производными заметками.
