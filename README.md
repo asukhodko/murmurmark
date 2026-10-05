@@ -83,6 +83,7 @@ disclaimer-bearing provisional view. Ordinary `status`, `outcome` and `transcrip
 verify published evidence; they never start a speaker model. Budget expiry checkpoints completed
 review work and is reported as deferred, not as an unexpected Python failure.
 Provisional views mark per-turn review and approximate timing; missing times never become zero.
+Compatible v3 evidence survives review; preview limits never truncate queues or answer templates.
 See the [read-view contract](docs/contracts/transcript-publication-read-view.md) and [repair checkpoint](docs/project/2026-10-01-acoustic-publication-repair.md).
 Optional interruption preserves the transcript; resume retries deferred work. Reconciliation keeps
 compatible decisions, profile, speaker evidence and review queue consistent. Unsupported remote

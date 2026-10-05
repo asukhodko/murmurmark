@@ -1648,6 +1648,10 @@ decision, usually several checks tied to one `Me` utterance.
 `review_first`: listen to the listed stereo clips or local-recall mic snippets, decide whether each
 `Me` candidate is leaked remote speech, real local speech, lost local speech, order-risk, or unclear, then keep
 unclear cases marked for review.
+The JSON queue and answer template always include all mandatory questions. `--max-review-items`
+and `--max-clusters` limit only report previews, including when set to zero. After upgrading from
+the truncated queue producer, an old snapshot is stale; the usual lifecycle/report reconciliation
+rebuilds it. A larger visible remainder does not mean new transcript errors were introduced.
 The plan also assigns each row a `review_lane`: `fast_confirm_drop` for likely complete duplicate/noise
 rows, `check_unique_me_content` for partial duplicates and leaks, `check_local_recall` for possible
 missing local speech, `check_transcript_order` for chronology-risk rows, `confirm_benign` for likely

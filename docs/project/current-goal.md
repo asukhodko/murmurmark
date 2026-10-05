@@ -1,6 +1,6 @@
 # Current Goal
 
-Updated: 2026-10-01
+Updated: 2026-10-05
 
 This document expands the single executable goal from
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`.
@@ -36,6 +36,21 @@ OpsKarta nearest goal: Bounded Evidence Compute v1: квалифицироват
 7. Недостаточный корпус означает явный DO_NOT_PROMOTE, а не ослабление gate или обещание ускорения.
 
 ## Current Evidence
+
+Checkpoint 5 октября: устранены два ограничения полноты review (40 строк и 80 групп), preview
+отделён от полной очереди и шаблона. Проверены сохранение v3 labels при изменении review-метаданных
+и отказ от reuse при изменении вложенных word timestamps/неизвестных входных полей. На контрольной
+85-минутной сессии cached reconciliation сохранил raw/текст, пять меток и покрытие 96.0157%; остаток
+теперь честно содержит 226 вопросов / 632.42s уникального аудио. Это не рост числа ошибок.
+
+В 735 подготовленных micro clips найдены 324 уникальных PCM; все 207 групп повторов имеют одинаковые
+сохранённые decode outputs. Это потенциал reuse, не измеренное ускорение production. Добавлен
+`scripts/check-micro-asr-cache-replay.py`: read-only inventory и отдельные bounded cold/warm canaries.
+Два реальных canary прошли: один decode на пару, тот же relative output; cold 3.009/2.023s,
+warm 0.014/0.006s при прежних profile/nice/трёх потоках. Это не full-session benchmark.
+Candidate cache проверяет config fingerprint после ожидания lock и не переиспользует CPU fallback
+как результат GPU-конфигурации. Producer/policy hashes не изменены; corpus qualification остаётся
+обязательным условием включения. [Проверки и границы](../testing/2026-10-05-review-accounting-and-cache.md).
 
 Промежуточный ремонт публикации 1 октября отделён от изменения producer. Provisional view
 показывает локальные review-причины, проверяет вложенные времена и не ставит remote-текст раньше

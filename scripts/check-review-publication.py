@@ -136,6 +136,8 @@ def check_publication(root):
         markdown = (session / payload["selected_transcript"]["path"]).read_text()
         assert "00:01 remote_speaker_01" in markdown and "00:03 remote_speaker_02" in markdown
         assert "provisional" in markdown
+        assert "preserved from verified compatible v3 evidence" in markdown
+        assert payload["evidence_reuse"]["acoustic_evidence_status"] == "verified_compatible"
         first = (out / "selection.json").read_bytes()
         assert M.materialize(args) == payload
         assert (out / "selection.json").read_bytes() == first
@@ -200,6 +202,22 @@ def check_publication(root):
             changed = deepcopy(rows)
             changed[1][field] = value
             assert M.compatible_v3_evidence(session, v3, changed) is None, field
+        for field, value in (("words", [{"word": "First", "start": 1.5, "end": 2.5}]),
+                             ("new_acoustic_input", "different"), ("corrections", ["changed"])):
+            changed = deepcopy(rows)
+            changed[1][field] = value
+            assert M.compatible_v3_evidence(session, v3, changed) is None, field
+        reviewed = deepcopy(rows)
+        reviewed[1]["overlap_ids"] = ["new_audit_link"]
+        reviewed[1]["quality"]["audit_cleanup"] = {"reason": "review refreshed"}
+        assert M.compatible_v3_evidence(session, v3, reviewed) is not None
+        write(dialogue, {"utterances": reviewed})
+        reviewed_selection = M.materialize(args)
+        reviewed_rich = M.read_json(session / reviewed_selection["rich_transcript"]["path"])
+        assert reviewed_rich["utterances"][1]["speaker_turns"] == rich["utterances"][1]["speaker_turns"]
+        assert reviewed_rich["utterances"][1]["quality"] == reviewed[1]["quality"]
+        assert reviewed_selection["evidence_reuse"]["strict_publication_promoted"] is False
+        write(dialogue, {"utterances": rows})
         for field in ("needs_review", "overlap"):
             changed = deepcopy(rows)
             changed[1]["quality"][field] = True

@@ -11,6 +11,12 @@ from typing import Any
 
 
 RECEIPT_SCHEMA = "murmurmark.review_suggestion_receipt/v1"
+QUEUE_IMPLEMENTATIONS = (
+    Path(__file__).resolve(),
+    Path(__file__).with_name("report-review-decisions-progress.py").resolve(),
+    Path(__file__).with_name("report-operational-readiness.py").resolve(),
+    Path(__file__).with_name("build-review-plan.py").resolve(),
+)
 
 
 def digest(value: Any) -> str:
@@ -366,8 +372,7 @@ def queue_snapshot(rows: list[dict[str, Any]], template: Path, decisions: Path) 
         for start, stop in sorted(values):
             union += max(0.0, stop - max(start, end))
             end = max(end, stop)
-    paths = {template.resolve(), decisions.resolve(), Path(__file__).resolve(),
-             Path(__file__).with_name("report-review-decisions-progress.py").resolve()}
+    paths = {template.resolve(), decisions.resolve(), *QUEUE_IMPLEMENTATIONS}
     paths.update(path.resolve() for row in rows if (path := dialogue_path(row)) is not None)
     files = [file_identity(path) for path in sorted(paths)]
     return {"schema": "murmurmark.review_queue_snapshot/v1", "fingerprint": digest({"files": files, "items": items}),
@@ -384,6 +389,10 @@ def read_queue_snapshot(session: Path) -> dict[str, Any] | None:
         progress = json.loads((session / "derived/readiness/review-plan/review_decisions_progress.json").read_text())
         snapshot = progress.get("queue_snapshot") or {}
         if snapshot.get("schema") != "murmurmark.review_queue_snapshot/v1" or not snapshot.get("files"):
+            return None
+        if not {str(path) for path in QUEUE_IMPLEMENTATIONS}.issubset(
+            {item.get("path") for item in snapshot["files"] if isinstance(item, dict)}
+        ):
             return None
         if any(file_identity(Path(item["path"])) != item for item in snapshot["files"]):
             return None

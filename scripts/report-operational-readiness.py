@@ -20,7 +20,7 @@ from transcript_publication import review_reasons
 from review_audio_evidence import effective_decision
 
 
-SCRIPT_VERSION = "0.4.9"
+SCRIPT_VERSION = "0.4.10"
 SCHEMA = "murmurmark.operational_readiness_report/v1"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
@@ -146,7 +146,8 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=Path("sessions/_reports/operational-readiness"),
     )
-    parser.add_argument("--max-review-items", type=int, default=40)
+    parser.add_argument("--max-review-items", type=int, default=40,
+                        help="Maximum rows in the report preview; the canonical queue is always complete.")
     return parser.parse_args()
 
 
@@ -2300,6 +2301,7 @@ def select_review_queue(rows: list[dict[str, Any]], max_items: int) -> list[dict
 
 
 def build_review_queue_details(sessions: list[dict[str, Any]], max_items: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    # Keep the argument for callers of this API; presentation limits cannot bound evidence.
     rows: list[dict[str, Any]] = []
     by_session = {str(session.get("session_id")): session for session in sessions}
     me_ids_cache: dict[tuple[str, str], set[str]] = {}
@@ -2479,7 +2481,7 @@ def build_review_queue_details(sessions: list[dict[str, Any]], max_items: int) -
                 continue
             rows.append(candidate)
     rows.sort(key=review_queue_sort_key)
-    selected = select_review_queue(rows, max_items)
+    selected = select_review_queue(rows, len(rows))
     low_materiality_rows = [item for item in selected if review_item_low_materiality(item)]
     mandatory = [item for item in selected if not review_item_low_materiality(item)]
     return mandatory, low_materiality_rows
@@ -3103,6 +3105,7 @@ def build_report(
         gate = str(row.get("use_gate") or "unknown")
         gates[gate] = gates.get(gate, 0) + 1
     review_queue, low_materiality_rows = build_review_queue_details(burdens, max_review_items)
+    review_queue_preview = select_review_queue(review_queue, max_review_items)
     low_materiality_summary = low_materiality_review_summary(low_materiality_rows)
     review_actions = review_action_summary(review_queue)
     tail_explanation = manual_tail_explanation(review_queue)
@@ -3164,6 +3167,8 @@ def build_report(
             ),
             "audio_judge_review_queue": audio_judge_review_queue,
             "review_queue_items": len(review_queue),
+            "review_queue_preview_items": len(review_queue_preview),
+            "review_queue_preview_omitted": len(review_queue) - len(review_queue_preview),
             "review_queue_low_materiality_excluded": low_materiality_summary,
             "review_action_count": review_actions["review_action_count"],
             "grouped_review_row_count": review_actions["grouped_review_row_count"],
@@ -3175,6 +3180,7 @@ def build_report(
         },
         "session_review_burden": burdens,
         "review_queue": review_queue,
+        "review_queue_preview": review_queue_preview,
         "promotion_plan": promotion,
         "recommendations": recommendations(verdict, blockers, warnings),
         "next_commands": build_next_commands(blockers, promotion, operational_readiness_path),
@@ -3507,7 +3513,10 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             + " |"
         )
     lines.extend(["", "## Review Queue", ""])
-    for item in report.get("review_queue", [])[:25]:
+    preview = report.get("review_queue_preview", report.get("review_queue", []))
+    lines.extend([f"Showing {len(preview)} of {len(report.get('review_queue', []))} mandatory rows. "
+                  "The JSON queue and decision template contain every row.", ""])
+    for item in preview:
         interval = item.get("interval") if isinstance(item.get("interval"), dict) else {}
         commands = item.get("commands") if isinstance(item.get("commands"), dict) else {}
         stereo = commands.get("stereo_clean_left_remote_right") or commands.get("stereo_mic_left_remote_right")

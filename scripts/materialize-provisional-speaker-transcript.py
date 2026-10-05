@@ -20,7 +20,7 @@ import micro_asr_evidence
 import acoustic_timing_evidence
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 SELECTION_SCHEMA = "murmurmark.provisional_speaker_transcript_selection/v1"
 TRANSCRIPT_SCHEMA = "murmurmark.provisional_speaker_transcript/v1"
 READINESS_SCHEMA = "murmurmark.session_readiness/v1"
@@ -304,13 +304,14 @@ def review_compatible_projection(utterances: list[dict[str, Any]]) -> list[dict[
         # The frozen v1/v2/v3 backends use remote-only evidence units and overlaps.
         if row.get("role") != "remote":
             continue
-        projected = {key: row.get(key) for key in (
-            "id", "role", "text", "start", "end", "source_track", "source_start",
-            "source_end", "source_candidate_id",
-        )}
+        # Fail closed for new evidence fields (including nested word times). Only
+        # speaker outputs and audit links can differ without changing the input.
+        projected = {key: value for key, value in row.items() if key not in {
+            "speaker_turns", "speaker_id", "speaker_label", "speaker_attribution", "overlap_ids", "quality",
+        }}
         projected["quality"] = {key: value for key, value in (row.get("quality") or {}).items()
                                 if key not in {"human_review", "agent_review", "review_evidence",
-                                               "transcript_order_review"}}
+                                               "transcript_order_review", "audit_cleanup"}}
         result.append(projected)
     return result
 
@@ -690,8 +691,16 @@ def render_markdown(
     reason: str,
     summary: dict[str, Any],
     display_rows: list[dict[str, Any]] | None = None,
+    evidence_reuse: dict[str, Any] | None = None,
 ) -> str:
-    if state == "provisional":
+    if state == "provisional" and (evidence_reuse or {}).get("kind") == "v3":
+        warning = (
+            "**Speaker labels are preserved from verified compatible v3 evidence.** "
+            "Audio, model and word/turn evidence were checked; transcript/review metadata changed. "
+            "This read view remains provisional because the strict full-document fingerprint differs. "
+            "No new speakers were inferred and no unknown labels were filled in."
+        )
+    elif state == "provisional":
         warning = (
             "**Speaker attribution is provisional.** Anonymous `remote_speaker_NN` labels are "
             "best-effort acoustic clusters and may merge several people into one label or split one person across labels."
@@ -955,6 +964,7 @@ def materialize(args: argparse.Namespace) -> dict[str, Any]:
             "projection_sha256": sha256_bytes(compact_json_bytes(review_compatible_projection(utterances))),
             "strict_publication_promoted": False,
             "eligibility_basis": "frozen_nonexpanding",
+            "acoustic_evidence_status": "verified_compatible",
         }
     normalized_attributions: dict[str, dict[str, Any]] = {}
     output_utterances: list[dict[str, Any]] = []
@@ -1037,6 +1047,7 @@ def materialize(args: argparse.Namespace) -> dict[str, Any]:
             fallback_reason,
             summary,
             display_rows,
+            evidence_reuse,
         ).encode(),
     )
     selection: dict[str, Any] = {

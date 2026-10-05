@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
-from review_audio_evidence import read_queue_snapshot
+from review_audio_evidence import read_queue_snapshot, digest
 
 
 def load(name):
@@ -26,6 +26,8 @@ def main():
     quality = load("report-session-quality")
     outcome = load("evaluate-outcome")
     reconcile = load("reconcile-session-state")
+    readiness = load("report-operational-readiness")
+    planner = load("build-review-plan")
     with tempfile.TemporaryDirectory(prefix="murmurmark-review-queue-") as directory:
         session = Path(directory)
         (session / "session.json").write_text("{}\n")
@@ -52,6 +54,12 @@ def main():
         assert snapshot["interval_union_seconds"] is None
         assert snapshot["unknown_duration_rows"] == 1
         assert quality.read_review_progress(session)["queue_snapshot"] == snapshot
+        legacy = {**snapshot, "files": [item for item in snapshot["files"]
+                                       if not item["path"].endswith("build-review-plan.py")]}
+        legacy["fingerprint"] = digest({"files": legacy["files"], "items": legacy["items"]})
+        progress.write_json(plan / "review_decisions_progress.json", {**report, "queue_snapshot": legacy})
+        assert read_queue_snapshot(session) is None, "truncated legacy producers must not look current"
+        progress.write_json(plan / "review_decisions_progress.json", report)
         out = outcome.build_review_plan(session, None, "blocked")
         assert out["queue_snapshot"] == snapshot
         assert out["summary"]["estimated_seconds"] is None
@@ -83,6 +91,39 @@ def main():
         assert snapshot["unresolved_rows"] == 2
         assert snapshot["interval_union_seconds"] == snapshot["interval_sum_seconds"] == 15
         assert snapshot["duration_complete"] is True
+    with tempfile.TemporaryDirectory(prefix="murmurmark-review-limits-") as directory:
+        session = Path(directory)
+        dialogue = session / "derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.reviewed_v1.json"
+        dialogue.parent.mkdir(parents=True)
+        # Disjoint intervals exceed BOTH legacy limits (40 rows, 80 clusters).
+        utterances = [{"id": f"remote_{index:03d}", "role": "remote", "text": f"Words {index}.",
+                       "start": index * 10.0, "end": index * 10.0 + 2.0,
+                       "quality": {"needs_review": True}} for index in range(105)]
+        dialogue.write_text(json.dumps({"utterances": utterances}))
+        burdens = [{"session_id": "fixture", "session": str(session), "selected_profile": "reviewed_v1",
+                    "use_gate": "ready_for_notes", "export_blockers": [], "transcript_review_burden_sec": 0}]
+        complete, excluded = readiness.build_review_queue_details(burdens, 40)
+        assert len(complete) == 105 and not excluded
+        for limit in (0, 1, 40, 1000):
+            assert readiness.build_review_queue_details(burdens, limit) == (complete, excluded)
+            preview = readiness.select_review_queue(complete, limit)
+            assert len(preview) == min(limit, 105)
+        for limit in (0, 1, 80, 1000):
+            args = SimpleNamespace(merge_gap_sec=4, listen_padding_sec=2, max_clusters=limit,
+                                   operational_readiness=session / "readiness.json")
+            plan = planner.build_plan({"review_queue": complete, "session_review_burden": burdens}, args)
+            rows = planner.decision_template_rows(plan)
+            assert len(rows) == plan["summary"]["cluster_count"] == 105
+            template, decisions = session / "template.jsonl", session / "decisions.jsonl"
+            planner.write_jsonl(template, rows)
+            planner.write_jsonl(decisions, [{**row, "decision": "skip", "review_source": "manual"}
+                                           for row in rows[:40]])
+            snapshot = progress.build_report(SimpleNamespace(template=template, decisions=decisions))["queue_snapshot"]
+            assert snapshot["unresolved_rows"] == 65, snapshot
+            assert snapshot["interval_sum_seconds"] == snapshot["interval_union_seconds"] == 130
+            markdown = session / "plan.md"
+            planner.write_markdown(markdown, plan)
+            assert f"Showing {min(limit, 105)} of 105 clusters." in markdown.read_text()
     print("review queue snapshot checks passed")
     return 0
 

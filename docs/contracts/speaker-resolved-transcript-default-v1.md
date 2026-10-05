@@ -91,7 +91,9 @@ projection may retain v1 clusters or v3 word turns as provisional output when re
 text, roles, timestamps and source intervals/order match. The current backends do not depend on Me
 rows, so Me deletion does not invalidate this projection. All IDs must be nonempty and unique.
 Remote quality matches except review annotations (`human_review`, `agent_review`, `review_evidence`,
-`transcript_order_review`). `needs_review: true -> false` may retain prior labels under
+`transcript_order_review`, `audit_cleanup`). Derived `overlap_ids` links and speaker output fields
+are excluded; all other remote fields, including nested word times, corrections and newly introduced
+input fields, must match. `needs_review: true -> false` may retain prior labels under
 `eligibility_basis: frozen_nonexpanding`; the reverse transition is rejected. No newly eligible
 interval receives a label or becomes an enrollment sample through this reuse path.
 Raw remote audio, prepared audio, installed model, roster, implementation and artifact manifests are
@@ -99,6 +101,9 @@ verified. V3 additionally retains promoted v2/v3 provenance and raw word timesta
 consensus model is conservatively unsupported in this version. Any mismatch blocks reuse.
 `evidence_reuse` records schema `murmurmark.speaker_evidence_reuse/v1`, `kind: v1|v3`, source profile,
 source dialogue identity and projection SHA-256. The strict selector and its policy remain unchanged.
+For v3, `acoustic_evidence_status: verified_compatible` and the Markdown disclaimer identify labels
+retained from checked v3 evidence. Publication remains `provisional`, not newly promoted: the strict
+full-document fingerprint differs. Current review warnings are preserved, with no expansion of labels.
 Other quality changes invalidate reuse. This narrowly defined compatibility is not a general
 permission to ignore quality, alter a model, change cluster topology or refresh strict qualification.
 New provisional selection points to two fully written immutable generation files. Repeated reads and

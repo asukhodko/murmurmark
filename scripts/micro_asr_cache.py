@@ -107,8 +107,15 @@ def valid_entry(directory: Path, key: str) -> dict[str, Any] | None:
         payload = json.loads((directory / "completion.json").read_text())
         if not isinstance(payload, dict) or payload.get("schema") != SCHEMA or payload.get("decode_key") != key:
             return None
+        config = payload.get("config")
+        if not isinstance(config, dict) or hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest() != key:
+            return None
         files = payload["artifacts"]
         if not isinstance(files, dict) or ".json" not in files or not isinstance(payload.get("execution"), dict):
+            return None
+        # A CPU fallback is not evidence for the requested GPU configuration.
+        execution_mode = payload["execution"].get("mode")
+        if execution_mode == "cpu_fallback" or (execution_mode == "cpu" and "--no-gpu" not in config["options"]):
             return None
         generation = str(payload.get("generation") or "")
         if generation and (Path(generation).name != generation or generation in {".", ".."}):
@@ -147,6 +154,9 @@ def materialize(
                 break
             except BlockingIOError:
                 time.sleep(0.05)
+        check_deadline()
+        if decode_config(command, pcm_identity(Path(command[command.index("--file") + 1]))) != config:
+            raise ValueError("micro-ASR inputs changed while waiting for cache lock")
         payload = None if force else valid_entry(entry, key)
         hit = payload is not None
         if payload is None:
@@ -181,7 +191,9 @@ def materialize(
                     if old.is_dir() and old.name != generation:
                         shutil.rmtree(old)
         source = entry / str(payload.get("generation") or "")
-        for suffix in SUFFIXES:
+        check_deadline()
+        # JSON is the consumer's completion marker. Publish it after sidecars.
+        for suffix in (*SUFFIXES[1:], SUFFIXES[0]):
             destination = output_base.with_suffix(suffix)
             if suffix not in payload["artifacts"]:
                 destination.unlink(missing_ok=True)

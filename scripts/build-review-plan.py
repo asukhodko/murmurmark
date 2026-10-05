@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.5.2"
+SCRIPT_VERSION = "0.5.3"
 SCHEMA = "murmurmark.review_plan/v1"
 GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
 CROSS_LANE_RELATED_LANES = {"check_unique_me_content", "classify_audio"}
@@ -69,7 +69,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--merge-gap-sec", type=float, default=4.0)
     parser.add_argument("--listen-padding-sec", type=float, default=2.0)
-    parser.add_argument("--max-clusters", type=int, default=80)
+    parser.add_argument("--max-clusters", type=int, default=80,
+                        help="Maximum clusters in the Markdown preview; the decision template is complete.")
     return parser.parse_args()
 
 
@@ -520,7 +521,6 @@ def build_plan(report: dict[str, Any], args: argparse.Namespace) -> dict[str, An
     queue = report.get("review_queue") if isinstance(report.get("review_queue"), list) else []
     items = [normalize_item(row) for row in queue if isinstance(row, dict)]
     clusters = cluster_items(items, args.merge_gap_sec, args.listen_padding_sec)
-    clusters = clusters[: max(0, args.max_clusters)]
     sessions = session_table(report)
     by_session = Counter(str(cluster.get("session_id")) for cluster in clusters)
     by_label: Counter[str] = Counter()
@@ -574,6 +574,7 @@ def build_plan(report: dict[str, Any], args: argparse.Namespace) -> dict[str, An
             "review_action_count": len(action_groups),
             "grouped_review_row_count": sum(max(0, len(group) - 1) for group in action_groups),
             "cluster_count": len(clusters),
+            "cluster_preview_count": min(len(clusters), max(0, args.max_clusters)),
             "sessions_with_review": len(by_session),
             "raw_item_seconds": round(raw_seconds, 3),
             "estimated_listen_seconds": round(listen_seconds, 3),
@@ -746,7 +747,11 @@ def write_markdown(path: Path, plan: dict[str, Any]) -> None:
             )
 
     lines.extend(["", "## Clusters", ""])
-    for cluster in plan.get("clusters") or []:
+    clusters = plan.get("clusters") or []
+    limit = max(0, int(plan.get("parameters", {}).get("max_clusters", len(clusters))))
+    lines.extend([f"Showing {min(len(clusters), limit)} of {len(clusters)} clusters. "
+                  "The decision template contains every item.", ""])
+    for cluster in clusters[:limit]:
         lines.extend(
             [
                 f"### {cluster.get('id')} `{cluster.get('session_id')}` {cluster.get('start_time')}-{cluster.get('end_time')}",

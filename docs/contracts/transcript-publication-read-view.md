@@ -1,6 +1,6 @@
 # Transcript Publication Read View
 
-Updated: 2026-10-01. Scope: provisional and unavailable attributed read views only.
+Updated: 2026-10-05. Scope: provisional and unavailable attributed read views and review accounting.
 The frozen strict publisher, primary ASR producer, base dialogue and policies are unchanged.
 
 ## Source And Display
@@ -44,3 +44,19 @@ Publication fingerprints include renderer, micro evidence helper, acoustic helpe
 Both immutable JSON and Markdown are written before the selection pointer. Verification rejects
 stale code/audio and ordinary read commands do not run inference or rewrite session artifacts.
 Coverage remains label coverage, not measured accuracy. Strict promotion/export gates are unchanged.
+
+## Complete Review Queue
+
+`operational_readiness_report.json.review_queue` includes every deduplicated mandatory row, after
+the existing low-materiality exclusions. `--max-review-items` limits only `review_queue_preview`
+and Markdown; summary fields `review_queue_preview_items` and `review_queue_preview_omitted`
+make the difference explicit. A limit of zero hides the preview, not the work.
+
+`build-review-plan.py --max-clusters` likewise limits only the Markdown preview. `clusters`,
+`review_decisions.template.jsonl`, lane totals and listening totals cover the complete queue.
+`cluster_preview_count` is separate from `cluster_count`. A preview is never an input to closure.
+
+Queue snapshot provenance includes the readiness and plan producers as well as the progress reader,
+template, decisions and selected dialogue. Snapshots from the old truncated producers are stale until
+explicit reconciliation. Rebuilding can increase the visible remaining count without changing audio
+or text. Sum of question intervals and union of audio intervals remain distinct metrics.

@@ -60,6 +60,11 @@ def main() -> None:
         Path(results[0]["cached_output_base"]).with_suffix(".json").write_text("{broken")
         assert not invoke("corrupt")["cache_hit"]
         assert len(calls) == 2
+        corrupted = json.loads((entry / "completion.json").read_text())
+        corrupted["config"]["model_sha256"] = "another model"
+        (entry / "completion.json").write_text(json.dumps(corrupted))
+        assert not invoke("corrupt_provenance")["cache_hit"]
+        assert len(calls) == 3
         assert not invoke("language", language="en")["cache_hit"]
         model.write_bytes(b"model-v2")
         assert not invoke("model")["cache_hit"]
@@ -113,6 +118,34 @@ def main() -> None:
                 else:
                     raise AssertionError("waiter ignored the deadline")
         assert invoke("after_lock_wait")["cache_hit"]
+        original_config = cache.decode_config
+        configurations = 0
+
+        def changed_during_wait(command, pcm):
+            nonlocal configurations
+            configurations += 1
+            config = original_config(command, pcm)
+            if configurations > 1:
+                config["model_sha256"] = "changed while waiting"
+            return config
+
+        with patch.object(cache, "decode_config", side_effect=changed_during_wait):
+            try:
+                invoke("changed_during_wait")
+            except ValueError as error:
+                assert "while waiting" in str(error)
+            else:
+                raise AssertionError("cache used inputs fingerprinted before the lock wait")
+        assert not (root / "changed_during_wait.json").exists()
+
+        def cpu_fallback(command, log):
+            decode(command, log)
+            return {"mode": "cpu_fallback"}
+
+        fallback_root = root / "fallback-cache"
+        assert not invoke("fallback", decoder=cpu_fallback, cache_root=fallback_root)["cache_hit"]
+        assert not invoke("after_fallback", cache_root=fallback_root)["cache_hit"]
+        assert invoke("after_success", cache_root=fallback_root)["cache_hit"]
         for bad in (float("nan"), float("inf"), -1, True):
             assert not cache.valid_decode({"transcription": [{"text": "hello", "offsets": {"from": bad, "to": 1}}]})
         with wave.open(str(audio), "wb") as output:
@@ -134,6 +167,22 @@ def main() -> None:
         assert rows[0]["start_ms"] == 10100 and shifted[0]["start_ms"] == 20100
         # Padding changes PCM and global-offset rebinding, never cached absolute times.
         assert transcribe.read_micro_reasr_text(root / "legacy.json", 19600, 19500, 20500)[1][0]["start_ms"] == 19700
+        spec = importlib.util.spec_from_file_location("micro_cache_replay", Path(__file__).with_name("check-micro-asr-cache-replay.py"))
+        replay = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(replay)
+        session = root / "opportunity"
+        clip_dir = session / "derived/transcript-simple/whisper-cpp/timeline-repair-shadow_v2/micro_reasr"
+        clip_dir.mkdir(parents=True)
+        for alias in ("normal", "wide"):
+            (clip_dir / f"{alias}.wav").write_bytes(audio.read_bytes())
+            (clip_dir / f"{alias}.json").write_bytes((root / "legacy.json").read_bytes())
+        report, groups = replay.inspect_clips(session)
+        assert report["clips"] == 2 and report["unique_pcm"] == 1 and len(groups) == 1
+        assert report["identical_saved_decode_groups"] == 1
+        (clip_dir / "wide.json").write_text('{"transcription": [{"text": "changed", "offsets": {"from": 100, "to": 500}}]}')
+        assert replay.inspect_clips(session)[0]["conflicting_saved_decode_groups"] == 1
+        (clip_dir / "wide.json").unlink()
+        assert replay.inspect_clips(session)[0]["missing_or_invalid_decode_groups"] == 1
     print("micro-ASR content cache checks ok")
 
 
