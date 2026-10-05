@@ -62,6 +62,16 @@ def write_session(session: Path, *, with_restart_gap: bool = True) -> None:
                         "sources": ["mic", "remote"],
                         "evidence": "writer_inserted_timeline_silence",
                         "captured_audio": False,
+                        "timing_evidence": [
+                            {
+                                "source": "mic",
+                                "start_sec": 99.4,
+                                "end_sec": 100.2,
+                                "basis": "presentation_timestamp",
+                                "timestamp_supported_sec": 0.8,
+                                "callback_only_sec": 0.0,
+                            }
+                        ],
                     }
                 ]
                 if with_restart_gap
@@ -150,12 +160,16 @@ def main() -> int:
         assert 0.79 <= report["observed_gap_seconds"] <= 0.81, report
         assert report["gaps"][0]["sources"] == ["mic", "remote"], report
         assert report["gaps"][0]["captured_audio"] is False, report
+        assert report["gaps"][0]["timing_evidence"][0]["basis"] == "presentation_timestamp", report
         assert report["partial_recommended"] is False, report
         assert report["restart_provenance_status"] == "complete", report
         assert report["restart_latency"]["max_software_idle_ms"] == 2.0, report
         report_path = session / "derived/audit/capture-continuity/capture_continuity_report.json"
         report_path.parent.mkdir(parents=True)
         report_path.write_text(json.dumps(report), encoding="utf-8")
+        markdown_path = report_path.with_suffix(".md")
+        module.write_markdown(markdown_path, report)
+        assert "timing mic=presentation_timestamp" in markdown_path.read_text(encoding="utf-8")
         transcript_path = (
             session
             / "derived/transcript-simple/whisper-cpp/resolved/transcript.md"

@@ -158,10 +158,15 @@ closes raw writers. The old stream is stopped only for a stall while it may stil
 `streamStopped` skips that call. No fixed sleep is allowed between old-stream disposition and the
 next `startCapture` request.
 
-`events.jsonl` records monotonic restart phases and one terminal outcome. The writer records each
-post-start timestamp hole as `session.json.health.capture_gaps` with exact boundaries and
+`events.jsonl` records monotonic restart phases and one terminal outcome. After aligning the first
+callback to wall time, the writer follows audio presentation timestamps; a late callback with
+continuous media timestamps does not create a false hole. If a timestamp is unavailable, wall time
+is an explicit fallback; initial alignment before a media-clock anchor also uses this provenance.
+The writer records each post-start hole as
+`session.json.health.capture_gaps` with exact boundaries, per-source `timing_evidence`, and
 `captured_audio=false`. Silence may preserve timeline alignment, but downstream code must never
 interpret it as captured source audio. Any such interval makes terminal capture completeness false.
+Older rows without `timing_evidence` cannot distinguish a media timestamp jump from callback delay.
 
 ## Health Monitor
 

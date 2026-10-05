@@ -556,10 +556,18 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
     if not report.get("gaps"):
         lines.append("No restart-correlated PCM gaps were detected.")
     for row in report.get("gaps") or []:
+        timing = row.get("timing_evidence") or []
+        basis = ", ".join(
+            f"{item.get('source')}={item.get('basis')}"
+            for item in timing
+            if isinstance(item, dict)
+        )
+        origin = f"; timing {basis}" if basis else "; timing provenance unavailable"
+        gap_label = f"restart {row['restart_count']}" if row.get("restart_count") is not None else "writer"
         lines.append(
-            f"- restart `{row.get('restart_count')}`: "
+            f"- {gap_label}: "
             f"`{safe_float(row.get('start_sec')):.3f}..{safe_float(row.get('end_sec')):.3f}` "
-            f"(`{safe_float(row.get('duration_sec')):.3f}s`, {', '.join(row.get('sources') or [])})"
+            f"(`{safe_float(row.get('duration_sec')):.3f}s`, {', '.join(row.get('sources') or [])}{origin})"
         )
     attempts = report.get("restart_provenance") or []
     if attempts:

@@ -12419,12 +12419,14 @@ extension SessionRecorder {
             let start: Double
             let end: Double
             let source: String
+            let timing: CaptureGapTimingEvidence
         }
 
         struct MergedGap {
             var start: Double
             var end: Double
             var sources: Set<String>
+            var timing: [CaptureGapTimingEvidence]
         }
 
         let sourceRows = (micWriter?.captureTimelineGaps ?? [])
@@ -12434,7 +12436,19 @@ extension SessionRecorder {
             let start = Double(row.startFrame) / row.sampleRate
             let end = Double(row.endFrame) / row.sampleRate
             guard end > start else { return nil }
-            return SourceGap(start: start, end: end, source: row.source)
+            return SourceGap(
+                start: start,
+                end: end,
+                source: row.source,
+                timing: CaptureGapTimingEvidence(
+                    source: row.source,
+                    startSec: roundedCaptureSeconds(start),
+                    endSec: roundedCaptureSeconds(end),
+                    basis: row.timingBasis,
+                    timestampSupportedSec: roundedCaptureSeconds(Double(row.timestampSupportedFrames) / row.sampleRate),
+                    callbackOnlySec: roundedCaptureSeconds(Double(row.callbackOnlyFrames) / row.sampleRate)
+                )
+            )
         }.sorted { left, right in
             left.start == right.start ? left.end < right.end : left.start < right.start
         }
@@ -12445,8 +12459,9 @@ extension SessionRecorder {
                row.start <= merged[lastIndex].end + 0.050 {
                 merged[lastIndex].end = max(merged[lastIndex].end, row.end)
                 merged[lastIndex].sources.insert(row.source)
+                merged[lastIndex].timing.append(row.timing)
             } else {
-                merged.append(MergedGap(start: row.start, end: row.end, sources: [row.source]))
+                merged.append(MergedGap(start: row.start, end: row.end, sources: [row.source], timing: [row.timing]))
             }
         }
         return merged.map { row in
@@ -12456,7 +12471,8 @@ extension SessionRecorder {
                 durationSec: roundedCaptureSeconds(row.end - row.start),
                 sources: row.sources.sorted(),
                 evidence: "writer_inserted_timeline_silence",
-                capturedAudio: false
+                capturedAudio: false,
+                timingEvidence: row.timing
             )
         }
     }
@@ -13017,6 +13033,60 @@ struct CaptureTimelineGap: Sendable {
     let startFrame: AVAudioFramePosition
     let endFrame: AVAudioFramePosition
     let sampleRate: Double
+    let timingBasis: String
+    let timestampSupportedFrames: AVAudioFramePosition
+    let callbackOnlyFrames: AVAudioFramePosition
+}
+
+struct AudioTimelineGapDecision {
+    let gapFrames: AVAudioFramePosition
+    let timestampSupportedFrames: AVAudioFramePosition
+    let callbackOnlyFrames: AVAudioFramePosition
+    let firstPresentationTimeSec: Double?
+    let timelineReset: Bool
+
+    static func evaluate(
+        framesWritten: AVAudioFramePosition,
+        sampleRate: Double,
+        presentationTimeSec: Double?,
+        firstPresentationTimeSec: Double?,
+        wallElapsedSec: Double
+    ) -> Self {
+        let rate = max(sampleRate, 1.0)
+        let tolerance = AVAudioFramePosition(max(256.0, rate * 0.050))
+        let wallFrame = AVAudioFramePosition((max(0.0, wallElapsedSec) * rate).rounded())
+        let presentation = presentationTimeSec.flatMap { $0.isFinite ? $0 : nil }
+        var anchor = firstPresentationTimeSec
+        let hasTimestampAnchor = anchor != nil && presentation != nil
+        if anchor == nil, let presentation {
+            // Preserve initial track alignment, then follow the media clock instead of callback latency.
+            anchor = presentation - Double(wallFrame) / rate
+        }
+        var expected = presentation.flatMap { value in
+            anchor.map { AVAudioFramePosition(((value - $0) * rate).rounded()) }
+        } ?? wallFrame
+        if expected + tolerance < framesWritten {
+            if let presentation {
+                anchor = presentation - Double(framesWritten) / rate
+            }
+            expected = framesWritten
+            return Self(
+                gapFrames: 0,
+                timestampSupportedFrames: 0,
+                callbackOnlyFrames: 0,
+                firstPresentationTimeSec: anchor,
+                timelineReset: true
+            )
+        }
+        let gap = expected - framesWritten > tolerance ? expected - framesWritten : 0
+        return Self(
+            gapFrames: gap,
+            timestampSupportedFrames: hasTimestampAnchor ? gap : 0,
+            callbackOnlyFrames: hasTimestampAnchor ? 0 : gap,
+            firstPresentationTimeSec: anchor,
+            timelineReset: false
+        )
+    }
 }
 
 struct CommittedAudioPacket: @unchecked Sendable {
@@ -13105,7 +13175,8 @@ final class AudioFileWriter {
         let buffer = try Self.pcmBuffer(from: sampleBuffer, format: format)
 
         try ensureFile(format: format)
-        let gapFrames = timelineGapFrames(sampleBuffer: sampleBuffer, format: format)
+        let gapDecision = timelineGapDecision(sampleBuffer: sampleBuffer, format: format)
+        let gapFrames = gapDecision.gapFrames
         let gapStartFrame = framesWritten
         if gapFrames > 0 {
             try writeSilence(format: format, frames: gapFrames)
@@ -13115,7 +13186,10 @@ final class AudioFileWriter {
                         source: source,
                         startFrame: gapStartFrame,
                         endFrame: gapStartFrame + gapFrames,
-                        sampleRate: format.sampleRate
+                        sampleRate: format.sampleRate,
+                        timingBasis: gapDecision.callbackOnlyFrames > 0 ? "callback_wall_clock" : "presentation_timestamp",
+                        timestampSupportedFrames: gapDecision.timestampSupportedFrames,
+                        callbackOnlyFrames: gapDecision.callbackOnlyFrames
                     )
                 )
             }
@@ -13255,41 +13329,25 @@ final class AudioFileWriter {
         return 0
     }
 
-    private func timelineGapFrames(sampleBuffer: CMSampleBuffer, format: AVAudioFormat) -> AVAudioFramePosition {
-        let sampleRate = max(format.sampleRate, 1.0)
-        let toleranceFrames = AVAudioFramePosition(max(256.0, sampleRate * 0.050))
+    private func timelineGapDecision(sampleBuffer: CMSampleBuffer, format: AVAudioFormat) -> AudioTimelineGapDecision {
         let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
         let ptsSeconds = CMTimeGetSeconds(pts)
-        if firstPresentationTimeSec == nil, ptsSeconds.isFinite {
-            firstPresentationTimeSec = ptsSeconds
-        }
+        let now = Date()
         if firstWallDate == nil {
-            firstWallDate = Date()
+            firstWallDate = now
         }
-
-        var expectedStartFrame: AVAudioFramePosition?
-        if let firstPresentationTimeSec, ptsSeconds.isFinite {
-            expectedStartFrame = AVAudioFramePosition(((ptsSeconds - firstPresentationTimeSec) * sampleRate).rounded())
-        }
-        if let firstWallDate {
-            let wallFrame = AVAudioFramePosition((Date().timeIntervalSince(firstWallDate) * sampleRate).rounded())
-            if let currentExpected = expectedStartFrame {
-                expectedStartFrame = max(currentExpected, wallFrame)
-            } else {
-                expectedStartFrame = wallFrame
-            }
-        }
-
-        guard var expectedStartFrame else { return 0 }
-        if expectedStartFrame + toleranceFrames < framesWritten {
+        let decision = AudioTimelineGapDecision.evaluate(
+            framesWritten: framesWritten,
+            sampleRate: format.sampleRate,
+            presentationTimeSec: ptsSeconds,
+            firstPresentationTimeSec: firstPresentationTimeSec,
+            wallElapsedSec: now.timeIntervalSince(firstWallDate ?? now)
+        )
+        firstPresentationTimeSec = decision.firstPresentationTimeSec
+        if decision.timelineReset {
             timelineResetCount += 1
-            if ptsSeconds.isFinite {
-                firstPresentationTimeSec = ptsSeconds - (Double(framesWritten) / sampleRate)
-            }
-            expectedStartFrame = framesWritten
         }
-        let gapFrames = expectedStartFrame - framesWritten
-        return gapFrames > toleranceFrames ? gapFrames : 0
+        return decision
     }
 
     private func writeSilence(format: AVAudioFormat, frames: AVAudioFramePosition) throws {
@@ -21214,6 +21272,7 @@ struct CaptureGapManifest: Codable, Sendable {
     let sources: [String]
     let evidence: String
     let capturedAudio: Bool
+    let timingEvidence: [CaptureGapTimingEvidence]?
 
     enum CodingKeys: String, CodingKey {
         case startSec = "start_sec"
@@ -21222,6 +21281,25 @@ struct CaptureGapManifest: Codable, Sendable {
         case sources
         case evidence
         case capturedAudio = "captured_audio"
+        case timingEvidence = "timing_evidence"
+    }
+}
+
+struct CaptureGapTimingEvidence: Codable, Sendable {
+    let source: String
+    let startSec: Double
+    let endSec: Double
+    let basis: String
+    let timestampSupportedSec: Double
+    let callbackOnlySec: Double
+
+    enum CodingKeys: String, CodingKey {
+        case source
+        case startSec = "start_sec"
+        case endSec = "end_sec"
+        case basis
+        case timestampSupportedSec = "timestamp_supported_sec"
+        case callbackOnlySec = "callback_only_sec"
     }
 }
 

@@ -220,6 +220,15 @@ timeline advances without an audio callback. Native rows have `captured_audio=fa
 precedence over the legacy bounded exact-zero scan. The scan remains a read-only fallback for old
 sessions.
 
+For new captures, the first callback establishes wall-clock alignment and subsequent valid audio
+presentation timestamps determine continuity. Wall-clock timing is used only when a presentation
+timestamp is unavailable. Native rows carry optional `timing_evidence` per source: basis
+`presentation_timestamp` means the media clock supports the hole; `callback_wall_clock` marks a
+fallback inference. Historical rows lacking this field remain ambiguous and are not retroactively
+classified as confirmed lost speech.
+Initial alignment, including the first valid timestamp after missing timestamps, is wall-clock
+evidence until a media-clock anchor exists; timestamp availability alone does not confirm a gap.
+
 Every new restart also writes ordered `capture.restart_provenance` events with `sequence` and
 `monotonic_ns`: `requested`, old-stream disposition, `start_requested`, `start_completed`, first
 callback and first committed PCM for mic/remote, and exactly one terminal outcome. Callbacks may
@@ -254,7 +263,25 @@ only for tracks actually captured by ScreenCaptureKit, so mixed capture backends
       "duration_sec": 0.468729,
       "sources": ["mic", "remote"],
       "evidence": "writer_inserted_timeline_silence",
-      "captured_audio": false
+      "captured_audio": false,
+      "timing_evidence": [
+        {
+          "source": "mic",
+          "start_sec": 8.566313,
+          "end_sec": 9.035042,
+          "basis": "presentation_timestamp",
+          "timestamp_supported_sec": 0.468729,
+          "callback_only_sec": 0.0
+        },
+        {
+          "source": "remote",
+          "start_sec": 8.566313,
+          "end_sec": 9.035042,
+          "basis": "presentation_timestamp",
+          "timestamp_supported_sec": 0.468729,
+          "callback_only_sec": 0.0
+        }
+      ]
     }
   ]
 }

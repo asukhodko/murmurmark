@@ -88,6 +88,8 @@ def main() -> int:
     module = load_module()
     with tempfile.TemporaryDirectory(prefix="murmurmark-continuity-closure-") as temporary:
         root = Path(temporary)
+        # Keep the fixture independent from a real MurmurMark capture running in parallel.
+        module.ROOT = root
         frozen_session = root / "frozen"
         controlled = root / "controlled"
         soak = root / "soak"
