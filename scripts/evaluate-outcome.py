@@ -11,6 +11,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import transcript_read_view
+from murmurmark_deadline import ActionStopped
+
 
 SCRIPT_VERSION = "0.1.9"
 OUTCOME_SCHEMA = "murmurmark.outcome/v1"
@@ -1272,6 +1275,20 @@ def main() -> int:
         }
     export_blockers = (readiness or {}).get("export_blockers") or []
     export_status = "allowed" if outcome == "ready_for_notes" and not export_blockers else "blocked_until_review"
+    publication = {"status": "unavailable", "reason": "verified_source_not_available"}
+    if speaker.get("transcript_path"):
+        try:
+            publication = transcript_read_view.materialize(session, {
+                "selected_profile": (readiness or {}).get("selected_profile"),
+                "speaker_resolution": speaker, "outcome": outcome,
+                "verdict": (readiness or {}).get("verdict"), "use_gate": (readiness or {}).get("use_gate"),
+                "export_status": export_status, "gates": gates,
+            })
+            outputs["transcript"] = {"path": publication["path"], "exists": True}
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            # Keep the verified source available. Never change a quality gate
+            # because an optional reading projection could not be published.
+            publication = {"status": "unavailable", "reason": str(error)}
     summary = build_outcome_summary(
         outcome=outcome,
         export_status=export_status,
@@ -1294,6 +1311,7 @@ def main() -> int:
         "selected_profile": (readiness or {}).get("selected_profile"),
         "selected_speaker_profile": speaker.get("selected_speaker_profile"),
         "speaker_resolution": speaker,
+        "transcript_read_view": publication,
         "verdict": (readiness or {}).get("verdict"),
         "session_classification": (readiness or {}).get("session_classification"),
         "use_gate": (readiness or {}).get("use_gate"),
@@ -1340,4 +1358,11 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except ActionStopped as error:
+        print(f"outcome: {error}; previous artifacts retained", file=sys.stderr)
+        raise SystemExit(error.returncode)
+    except KeyboardInterrupt:
+        print("outcome: interrupted; previous artifacts retained", file=sys.stderr)
+        raise SystemExit(130)

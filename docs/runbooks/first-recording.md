@@ -8,7 +8,8 @@ shows tasks, interval sum, unique audio duration and unknown bounds; `stale` ask
 Budget exit `75` and interruption `130` preserve completed work. Follow the printed resume command;
 neither status means that optional quality checks passed.
 
-In the provisional Markdown, `[needs_review: text/role/speaker/time]` belongs to that turn.
+In the default reading projection, `[needs_review: text/role/speaker/time]` belongs to that turn,
+including when strict attribution is selected. Linked question IDs retain independent decisions.
 An approximate parent interval or sound-onset lower bound is explicitly marked; it is not a
 word-aligned timestamp. Raw/primary ASR and strict speaker artifacts are not rewritten. A new
 micro-ASR ownership warning preserves the hypothesis but does not confirm its words or permit
@@ -34,6 +35,11 @@ expect a measured production ASR speedup from this repair. See the
 [publication verification](../testing/2026-10-01-acoustic-publication-repair.md).
 The [October 6 repair](../project/2026-10-06-transcript-evidence-repair.md) also detects suspicious
 ordinary interval refinements, without altering words or using a density warning to delete speech.
+The [selected-view follow-up](../project/2026-10-06-selected-read-view-repair.md) adds a header with
+current quality and attribution states. An approximate `~start-end` is a parent range, not several
+speakers starting together. Intersecting IDs identify uncertainty, not verified double-talk.
+If CLI warns that the reading projection is missing/stale, use the report-only refresh above;
+`transcript --path-only` itself does not update artifacts. Original transcript files remain available.
 
 Use this runbook to prove that a fresh machine can record a minimal MurmurMark session and prepare it for transcription.
 

@@ -37,6 +37,12 @@ OpsKarta nearest goal: Bounded Evidence Compute v1: квалифицироват
 
 ## Current Evidence
 
+Вечерний checkpoint 6 октября: [selected read-view repair](2026-10-06-selected-read-view-repair.md)
+доставляет полную текущую review-очередь и проверенные display times в default output, включая strict
+selection, без изменения frozen publisher. Добавлен внешний наблюдатель primary/current/shadow
+activity. Это не точные decode timings, не ускорение и не включение candidate cache. Ближайшая
+qualification task и её условия завершения остаются прежними.
+
 Checkpoint 6 октября: общий interval ownership check добавлен для обычных Me/remote кандидатов,
 в том числе с пустым `repair`. Подозрительная плотность после сужения попадает в publication и
 полную очередь; обычное VAD-уточнение само по себе не создаёт обязательное ревью. Исходные,

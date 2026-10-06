@@ -6028,6 +6028,7 @@ enum SpeakerResolvedTranscriptState {
         let state: String
         let speakerProfile: String
         let fallbackReason: String?
+        var readViewWarning: String?
     }
 
     static func verified(_ session: URL) -> Selection? {
@@ -6044,7 +6045,7 @@ enum SpeakerResolvedTranscriptState {
         )
         let strict = strictStatus == 0 ? selection(session) : nil
         if strict?.state == "selected" {
-            return strict
+            return strict.map { readingProjection(session, source: $0, python: python) }
         }
         let provisionalScript = PathURLs.fileURL("scripts/materialize-provisional-speaker-transcript.py")
         if FileManager.default.fileExists(atPath: provisionalScript.path),
@@ -6054,9 +6055,31 @@ enum SpeakerResolvedTranscriptState {
                allowedExitCodes: [0, 2]
            )) == 0,
            let provisional = provisionalSelection(session) {
-            return provisional
+            return readingProjection(session, source: provisional, python: python)
         }
-        return strict
+        return strict.map { readingProjection(session, source: $0, python: python) }
+    }
+
+    private static func readingProjection(_ session: URL, source: Selection, python: URL) -> Selection {
+        let script = PathURLs.fileURL("scripts/verify-transcript-read-view.py")
+        guard FileManager.default.fileExists(atPath: script.path),
+              let pointer = try? JSONFiles.object(session.appendingPathComponent(
+                  "derived/transcript-rich/read-view-v1/selection.json"
+              )),
+              let generation = pointer["generation"] as? String,
+              (try? Tooling.runPathQuietAllowingExitCodes(
+                  python, [script.path, session.path, "--verify-only", "--expected-generation", generation],
+                  allowedExitCodes: [0, 2]
+              )) == 0,
+              let row = pointer["markdown"] as? [String: Any],
+              let transcript = identityURL(row, session: session)
+        else {
+            var fallback = source
+            fallback.readViewWarning = "reading projection is missing or stale; showing verified source without refreshed review annotations"
+            return fallback
+        }
+        return Selection(payload: source.payload, transcript: transcript, state: source.state,
+                         speakerProfile: source.speakerProfile, fallbackReason: source.fallbackReason)
     }
 
     static func selection(_ session: URL) -> Selection? {
@@ -6628,6 +6651,9 @@ enum TranscriptCommands {
         }
 
         let continuityWarning = captureContinuityWarning(session)
+        if !rich, let message = speakerSelection?.readViewWarning {
+            fputs("warning: \(message)\n", stderr)
+        }
         if let continuityWarning {
             fputs("warning: \(continuityWarning.message)\n", stderr)
         }

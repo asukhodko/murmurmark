@@ -36,7 +36,7 @@ def main() -> int:
     for parent in rows:
         assert "".join(r["text"] for r in turns if r["utterance_id"] == parent["id"]) == parent["text"]
     rendered = "\n".join(P.render_body(turns))
-    assert "## 00:32 remote_speaker_unknown [unattributed] [needs_review: time]" in rendered
+    assert "## ~00:32-00:33 remote_speaker_unknown [unattributed] [needs_review: time]" in rendered
     assert "## 00:15 Me [needs_review: text]" in rendered
     assert "repetition" in rendered and "Approximate parent interval" in rendered
 
@@ -47,7 +47,12 @@ def main() -> int:
     assert [r["start"] for r in projected] == [10.0, 10.0]
     assert [r["speaker_label"] for r in projected] == ["remote_speaker_01", "remote_speaker_02"]
     assert all(r["time_basis"] == "parent_interval" for r in projected)
+    assert projected[0]["source_interval"]["start"] == 0.0
     assert "".join(r["text"] for r in projected) == "First. Second."
+    with_local = P.display_turns(damaged + rows[1:2])
+    assert "me" in with_local[0]["overlapping_utterance_ids"]
+    assert "remote" in with_local[-1]["overlapping_utterance_ids"]
+    assert "Intersecting source/display intervals" in "\n".join(P.render_body(with_local))
     damaged[0]["speaker_turns"][0]["text"] = "Unrelated words. "
     mismatch = P.display_turns(damaged)
     assert len(mismatch) == 1 and mismatch[0]["text"] == rows[0]["text"]

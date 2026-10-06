@@ -138,6 +138,8 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-remote-speaker-boundary-minority-v1.py
 "$python_bin" scripts/check-provisional-speaker-transcript.py
 "$python_bin" scripts/check-transcript-publication.py
+"$python_bin" scripts/check-transcript-read-view.py
+"$python_bin" scripts/check-transcribe-observation.py
 "$python_bin" scripts/check-review-publication.py
 "$python_bin" scripts/check-review-queue-snapshot.py
 "$python_bin" scripts/check-review-listening-contexts.py
@@ -149,6 +151,8 @@ MURMURMARK_BIN="$repo_root/.build/debug/murmurmark" \
   "$python_bin" scripts/check-meeting-lifecycle.py
 "$python_bin" scripts/check-meeting-lifecycle-corpus.py
 scripts/check-open-source-readiness.sh
+# The handoff fixture needs no display; keep it outside the capture acceptance gate.
+MURMURMARK_BIN="$repo_root/.build/debug/murmurmark" scripts/smoke-cli-handoff.sh
 scripts/check-capture-regressions.sh
 scripts/smoke-experimental-sidecar-contract.sh
 scripts/smoke-committed-pcm-sidecar.sh

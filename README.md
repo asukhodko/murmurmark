@@ -82,7 +82,8 @@ Review keep/drop of Me reuses compatible frozen remote evidence, including word-
 disclaimer-bearing provisional view. Ordinary `status`, `outcome` and `transcript --path-only` only
 verify published evidence; they never start a speaker model. Budget expiry checkpoints completed
 review work and is reported as deferred, not as an unexpected Python failure.
-Provisional views mark per-turn review and approximate timing; missing times never become zero.
+Default reading views show the full review queue, including strict selections, with valid child times
+or approximate parent ranges/intersections. Missing times never become zero.
 Compatible v3 evidence survives review; preview limits never truncate queues or answer templates.
 See the [read-view contract](docs/contracts/transcript-publication-read-view.md) and [repair checkpoint](docs/project/2026-10-01-acoustic-publication-repair.md).
 Optional interruption preserves the transcript; resume retries deferred work. Reconciliation keeps
@@ -322,6 +323,7 @@ human-reviewed lexical accuracy as separate gates. **Review-Safe Attributed Hand
 the current qualification task is **Bounded Evidence Compute v1**.
 The [October 6 repair](docs/project/2026-10-06-transcript-evidence-repair.md) adds interval checks,
 cached finalization and shared listening. ASR cache and new word/speaker selection remain unpromoted.
+The [selected-view repair](docs/project/2026-10-06-selected-read-view-repair.md) also adds primary/current/shadow ASR activity observations, not exact decode timings.
 ```bash
 murmurmark corpus lexical-seed-v1 progress
 murmurmark corpus terminal-gate-v1 status
@@ -339,9 +341,7 @@ bounded chronology/continuity evidence
   -> session-scoped lexical context
   -> speaker-resolved terminal gate
 ```
-Measured history and exact remaining bounds live in the
-[roadmap](docs/roadmap/murmurmark-cli-roadmap.md) and
-[OpsKarta plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
+Measured history and remaining bounds: [roadmap](docs/roadmap/murmurmark-cli-roadmap.md), [OpsKarta](docs/roadmap/murmurmark-cli-roadmap.plan.yaml).
 ## Scope And Limitations
 - Ordinary auto-selected transcripts use `Me` and the best current session-local remote speaker
   evidence. Verified labels are preferred; compatible labels below the strict session gate are

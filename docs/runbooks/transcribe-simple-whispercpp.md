@@ -173,6 +173,15 @@ top-level `recommended_next`, `next_commands` and `open_commands` for agent hand
 finishes, the last line is a single copyable `next: ...` command
 from the current readiness state.
 
+ASR steps additionally store `asr_compute_observation` in their run-report row and expose its
+last observed activity in heartbeats. A bounded two-second artifact observer distinguishes
+primary ASR, current/shadow micro-ASR, opening repair and publication without changing the frozen
+producer. Only files created or changed during this invocation count. `observed_window_sec`
+includes waits and adjacent work; concurrent activities are combined, not added twice. These
+are activity windows, not decoder execution timings. `model_invocations` and `micro_cache_hits`
+remain null until qualified producer instrumentation exists. A diagnostic failure cannot abort ASR.
+The observer neither reads audio nor changes resource priority, parallelism or cache eligibility.
+
 The default ASR runtime uses at most two track workers, six whisper.cpp compute threads per process
 and four independent micro-ASR workers. Mic, remote and micro results are consumed in stable order,
 and candidate scoring remains deterministic. The measured three-session corpus gives cold handoff

@@ -1,7 +1,32 @@
 # Transcript Publication Read View
 
-Updated: 2026-10-06. Scope: provisional and unavailable attributed read views and review accounting.
+Updated: 2026-10-06. Scope: selected, provisional, unavailable and fallback reading projections.
 The frozen strict publisher, primary ASR producer, base dialogue and policies are unchanged.
+
+## Selected Reading Projection
+
+After independently verifying the existing speaker selection, `evaluate-outcome.py` publishes
+`derived/transcript-rich/read-view-v1/generations/<digest>/transcript.read.json/.md`. The default
+`murmurmark transcript` selects this projection only while source identities, current outcome,
+queue snapshot and renderer identities agree. Read commands never generate it or run inference.
+The CLI verifies the captured generation ID and opens that immutable file, not a later pointer.
+Missing/stale projection falls back to the verified source with an explicit CLI warning.
+`--aggregate`, explicit profiles and reviewed-name rich views keep their existing semantics.
+
+The projection uses every currently pending question from the fingerprint-bound review snapshot,
+including questions created after the original source quality flags. Markdown links each question
+to its independent ID/reason in an appendix. Questions without matching utterances stay explicitly
+unplaced in that appendix. Unresolved historical decisions from older profiles are likewise retained
+there with their original profile, never attached to current utterances just because IDs match.
+A closed question is not recreated from a historical source flag. `needs_review` is an answered but
+still unresolved question; open-question totals are not the progress command's unanswered totals.
+Missing/stale queue means unknown completeness, not zero remaining work. Display-time conflicts
+remain separate warnings even if the review queue is empty.
+
+The header exposes outcome, use/export gate, speaker state/fallback and deferred checks separately.
+Source `utterances`, text, labels and speaker eligibility are unchanged. Strict attribution does not
+certify lexical accuracy. Publication cannot close a question or unblock export. JSON/Markdown are
+written before an atomic selection pointer; interrupted publication preserves the previous pointer.
 
 ## Source And Display
 
@@ -15,7 +40,9 @@ turn can appear between two remote turns. Missing time is `??:??`, never an inve
 
 `time_basis` distinguishes `speaker_turn`, `utterance`, `parent_interval`, `unknown`,
 `acoustic_lower_bound` and `unsupported_audio_time`. Parent fallback and sound bounds are
-approximate. None modifies source timing, overlap gates, speaker eligibility or primary ASR.
+approximate. Parent fallback is shown as `~start-end`, never a precise repeated start. Intersections
+link the involved utterance IDs without claiming simultaneous speech or exact word ordering.
+None modifies source timing, overlap gates, speaker eligibility or primary ASR.
 
 ## Acoustic Bound
 

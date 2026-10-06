@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 import evidence_handoff_v2
+from transcribe_observation import Observer as TranscribeObserver
 from murmurmark_deadline import ActionStopped, BUDGET_EXIT, remaining_seconds
 from murmurmark_processing_lease import ProcessingLease
 from murmurmark_resource_policy import (
@@ -2380,6 +2381,7 @@ def run_step(
         stderr_path = Path(temp_dir) / "stderr.log"
         with stdout_path.open("w", encoding="utf-8") as stdout_file, stderr_path.open("w", encoding="utf-8") as stderr_file:
             step_name = str(item.get("name") or "unknown")
+            observer = TranscribeObserver(session) if step_name in {"transcribe_current", "transcribe_shadow_v2"} else None
             write_pipeline_run_state(
                 session=session,
                 repo_root=repo_root,
@@ -2416,6 +2418,8 @@ def run_step(
                     if returncode is not None:
                         break
                     now = time.monotonic()
+                    if observer is not None:
+                        observer.poll()
                     action_remaining = remaining_seconds() if pipeline_phase == DEFERRED_PHASE else None
                     if action_remaining is not None and action_remaining <= 0:
                         budget_exhausted = True
@@ -2434,6 +2438,8 @@ def run_step(
                             report_path=report_path,
                             processing_lease=processing_lease,
                         )
+                        if observer is not None:
+                            progress["asr_compute_observation"] = observer.report()
                         write_pipeline_run_state(
                             session=session,
                             repo_root=repo_root,
@@ -2504,6 +2510,8 @@ def run_step(
                             chunk_text += (
                                 f"; ASR stage={stage} ({stage_status}){item_text}{micro_text}"
                             )
+                        if observer is not None:
+                            chunk_text += f"; observed activity={observer.report()['last_observed_activity']}"
                         reason = str(hint.get("reason") or "working")
                         print(
                             f"[run] {step_name} still running ({format_duration(elapsed)})"
@@ -2557,10 +2565,14 @@ def run_step(
                         "message": f"interrupted by Ctrl-C; rerun `{resume_command}`",
                     }
                 )
+                if observer is not None:
+                    result["asr_compute_observation"] = observer.report(final=True)
                 return result
         returncode = process.returncode
         stdout_tail = read_tail(stdout_path)
         stderr_tail = read_tail(stderr_path)
+        if observer is not None:
+            result["asr_compute_observation"] = observer.report(final=True)
     warning_returncodes = {int(value) for value in item.get("warning_returncodes", [])}
     command = item["command"]
     cooperative_child = (len(command) > 1 and Path(command[1]).suffix == ".py"

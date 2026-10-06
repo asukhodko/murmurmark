@@ -908,6 +908,11 @@ nodes:
       30s; шесть real-model cold/warm canaries дали один decode на пару. Production cache,
       word-bounded replacement и локализация cluster instability остаются DO_NOT_PROMOTE до
       независимой квалификации. Это не завершение Bounded Evidence Compute и не full-session speedup.
+      Вечерний checkpoint 2026-10-06: source-neutral selected read view доставляет полную очередь
+      вопросов в default strict/provisional/fallback output, проверяет nested times и явно показывает
+      approximate parent ranges/intersections. Frozen selector и ASR не меняются. Внешний observer
+      разделяет primary/current/shadow activity windows, но не измеряет точные decodes/cache hits.
+      Production cache и word-bounded selection по-прежнему требуют отдельной квалификации.
 
   quality-human-reviewed-lexical-seed-v1:
     title: "Human-Reviewed Lexical Seed v1"

@@ -66,8 +66,9 @@ The following work remains ordered, not silently cancelled:
 3. Evaluate long-remote subdivision and localized cluster instability with independent voice
    evidence. Keep existing provisional labels and unknown reasons. Higher label coverage alone
    cannot justify removing the whole/chunk stability gate or naming speakers by conversational meaning.
-   The new rendered warnings cover provisional/unavailable read views; the frozen strict
-   publisher is unchanged. Its extension also needs explicit compatibility qualification.
+   The initial rendered warnings covered provisional/unavailable read views. The
+   [selected-view follow-up](2026-10-06-selected-read-view-repair.md) now projects full-queue warnings
+   over strict selections too, without changing the frozen strict publisher or its eligibility.
 4. Finish the broader Bounded Evidence Compute goal only after production qualification or a
    reproducible final evidence-bound decision. Do not mark word selection/diarization solved merely
    because finalization is now fast. Summary/note interpretation remains outside this work.

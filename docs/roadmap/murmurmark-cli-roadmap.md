@@ -278,9 +278,9 @@ evidence подтвердил только 10 слов / `4.682812s`. Held-out �
 ### 38. Review-Safe Attributed Handoff v1: `done`
 R1-R4/R6 исправляют publication/review без пересчёта ASR: remote-only compatibility,
 frozen eligibility, области решения, provenance, bounded cancellation и единый snapshot очереди.
-Три cached replay сохранили основной текст и raw. См. [план](../project/2026-09-30-transcript-reliability-repair-plan.md)
-и [проверки](../testing/2026-09-30-review-safe-handoff.md).
+Три cached replay сохранили текст и raw: [план](../project/2026-09-30-transcript-reliability-repair-plan.md), [проверки](../testing/2026-09-30-review-safe-handoff.md).
 ### 39. Bounded Evidence Compute v1: `current`
+Selected read view покрывает strict/provisional/fallback: полная очередь и проверенные/приблизительные времена. Внешний ASR observer разделяет primary/current/shadow activity, не меняя producer и не выдавая наблюдения за точные timings модели.
 Cache candidate-only: три finalization прошли в пределах 30s, шесть canary дают один decode на пару, но это не full-session speedup. Raw отсутствует для 11/12 прежних Echo sessions.
 Далее: replacement corpus и producer qualification; отдельно word-ownership и long-remote/cluster-purity с независимыми эталонами. Нынешние warnings не закрывают эти задачи.
 ### 40. Human-Reviewed Lexical Seed v1 — `blocked`

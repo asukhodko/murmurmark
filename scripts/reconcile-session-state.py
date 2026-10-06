@@ -331,6 +331,14 @@ def verify_consistency(session: Path) -> dict[str, Any]:
         and (selection.get("selected_transcript") or {}).get("path") == speaker.get("transcript_path"),
     }
     snapshot = read_queue_snapshot(session)
+    if (outcome.get("transcript_read_view") or {}).get("status") == "current":
+        from transcript_read_view import verified_path
+
+        path = verified_path(session, outcome)
+        checks["transcript_read_view_current"] = path is not None
+        checks["transcript_read_view_selected"] = path is not None and (
+            session / ((outcome.get("outputs") or {}).get("transcript") or {}).get("path", "")
+        ).resolve() == path
     if "queue_snapshot" in progress:
         checks["review_queue_snapshot_current"] = snapshot is not None
         checks["review_queue_snapshot_agrees"] = (

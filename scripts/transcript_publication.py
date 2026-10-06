@@ -8,7 +8,7 @@ from typing import Any
 from micro_asr_evidence import assess_utterance
 import transcript_interval_evidence as interval_evidence
 
-VERSION = "display_turns_v2"
+VERSION = "display_turns_v3"
 
 
 def interval(row: dict[str, Any]) -> tuple[float, float] | None:
@@ -115,9 +115,12 @@ def display_turns(utterances: list[dict[str, Any]], attributions: dict[str, dict
                     basis = "acoustic_lower_bound"
                 elif onset is None:
                     basis = "unsupported_audio_time"
+            turn_label = turn.get("speaker_label") or turn.get("speaker_id") or "remote_speaker_unknown"
+            if turn_label == "Colleagues":
+                turn_label = "remote_speaker_unknown"
             result.append({
                 "utterance_id": uid, "parent_position": position, "turn_index": index,
-                "role": utterance.get("role"), "speaker_label": (turn.get("speaker_id") or "remote_speaker_unknown") if remote else "Me",
+                "role": utterance.get("role"), "speaker_label": turn_label if remote else "Me",
                 "text": str(turn.get("text") or ""),
                 "start": chosen[0] if chosen else None, "end": chosen[1] if chosen else None,
                 "time_basis": basis,
@@ -126,6 +129,18 @@ def display_turns(utterances: list[dict[str, Any]], attributions: dict[str, dict
                 "review_reasons": warnings,
             })
     result.sort(key=lambda r: (r["start"] if r["start"] is not None else float("inf"), r["parent_position"], r["turn_index"]))
+    # Report intersections without pretending an approximate parent has a precise
+    # position relative to an intervening turn. Do not reorder words within it.
+    for index, turn in enumerate(result):
+        overlaps = set()
+        if turn["start"] is not None and turn["end"] is not None:
+            for other in result[:index]:
+                if (other["utterance_id"] != turn["utterance_id"]
+                        and other["start"] is not None and other["end"] is not None
+                        and max(other["start"], turn["start"]) < min(other["end"], turn["end"])):
+                    overlaps.add(other["utterance_id"])
+                    other["overlapping_utterance_ids"] = sorted(set(other.get("overlapping_utterance_ids", [])) | {turn["utterance_id"]})
+        turn["overlapping_utterance_ids"] = sorted(overlaps)
     return result
 
 
@@ -137,14 +152,23 @@ def render_body(turns: list[dict[str, Any]]) -> list[str]:
         facets = sorted({row["facet"] for row in turn["review_reasons"]})
         if facets:
             suffix += " [needs_review: " + ", ".join(facets) + "]"
-        lines.extend([f"## {format_time(turn['start'])} {label}{suffix}", "", turn["text"].strip(), ""])
+        timestamp = format_time(turn["start"])
+        if turn["time_basis"] == "parent_interval":
+            timestamp = f"~{timestamp}-{format_time(turn['end'])}"
+        lines.extend([f"## {timestamp} {label}{suffix}", "", turn["text"].strip(), ""])
         if turn["time_basis"] == "parent_interval":
             lines.extend([f"> Approximate parent interval: {format_time(turn['start'])}-{format_time(turn['end'])}; nested timing is missing or conflicting.", ""])
         if turn["time_basis"] == "acoustic_lower_bound":
             lines.extend(["> Approximate sound-onset lower bound after digital silence; word timing is not established.", ""])
         if turn["time_basis"] == "unsupported_audio_time":
             lines.extend(["> No nonzero audio in the checked remote window; source timing is unverified.", ""])
+        if turn.get("overlapping_utterance_ids"):
+            references = ", ".join(f"`{uid}`" for uid in turn["overlapping_utterance_ids"])
+            lines.extend([f"> Intersecting source/display intervals: {references}. This does not establish simultaneous speech or exact word order.", ""])
         if facets:
             details = "; ".join(sorted({row["reason"] for row in turn["review_reasons"]}))
             lines.extend([f"> Review required ({', '.join(facets)}): {details}. Source: `{turn['utterance_id']}`.", ""])
+        question_ids = sorted({r["question_id"] for r in turn["review_reasons"] if r.get("question_id")})
+        if question_ids:
+            lines.extend(["> Questions: " + ", ".join(f"[{qid}](#review-{qid})" for qid in question_ids) + ".", ""])
     return lines

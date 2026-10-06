@@ -573,7 +573,17 @@ echo "$outcome_output" | grep -q '^    can_export: true$'
 echo "$outcome_output" | grep -q 'notes.md$'
 echo "$outcome_output" | grep -q '^  selected_speaker_profile: remote_speaker_attribution_unavailable_v1$'
 echo "$outcome_output" | grep -q '^  speaker_resolution_state: unavailable$'
-echo "$outcome_output" | grep -q 'transcript.provisional.md$'
+echo "$outcome_output" | grep -q 'read-view-v1/generations/[a-f0-9]*/transcript.read.md$'
+[[ "$speaker_selection_before" == "$(shasum -a 256 "$speaker_selection")" ]]
+jq -e '
+  .transcript_read_view.status == "current"
+  and (.speaker_resolution.transcript_path | endswith("transcript.provisional.md"))
+  and .outputs.transcript.path == .transcript_read_view.path
+' "$session/derived/outcome/outcome.json" >/dev/null
+"$eval_python" "$repo_root/scripts/verify-transcript-read-view.py" "$session" --verify-only
+read_view_path="$("$bin" transcript "$session" --path-only)"
+[[ "$read_view_path" == "$session/$(jq -r '.outputs.transcript.path' "$session/derived/outcome/outcome.json")" ]]
+grep -q 'Attribution: `unavailable`' "$read_view_path"
 echo "$outcome_output" | grep -q 'quality_verdict.md$'
 
 report_output="$("$bin" report "$session")"

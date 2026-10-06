@@ -12,6 +12,7 @@ import time
 
 import transcript_publication as publication
 import transcript_interval_evidence as intervals
+import transcript_read_view as read_view
 from micro_asr_evidence import assess_utterance
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -63,9 +64,20 @@ def freeze(session: Path) -> dict:
     paths += list((session / "derived/transcript-simple/whisper-cpp/resolved").glob("*.json"))
     paths += list((session / "derived/transcript-simple/whisper-cpp/raw").rglob("*.json"))
     files = {str(p.relative_to(session)): digest(p) for p in sorted(set(paths)) if p.is_file()}
-    rich = session / "derived/transcript-rich/speaker-resolved-default-v1/provisional/transcript.provisional.json"
+    directory = session / "derived/transcript-rich/speaker-resolved-default-v1"
+    selection = read(directory / "selection.json") if (directory / "selection.json").is_file() else {}
+    outcome = read(session / "derived/outcome/outcome.json") if (session / "derived/outcome/outcome.json").is_file() else {}
+    if (outcome.get("speaker_resolution") or {}).get("state") in {"provisional", "unavailable"} or selection.get("state") != "selected":
+        selection = read(directory / "provisional/selection.json") if (directory / "provisional/selection.json").is_file() else {}
+    rich = session / (selection.get("rich_transcript") or {}).get("path", "missing-rich.json")
+    publication_files = {}
+    for key in ("selected_transcript", "rich_transcript"):
+        source = selection.get(key) or {}
+        if source.get("path") and (path := session / source["path"]).is_file():
+            publication_files[str(path.relative_to(session))] = digest(path)
     return {"session": str(session), "dialogue": str(dialogue.relative_to(session)), "inputs": files,
             "raw_available": all((session / f"audio/{role}/000001.caf").is_file() for role in ("mic", "remote")),
+            "baseline_publications": publication_files,
             "baseline_rich": read(rich) if rich.is_file() else None}
 
 
@@ -121,6 +133,38 @@ def check_published(row: dict) -> dict:
     return {"passed": all(checks.values()), "checks": checks, "summary": current["summary"]}
 
 
+def check_read_view(row: dict, reference: dict | None = None) -> dict:
+    session = Path(row["session"])
+    outcome = read(session / "derived/outcome/outcome.json")
+    markdown = read_view.verified_path(session, outcome)
+    if markdown is None:
+        return {"passed": False, "reason": "reading_projection_not_current"}
+    pointer = read(session / read_view.DIRECTORY / "selection.json")
+    current = read(session / pointer["rich"]["path"])
+    baseline = (reference or row).get("baseline_rich") or {}
+    pending, queue_state = read_view.questions(session, outcome["selected_profile"])
+    source_selection = read(session / pointer["basis"]["source_selection"])
+    source = read(session / (source_selection.get("rich_transcript") or source_selection["selected_dialogue"])["path"])
+    expected = read_view.project(source["utterances"], pending, queue_state,
+                                 source.get("acoustic_timing_evidence"), source.get("remote_utterance_attributions"))
+    checks = {
+        "source_text_roles_times_labels_conserved": current["utterances"] == baseline.get("utterances"),
+        "selected_source_conserved": source["utterances"] == baseline.get("utterances"),
+        "coverage_conserved": source.get("summary") == baseline.get("summary"),
+        "full_queue_current": queue_state == "current" and current["questions"] == pending,
+        "display_projection_current": current["display_turns"] == expected,
+        "markdown_matches_json": markdown.read_text() == read_view.render(current),
+        "outcome_selects_projection": (session / outcome["outputs"]["transcript"]["path"]).resolve() == markdown,
+        "all_question_anchors_published": all(f'id="review-{q["id"]}"' in markdown.read_text() for q in pending),
+        "previous_immutable_publications_preserved": all((session / path).is_file() and digest(session / path) == sha
+                                                        for path, sha in row.get("baseline_publications", {}).items()),
+    }
+    return {"passed": all(checks.values()), "checks": checks, "open_questions": len(pending),
+            "unplaced_questions": len(current["unplaced_question_ids"]),
+            "time_bases": dict(Counter(t["time_basis"] for t in expected)),
+            "speaker_state": outcome["speaker_resolution"]["state"]}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--session", action="append", type=Path, default=[])
@@ -128,8 +172,12 @@ def main() -> int:
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--check-published", action="store_true",
                         help="After an explicit refresh, verify the selected immutable publication too.")
+    parser.add_argument("--check-read-view", action="store_true",
+                        help="Verify the current source-neutral reading projection and full queue.")
+    parser.add_argument("--publication-baseline", type=Path,
+                        help="Optional earlier frozen selected-publication baseline; source-input baseline stays unchanged.")
     args = parser.parse_args()
-    if args.baseline.resolve() == args.out.resolve():
+    if args.baseline.resolve() == args.out.resolve() or (args.publication_baseline and args.publication_baseline.resolve() == args.out.resolve()):
         parser.error("the baseline is immutable; use a different output path")
     sessions = [s.expanduser().resolve() for s in args.session]
     for destination in (args.baseline, args.out):
@@ -147,12 +195,19 @@ def main() -> int:
     if args.check_published:
         for original, result in zip(baseline["sessions"], results):
             result["published"] = check_published(original)
+    if args.check_read_view:
+        references = {r["session"]: r for r in read(args.publication_baseline)["sessions"]} if args.publication_baseline else {}
+        for original, result in zip(baseline["sessions"], results):
+            result["read_view"] = check_read_view(original, references.get(original["session"]))
+            result["publication_reference"] = str(args.publication_baseline) if original["session"] in references else str(args.baseline)
     qualification = qualification_bound()
     passed = (all(r["conserved_text"] and r["source_unchanged"] and r["inputs_unchanged"] for r in results)
               and all(row["unchanged"] for row in qualification["frozen_producers"])
               and all(row.get("published", {}).get("passed", True) for row in results))
+    passed = passed and all(row.get("read_view", {}).get("passed", True) for row in results)
     report = {"schema": "murmurmark.transcript_repair_replay/v1", "passed": passed,
               "baseline_sha256": digest(args.baseline), "sessions": results,
+              "publication_reference_sha256": digest(args.publication_baseline) if args.publication_baseline else None,
               "acoustic_accuracy_measured": False, "qualification": qualification}
     write(args.out, report)
     print(json.dumps({"passed": passed, "sessions": len(results), "report": str(args.out)}))
