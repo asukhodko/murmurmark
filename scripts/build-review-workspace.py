@@ -59,6 +59,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--session", action="append", default=[], help="Optional session id/path filter. Can be repeated.")
     parser.add_argument("--out-dir", type=Path, default=Path("sessions/_reports/review-plan"))
     parser.add_argument("--silence-sec", type=float, default=0.5)
+    parser.add_argument("--metadata-only", action="store_true",
+                        help="Refresh questions and listening contexts without materializing lane audio.")
     parser.add_argument(
         "--rebase-decisions",
         action="store_true",
@@ -71,7 +73,10 @@ def parse_args() -> argparse.Namespace:
         default=[],
         help="Additional applied decision JSONL to preserve in review_decisions_history.jsonl.",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.metadata_only and args.rebase_decisions:
+        parser.error("--metadata-only cannot rewrite decisions; omit --rebase-decisions")
+    return args
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -83,8 +88,20 @@ def read_json(path: Path) -> dict[str, Any]:
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
+    write_text_atomic(path, json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
+
+
+def write_text_atomic(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        with temp.open("w", encoding="utf-8") as handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        temp.replace(path)
+    finally:
+        temp.unlink(missing_ok=True)
 
 
 def write_jsonl_atomic(path: Path, rows: list[dict[str, Any]]) -> None:
@@ -223,6 +240,65 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
 
 def normalize_text(value: Any) -> str:
     return " ".join(str(value or "").lower().replace("ё", "е").split())
+
+
+def listening_contexts(rows: list[dict[str, Any]], max_context_sec: float = 45.0) -> list[dict[str, Any]]:
+    """Share playback across overlapping questions; never merge their answers."""
+    from review_audio_evidence import bounds, digest, effective_decision, row_identity
+
+    groups: list[dict[str, Any]] = []
+    by_scope: dict[tuple[str, str], list[dict[str, Any]]] = {}
+
+    def context_bounds(row):
+        target = bounds(row.get("interval") or {})
+        if target is None:
+            return None
+        origin = (row.get("review_features") or {}).get("interval_provenance") or {}
+        related = [value for key in ("source_interval", "recognition_interval")
+                   if (value := bounds(origin.get(key) or {}))]
+        start = max(0.0, min(value[0] for value in [target, *related]) - 1.0)
+        end = max(value[1] for value in [target, *related]) + 1.0
+        # A broad original candidate must not join the whole meeting into one context.
+        if end - start > max_context_sec:
+            return max(0.0, target[0] - 1.0), target[1] + 1.0
+        return start, end
+    for row in rows:
+        if effective_decision(row) in {"keep_me", "drop_me", "drop_remote", "skip"}:
+            continue
+        by_scope.setdefault((str(row.get("session") or row.get("session_id") or ""),
+                             str(row.get("input_profile") or "")), []).append(row)
+    for (session, profile), scoped in sorted(by_scope.items()):
+        current = None
+        ordered = sorted(scoped, key=lambda row: (context_bounds(row) or (float("inf"),),
+                                                  digest(row_identity(row))))
+        for row in ordered:
+            start, end = context_bounds(row) or (None, None)
+            if (current is None or start is None or current["start"] is None
+                    or start > current["end"] or max(end, current["end"]) - current["start"] > max_context_sec):
+                current = {"session": session, "input_profile": profile, "start": start, "end": end,
+                           "questions": [], "answer_scope": "individual_question_only"}
+                groups.append(current)
+            elif end is not None:
+                current["end"] = max(current["end"], end)
+            current["questions"].append({"question_id": digest(row_identity(row)),
+                "review_row_key": review_row_key(row), "lane": row.get("review_lane"),
+                "facet": row.get("source"), "interval": row.get("interval"),
+                "interval_provenance": (row.get("review_features") or {}).get("interval_provenance"),
+                "utterance_ids": row.get("utterance_ids") or [],
+                "text": row.get("text") or [], "reason": row.get("reason"),
+                "allowed_decisions": row.get("allowed_decisions") or [], "decision": effective_decision(row)})
+    for group in groups:
+        group["id"] = digest(group)[:20]
+        group["commands"] = {}
+        if group["start"] is not None and (Path(group["session"]) / "session.json").is_file():
+            for track, relative in {"mic": "audio/mic/000001.caf", "remote": "audio/remote/000001.caf",
+                                    "mic_clean": "derived/preprocess/audio/mic_clean_local_fir.wav",
+                                    "mic_role_masked": "derived/preprocess/audio/mic_for_asr.wav"}.items():
+                audio = Path(group["session"]) / relative
+                if audio.is_file():
+                    group["commands"][track] = (f"ffplay -hide_banner -loglevel error -nodisp -autoexit -ss {group['start']:.3f} "
+                                               f"-t {group['end'] - group['start']:.3f} {shlex.quote(str(audio))}")
+    return groups
 
 
 def review_row_key(row: dict[str, Any]) -> str:
@@ -592,8 +668,7 @@ def write_answer_sheet(path: Path, manifest: dict[str, Any]) -> Path:
             f"# {item.get('index')}: {item.get('pack_start_time')}-{item.get('pack_end_time')} "
             f"{item.get('source_audit_id')} suggested={item.get('suggested_decision')} {text}"
         )
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    write_text_atomic(path, "\n".join(lines).rstrip() + "\n")
     return path
 
 
@@ -652,8 +727,25 @@ def write_markdown(path: Path, workspace: dict[str, Any]) -> None:
             "```",
         ]
     )
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    if workspace.get("parameters", {}).get("metadata_only"):
+        lines = ["# MurmurMark Review Listening Contexts", "",
+                 "Metadata-only index; existing lane audio and answers are unchanged.", "",
+                 "Build a full review workspace before applying lane answers.", ""]
+    lines.extend(["", "## Shared Listening Contexts", "",
+                  "Playback is shared; each question keeps its own answer."])
+    for group in workspace.get("listening_contexts") or []:
+        lines.extend(["", f"### {group['id']} ({group['start']}..{group['end']})", ""])
+        for command in group["commands"].values():
+            lines.extend(["```bash", command, "```", ""])
+        for question in group["questions"]:
+            lines.append(f"- `{question['lane']}` / `{question['review_row_key']}`: `{question['decision']}`")
+            lines.append(f"  Interval: `{question['interval']}`; allowed: `{', '.join(question['allowed_decisions'])}`")
+            if question.get("reason"):
+                lines.append(f"  Reason: {question['reason']}")
+            for text_row in question["text"]:
+                if isinstance(text_row, dict) and text_row.get("text"):
+                    lines.append(f"  {text_row.get('role') or text_row.get('source_track') or 'unknown'}: {text_row['text']}")
+    write_text_atomic(path, "\n".join(lines).rstrip() + "\n")
 
 
 def main() -> int:
@@ -702,13 +794,14 @@ def main() -> int:
     counts = lane_counts(rows, session_filters)
     lane_pack_dir = out_dir / "lane-packs"
     script = Path(__file__).resolve().parent / "build-review-lane-pack.py"
-    lanes = [
+    lanes = [] if args.metadata_only else [
         build_lane_pack(script, template, decisions, str(row["lane"]), lane_pack_dir, session_filters, args.silence_sec)
         for row in counts
     ]
     lanes = [lane for lane in lanes if isinstance(lane, dict)]
-    workspace_path = out_dir / "review_workspace.json"
-    workspace_md_path = out_dir / "review_workspace.md"
+    stem = "review_listening_contexts" if args.metadata_only else "review_workspace"
+    workspace_path = out_dir / f"{stem}.json"
+    workspace_md_path = out_dir / f"{stem}.md"
     workspace_apply_report = out_dir / "review_workspace_apply_report.json"
     workspace = {
         "schema": SCHEMA,
@@ -721,9 +814,13 @@ def main() -> int:
         "parameters": {
             "session_filters": sorted(session_filters),
             "silence_sec": args.silence_sec,
+            "metadata_only": args.metadata_only,
         },
         "lane_counts": counts,
         "lanes": lanes,
+        "listening_contexts": listening_contexts([row for row in rows if not session_filters
+                                                 or str(row.get("session_id")) in session_filters
+                                                 or str(row.get("session")) in session_filters]),
         "outputs": {
             "workspace_json": str(workspace_path),
             "workspace_markdown": str(workspace_md_path),
@@ -740,6 +837,11 @@ def main() -> int:
             lanes=lanes,
         )
     )
+    if args.metadata_only:
+        for key in ("manual_flow", "suggested_flow", "after_apply"):
+            workspace.pop(key, None)
+        workspace["recommended_next"] = f"less {shell_path(workspace_md_path)}"
+        workspace["next_commands"] = workspace["open_commands"]
     write_json(workspace_path, workspace)
     write_markdown(workspace_md_path, workspace)
     print(f"workspace: {workspace_path}")

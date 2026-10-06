@@ -16,6 +16,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from micro_asr_evidence import assess_utterance
+import transcript_interval_evidence as interval_evidence
 from transcript_publication import review_reasons
 from review_audio_evidence import effective_decision
 
@@ -2018,7 +2019,8 @@ def unstable_successful_micro_asr(row: dict[str, Any]) -> dict[str, Any] | None:
 
 def has_text_review(row: dict[str, Any]) -> bool:
     quality = row.get("quality") if isinstance(row.get("quality"), dict) else {}
-    return quality.get("needs_review") is True or any(reason["facet"] == "text" for reason in review_reasons(quality))
+    return (quality.get("needs_review") is True or interval_evidence.assess_utterance(row) is not None
+            or any(reason["facet"] == "text" for reason in review_reasons(quality)))
 
 
 def compact_transcript_text_utterance(
@@ -2039,6 +2041,8 @@ def compact_transcript_text_utterance(
     session_path = str(session.get("session") or "")
     utterance_id = str(row.get("id") or "")
     selection_review = micro_selection_review or unstable_successful_micro_asr(row)
+    interval_review = interval_evidence.assess_utterance(row)
+    interval_origin = interval_evidence.provenance(row)
     local = str(row.get("role") or row.get("speaker_label") or "").lower() in {"me", "mic"}
     listen_start = max(0.0, start - 1.0)
     listen_duration = duration + 2.0
@@ -2073,6 +2077,8 @@ def compact_transcript_text_utterance(
         "text": [{"id": utterance_id, "role": "Me" if local else "remote",
                   "source_track": "mic" if local else "remote", "text": row.get("text")}],
         "review_features": {
+            "interval_provenance": interval_origin,
+            "interval_ownership_review": interval_review,
             "unsupported_micro_asr_fallback": allow_drop,
             "unstable_micro_asr_success": selection_review is not None,
             "micro_asr_selection_review_reasons": (
@@ -2106,6 +2112,7 @@ def compact_transcript_text_utterance(
                 "micro-ASR selection lacks stable target-bounded mic evidence: "
                 + ", ".join(str(value) for value in selection_review.get("reasons") or [])
                 if selection_review
+                else ", ".join(interval_review["reasons"]) if interval_review
                 else "selected transcript marks this utterance as needs_review"
             )
         ),
@@ -2353,7 +2360,7 @@ def build_review_queue_details(sessions: list[dict[str, Any]], max_items: int) -
                 continue
             unsupported_fallback = unsupported_micro_asr_fallback(utterance)
             selection_review = unstable_successful_micro_asr(utterance)
-            if not unsupported_fallback and selection_review is None:
+            if not unsupported_fallback and selection_review is None and interval_evidence.assess_utterance(utterance) is None:
                 continue
             utterance_id = str(utterance.get("id") or "")
             if not utterance_id:

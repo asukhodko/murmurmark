@@ -140,6 +140,7 @@ swiftlint lint --quiet
 "$python_bin" scripts/check-transcript-publication.py
 "$python_bin" scripts/check-review-publication.py
 "$python_bin" scripts/check-review-queue-snapshot.py
+"$python_bin" scripts/check-review-listening-contexts.py
 "$python_bin" scripts/check-release-quality.py
 MURMURMARK_BIN="$repo_root/.build/debug/murmurmark" \
   "$python_bin" scripts/check-derived-compaction.py

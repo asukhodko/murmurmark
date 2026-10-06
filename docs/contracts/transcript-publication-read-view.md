@@ -1,13 +1,13 @@
 # Transcript Publication Read View
 
-Updated: 2026-10-05. Scope: provisional and unavailable attributed read views and review accounting.
+Updated: 2026-10-06. Scope: provisional and unavailable attributed read views and review accounting.
 The frozen strict publisher, primary ASR producer, base dialogue and policies are unchanged.
 
 ## Source And Display
 
 `utterances` retain source text, roles, timestamps and quality. Additive `display_turns` contain
 `utterance_id`, `parent_position`, `turn_index`, `speaker_label`, `text`, `start`, `end`,
-`source_interval`, `time_basis` and `review_reasons`. Markdown renders those same rows.
+`source_interval`, `interval_provenance`, `time_basis` and `review_reasons`. Markdown renders those same rows.
 The concatenated child text must exactly match its parent; otherwise the parent text is rendered
 with a speaker warning. A bad child interval invalidates timing precision for the whole parent,
 preserving word order and labels. Known display starts are sorted globally so an intervening Me
@@ -40,7 +40,24 @@ complete selected-word bounds can support ownership, not voice identity or lexic
 Agreement between raw and filtered mic does not override a scope conflict. No automatic text
 replacement, deletion or role change follows from these warnings.
 
-Publication fingerprints include renderer, micro evidence helper, acoustic helper and raw identity.
+`interval_provenance` separately records original source bounds, the recognition slice (including
+micro-ASR padding where available), selected bounds and source candidate/repair. The legacy
+`display_turns.source_interval` keeps its previous meaning; it must not be mistaken for the original
+ASR interval. Missing metadata stays null, not an invented time.
+
+The shared `interval_ownership_v1` check covers ordinary Me and remote candidates, even with empty
+repair metadata and `quality.needs_review=false`. A refinement exceeding 250ms without complete
+selected-word support requires review when there are at least four words and either more than
+24 non-space normalized characters/second, or a duration reduction of at least one third with
+five or more words/second. There is no 1.25-second cutoff. These are conservative triage thresholds,
+not acoustic truth. Ordinary silence trimming and short acknowledgements do not automatically
+become review tasks. Provenance remains visible even when the heuristic raises no warning.
+
+The same `text_interval_narrowed_without_word_support` reason reaches JSON, Markdown and the full
+text-review queue. Suggested keep/drop cannot close that question; preserving a hypothesis is not
+verification of its time ownership. Remote questions never gain an automatic deletion action.
+
+Publication fingerprints include renderer, micro/interval evidence helpers, acoustic helper and raw identity.
 Both immutable JSON and Markdown are written before the selection pointer. Verification rejects
 stale code/audio and ordinary read commands do not run inference or rewrite session artifacts.
 Coverage remains label coverage, not measured accuracy. Strict promotion/export gates are unchanged.
@@ -60,3 +77,16 @@ Queue snapshot provenance includes the readiness and plan producers as well as t
 template, decisions and selected dialogue. Snapshots from the old truncated producers are stale until
 explicit reconciliation. Rebuilding can increase the visible remaining count without changing audio
 or text. Sum of question intervals and union of audio intervals remain distinct metrics.
+
+## Shared Listening
+
+The workspace includes `listening_contexts`: overlapping questions within the same session and
+input profile share playback, not decisions. Each retains its question ID, source interval,
+utterance IDs and allowed answers. Source/recognition context is included when it fits within
+45 seconds; broader original candidates stay in provenance and use bounded target playback.
+A single long question is not silently split. Closed questions are omitted without closing their
+neighbours. Mic, remote and available cleaned tracks are offered separately.
+
+`build-review-workspace.py --metadata-only` writes `review_listening_contexts.json/.md` without
+rebuilding audio or replacing the full workspace and answer sheets. This index cannot be applied
+as an answer sheet. Full workspace construction remains available for explicit review.

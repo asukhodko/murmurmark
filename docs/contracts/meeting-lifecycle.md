@@ -277,6 +277,16 @@ optional actions are also deferred when the deadline has expired. Reports list `
 and `deferred_work.pending_actions`, set `resume_available`, and print `meeting --resume SESSION`.
 If a deferred action succeeds on resume, its checkpoint clears any `error` retained from an earlier
 failed or interrupted attempt. A successful status and stale error must never coexist.
+
+`refresh_final_state` has a separate 30-second bound and passes `MURMURMARK_FINALIZE_ONLY=1`.
+Reconciliation then skips decision rebasing, verifies strict evidence without inference and
+materializes the best compatible provisional view with `--cached-only`. Review metadata and
+listening contexts are refreshed without producing lane WAVs. Existing audio packs, answer sheets
+and immutable publication generations remain available. Missing/incompatible evidence remains
+explicit; cached-only never promotes a weak cluster or invents a voice. The final consistency check
+must pass before reconciliation reports completion. Timeout preserves checkpoints and remains a
+deferred/failed-soft result, not a claim that optional quality checks passed.
+
 An explicit `meeting --resume SESSION` also retries `deferred_budget_exhausted`, `failed_soft` and
 skipped enrichment checkpoints with the budget supplied by the new invocation. Downstream refresh,
 review and finish actions return to `pending`; completed capture, inspect and authoritative process

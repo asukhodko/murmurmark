@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import shlex
 from collections import Counter
 from datetime import datetime, timezone
@@ -990,6 +991,9 @@ def main() -> int:
     template = args.template.expanduser()
     out = args.out.expanduser()
     workspace = read_json(workspace_path)
+    if (workspace.get("parameters") or {}).get("metadata_only"):
+        print("error: metadata-only listening index has no answer sheets; build a full review workspace first", file=sys.stderr)
+        return 2
     rows = merge_existing(read_jsonl(template), read_jsonl(out))
     before_rows = [dict(row) for row in rows]
     lookup = row_lookup(rows)

@@ -1345,6 +1345,7 @@ def main() -> None:
             assert supervisor.execute_action("refresh_final_state", "test bounded final publication") == "failed_soft"
             assert command.call_args.kwargs["timeout_sec"] == 30.0
             assert command.call_args.kwargs["extra_env"]["MURMURMARK_SPEAKER_REFRESH_MODE"] == "cache_only"
+            assert command.call_args.kwargs["extra_env"]["MURMURMARK_FINALIZE_ONLY"] == "1"
         module.recover_state_for_resume(supervisor.state)
         assert supervisor.state["actions"]["attribute_speakers"]["status"] == "pending"
         assert supervisor.state["actions"]["refresh_final_state"]["status"] == "pending"

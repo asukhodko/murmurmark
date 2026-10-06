@@ -12,6 +12,7 @@ import soundfile as sf
 
 import transcript_publication as P
 import acoustic_timing_evidence as A
+import transcript_interval_evidence as I
 
 
 def main() -> int:
@@ -76,6 +77,43 @@ def main() -> int:
                    }}}}]
     assert "micro_asr_context_not_owned_by_target" in "\n".join(P.render_body(P.display_turns(contextual)))
     assert contextual[0]["quality"]["needs_review"] is False
+    padded = deepcopy(contextual[0])
+    padded["quality"]["repair"].update(recognition_start_ms=5000, recognition_end_ms=5500)
+    padded["quality"]["repair"]["micro_reasr"].update(slice_start_ms=4000, slice_end_ms=6500)
+    assert I.provenance(padded)["recognition_interval"] == {"start": 4.0, "end": 6.5}
+
+    # Ordinary candidates of either role must not evade checks through an empty repair.
+    narrowed = [{"id": "trim", "role": role, "source_start": 10.0, "source_end": 13.78,
+                 "start": 12.5, "end": 13.78, "text": "A complete sentence incorrectly survives the interval trim.",
+                 "quality": {"needs_review": False, "repair": {}}} for role in ("me", "remote")]
+    before_narrowed = deepcopy(narrowed)
+    for row in narrowed:
+        assert I.assess_utterance(row)["automatic_edit_allowed"] is False
+        view = P.display_turns([row])[0]
+        assert view["interval_provenance"]["source_interval"]["start"] == 10.0
+        assert view["source_interval"]["start"] == 12.5  # Legacy display field is unchanged.
+        assert "text_interval_narrowed_without_word_support" in "\n".join(P.render_body([view]))
+        assert view["text"] == row["text"] and view["start"] == row["start"]
+    assert narrowed == before_narrowed
+    short = {"id": "short", "role": "me", "start": 0.0, "end": 0.4, "text": "Yes.",
+             "source_start": 0.0, "source_end": 0.4}
+    assert I.assess_utterance(short) is None
+    assert I.assess_utterance({**short, "source_end": 0.6}) is None
+    assert I.assess_utterance({**short, "source_end": 10.0}) is None
+    assert I.assess_utterance({**narrowed[0], "start": 10.5, "text": "Several calm words."}) is None
+    for malformed in (None, [], "legacy"):
+        assert I.assess_utterance({**narrowed[0], "quality": malformed}) is not None
+        assert I.assess_utterance({**narrowed[0], "source_end": malformed}) is None
+    # A substantial remote trim at normal character density can still crowd words.
+    remote = {**narrowed[1], "source_start": 0., "source_end": 12., "start": 0., "end": 6.,
+              "text": " ".join(["word"] * 30)}
+    assert I.assess_utterance(remote)["words_per_sec"] == 5.0
+    supported = deepcopy(narrowed[0])
+    supported["quality"]["repair"] = {"micro_reasr": {"selected_words": [
+        {"word": supported["text"], "start_ms": 12500, "end_ms": 13780}]}}
+    assert I.assess_utterance(supported) is None
+    supported["quality"]["repair"]["micro_reasr"]["selected_words"][0]["word"] = "Incomplete."
+    assert I.assess_utterance(supported) is not None
 
     with tempfile.TemporaryDirectory(prefix="murmurmark-acoustic-timing-") as temp:
         session = Path(temp)

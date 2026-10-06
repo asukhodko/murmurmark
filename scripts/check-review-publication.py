@@ -189,6 +189,7 @@ def check_publication(root):
             (M.publication, "selection_publication_implementation_stale"),
             (M.micro_asr_evidence, "selection_micro_evidence_implementation_stale"),
             (M.acoustic_timing_evidence, "selection_acoustic_timing_implementation_stale"),
+            (M.transcript_interval_evidence, "selection_interval_evidence_implementation_stale"),
         ):
             with patch.object(module, "__file__", str(root / "missing_helper.py")):
                 assert reason in M.verify_existing(session, out, "reviewed_v1", aggregate, dialogue)[1]

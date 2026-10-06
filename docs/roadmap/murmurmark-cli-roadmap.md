@@ -1,12 +1,12 @@
 # MurmurMark CLI Roadmap
-Updated: 2026-10-05
+Updated: 2026-10-06
 Это читаемое представление активного плана OpsKarta v3:
 
 - `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`
 YAML владеет статусами и зависимостями. `docs/project/current-goal.md` раскрывает единственную
 исполняемую цель. Завершённые эксперименты остаются в `docs/research/`, `docs/testing/` и
 `docs/history/`, но не определяют текущий приоритет.
-Ремонт 1 и 5 октября улучшает времена, полноту review и сохранение v3 labels. ASR/cache ещё требуют квалификации. [Проверки](../testing/2026-10-05-review-accounting-and-cache.md).
+Ремонт 1–6 октября: interval-проверки, полный review, сохранение labels, metadata-only finalization и shared listening. [Работы и ограничения](../project/2026-10-06-transcript-evidence-repair.md).
 ## Правила Планирования
 - В работе находится ровно одна цель со статусом `current`.
 - Основной путь заканчивается надёжной speaker-resolved транскрибацией, а не производными заметками.
@@ -281,8 +281,8 @@ frozen eligibility, области решения, provenance, bounded cancellat
 Три cached replay сохранили основной текст и raw. См. [план](../project/2026-09-30-transcript-reliability-repair-plan.md)
 и [проверки](../testing/2026-09-30-review-safe-handoff.md).
 ### 39. Bounded Evidence Compute v1: `current`
-Micro-ASR cache пока candidate-only. Raw недоступен для 11/12 прежних Echo qualification sessions;
-нужны новый явный корпус, producer requalification и измерение cold/warm, прежде чем менять production.
+Cache candidate-only: три finalization прошли в пределах 30s, шесть canary дают один decode на пару, но это не full-session speedup. Raw отсутствует для 11/12 прежних Echo sessions.
+Далее: replacement corpus и producer qualification; отдельно word-ownership и long-remote/cluster-purity с независимыми эталонами. Нынешние warnings не закрывают эти задачи.
 ### 40. Human-Reviewed Lexical Seed v1 — `blocked`
 Две реальные встречи, 24 primary + 4 repeats; `REVIEW_REQUIRED` (`0/28`), machine/cloud — только диагностика.
 ### 41. Session-Scoped Lexical Context v1 — `blocked`

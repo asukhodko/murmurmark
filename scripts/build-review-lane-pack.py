@@ -1041,6 +1041,8 @@ def suggested_decision_for_group(
     stronger_by_session: dict[str, list[dict[str, Any]]],
     target_me_by_session: dict[str, list[dict[str, Any]]],
 ) -> tuple[str, Any, str, dict[str, Any] | None, dict[str, Any] | None]:
+    if any((row.get("review_features") or {}).get("interval_ownership_review") for row in rows):
+        return "needs_review", "low", "word ownership requires interval evidence, not a voice confirmation", None, None
     stronger_decision, confidence, reason, summary = stronger_suggested_decision(rows, stronger_by_session)
     target_decision, target_confidence, target_reason, target_summary = target_me_suggested_decision(
         rows,
@@ -1187,6 +1189,7 @@ def row_feature_snapshot(row: dict[str, Any]) -> dict[str, Any]:
         "sequence_ratio",
         "likely_partial_me_utterance",
         "unsupported_micro_asr_fallback",
+        "interval_ownership_review",
         "unstable_micro_asr_success",
         "micro_asr_selection_review_reasons",
         "micro_asr_chars_per_sec",

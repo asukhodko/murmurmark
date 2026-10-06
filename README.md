@@ -319,11 +319,11 @@ speaker-aware memory and notes are optional derivatives outside the critical pro
 
 The terminal instrument keeps continuity, chronology, speaker-count truth, unknown duration and
 human-reviewed lexical accuracy as separate gates. **Review-Safe Attributed Handoff v1** is complete;
-the current qualification task is **Bounded Evidence Compute v1**. Chronology retains a bounded residue:
+the current qualification task is **Bounded Evidence Compute v1**.
+The [October 6 repair](docs/project/2026-10-06-transcript-evidence-repair.md) adds interval checks,
+cached finalization and shared listening. ASR cache and new word/speaker selection remain unpromoted.
 ```bash
 murmurmark corpus lexical-seed-v1 progress
-murmurmark corpus chronology-arbitration-v1 status
-murmurmark corpus chronology-localization-v1 status
 murmurmark corpus terminal-gate-v1 status
 murmurmark corpus terminal-gate-v1 replay
 ```

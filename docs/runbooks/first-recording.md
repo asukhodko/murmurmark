@@ -18,16 +18,22 @@ For an already transcribed session, a report-only repair can reuse existing spea
 
 ```bash
 SESSION="sessions/<session-id>"
-MURMURMARK_SPEAKER_REFRESH_MODE=cache_only murmurmark report "$SESSION"
+MURMURMARK_FINALIZE_ONLY=1 murmurmark report "$SESSION"
 murmurmark outcome "$SESSION"
 murmurmark transcript "$SESSION" --cat
 ```
 
 Missing or incompatible evidence remains explicit unknown. This command does not run primary ASR.
+It also avoids new speaker inference, decision rebasing and review audio construction. The lightweight
+listening index is `derived/readiness/review-plan/review_listening_contexts.md`; questions sharing a
+clip still require independent answers. Ordinary `murmurmark report` retains the full review workflow.
+The automatic final meeting refresh uses this lightweight path within its existing 30-second bound.
 The new micro-ASR content cache is still a lab candidate, pending producer qualification; do not
 expect a measured production ASR speedup from this repair. See the
 [handoff report](../testing/2026-09-30-review-safe-handoff.md) and
 [publication verification](../testing/2026-10-01-acoustic-publication-repair.md).
+The [October 6 repair](../project/2026-10-06-transcript-evidence-repair.md) also detects suspicious
+ordinary interval refinements, without altering words or using a density warning to delete speech.
 
 Use this runbook to prove that a fresh machine can record a minimal MurmurMark session and prepare it for transcription.
 

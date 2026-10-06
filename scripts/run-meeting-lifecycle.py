@@ -622,6 +622,8 @@ class MeetingLifecycle:
                 extra_env = None
                 if action in REFRESH_ACTIONS and action != "attribute_speakers":
                     extra_env = {"MURMURMARK_SPEAKER_REFRESH_MODE": "cache_only"}
+                    if action == "refresh_final_state":
+                        extra_env["MURMURMARK_FINALIZE_ONLY"] = "1"
                 elif action == "enrich" and timeout_sec is not None:
                     extra_env = {
                         "MURMURMARK_DEFERRED_BOUNDED": "1",

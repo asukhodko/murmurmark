@@ -150,6 +150,7 @@ def required_layout(root: Path) -> None:
         "scripts/audit-review-decision-evidence.py",
         "scripts/materialize-provisional-speaker-transcript.py",
         "scripts/micro_asr_evidence.py",
+        "scripts/transcript_interval_evidence.py",
         "scripts/transcript_publication.py",
         "scripts/acoustic_timing_evidence.py",
         "policies/remote-speaker-cluster-purity-reference-v1.json",

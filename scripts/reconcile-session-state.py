@@ -141,6 +141,7 @@ def refresh_review_plan(
     stages: list[dict[str, Any]],
     *,
     rebase: bool,
+    metadata_only: bool = False,
 ) -> None:
     py = sys.executable
     readiness = session / "derived/readiness"
@@ -195,6 +196,8 @@ def refresh_review_plan(
         "--session",
         session.name,
     ]
+    if metadata_only:
+        workspace_command.append("--metadata-only")
     if rebase:
         workspace_command.append("--rebase-decisions")
         applied_dir = session / "derived/transcript-simple/whisper-cpp/review-decisions"
@@ -353,7 +356,11 @@ def verify_consistency(session: Path) -> dict[str, Any]:
 
 def main() -> int:
     args = parse_args()
-    cached_speakers = args.cached_speakers_only or os.environ.get("MURMURMARK_SPEAKER_REFRESH_MODE") == "cache_only"
+    finalize_only = os.environ.get("MURMURMARK_FINALIZE_ONLY") == "1"
+    if finalize_only:
+        args.skip_review_rebase = True
+    cached_speakers = (finalize_only or args.cached_speakers_only
+                       or os.environ.get("MURMURMARK_SPEAKER_REFRESH_MODE") == "cache_only")
     session = args.session.expanduser().resolve()
     repo_root = Path(__file__).resolve().parents[1]
     if not (session / "session.json").is_file():
@@ -380,6 +387,7 @@ def main() -> int:
         "reason": args.reason,
         "started_at": datetime.now(timezone.utc).isoformat(),
         "status": "running",
+        "metadata_only": finalize_only,
         "previous_authoritative_fallback": fallback,
         "stages": stages,
     }
@@ -396,6 +404,7 @@ def main() -> int:
             repo_root,
             stages,
             rebase=not args.skip_review_rebase,
+            metadata_only=finalize_only,
         )
         if not args.skip_review_rebase:
             apply_rebased_review(session, repo_root, stages)

@@ -3,6 +3,7 @@
 Current repair: [Transcript reliability repair plan, 2026-09-30](project/2026-09-30-transcript-reliability-repair-plan.md).
 Its first package, Review-Safe Attributed Handoff v1, is complete; the current frontier is
 Bounded Evidence Compute v1. See [verification and remaining bounds](testing/2026-09-30-review-safe-handoff.md).
+Latest checkpoint: [interval evidence, lightweight finalization and shared listening](project/2026-10-06-transcript-evidence-repair.md).
 
 Read in this order:
 

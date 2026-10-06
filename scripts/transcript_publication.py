@@ -6,8 +6,9 @@ import math
 from typing import Any
 
 from micro_asr_evidence import assess_utterance
+import transcript_interval_evidence as interval_evidence
 
-VERSION = "display_turns_v1"
+VERSION = "display_turns_v2"
 
 
 def interval(row: dict[str, Any]) -> tuple[float, float] | None:
@@ -72,6 +73,10 @@ def display_turns(utterances: list[dict[str, Any]], attributions: dict[str, dict
             timing = {}
         turns = utterance.get("speaker_turns") if remote else None
         reasons = review_reasons(utterance.get("quality"))
+        interval_review = interval_evidence.assess_utterance(utterance)
+        if interval_review:
+            reasons.extend({"facet": "time", "reason": reason, "evidence_key": "interval_provenance"}
+                           for reason in interval_review["reasons"])
         micro_review = assess_utterance(utterance)
         if micro_review:
             reasons.extend({"facet": "text", "reason": reason, "evidence_key": "quality.repair.micro_reasr"}
@@ -117,6 +122,7 @@ def display_turns(utterances: list[dict[str, Any]], attributions: dict[str, dict
                 "start": chosen[0] if chosen else None, "end": chosen[1] if chosen else None,
                 "time_basis": basis,
                 "source_interval": {"start": turn.get("start"), "end": turn.get("end")},
+                "interval_provenance": interval_evidence.provenance(utterance),
                 "review_reasons": warnings,
             })
     result.sort(key=lambda r: (r["start"] if r["start"] is not None else float("inf"), r["parent_position"], r["turn_index"]))

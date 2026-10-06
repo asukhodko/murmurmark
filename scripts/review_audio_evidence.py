@@ -16,6 +16,8 @@ QUEUE_IMPLEMENTATIONS = (
     Path(__file__).with_name("report-review-decisions-progress.py").resolve(),
     Path(__file__).with_name("report-operational-readiness.py").resolve(),
     Path(__file__).with_name("build-review-plan.py").resolve(),
+    Path(__file__).with_name("transcript_interval_evidence.py").resolve(),
+    Path(__file__).with_name("micro_asr_evidence.py").resolve(),
 )
 
 
@@ -215,6 +217,8 @@ def automatic_drop_supported(rows: list[dict[str, Any]], evidence: list[dict[str
     if not rows:
         return False
     for row in rows:
+        if (row.get("review_features") or {}).get("interval_ownership_review"):
+            return False
         if "drop_me" not in (row.get("allowed_decisions") or []) or not any(
             role(target) == "me" for target in review_targets(row)
         ):
@@ -269,6 +273,7 @@ def effective_decision(row: dict[str, Any]) -> str:
         return decision
     receipt = (row.get("review_evidence") or {}).get("suggestion_receipt") or {}
     if (decision_origin(row) == "automatic" and receipt.get("resolved_scope") == "local_voice"
+            and not (row.get("review_features") or {}).get("interval_ownership_review")
             and row.get("source") not in {"transcript_order", "local_recall", "transcript_text"}
             and row.get("review_lane") not in {"check_transcript_order", "check_transcript_text"}):
         return decision
@@ -280,7 +285,8 @@ def automatic_keep_supported(rows: list[dict[str, Any]], evidence: list[dict[str
     if not rows:
         return False
     for row in rows:
-        if (row.get("source") in {"transcript_order", "local_recall", "transcript_text"}
+        if ((row.get("review_features") or {}).get("interval_ownership_review")
+                or row.get("source") in {"transcript_order", "local_recall", "transcript_text"}
                 or row.get("review_lane") in {"check_transcript_order", "check_transcript_text"}):
             return False
         matches = [item for item in evidence if item.get("evidence_files") and evidence_matches_review_row(row, item)]

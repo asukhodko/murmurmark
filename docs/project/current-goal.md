@@ -1,6 +1,6 @@
 # Current Goal
 
-Updated: 2026-10-05
+Updated: 2026-10-06
 
 This document expands the single executable goal from
 `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`.
@@ -36,6 +36,17 @@ OpsKarta nearest goal: Bounded Evidence Compute v1: квалифицироват
 7. Недостаточный корпус означает явный DO_NOT_PROMOTE, а не ослабление gate или обещание ускорения.
 
 ## Current Evidence
+
+Checkpoint 6 октября: общий interval ownership check добавлен для обычных Me/remote кандидатов,
+в том числе с пустым `repair`. Подозрительная плотность после сужения попадает в publication и
+полную очередь; обычное VAD-уточнение само по себе не создаёт обязательное ревью. Исходные,
+recognition и выбранные границы сохраняются раздельно. Финализация использует только кэш
+speaker evidence и review-метаданные, не режет WAV и не переписывает ответы. Shared listening
+сохраняет независимые решения. Три cached reconciliation прошли за 11.00/9.77/6.94s в пределах
+30s; это не измерение полного lifecycle. На трёх доступных сессиях выполнены шесть cold/warm
+canaries (один decode на пару, одинаковый relative output). Изменение producer, новый word
+selector и ослабление cluster gates не продвинуты: остаются отдельные qualification gates.
+[Работы и точный остаток](2026-10-06-transcript-evidence-repair.md).
 
 Checkpoint 5 октября: устранены два ограничения полноты review (40 строк и 80 групп), preview
 отделён от полной очереди и шаблона. Проверены сохранение v3 labels при изменении review-метаданных

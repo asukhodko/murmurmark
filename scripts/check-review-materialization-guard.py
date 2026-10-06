@@ -37,6 +37,19 @@ def main() -> int:
         "murmurmark_stronger_audio_micro_fallback",
     )
 
+    for role in ("me", "remote"):
+        refined = {"id": "trimmed", "role": role, "start": 12.5, "end": 13.78,
+                   "source_start": 10.0, "source_end": 13.78,
+                   "text": "A full sentence with unsupported trimmed timing.",
+                   "quality": {"needs_review": False, "repair": {}}}
+        assert readiness.has_text_review(refined)
+        question = readiness.compact_transcript_text_utterance(
+            {"session_id": "fixture", "session": "/tmp/fixture"}, refined)
+        assert question["review_features"]["interval_ownership_review"]["status"] == "needs_review"
+        assert "drop_me" not in question["allowed_decisions"]
+        assert lane.suggested_decision_for_group([question], {}, {})[0] == "needs_review"
+        assert lane.row_feature_snapshot(question)["interval_ownership_review"]
+
     swift_source = (
         Path(__file__).parents[1] / "Sources/MurmurMarkCLI/MurmurMarkCLI.swift"
     ).read_text(encoding="utf-8")

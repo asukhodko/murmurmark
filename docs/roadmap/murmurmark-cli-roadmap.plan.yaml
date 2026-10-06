@@ -902,6 +902,12 @@ nodes:
       лимитами 40/80. Cached replay сохранил raw/текст и пять v3 labels (96.0157% coverage), выявил
       полный остаток 226 задач / 632.42s unique audio. Micro inventory: 735 clips / 324 unique PCM;
       добавлен изолированный cold/warm checker, production cache по-прежнему требует квалификации.
+      Checkpoint 2026-10-06: general interval ownership warning для обычных Me/remote, раздельная
+      provenance source/recognition/selected, metadata-only finalization без нового inference/WAV,
+      shared listening с независимыми answers. Три cached finalization: 11.00/9.77/6.94s при лимите
+      30s; шесть real-model cold/warm canaries дали один decode на пару. Production cache,
+      word-bounded replacement и локализация cluster instability остаются DO_NOT_PROMOTE до
+      независимой квалификации. Это не завершение Bounded Evidence Compute и не full-session speedup.
 
   quality-human-reviewed-lexical-seed-v1:
     title: "Human-Reviewed Lexical Seed v1"

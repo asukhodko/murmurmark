@@ -18,6 +18,7 @@ from typing import Any
 import transcript_publication as publication
 import micro_asr_evidence
 import acoustic_timing_evidence
+import transcript_interval_evidence
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = "0.3.1"
@@ -760,6 +761,7 @@ def semantic_basis(payload: dict[str, Any]) -> dict[str, Any]:
             "publication_implementation",
             "micro_evidence_implementation",
             "acoustic_timing_implementation",
+            "interval_evidence_implementation",
             "acoustic_timing_evidence",
         )
     }
@@ -797,6 +799,8 @@ def verify_existing(
         reasons.append("selection_micro_evidence_implementation_stale")
     if not same_identity(payload.get("acoustic_timing_implementation"), Path(acoustic_timing_evidence.__file__).resolve()):
         reasons.append("selection_acoustic_timing_implementation_stale")
+    if not same_identity(payload.get("interval_evidence_implementation"), Path(transcript_interval_evidence.__file__).resolve()):
+        reasons.append("selection_interval_evidence_implementation_stale")
     timing = payload.get("acoustic_timing_evidence") or {}
     audio = session / "audio/remote/000001.caf"
     if timing.get("audio") != acoustic_timing_evidence.fingerprint(audio, session):
@@ -1019,6 +1023,7 @@ def materialize(args: argparse.Namespace) -> dict[str, Any]:
         "publication_implementation": identity(Path(publication.__file__).resolve()),
         "micro_evidence_implementation": identity(Path(micro_asr_evidence.__file__).resolve()),
         "acoustic_timing_implementation": identity(Path(acoustic_timing_evidence.__file__).resolve()),
+        "interval_evidence_implementation": identity(Path(transcript_interval_evidence.__file__).resolve()),
         "acoustic_timing_evidence": timing_evidence,
         "display_turns": display_rows,
         "safety": {
@@ -1072,6 +1077,7 @@ def materialize(args: argparse.Namespace) -> dict[str, Any]:
         "publication_implementation": identity(Path(publication.__file__).resolve()),
         "micro_evidence_implementation": identity(Path(micro_asr_evidence.__file__).resolve()),
         "acoustic_timing_implementation": identity(Path(acoustic_timing_evidence.__file__).resolve()),
+        "interval_evidence_implementation": identity(Path(transcript_interval_evidence.__file__).resolve()),
         "acoustic_timing_evidence": timing_evidence,
         "batch_authoritative": True,
         "aggregate_fallback_available": True,

@@ -101,9 +101,12 @@ def main():
         automatic = {**row, "decision": "keep_me", "review_source": "workspace_suggested_answers",
                      "review_evidence": {"suggestion_receipt": keep_receipt}}
         assert evidence.effective_decision(automatic) == "keep_me"
-        for facet in ({"source": "transcript_text"}, {"review_lane": "check_transcript_text"}):
+        for facet in ({"source": "transcript_text"}, {"review_lane": "check_transcript_text"},
+                      {"review_features": {"interval_ownership_review": {"status": "needs_review"}}}):
             assert not evidence.automatic_keep_supported([{**row, **facet}], [local])
             assert evidence.effective_decision({**automatic, **facet}) == "needs_review"
+        assert not evidence.automatic_drop_supported([
+            {**row, "review_features": {"interval_ownership_review": {"status": "needs_review"}}}], [candidate])
         for unproven in ({**automatic, "review_evidence": {}}, {**automatic, "review_source": ""}):
             assert evidence.effective_decision(unproven) == "needs_review"
         assert evidence.effective_decision({**row, "decision": "keep_me", "review_source": "manual"}) == "keep_me"

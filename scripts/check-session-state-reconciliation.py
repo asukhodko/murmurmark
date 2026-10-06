@@ -47,19 +47,27 @@ def main() -> None:
             return 0
 
         with (
-            patch.object(sys, "argv", [str(SCRIPT), str(session), "--skip-review-rebase"]),
-            patch.dict(os.environ, {"MURMURMARK_SPEAKER_REFRESH_MODE": "cache_only"}),
-            patch.object(module, "refresh_review_plan"),
+            patch.object(sys, "argv", [str(SCRIPT), str(session)]),
+            patch.dict(os.environ, {"MURMURMARK_FINALIZE_ONLY": "1"}),
+            patch.object(module, "refresh_review_plan") as refresh,
             patch.object(module, "run_stage", side_effect=collect),
             patch.object(module, "verify_consistency", return_value={"passed": True}),
         ):
             assert module.main() == 0
+        refresh.assert_called_once()
+        assert refresh.call_args.kwargs == {"rebase": False, "metadata_only": True}
+        assert not any(name == "apply_rebased_review" for name, _ in commands)
         for name in ("speaker_selection", "provisional_speaker_transcript"):
             invocation = next(command for stage, command in commands if stage == name)
             expected = "--verify-only" if name == "speaker_selection" else "--cached-only"
             assert expected in invocation and "--refresh-evidence" not in invocation
         audit = next(command for name, command in commands if name == "transcript_order_current_profile")
         assert audit[-2:] == ["--profile", "auto"]
+        commands.clear()
+        with patch.object(module, "run_stage", side_effect=collect):
+            module.refresh_review_plan(session, SCRIPT.parent.parent, [], rebase=False, metadata_only=True)
+        workspace = next(command for name, command in commands if "workspace" in name)
+        assert "--metadata-only" in workspace and "--rebase-decisions" not in workspace
     print("session state reconciliation interruption ok")
 
 
